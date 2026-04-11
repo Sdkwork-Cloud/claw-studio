@@ -6,8 +6,6 @@ export function shouldRenderChatRuntimeWarmersForPath(pathname: string) {
     pathname === ROUTE_PATHS.LOGIN ||
     pathname === ROUTE_PATHS.REGISTER ||
     pathname === ROUTE_PATHS.FORGOT_PASSWORD ||
-    pathname.startsWith(ROUTE_PATHS.OAUTH_CALLBACK_PREFIX) ||
-    pathname === ROUTE_PATHS.INSTALL ||
-    pathname.startsWith(`${ROUTE_PATHS.INSTALL}/`)
+    pathname.startsWith(ROUTE_PATHS.OAUTH_CALLBACK_PREFIX)
   );
 }

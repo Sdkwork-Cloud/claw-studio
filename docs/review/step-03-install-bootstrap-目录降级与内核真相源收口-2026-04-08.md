@@ -7,7 +7,7 @@
 
 ## 2. 代码落地
 
-- `packages/sdkwork-claw-install/src/services/openClawBootstrapService.ts`
+- `packages/removed-install-feature/src/services/openClawBootstrapService.ts`
   - `loadBootstrapData()` 现在在进入配置定位前先读取 `kernelPlatformService.getInfo()`，把 `openClawRuntime.homeDir` 显式注入 `resolveConfigPath()`。
   - 新增 `resolveClawHubCatalogService()` 与 `loadClawHubCatalogSnapshot()`，按需读取 `clawHubService`；当当前运行面只暴露 Node-safe root 入口或目录服务失败时，回退为空目录而不阻断 bootstrap 主链。
   - `resolveSelectedSkills()` 与 `loadBootstrapData()` 统一改用目录快照读取，避免对 `clawHubService` 的静态根导入。
@@ -29,7 +29,7 @@
 | 命令 | 结果 | 说明 |
 | --- | --- | --- |
 | `node --experimental-strip-types scripts/sdkwork-core-contract.test.ts` | 通过 | `@sdkwork/claw-core` 继续保持 Node-safe root 入口，不需要为 install bootstrap 放宽核心包边界。 |
-| `node --experimental-strip-types packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts` | 通过 | 验证 bootstrap 能优先采用 Kernel `openClawRuntime.homeDir`，并且在目录服务不可用时继续完成主链。 |
+| `node --experimental-strip-types packages/removed-install-feature/src/services/openClawBootstrapService.test.ts` | 通过 | 验证 bootstrap 能优先采用 Kernel `openClawRuntime.homeDir`，并且在目录服务不可用时继续完成主链。 |
 | `pnpm.cmd check:sdkwork-install` | 通过 | guided install package root 与 install-local 聚合契约保持一致。 |
 | `pnpm.cmd check:desktop-openclaw-runtime` | 通过 | readiness、runtime 准备与桌面发布资产校验链保持通过，证明本轮变更没有破坏 Step 03 既有 OpenClaw 交付基线。 |
 | `cargo test --manifest-path packages/sdkwork-claw-desktop/src-tauri/Cargo.toml --target-dir target/step03-proof desktop_kernel_info_exposes_extended_runtime_directories` | 通过 | 桌面 Kernel 仍能稳定输出 `openClawRuntime` 目录与快照事实，Install Bootstrap 对该真相源的消费链具备 Rust 侧证据。 |

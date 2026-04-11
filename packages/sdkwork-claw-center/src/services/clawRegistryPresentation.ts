@@ -336,7 +336,7 @@ export function resolveRegistryQuickConnectAction(
 
   return {
     kind: 'install',
-    to: '/install?product=openclaw',
+    to: '/docs#script',
     instanceId: null,
   };
 }

@@ -86,7 +86,6 @@ This loop records a fresh current-worktree hotspot re-baseline. Because the work
   - `pnpm --filter @sdkwork/claw-web lint`
   - `pnpm build`
 - YELLOW:
-  - repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 
 ## Closure Status
 

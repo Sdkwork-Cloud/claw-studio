@@ -163,7 +163,7 @@ Expected: PASS.
 - Modify: `packages/sdkwork-claw-extensions/src/**/*`
 - Modify: `packages/sdkwork-claw-github/src/**/*`
 - Modify: `packages/sdkwork-claw-huggingface/src/**/*`
-- Modify: `packages/sdkwork-claw-install/src/**/*`
+- Modify: `packages/removed-install-feature/src/**/*`
 - Modify: `packages/sdkwork-claw-instances/src/**/*`
 - Modify: `packages/sdkwork-claw-market/src/**/*`
 - Modify: `packages/sdkwork-claw-tasks/src/**/*`

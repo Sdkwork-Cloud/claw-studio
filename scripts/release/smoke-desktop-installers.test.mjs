@@ -117,31 +117,60 @@ function buildInstallReadyLayout({
   };
 }
 
-test('desktop installer smoke module can be imported without vendored hub-installer dist when installer functions are injected', async () => {
+test('desktop installer smoke module imports without vendored removed installer bindings', async () => {
   const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
-  const originalSource = readFileSync(smokePath, 'utf8');
-  const tempModulePath = path.join(
-    rootDir,
-    'scripts',
-    'release',
-    `smoke-desktop-installers.injected-${process.pid}-${Date.now()}.mjs`,
+  const source = readFileSync(smokePath, 'utf8');
+
+  assert.doesNotMatch(source, /vendor\/[^/]+\/registry\//);
+  assert.doesNotMatch(source, /resolveInstallerBindings/);
+  assert.doesNotMatch(source, /loadInstallerModule/);
+  assert.doesNotMatch(source, /ensureInstallerDistReady/);
+
+  const smoke = await import(pathToFileURL(smokePath).href);
+  assert.equal(typeof smoke.smokeDesktopInstallers, 'function');
+});
+
+test('desktop installer smoke exports local planning helpers for default dry-run summaries', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  assert.equal(typeof smoke.resolveDesktopInstallerPlanningPlatform, 'function');
+  assert.equal(typeof smoke.detectDesktopInstallerFormat, 'function');
+  assert.equal(typeof smoke.createDesktopInstallPlan, 'function');
+  assert.equal(smoke.resolveDesktopInstallerPlanningPlatform('linux'), 'ubuntu');
+  assert.equal(smoke.resolveDesktopInstallerPlanningPlatform('windows'), 'windows');
+  assert.equal(
+    smoke.detectDesktopInstallerFormat('C:/tmp/Claw Studio_0.1.0_x64-setup.exe'),
+    'exe',
   );
-  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-injected-import-'));
+  assert.equal(
+    smoke.detectDesktopInstallerFormat('/tmp/claw-studio_0.1.0_amd64.deb'),
+    'deb',
+  );
+
+  const plan = await smoke.createDesktopInstallPlan({
+    source: 'C:/tmp/Claw Studio_0.1.0_x64-setup.exe',
+    platform: 'windows',
+    format: 'exe',
+    dryRun: true,
+  });
+
+  assert.equal(plan.request.platform, 'windows');
+  assert.equal(plan.request.format, 'exe');
+  assert.equal(plan.request.dryRun, true);
+  assert.ok(Array.isArray(plan.steps));
+  assert.ok(plan.steps.length > 0);
+});
+
+test('desktop installer smoke uses the default local planner when no installer functions are injected', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-default-planner-'));
   const releaseAssetsDir = path.join(tempRoot, 'release-assets');
   const installerRelativePath = 'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe';
 
   try {
-    writeFileSync(
-      tempModulePath,
-      originalSource.replaceAll(
-        'vendor/hub-installer/dist/index.mjs',
-        'vendor/hub-installer/dist/__missing__/index.mjs',
-      ),
-      'utf8',
-    );
-
-    const smoke = await import(`${pathToFileURL(tempModulePath).href}?cacheBust=${Date.now()}`);
-
     writeArtifactFile(releaseAssetsDir, installerRelativePath);
     writeDesktopManifest({
       releaseAssetsDir,
@@ -171,92 +200,14 @@ test('desktop installer smoke module can be imported without vendored hub-instal
           installKey: '2026.4.7-windows-x64',
         }),
       }),
-      detectFormatFn(source) {
-        return path.extname(source).slice(1).toLowerCase();
-      },
-      createInstallPlanFn: async (request) => ({
-        request,
-        steps: [
-          {
-            id: 'install-exe',
-            description: 'synthetic windows install',
-            command: 'installer.exe',
-          },
-        ],
-        notes: [],
-      }),
+      readDesktopOpenClawInstallerContractFn: async () => buildInstallerContract('windows'),
     });
 
     assert.equal(result.installPlans.length, 1);
     assert.equal(result.installPlans[0].artifact.relativePath, installerRelativePath);
-  } finally {
-    rmSync(tempModulePath, { force: true });
-    rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test('desktop installer smoke resolves hub-installer bindings on demand when default vendor dist is required', async () => {
-  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
-  const smoke = await import(pathToFileURL(smokePath).href);
-
-  assert.equal(typeof smoke.resolveHubInstallerBindings, 'function');
-
-  const fakeEntryPath = path.join(rootDir, 'tmp', 'hub-installer', 'dist', 'index.mjs');
-  const callOrder = [];
-  const bindings = await smoke.resolveHubInstallerBindings({
-    ensureHubInstallerDistReadyFn: async () => {
-      callOrder.push('prepare');
-      return fakeEntryPath;
-    },
-    loadHubInstallerModuleFn: async ({ entryPath }) => {
-      callOrder.push('load');
-      assert.equal(entryPath, fakeEntryPath);
-      return {
-        createInstallPlan: async () => ({
-          request: { dryRun: true },
-          steps: [],
-          notes: [],
-        }),
-        detectFormat: () => 'exe',
-      };
-    },
-  });
-
-  assert.deepEqual(callOrder, ['prepare', 'load']);
-  assert.equal(typeof bindings.createInstallPlanFn, 'function');
-  assert.equal(typeof bindings.detectFormatFn, 'function');
-});
-
-test('desktop installer smoke loads the default hub-installer module entry through a file URL', async () => {
-  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
-  const smoke = await import(pathToFileURL(smokePath).href);
-
-  assert.equal(typeof smoke.loadHubInstallerModule, 'function');
-
-  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-module-load-'));
-  const fakeEntryPath = path.join(tempRoot, 'hub-installer-entry.mjs');
-
-  try {
-    writeFileSync(
-      fakeEntryPath,
-      [
-        'export function createInstallPlan() {',
-        '  return { request: { dryRun: true }, steps: [], notes: [] };',
-        '}',
-        'export function detectFormat() {',
-        "  return 'exe';",
-        '}',
-        '',
-      ].join('\n'),
-      'utf8',
-    );
-
-    const module = await smoke.loadHubInstallerModule({
-      entryPath: fakeEntryPath,
-    });
-
-    assert.equal(typeof module.createInstallPlan, 'function');
-    assert.equal(typeof module.detectFormat, 'function');
+    assert.equal(result.installPlans[0].plan.request.platform, 'windows');
+    assert.equal(result.installPlans[0].plan.request.format, 'exe');
+    assert.equal(result.installPlans[0].plan.request.dryRun, true);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -365,7 +316,7 @@ test('desktop installer smoke creates dry-run install plans for Windows installe
   }
 });
 
-test('desktop installer smoke plans every Linux installable artifact through hub-installer dry-run mode', async () => {
+test('desktop installer smoke plans every Linux installable artifact through local dry-run mode', async () => {
   const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
   const smoke = await import(pathToFileURL(smokePath).href);
 

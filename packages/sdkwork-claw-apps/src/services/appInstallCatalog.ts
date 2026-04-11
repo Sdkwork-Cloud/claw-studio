@@ -1,24 +1,24 @@
 import type {
-  HubInstallCatalogEntry,
-  HubInstallCatalogHostPlatform,
-  HubInstallCatalogRuntimePlatform,
-  HubInstallCatalogVariant,
-  HubInstallRequest,
+  InstallCatalogEntry,
+  InstallCatalogHostPlatform,
+  InstallCatalogRuntimePlatform,
+  InstallCatalogVariant,
+  InstallRequest,
   RuntimeInfo,
 } from '@sdkwork/claw-infrastructure';
 
-export type AppInstallHostPlatform = HubInstallCatalogHostPlatform;
-export type AppInstallRuntimePlatform = HubInstallCatalogRuntimePlatform;
-export type AppInstallDefinition = HubInstallCatalogEntry;
-export type AppInstallVariantDefinition = HubInstallCatalogVariant;
+export type AppInstallHostPlatform = InstallCatalogHostPlatform;
+export type AppInstallRuntimePlatform = InstallCatalogRuntimePlatform;
+export type AppInstallDefinition = InstallCatalogEntry;
+export type AppInstallVariantDefinition = InstallCatalogVariant;
 
 export interface AppInstallContext {
   hostPlatform?: AppInstallHostPlatform;
   runtimeInfo?: RuntimeInfo | null;
   variantId?: string;
   requestId?: string;
-  installScope?: HubInstallRequest['installScope'];
-  containerRuntimePreference?: HubInstallRequest['containerRuntimePreference'];
+  installScope?: InstallRequest['installScope'];
+  containerRuntimePreference?: InstallRequest['containerRuntimePreference'];
   wslDistribution?: string;
   dockerContext?: string;
   dockerHost?: string;
@@ -42,7 +42,7 @@ export interface AppResolvedInstallTarget {
   runtimePlatform: AppInstallRuntimePlatform;
   softwareName: string;
   variant: AppInstallVariantDefinition;
-  request: HubInstallRequest;
+  request: InstallRequest;
 }
 
 export function resolveAppHostPlatform(
@@ -114,7 +114,7 @@ export function resolveAppInstallTarget(
     throw new Error(`No install variant is available for app: ${definition.appId}`);
   }
 
-  const request: HubInstallRequest = {
+  const request: InstallRequest = {
     ...variant.request,
     requestId: context.requestId ?? variant.request.requestId,
     installScope: context.installScope ?? variant.request.installScope,

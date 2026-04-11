@@ -27,17 +27,28 @@ function runTest(name: string, fn: () => void) {
 }
 
 runTest('sdkwork-claw-center is implemented locally instead of re-exporting claw-studio-claw-center', () => {
+  const workspacePackage = readJson<{ scripts?: Record<string, string> }>('package.json');
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-center/package.json');
   const indexSource = read('packages/sdkwork-claw-center/src/index.ts');
   const uploadPageSource = read('packages/sdkwork-claw-center/src/pages/ClawUpload.tsx');
+  const centerCheckRunnerSource = read('scripts/run-sdkwork-center-check.mjs');
 
   assert.ok(exists('packages/sdkwork-claw-center/src/pages/ClawCenter.tsx'));
   assert.ok(exists('packages/sdkwork-claw-center/src/pages/ClawDetail.tsx'));
   assert.ok(exists('packages/sdkwork-claw-center/src/services/clawService.ts'));
   assert.ok(exists('packages/sdkwork-claw-center/src/types/index.ts'));
+  assert.ok(exists('scripts/run-sdkwork-center-check.mjs'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-claw-center']);
   assert.ok(pkg.dependencies?.['@sdkwork/claw-infrastructure']);
+  assert.match(
+    workspacePackage.scripts?.['check:sdkwork-center'] ?? '',
+    /node scripts\/run-sdkwork-center-check\.mjs && node --experimental-strip-types scripts\/sdkwork-center-contract\.test\.ts/,
+  );
+  assert.match(
+    centerCheckRunnerSource,
+    /packages\/sdkwork-claw-center\/src\/services\/clawRegistryPresentation\.test\.ts/,
+  );
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-claw-center/);
   assert.match(indexSource, /ClawCenter/);
   assert.match(indexSource, /ClawDetail/);

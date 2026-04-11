@@ -25,7 +25,7 @@ function createApp(overrides: Partial<AppItem> = {}): AppItem {
     developer: 'OpenClaw Labs',
     category: 'AI Agents',
     icon: 'data:image/svg+xml,%3Csvg/%3E',
-    description: 'Install OpenClaw from the shared hub-installer catalog.',
+    description: 'Browse OpenClaw docs and external distribution links.',
     installSummary: 'Rust-backed installer catalog entry.',
     installTags: ['ai', 'assistant'],
     installable: true,
@@ -153,7 +153,7 @@ await runTest('createStoreOverview summarizes catalog totals and install surface
 
 await runTest('createCatalogMetadataFields omits missing values instead of inventing fake detail data', () => {
   const fields = createCatalogMetadataFields({
-    registryName: 'Hub Installer Official Registry',
+    registryName: 'Remote Catalog Official Registry',
     defaultSoftwareName: 'openclaw-wsl',
     selectedSoftwareName: '',
     supportedHostLabels: ['Windows', 'Ubuntu'],
@@ -162,7 +162,7 @@ await runTest('createCatalogMetadataFields omits missing values instead of inven
   assert.deepEqual(fields, [
     {
       id: 'registry',
-      value: 'Hub Installer Official Registry',
+      value: 'Remote Catalog Official Registry',
     },
     {
       id: 'defaultSoftwareName',

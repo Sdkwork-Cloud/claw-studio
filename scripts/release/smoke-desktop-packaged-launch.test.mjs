@@ -200,10 +200,10 @@ test('desktop packaged launch smoke prefers the root desktop executable over nes
     'generated',
     'bundled',
     'modules',
-    'hub-installer',
-    '0.1.0',
+    'openclaw-helper',
+    '2026.4.9',
     'bin',
-    'hub-installer-rs.exe',
+    'openclaw-helper.exe',
   );
   const nestedNodePath = path.join(
     installRoot,
@@ -230,7 +230,7 @@ test('desktop packaged launch smoke prefers the root desktop executable over nes
     mkdirSync(path.dirname(expectedBinaryPath), { recursive: true });
     writeFileSync(expectedBinaryPath, 'synthetic app exe\n', 'utf8');
     mkdirSync(path.dirname(nestedHelperPath), { recursive: true });
-    writeFileSync(nestedHelperPath, 'synthetic hub installer exe\n', 'utf8');
+    writeFileSync(nestedHelperPath, 'synthetic bundled helper exe\n', 'utf8');
     mkdirSync(path.dirname(nestedNodePath), { recursive: true });
     writeFileSync(nestedNodePath, 'synthetic node exe\n', 'utf8');
     writeFileSync(path.join(installRoot, 'uninstall.exe'), 'synthetic uninstall exe\n', 'utf8');

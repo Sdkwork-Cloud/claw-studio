@@ -2,10 +2,10 @@ import {
   installerService,
   runtime,
   studio,
-  type HubInstallAssessmentResult,
-  type HubInstallCatalogEntry,
-  type HubInstallCatalogQuery,
-  type HubInstallRequest,
+  type InstallAssessmentResult,
+  type InstallCatalogEntry,
+  type InstallCatalogQuery,
+  type InstallRequest,
   type RuntimeInfo,
   type StudioCreateInstanceInput,
   type StudioInstanceRecord,
@@ -25,8 +25,8 @@ export interface DiscoveredInstalledOpenClawInstall {
   methodId: string | null;
   methodLabel: string;
   runtimePlatform: 'host' | 'wsl';
-  installControlLevel: HubInstallAssessmentResult['installControlLevel'];
-  installStatus: NonNullable<HubInstallAssessmentResult['installStatus']>;
+  installControlLevel: InstallAssessmentResult['installControlLevel'];
+  installStatus: NonNullable<InstallAssessmentResult['installStatus']>;
   configPath: string | null;
   installRoot: string | null;
   workRoot: string | null;
@@ -39,7 +39,7 @@ export interface DiscoveredInstalledOpenClawInstall {
 }
 
 export interface AssociateInstalledOpenClawInstallInput {
-  request: HubInstallRequest;
+  request: InstallRequest;
 }
 
 export interface AssociateOpenClawConfigPathInput {
@@ -71,8 +71,8 @@ interface InstanceOnboardingDependencies {
     getRuntimeInfo(): Promise<RuntimeInfo>;
   };
   installerApi: {
-    listHubInstallCatalog(query?: HubInstallCatalogQuery): Promise<HubInstallCatalogEntry[]>;
-    inspectHubInstall(request: HubInstallRequest): Promise<HubInstallAssessmentResult>;
+    listInstallCatalog(query?: InstallCatalogQuery): Promise<InstallCatalogEntry[]>;
+    inspectInstall(request: InstallRequest): Promise<InstallAssessmentResult>;
   };
   studioApi: {
     listInstances(): Promise<StudioInstanceRecord[]>;
@@ -98,8 +98,8 @@ function createDefaultDependencies(): InstanceOnboardingDependencies {
       getRuntimeInfo: () => runtime.getRuntimeInfo(),
     },
     installerApi: {
-      listHubInstallCatalog: (query) => installerService.listHubInstallCatalog(query),
-      inspectHubInstall: (request) => installerService.inspectHubInstall(request),
+      listInstallCatalog: (query) => installerService.listInstallCatalog(query),
+      inspectInstall: (request) => installerService.inspectInstall(request),
     },
     studioApi: {
       listInstances: () => studio.listInstances(),
@@ -271,7 +271,7 @@ function getHostOs(runtimeInfo: RuntimeInfo) {
   return 'unknown' as const;
 }
 
-function toCatalogQuery(runtimeInfo: RuntimeInfo): HubInstallCatalogQuery | undefined {
+function toCatalogQuery(runtimeInfo: RuntimeInfo): InstallCatalogQuery | undefined {
   const hostOs = getHostOs(runtimeInfo);
   if (hostOs === 'windows' || hostOs === 'macos') {
     return { hostPlatform: hostOs };
@@ -283,7 +283,7 @@ function toCatalogQuery(runtimeInfo: RuntimeInfo): HubInstallCatalogQuery | unde
   return undefined;
 }
 
-function selectOpenClawCatalogEntry(entries: HubInstallCatalogEntry[]) {
+function selectOpenClawCatalogEntry(entries: InstallCatalogEntry[]) {
   return (
     entries.find((entry) => entry.appId === 'app-openclaw') ||
     entries.find((entry) => entry.defaultSoftwareName === 'openclaw') ||
@@ -291,7 +291,7 @@ function selectOpenClawCatalogEntry(entries: HubInstallCatalogEntry[]) {
   );
 }
 
-function resolveHomeRoots(runtimeInfo: RuntimeInfo, assessment: HubInstallAssessmentResult) {
+function resolveHomeRoots(runtimeInfo: RuntimeInfo, assessment: InstallAssessmentResult) {
   const homeRoots = new Set<string>();
   const runtimeHome = normalizePath(assessment.runtime.runtimeHomeDir);
   const userRoot = normalizePath(runtimeInfo.paths?.userRoot);
@@ -389,7 +389,7 @@ class InstanceOnboardingService {
   async discoverInstalledOpenClawInstalls(): Promise<DiscoveredInstalledOpenClawInstall[]> {
     const runtimeInfo = await this.dependencies.runtimeApi.getRuntimeInfo();
     const entry = selectOpenClawCatalogEntry(
-      await this.dependencies.installerApi.listHubInstallCatalog(toCatalogQuery(runtimeInfo)),
+      await this.dependencies.installerApi.listInstallCatalog(toCatalogQuery(runtimeInfo)),
     );
 
     if (!entry) {
@@ -399,9 +399,9 @@ class InstanceOnboardingService {
     const instances = await this.dependencies.studioApi.listInstances();
     const discovered = await Promise.all(
       entry.variants.map(async (variant): Promise<DiscoveredInstalledOpenClawInstall | null> => {
-        let assessment: HubInstallAssessmentResult;
+        let assessment: InstallAssessmentResult;
         try {
-          assessment = await this.dependencies.installerApi.inspectHubInstall(variant.request);
+          assessment = await this.dependencies.installerApi.inspectInstall(variant.request);
         } catch {
           return null;
         }
@@ -483,7 +483,7 @@ class InstanceOnboardingService {
     input: AssociateInstalledOpenClawInstallInput,
   ): Promise<OpenClawAssociationResult> {
     const runtimeInfo = await this.dependencies.runtimeApi.getRuntimeInfo();
-    const assessment = await this.dependencies.installerApi.inspectHubInstall(input.request);
+    const assessment = await this.dependencies.installerApi.inspectInstall(input.request);
     const configPath = await this.dependencies.openClawConfigApi.resolveInstallConfigPath({
       installRoot: assessment.resolvedInstallRoot,
       workRoot: assessment.resolvedWorkRoot,

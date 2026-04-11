@@ -17,7 +17,6 @@ export const BUNDLED_COMPONENT_IDS: RuntimeBundledComponentId[] = [
   'openclaw',
   'zeroclaw',
   'ironclaw',
-  'hub-installer',
 ];
 
 export function isBundledComponentId(value: string): value is RuntimeBundledComponentId {

@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import {
   resolveOpenClawTarget,
@@ -44,19 +43,6 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..', '..');
 const DEFAULT_RELEASE_ASSETS_DIR = path.join(rootDir, 'artifacts', 'release');
 const RELEASE_ASSET_MANIFEST_FILENAME = 'release-asset-manifest.json';
-const HUB_INSTALLER_VENDOR_DIR = path.join(
-  rootDir,
-  'packages',
-  'sdkwork-claw-desktop',
-  'src-tauri',
-  'vendor',
-  'hub-installer',
-);
-const HUB_INSTALLER_DIST_ENTRY_PATH = path.join(
-  HUB_INSTALLER_VENDOR_DIR,
-  'dist',
-  'index.mjs',
-);
 
 const MACOS_COMPANION_ARCHIVE_SUFFIXES = ['.app.zip', '.app.tar.gz'];
 
@@ -182,145 +168,8 @@ function resolveExpectedInstallReadyLayoutMode(releasePlatform) {
     : 'simulated-prewarm';
 }
 
-function resolvePnpmCommand(platform = process.platform) {
-  return platform === 'win32'
-    ? 'pnpm.cmd'
-    : 'pnpm';
-}
-
-function runHubInstallerPrepareCommand({
-  command,
-  args = [],
-  cwd = HUB_INSTALLER_VENDOR_DIR,
-  label = 'hub-installer command',
-  spawnSyncFn = spawnSync,
-} = {}) {
-  const result = spawnSyncFn(command, args, {
-    cwd,
-    encoding: 'utf8',
-    shell: false,
-  });
-
-  if (result.error) {
-    throw new Error(`${label} failed in ${cwd}: ${result.error.message}`);
-  }
-  if ((result.status ?? 1) !== 0) {
-    const stderr = String(result.stderr ?? '').trim();
-    const stdout = String(result.stdout ?? '').trim();
-    throw new Error(
-      `${label} failed in ${cwd} with exit code ${result.status ?? 'unknown'}.${stderr ? `\n${stderr}` : ''}${stdout ? `\n${stdout}` : ''}`,
-    );
-  }
-}
-
-export function resolveHubInstallerDistEntryPath({
-  workspaceRootDir = rootDir,
-} = {}) {
-  return path.join(
-    workspaceRootDir,
-    'packages',
-    'sdkwork-claw-desktop',
-    'src-tauri',
-    'vendor',
-    'hub-installer',
-    'dist',
-    'index.mjs',
-  );
-}
-
-export function resolveHubInstallerVendorDir({
-  workspaceRootDir = rootDir,
-} = {}) {
-  return path.join(
-    workspaceRootDir,
-    'packages',
-    'sdkwork-claw-desktop',
-    'src-tauri',
-    'vendor',
-    'hub-installer',
-  );
-}
-
-export async function ensureHubInstallerDistReady({
-  workspaceRootDir = rootDir,
-  entryPath = resolveHubInstallerDistEntryPath({ workspaceRootDir }),
-  vendorDir = resolveHubInstallerVendorDir({ workspaceRootDir }),
-  pathExistsFn = existsSync,
-  runPrepareCommandFn = runHubInstallerPrepareCommand,
-  pnpmCommand = resolvePnpmCommand(),
-} = {}) {
-  const resolvedEntryPath = path.resolve(entryPath);
-  if (pathExistsFn(resolvedEntryPath)) {
-    return resolvedEntryPath;
-  }
-
-  runPrepareCommandFn({
-    command: pnpmCommand,
-    args: ['install', '--frozen-lockfile'],
-    cwd: vendorDir,
-    label: 'Install vendored hub-installer dependencies',
-  });
-  runPrepareCommandFn({
-    command: pnpmCommand,
-    args: ['build'],
-    cwd: vendorDir,
-    label: 'Build vendored hub-installer dist',
-  });
-
-  if (!pathExistsFn(resolvedEntryPath)) {
-    throw new Error(
-      `Vendored hub-installer dist entry is still missing after install/build: ${resolvedEntryPath}`,
-    );
-  }
-
-  return resolvedEntryPath;
-}
-
-export async function loadHubInstallerModule({
-  entryPath = HUB_INSTALLER_DIST_ENTRY_PATH,
-  importModuleFn = async (resolvedEntryPath) => import(pathToFileURL(
-    resolvedEntryPath,
-  ).href),
-} = {}) {
-  return importModuleFn(path.resolve(entryPath));
-}
-
-export async function resolveHubInstallerBindings({
-  createInstallPlanFn,
-  detectFormatFn,
-  ensureHubInstallerDistReadyFn = ensureHubInstallerDistReady,
-  loadHubInstallerModuleFn = loadHubInstallerModule,
-} = {}) {
-  let resolvedCreateInstallPlanFn = createInstallPlanFn;
-  let resolvedDetectFormatFn = detectFormatFn;
-
-  if (!resolvedCreateInstallPlanFn || !resolvedDetectFormatFn) {
-    const entryPath = await ensureHubInstallerDistReadyFn();
-    const hubInstallerModule = await loadHubInstallerModuleFn({
-      entryPath,
-    });
-
-    resolvedCreateInstallPlanFn = resolvedCreateInstallPlanFn
-      ?? hubInstallerModule?.createInstallPlan;
-    resolvedDetectFormatFn = resolvedDetectFormatFn
-      ?? hubInstallerModule?.detectFormat;
-  }
-
-  if (typeof resolvedCreateInstallPlanFn !== 'function') {
-    throw new Error('Vendored hub-installer module must export createInstallPlan.');
-  }
-  if (typeof resolvedDetectFormatFn !== 'function') {
-    throw new Error('Vendored hub-installer module must export detectFormat.');
-  }
-
-  return {
-    createInstallPlanFn: resolvedCreateInstallPlanFn,
-    detectFormatFn: resolvedDetectFormatFn,
-  };
-}
-
-export function resolveHubInstallerPlatform(releasePlatform) {
-  if (releasePlatform === 'linux') {
+export function resolveDesktopInstallerPlanningPlatform(releasePlatform) {
+  if (releasePlatform === 'linux' || releasePlatform === 'ubuntu') {
     return 'ubuntu';
   }
 
@@ -328,7 +177,131 @@ export function resolveHubInstallerPlatform(releasePlatform) {
     return releasePlatform;
   }
 
-  throw new Error(`Unsupported desktop smoke platform: ${releasePlatform}`);
+  throw new Error(`Unsupported desktop installer planning platform: ${releasePlatform}`);
+}
+
+export function detectDesktopInstallerFormat(sourcePath) {
+  const normalizedSourcePath = String(sourcePath ?? '').trim().toLowerCase();
+  if (!normalizedSourcePath) {
+    throw new Error('sourcePath is required to detect a desktop installer format.');
+  }
+
+  if (normalizedSourcePath.endsWith('.app.tar.gz')) {
+    return 'tar.gz';
+  }
+  if (normalizedSourcePath.endsWith('.app.zip')) {
+    return 'zip';
+  }
+
+  const extension = path.extname(normalizedSourcePath).slice(1);
+  if (extension === 'exe' || extension === 'msi' || extension === 'deb' || extension === 'rpm' || extension === 'dmg') {
+    return extension;
+  }
+
+  throw new Error(`Unsupported desktop installer artifact format: ${sourcePath}`);
+}
+
+function buildDesktopInstallPlanSteps({
+  source,
+  platform,
+  format,
+} = {}) {
+  const artifactName = path.basename(String(source ?? '').trim());
+
+  if (platform === 'windows' && format === 'exe') {
+    return [
+      {
+        id: 'run-silent-exe-installer',
+        description: 'Run the packaged Windows EXE installer in silent mode.',
+        command: artifactName,
+        args: ['/S'],
+      },
+    ];
+  }
+
+  if (platform === 'windows' && format === 'msi') {
+    return [
+      {
+        id: 'run-msi-installer',
+        description: 'Run the packaged Windows MSI installer in quiet mode.',
+        command: 'msiexec',
+        args: ['/i', artifactName, '/quiet', '/norestart'],
+      },
+    ];
+  }
+
+  if (platform === 'ubuntu' && format === 'deb') {
+    return [
+      {
+        id: 'install-deb-package',
+        description: 'Install the packaged Linux deb artifact.',
+        command: 'dpkg',
+        args: ['-i', artifactName],
+      },
+    ];
+  }
+
+  if (platform === 'ubuntu' && format === 'rpm') {
+    return [
+      {
+        id: 'install-rpm-package',
+        description: 'Install the packaged Linux rpm artifact.',
+        command: 'rpm',
+        args: ['-i', artifactName],
+      },
+    ];
+  }
+
+  if (platform === 'macos' && format === 'dmg') {
+    return [
+      {
+        id: 'attach-dmg',
+        description: 'Attach the packaged macOS dmg artifact.',
+        command: 'hdiutil',
+        args: ['attach', artifactName],
+      },
+    ];
+  }
+
+  throw new Error(
+    `Unsupported desktop installer plan request for ${platform} ${format}: ${source}`,
+  );
+}
+
+export async function createDesktopInstallPlan({
+  source,
+  platform,
+  format,
+  dryRun = true,
+} = {}) {
+  const normalizedSourcePath = path.resolve(String(source ?? '').trim());
+  if (!String(source ?? '').trim()) {
+    throw new Error('source is required to create a desktop installer plan.');
+  }
+
+  const normalizedPlatform = resolveDesktopInstallerPlanningPlatform(platform);
+  const normalizedFormat = String(format ?? '').trim().toLowerCase();
+  if (!normalizedFormat) {
+    throw new Error('format is required to create a desktop installer plan.');
+  }
+
+  return {
+    request: {
+      source: normalizedSourcePath,
+      platform: normalizedPlatform,
+      format: normalizedFormat,
+      dryRun: Boolean(dryRun),
+    },
+    steps: buildDesktopInstallPlanSteps({
+      source: normalizedSourcePath,
+      platform: normalizedPlatform,
+      format: normalizedFormat,
+    }),
+    notes: [
+      'Generated from packaged desktop artifact metadata using the local release smoke planner.',
+      ...(dryRun ? ['No installer payload was executed during this smoke check.'] : []),
+    ],
+  };
 }
 
 export function writeDesktopInstallerSmokeReport({
@@ -461,17 +434,19 @@ export async function smokeDesktopInstallers({
     );
   }
 
-  const installerPlatform = resolveHubInstallerPlatform(releasePlatform);
-  const hubInstallerBindings = await resolveHubInstallerBindings({
-    createInstallPlanFn,
-    detectFormatFn,
-  });
+  const installerPlatform = resolveDesktopInstallerPlanningPlatform(releasePlatform);
+  const resolvedDetectFormatFn = typeof detectFormatFn === 'function'
+    ? detectFormatFn
+    : detectDesktopInstallerFormat;
+  const resolvedCreateInstallPlanFn = typeof createInstallPlanFn === 'function'
+    ? createInstallPlanFn
+    : createDesktopInstallPlan;
   const installPlans = [];
 
   for (const artifact of installableArtifacts) {
     const absolutePath = resolveArtifactAbsolutePath(releaseAssetsDir, artifact);
-    const format = hubInstallerBindings.detectFormatFn(absolutePath);
-    const plan = await hubInstallerBindings.createInstallPlanFn({
+    const format = resolvedDetectFormatFn(absolutePath);
+    const plan = await resolvedCreateInstallPlanFn({
       source: absolutePath,
       platform: installerPlatform,
       format,

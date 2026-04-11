@@ -22,7 +22,7 @@ Build a standardized, reusable Claw engineering foundation with `upgrade/claw-st
 - `sdkwork-claw-github`
 - `sdkwork-claw-huggingface`
 - `sdkwork-claw-i18n`
-- `sdkwork-claw-install`
+- `removed-install-feature`
 - `sdkwork-claw-instances`
 - `sdkwork-claw-market`
 - `sdkwork-claw-settings`
@@ -109,7 +109,7 @@ The target `packages/` directory should remain V5-shaped, with these active busi
 - `sdkwork-claw-github`
 - `sdkwork-claw-huggingface`
 - `sdkwork-claw-i18n`
-- `sdkwork-claw-install`
+- `removed-install-feature`
 - `sdkwork-claw-instances`
 - `sdkwork-claw-market`
 - `sdkwork-claw-settings`

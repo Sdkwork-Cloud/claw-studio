@@ -1,11 +1,10 @@
 import {
-  installerService,
   runtime,
-  type HubInstallAssessmentResult,
-  type HubInstallDependencyResult,
-  type HubInstallRecordStatus,
-  type HubInstallResult,
-  type HubUninstallResult,
+  type InstallAssessmentResult,
+  type InstallDependencyResult,
+  type InstallRecordStatus,
+  type InstallResult,
+  type UninstallResult,
   type RuntimeInfo,
 } from '@sdkwork/claw-infrastructure';
 import {
@@ -41,6 +40,8 @@ export interface AppItem {
   installable?: boolean;
   installSummary?: string;
   installHomepage?: string;
+  storeUrl?: string;
+  downloadUrl?: string;
   installTags?: string[];
   defaultSoftwareName?: string;
   supportedHostPlatforms?: AppInstallHostPlatform[];
@@ -60,7 +61,7 @@ export interface AppInstallInspection {
   app: AppItem;
   definition: AppInstallDefinition;
   target: AppResolvedInstallTarget;
-  assessment: HubInstallAssessmentResult;
+  assessment: InstallAssessmentResult;
 }
 
 export type AppInstallSurfaceState = 'installed' | 'ready' | 'attention';
@@ -70,7 +71,7 @@ export interface AppInstallSurfaceSummary {
   softwareName: string;
   variantId: string;
   runtimePlatform: AppInstallRuntimePlatform;
-  installStatus: HubInstallRecordStatus | null;
+  installStatus: InstallRecordStatus | null;
   ready: boolean;
   state: AppInstallSurfaceState;
   blockingIssueCount: number;
@@ -88,9 +89,6 @@ export interface AppUninstallOptions extends AppInstallContext {
   purgeData?: boolean;
   backupBeforeUninstall?: boolean;
 }
-
-type GuidedInstallProductId = 'openclaw' | 'zeroclaw' | 'ironclaw';
-type GuidedInstallMethodId = 'wsl' | 'docker' | 'npm' | 'pnpm' | 'source' | 'cloud';
 
 const APP_STORE_INSPECTION_CONCURRENCY = 2;
 const INSTALL_SURFACE_SUMMARY_CACHE_TTL_MS = 30_000;
@@ -130,7 +128,7 @@ export interface IAppStoreService {
   getInstallCatalog(context?: AppInstallContext): Promise<AppInstallDefinition[]>;
   getInstallDefinition(id: string, context?: AppInstallContext): Promise<AppInstallDefinition>;
   resolveInstallTarget(id: string, context?: AppInstallContext): Promise<AppResolvedInstallTarget>;
-  inspectInstall(id: string, context?: AppInstallContext): Promise<AppInstallInspection>;
+  inspectSetup(id: string, context?: AppInstallContext): Promise<AppInstallInspection>;
   getInstallSurfaceSummaries(
     appIds: string[],
     context?: AppInstallContext,
@@ -139,12 +137,12 @@ export interface IAppStoreService {
   installDependencies(
     id: string,
     options?: AppInstallDependencyOptions,
-  ): Promise<HubInstallDependencyResult>;
+  ): Promise<InstallDependencyResult>;
   getCategories(): Promise<AppCategory[]>;
   getApp(id: string): Promise<AppItem>;
 
-  installApp(id: string, context?: AppInstallContext): Promise<HubInstallResult>;
-  uninstallApp(id: string, options?: AppUninstallOptions): Promise<HubUninstallResult>;
+  installApp(id: string, context?: AppInstallContext): Promise<InstallResult>;
+  uninstallApp(id: string, options?: AppUninstallOptions): Promise<UninstallResult>;
 }
 
 function uniqStrings(values: Array<string | undefined | null>) {
@@ -210,7 +208,15 @@ function createRemoteCatalogApp(app: AppStoreCatalogApp): AppItem {
     category: app.category,
     description: app.description,
     icon: app.iconUrl || fallbackCatalogIcon(app.id),
+    storeUrl: app.storeUrl,
+    downloadUrl: app.downloadUrl,
   };
+}
+
+function createEmbeddedInstallerRemovedError(action: string) {
+  return new Error(
+    `Embedded install integration was removed. Use the app docs, store page, or download link instead of ${action}.`,
+  );
 }
 
 function sortApps(items: AppItem[]) {
@@ -273,166 +279,6 @@ function createCatalogPresentation(
     itemsById,
     categories: createCatalogCategories(items, remoteCatalog.categories),
   };
-}
-
-function createInstallSurfaceSummary(
-  appId: string,
-  target: AppResolvedInstallTarget,
-  assessment: HubInstallAssessmentResult,
-): AppInstallSurfaceSummary {
-  const blockingIssueCount = assessment.issues.filter((issue) => issue.severity === 'error').length;
-  const warningIssueCount = assessment.issues.filter((issue) => issue.severity === 'warning').length;
-  const dependencyAttentionCount = assessment.dependencies.filter(
-    (dependency) => dependency.status !== 'available',
-  ).length;
-  const autoRemediableDependencyCount = assessment.dependencies.filter(
-    (dependency) => dependency.status !== 'available' && dependency.supportsAutoRemediation,
-  ).length;
-  const state: AppInstallSurfaceState =
-    assessment.installStatus === 'installed'
-      ? 'installed'
-      : assessment.ready
-        ? 'ready'
-        : 'attention';
-
-  return {
-    appId,
-    softwareName: target.softwareName,
-    variantId: target.variant.id,
-    runtimePlatform: target.runtimePlatform,
-    installStatus: assessment.installStatus ?? null,
-    ready: assessment.ready,
-    state,
-    blockingIssueCount,
-    warningIssueCount,
-    dependencyAttentionCount,
-    autoRemediableDependencyCount,
-  };
-}
-
-function inferGuidedInstallProduct(
-  candidates: Array<string | undefined | null>,
-): GuidedInstallProductId | null {
-  for (const candidate of candidates) {
-    const normalized = candidate?.toLowerCase();
-    if (!normalized) {
-      continue;
-    }
-
-    if (normalized.includes('openclaw')) {
-      return 'openclaw';
-    }
-
-    if (normalized.includes('zeroclaw')) {
-      return 'zeroclaw';
-    }
-
-    if (normalized.includes('ironclaw')) {
-      return 'ironclaw';
-    }
-  }
-
-  return null;
-}
-
-function inferGuidedInstallMethod(
-  candidates: Array<string | undefined | null>,
-  runtimePlatform?: AppInstallRuntimePlatform,
-  effectiveRuntimePlatform?: AppResolvedInstallTarget['request']['effectiveRuntimePlatform'],
-): GuidedInstallMethodId | null {
-  const hints = candidates.map((value) =>
-    typeof value === 'string' ? value.toLowerCase() : '',
-  );
-
-  if (hints.some((value) => value.includes('docker'))) {
-    return 'docker';
-  }
-
-  if (hints.some((value) => value.includes('pnpm'))) {
-    return 'pnpm';
-  }
-
-  if (hints.some((value) => value.includes('npm'))) {
-    return 'npm';
-  }
-
-  if (hints.some((value) => value.includes('wsl'))) {
-    return 'wsl';
-  }
-
-  if (hints.some((value) => value.includes('cloud'))) {
-    return 'cloud';
-  }
-
-  if (hints.some((value) => value.includes('source'))) {
-    return 'source';
-  }
-
-  if (runtimePlatform === 'wsl' || effectiveRuntimePlatform === 'wsl') {
-    return 'wsl';
-  }
-
-  return null;
-}
-
-function createGuidedInstallNavigation(
-  target: AppResolvedInstallTarget,
-  extraHints: Array<string | undefined | null> = [],
-): string | null {
-  const product = inferGuidedInstallProduct([
-    ...extraHints,
-    target.appId,
-    target.softwareName,
-    target.request.softwareName,
-  ]);
-  const method = inferGuidedInstallMethod(
-    [
-      ...extraHints,
-      target.variant.installationMethod?.id,
-      target.variant.installationMethod?.type,
-      target.variant.id,
-      target.softwareName,
-      target.request.softwareName,
-    ],
-    target.runtimePlatform,
-    target.request.effectiveRuntimePlatform,
-  );
-  if (!product || !method) {
-    return null;
-  }
-
-  const searchParams = new URLSearchParams();
-  searchParams.set('product', product);
-  searchParams.set('method', method);
-  searchParams.set('guided', '1');
-  return `/install?${searchParams.toString()}`;
-}
-
-function createGuidedInstallNavigationFromFallback(
-  id: string,
-  definition: AppInstallDefinition | null,
-  context: AppInstallContext,
-): string | null {
-  const product = inferGuidedInstallProduct([
-    context.variantId,
-    id,
-    definition?.appId,
-    definition?.defaultSoftwareName,
-  ]);
-  const method = inferGuidedInstallMethod([
-    context.variantId,
-    definition?.defaultVariantId,
-    definition?.defaultSoftwareName,
-  ]);
-  if (!product || !method) {
-    return null;
-  }
-
-  const searchParams = new URLSearchParams();
-  searchParams.set('product', product);
-  searchParams.set('method', method);
-  searchParams.set('guided', '1');
-  return `/install?${searchParams.toString()}`;
 }
 
 function normalizeRequestVariables(variables?: Record<string, string>) {
@@ -650,12 +496,7 @@ class AppStoreServiceImpl implements IAppStoreService {
       return cached;
     }
 
-    const pending = installerService.listHubInstallCatalog({ hostPlatform }).catch((error) => {
-      this.installCatalogCache.delete(cacheKey);
-      this.catalogPresentationCache.delete(cacheKey);
-      throw error;
-    });
-
+    const pending = Promise.resolve([] as AppInstallDefinition[]);
     this.installCatalogCache.set(cacheKey, pending);
     return pending;
   }
@@ -778,24 +619,19 @@ class AppStoreServiceImpl implements IAppStoreService {
     return resolveAppInstallTarget(definition, resolvedContext);
   }
 
-  private async inspectInstallTarget(
+  private async inspectSetupTarget(
     id: string,
     context: AppInstallContext = {},
   ): Promise<{
     definition: AppInstallDefinition;
     target: AppResolvedInstallTarget;
-    assessment: HubInstallAssessmentResult;
+    assessment: InstallAssessmentResult;
   }> {
     const { resolvedContext } = await this.resolveCatalogContext(context);
     const definition = await this.getInstallDefinition(id, resolvedContext);
     const target = resolveAppInstallTarget(definition, resolvedContext);
-    const assessment = await installerService.inspectHubInstall(target.request);
 
-    return {
-      definition,
-      target,
-      assessment,
-    };
+    throw createEmbeddedInstallerRemovedError(`inspecting install readiness for ${target.title}`);
   }
 
   private async getInstallSurfaceSummary(
@@ -815,14 +651,7 @@ class AppStoreServiceImpl implements IAppStoreService {
       return pending;
     }
 
-    const nextPending = installerService
-      .inspectHubInstall(target.request)
-      .then((assessment) => {
-        const summary = createInstallSurfaceSummary(appId, target, assessment);
-        this.cacheInstallSurfaceSummary(cacheKey, summary);
-        return summary;
-      })
-      .catch(() => null)
+    const nextPending = Promise.resolve(null)
       .finally(() => {
         this.installSurfaceSummaryPending.delete(cacheKey);
       });
@@ -831,13 +660,13 @@ class AppStoreServiceImpl implements IAppStoreService {
     return nextPending;
   }
 
-  async inspectInstall(
+  async inspectSetup(
     id: string,
     context: AppInstallContext = {},
   ): Promise<AppInstallInspection> {
     const [app, inspection] = await Promise.all([
       this.getApp(id),
-      this.inspectInstallTarget(id, context),
+      this.inspectSetupTarget(id, context),
     ]);
 
     return {
@@ -890,50 +719,31 @@ class AppStoreServiceImpl implements IAppStoreService {
     id: string,
     context: AppInstallContext = {},
   ): Promise<string | null> {
-    try {
-      const target = await this.resolveInstallTarget(id, context);
-      return createGuidedInstallNavigation(target, [context.variantId]);
-    } catch {
-      try {
-        const definition = await this.getInstallDefinition(id, context);
-        return createGuidedInstallNavigationFromFallback(id, definition, context);
-      } catch {
-        return createGuidedInstallNavigationFromFallback(id, null, context);
-      }
-    }
+    const app = await this.getById(id);
+    return app?.installHomepage || app?.downloadUrl || app?.storeUrl || '/docs#script';
   }
 
   async installDependencies(
     id: string,
     options: AppInstallDependencyOptions = {},
-  ): Promise<HubInstallDependencyResult> {
-    const target = await this.resolveInstallTarget(id, options);
+  ): Promise<InstallDependencyResult> {
     this.invalidateInstallSurfaceSummaryCache(id);
-
-    return installerService.runHubDependencyInstall({
-      ...target.request,
-      dependencyIds: options.dependencyIds,
-      continueOnError: options.continueOnError,
-    });
+    throw createEmbeddedInstallerRemovedError(`installing dependencies for ${id}`);
   }
 
-  async installApp(id: string, context: AppInstallContext = {}): Promise<HubInstallResult> {
-    const target = await this.resolveInstallTarget(id, context);
+  async installApp(id: string, context: AppInstallContext = {}): Promise<InstallResult> {
+    const _context = context;
     this.invalidateInstallSurfaceSummaryCache(id);
-    return installerService.runHubInstall(target.request);
+    throw createEmbeddedInstallerRemovedError(`installing ${id}`);
   }
 
   async uninstallApp(
     id: string,
     options: AppUninstallOptions = {},
-  ): Promise<HubUninstallResult> {
-    const target = await this.resolveInstallTarget(id, options);
+  ): Promise<UninstallResult> {
+    const _options = options;
     this.invalidateInstallSurfaceSummaryCache(id);
-    return installerService.runHubUninstall({
-      ...target.request,
-      purgeData: options.purgeData,
-      backupBeforeUninstall: options.backupBeforeUninstall,
-    });
+    throw createEmbeddedInstallerRemovedError(`uninstalling ${id}`);
   }
 
   async getList(params: ListParams = {}): Promise<PaginatedResult<AppItem>> {

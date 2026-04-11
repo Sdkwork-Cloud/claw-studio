@@ -1,43 +1,43 @@
 import type {
-  HubInstallCatalogEntry,
-  HubInstallCatalogQuery,
-  HubInstallDependencyRequest,
-  HubInstallDependencyResult,
-  HubInstallAssessmentResult,
-  HubInstallProgressEvent,
-  HubInstallRequest,
-  HubInstallResult,
-  HubUninstallRequest,
-  HubUninstallResult,
+  InstallCatalogEntry,
+  InstallCatalogQuery,
+  InstallDependencyRequest,
+  InstallDependencyResult,
+  InstallAssessmentResult,
+  InstallProgressEvent,
+  InstallRequest,
+  InstallResult,
+  UninstallRequest,
+  UninstallResult,
 } from '../platform/contracts/installer.ts';
 import type { RuntimeEventUnsubscribe } from '../platform/contracts/runtime.ts';
 import { installer } from '../platform/registry.ts';
 
 export const installerService = {
-  listHubInstallCatalog: async (
-    query?: HubInstallCatalogQuery,
-  ): Promise<HubInstallCatalogEntry[]> => {
-    return installer.listHubInstallCatalog(query);
+  listInstallCatalog: async (
+    query?: InstallCatalogQuery,
+  ): Promise<InstallCatalogEntry[]> => {
+    return installer.listInstallCatalog(query);
   },
-  inspectHubInstall: async (
-    request: HubInstallRequest,
-  ): Promise<HubInstallAssessmentResult> => {
-    return installer.inspectHubInstall(request);
+  inspectInstall: async (
+    request: InstallRequest,
+  ): Promise<InstallAssessmentResult> => {
+    return installer.inspectInstall(request);
   },
-  runHubDependencyInstall: async (
-    request: HubInstallDependencyRequest,
-  ): Promise<HubInstallDependencyResult> => {
-    return installer.runHubDependencyInstall(request);
+  runInstallDependencies: async (
+    request: InstallDependencyRequest,
+  ): Promise<InstallDependencyResult> => {
+    return installer.runInstallDependencies(request);
   },
-  runHubInstall: async (request: HubInstallRequest): Promise<HubInstallResult> => {
-    return installer.runHubInstall(request);
+  runInstall: async (request: InstallRequest): Promise<InstallResult> => {
+    return installer.runInstall(request);
   },
-  runHubUninstall: async (request: HubUninstallRequest): Promise<HubUninstallResult> => {
-    return installer.runHubUninstall(request);
+  runUninstall: async (request: UninstallRequest): Promise<UninstallResult> => {
+    return installer.runUninstall(request);
   },
-  subscribeHubInstallProgress: async (
-    listener: (event: HubInstallProgressEvent) => void,
+  subscribeInstallProgress: async (
+    listener: (event: InstallProgressEvent) => void,
   ): Promise<RuntimeEventUnsubscribe> => {
-    return installer.subscribeHubInstallProgress(listener);
+    return installer.subscribeInstallProgress(listener);
   },
 };

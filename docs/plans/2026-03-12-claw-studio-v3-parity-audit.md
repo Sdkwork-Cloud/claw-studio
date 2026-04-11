@@ -67,9 +67,9 @@
   - moved the installed-skill contract into the market feature package so the v3 `myskills` workflow is owned by the package that renders it
 - `packages/claw-studio-shell/src/application/providers/AppProviders.tsx`
   - switched shell i18n bootstrap to the infrastructure package so low-level setup stays in the infrastructure boundary
-- `packages/claw-studio-install/src/services/installPathService.ts`
+- `packages/removed-install-feature/src/services/installPathService.ts`
   - switched file-selection behavior to the infrastructure package so install pages consume platform helpers from the correct layer
-- `packages/claw-studio-install/src/services/installerService.ts`
+- `packages/removed-install-feature/src/services/installerService.ts`
   - switched installer execution to the infrastructure package so install pages no longer depend on `business` for platform execution helpers
 - `packages/claw-studio-business/src/index.ts`
   - slimmed the business barrel down to shared stores, hooks, update/runtime services, and the small set of genuinely cross-feature services

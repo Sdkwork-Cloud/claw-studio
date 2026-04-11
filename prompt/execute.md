@@ -242,11 +242,7 @@ const output = await Command.create('echo', ['hello']).execute();
    - Package: `sdkwork-claw-market`
    - 功能: AI市场、模型浏览
 
-3. **Install (安装模块)**
-   - Package: `sdkwork-claw-install`
-   - 功能: 应用安装、管理
-
-4. **Instances (实例模块)**
+3. **Instances (实例模块)**
    - Package: `sdkwork-claw-instances`
    - 功能: 实例管理
 

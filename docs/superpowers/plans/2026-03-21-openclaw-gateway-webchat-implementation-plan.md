@@ -4,7 +4,7 @@
 
 **Goal:** Make Claw Studio use the native OpenClaw Gateway WebSocket webchat flow for OpenClaw instances while keeping session, history, and run state synchronized with the Gateway as the only authoritative source.
 
-**Architecture:** Keep OpenClaw-specific Gateway protocol logic inside `@sdkwork/claw-chat`, keep auth-token synchronization in `@sdkwork/claw-install`, and preserve local conversation persistence only for non-OpenClaw routes. OpenClaw UI state becomes a projection of `sessions.list`, `chat.history`, and live `chat` events rather than a second durable store.
+**Architecture:** Keep OpenClaw-specific Gateway protocol logic inside `@sdkwork/claw-chat`, keep auth-token synchronization in `removed-install-feature`, and preserve local conversation persistence only for non-OpenClaw routes. OpenClaw UI state becomes a projection of `sessions.list`, `chat.history`, and live `chat` events rather than a second durable store.
 
 **Tech Stack:** TypeScript, React, Zustand, browser WebSocket, Node `--experimental-strip-types` tests, pnpm workspace contract checks
 
@@ -13,8 +13,8 @@
 ### Task 1: Preserve OpenClaw auth metadata needed for Gateway WebSocket access
 
 **Files:**
-- Modify: `packages/sdkwork-claw-install/src/services/openClawBootstrapService.ts`
-- Modify: `packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts`
+- Modify: `packages/removed-install-feature/src/services/openClawBootstrapService.ts`
+- Modify: `packages/removed-install-feature/src/services/openClawBootstrapService.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -22,7 +22,7 @@ Extend `openClawBootstrapService.test.ts` with a case proving that a synced loca
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `node --experimental-strip-types packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts`
+Run: `node --experimental-strip-types packages/removed-install-feature/src/services/openClawBootstrapService.test.ts`
 Expected: FAIL because the sync flow still writes `authToken: null`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -31,13 +31,13 @@ Teach `openClawBootstrapService.ts` to resolve the Gateway auth token from the m
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `node --experimental-strip-types packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts`
+Run: `node --experimental-strip-types packages/removed-install-feature/src/services/openClawBootstrapService.test.ts`
 Expected: PASS with the new auth-token preservation assertion.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/sdkwork-claw-install/src/services/openClawBootstrapService.ts packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts
+git add packages/removed-install-feature/src/services/openClawBootstrapService.ts packages/removed-install-feature/src/services/openClawBootstrapService.test.ts
 git commit -m "feat: preserve openclaw gateway auth token during sync"
 ```
 
@@ -208,7 +208,7 @@ git commit -m "feat: wire openclaw chat ui to gateway sessions"
 
 - [ ] **Step 1: Run focused package tests**
 
-Run: `node --experimental-strip-types packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts`
+Run: `node --experimental-strip-types packages/removed-install-feature/src/services/openClawBootstrapService.test.ts`
 Expected: PASS
 
 Run: `node --experimental-strip-types packages/sdkwork-claw-chat/src/services/instanceChatRouteService.test.ts`
@@ -244,6 +244,6 @@ Verify all of the following against a real OpenClaw instance with valid auth:
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/sdkwork-claw-install/src/services/openClawBootstrapService.ts packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts packages/sdkwork-claw-chat/src/services/instanceChatRouteService.ts packages/sdkwork-claw-chat/src/services/instanceChatRouteService.test.ts packages/sdkwork-claw-chat/src/services/openclaw/gatewayProtocol.ts packages/sdkwork-claw-chat/src/services/openclaw/openClawGatewayClient.ts packages/sdkwork-claw-chat/src/services/openclaw/openClawGatewayClient.test.ts packages/sdkwork-claw-chat/src/services/openclaw/index.ts packages/sdkwork-claw-chat/src/services/index.ts packages/sdkwork-claw-chat/src/store/openClawGatewaySessionStore.ts packages/sdkwork-claw-chat/src/store/openClawGatewaySessionStore.test.ts packages/sdkwork-claw-chat/src/store/useChatStore.ts packages/sdkwork-claw-chat/src/chatSessionMapping.ts packages/sdkwork-claw-chat/src/store/studioConversationGateway.ts packages/sdkwork-claw-chat/src/services/chatService.ts packages/sdkwork-claw-chat/src/pages/Chat.tsx packages/sdkwork-claw-chat/src/components/ChatSidebar.tsx packages/sdkwork-claw-chat/src/components/ChatMessage.tsx docs/superpowers/specs/2026-03-21-openclaw-gateway-webchat-design.md docs/superpowers/plans/2026-03-21-openclaw-gateway-webchat-implementation-plan.md scripts/sdkwork-chat-contract.test.ts
+git add packages/removed-install-feature/src/services/openClawBootstrapService.ts packages/removed-install-feature/src/services/openClawBootstrapService.test.ts packages/sdkwork-claw-chat/src/services/instanceChatRouteService.ts packages/sdkwork-claw-chat/src/services/instanceChatRouteService.test.ts packages/sdkwork-claw-chat/src/services/openclaw/gatewayProtocol.ts packages/sdkwork-claw-chat/src/services/openclaw/openClawGatewayClient.ts packages/sdkwork-claw-chat/src/services/openclaw/openClawGatewayClient.test.ts packages/sdkwork-claw-chat/src/services/openclaw/index.ts packages/sdkwork-claw-chat/src/services/index.ts packages/sdkwork-claw-chat/src/store/openClawGatewaySessionStore.ts packages/sdkwork-claw-chat/src/store/openClawGatewaySessionStore.test.ts packages/sdkwork-claw-chat/src/store/useChatStore.ts packages/sdkwork-claw-chat/src/chatSessionMapping.ts packages/sdkwork-claw-chat/src/store/studioConversationGateway.ts packages/sdkwork-claw-chat/src/services/chatService.ts packages/sdkwork-claw-chat/src/pages/Chat.tsx packages/sdkwork-claw-chat/src/components/ChatSidebar.tsx packages/sdkwork-claw-chat/src/components/ChatMessage.tsx docs/superpowers/specs/2026-03-21-openclaw-gateway-webchat-design.md docs/superpowers/plans/2026-03-21-openclaw-gateway-webchat-implementation-plan.md scripts/sdkwork-chat-contract.test.ts
 git commit -m "feat: adopt openclaw gateway webchat as chat authority"
 ```

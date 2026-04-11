@@ -37,7 +37,7 @@ The current workspace includes feature-oriented packages such as:
 - `@sdkwork/claw-extensions`
 - `@sdkwork/claw-github`
 - `@sdkwork/claw-huggingface`
-- `@sdkwork/claw-install`
+- `removed-install-feature`
 - `@sdkwork/claw-instances`
 - `@sdkwork/claw-market`
 - `@sdkwork/claw-settings`

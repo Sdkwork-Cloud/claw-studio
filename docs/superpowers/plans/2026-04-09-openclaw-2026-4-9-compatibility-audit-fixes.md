@@ -58,8 +58,8 @@
 **Files:**
 - Modify: `packages/sdkwork-claw-core/src/services/openClawConfigService.test.ts`
 - Modify: `packages/sdkwork-claw-core/src/services/openClawConfigService.ts`
-- Modify: `packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts`
-- Modify: `packages/sdkwork-claw-install/src/services/openClawBootstrapService.ts`
+- Modify: `packages/removed-install-feature/src/services/openClawBootstrapService.test.ts`
+- Modify: `packages/removed-install-feature/src/services/openClawBootstrapService.ts`
 - Modify: `packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio.rs`
 - Inspect: `packages/sdkwork-claw-desktop/src-tauri/src/framework/services/local_ai_proxy/projection.rs`
 

@@ -404,7 +404,7 @@ export function Instances() {
   };
 
   const handleOpenBuiltInInstall = () => {
-    navigate('/install?product=openclaw');
+    navigate('/docs#script');
   };
 
   const handleOpenBuiltInStartupDetails = () => {

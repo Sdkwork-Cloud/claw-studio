@@ -1,5 +1,12 @@
-use crate::framework::{config::SecurityConfig, paths::AppPaths, FrameworkError, Result};
-use hub_installer_rs::{read_install_record, InstallRecord};
+use crate::framework::{
+    config::SecurityConfig,
+    install_records::{
+        read_install_record, resolve_openclaw_install_records_home_candidates, InstallRecord,
+        InstallRecordStatus,
+    },
+    paths::AppPaths,
+    FrameworkError, Result,
+};
 use serde_json::Value;
 use std::{
     env,
@@ -283,24 +290,26 @@ fn resolve_host_home_directory(paths: &AppPaths) -> PathBuf {
 }
 
 fn discover_registered_openclaw_roots(paths: &AppPaths) -> Vec<PathBuf> {
-    let installer_home = paths.user_root.join("hub-installer");
-    let Some(record) = read_installed_openclaw_install_record(&installer_home) else {
-        return Vec::new();
-    };
-    let Some(config_path) =
-        discover_registered_openclaw_config_path(paths, &installer_home, &record)
-    else {
-        return Vec::new();
-    };
-
     let mut roots = Vec::new();
-    push_unique_path(
-        &mut roots,
-        normalize_path(&resolve_openclaw_state_root(&config_path)),
-    );
 
-    for root in discover_explicit_openclaw_config_roots(&config_path) {
-        push_unique_path(&mut roots, normalize_path(&root));
+    for installer_home in resolve_openclaw_install_records_home_candidates(&paths.user_root) {
+        let Some(record) = read_installed_openclaw_install_record(&installer_home) else {
+            continue;
+        };
+        let Some(config_path) =
+            discover_registered_openclaw_config_path(paths, &installer_home, &record)
+        else {
+            continue;
+        };
+
+        push_unique_path(
+            &mut roots,
+            normalize_path(&resolve_openclaw_state_root(&config_path)),
+        );
+
+        for root in discover_explicit_openclaw_config_roots(&config_path) {
+            push_unique_path(&mut roots, normalize_path(&root));
+        }
     }
 
     roots
@@ -313,7 +322,7 @@ fn read_installed_openclaw_install_record(installer_home: &Path) -> Option<Insta
         .filter(|record| {
             matches!(
                 record.status,
-                hub_installer_rs::InstallRecordStatus::Installed
+                InstallRecordStatus::Installed
             )
         })
 }
@@ -575,10 +584,13 @@ mod tests {
         ensure_not_managed_root, resolve_managed_path, resolve_user_tooling_config_path,
         validate_command_spawn, ExecutionPolicy,
     };
-    use crate::framework::{config::SecurityConfig, paths::resolve_paths_for_root};
-    use hub_installer_rs::{
-        types::{EffectiveRuntimePlatform, InstallControlLevel, InstallScope, SupportedPlatform},
-        write_install_record, InstallRecord, InstallRecordStatus,
+    use crate::framework::{
+        config::SecurityConfig,
+        install_records::{
+            write_install_record, EffectiveRuntimePlatform, InstallControlLevel, InstallRecord,
+            InstallRecordStatus, InstallScope, SupportedPlatform,
+        },
+        paths::resolve_paths_for_root,
     };
     use std::ffi::OsString;
 
@@ -651,7 +663,7 @@ mod tests {
             .and_then(|path| path.parent())
             .expect("workspace root")
             .to_path_buf();
-        let installer_home = paths.user_root.join("hub-installer");
+        let installer_home = paths.user_root.join("openclaw-install");
 
         std::fs::create_dir_all(&install_root).expect("create install root");
         std::fs::create_dir_all(&work_root).expect("create work root");

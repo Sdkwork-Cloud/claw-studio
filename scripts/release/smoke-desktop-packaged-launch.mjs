@@ -382,7 +382,6 @@ function resolveInstalledDesktopBinaryPath({
         return (
         fileName.toLowerCase().endsWith('.exe')
         && !normalizedFileName.startsWith('uninstall')
-        && normalizedFileName !== 'hub-installer-rs.exe'
         && normalizedFileName !== 'node.exe'
         && !normalizedRelativePath.startsWith('generated/bundled/')
         );

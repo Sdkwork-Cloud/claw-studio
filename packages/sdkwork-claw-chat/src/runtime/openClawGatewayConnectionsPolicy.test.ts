@@ -51,13 +51,12 @@ runTest('non-chat workspace routes keep only the active instance warm', () => {
   );
 });
 
-runTest('auth and install routes stay cold even if an active instance exists', () => {
+runTest('auth routes stay cold even if an active instance exists', () => {
   assert.equal(shouldWarmOpenClawGatewayConnections('/auth'), false);
   assert.equal(shouldWarmOpenClawGatewayConnections('/login/oauth/callback/github'), false);
-  assert.equal(shouldWarmOpenClawGatewayConnections('/install/windows'), false);
   assert.deepEqual(
     resolveOpenClawGatewayWarmPlan({
-      pathname: '/install/windows',
+      pathname: '/login/oauth/callback/github',
       activeInstanceId: 'instance-active',
       directoryInstanceIds: ['instance-a'],
     }),

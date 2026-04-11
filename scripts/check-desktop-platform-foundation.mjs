@@ -143,8 +143,6 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/desktop_kernel.rs', 'desktop kernel command module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/get_app_paths.rs', 'desktop app paths command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/get_app_config.rs', 'desktop app config command'],
-  ['packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_install.rs', 'desktop hub install command'],
-  ['packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_uninstall.rs', 'desktop hub uninstall command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/process_commands.rs', 'desktop process command module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/job_commands.rs', 'desktop job command module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/list_directory.rs', 'desktop list directory command'],
@@ -1436,15 +1434,15 @@ assertIncludes(
   'DESKTOP_COMMANDS.fetchRemoteUrl',
   'desktop remote url fetch invoke wiring',
 );
-assertIncludes(
+assertNotIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
-  'DESKTOP_COMMANDS.runHubInstall',
-  'desktop hub install invoke wiring',
+  'DESKTOP_COMMANDS.runInstall',
+  'desktop removed install invoke wiring',
 );
-assertIncludes(
+assertNotIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
-  'DESKTOP_COMMANDS.runHubUninstall',
-  'desktop hub uninstall invoke wiring',
+  'DESKTOP_COMMANDS.runUninstall',
+  'desktop removed uninstall invoke wiring',
 );
 assertNotIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
@@ -1531,15 +1529,15 @@ assertIncludes(
   'commands::desktop_kernel::desktop_storage_info',
   'desktop storage command registration',
 );
-assertIncludes(
+assertNotIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
-  'commands::run_hub_install::run_hub_install',
-  'desktop hub install command registration',
+  'commands::run_install::run_install',
+  'desktop removed install command registration',
 );
-assertIncludes(
+assertNotIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
-  'commands::run_hub_uninstall::run_hub_uninstall',
-  'desktop hub uninstall command registration',
+  'commands::run_uninstall::run_uninstall',
+  'desktop removed uninstall command registration',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
@@ -1872,10 +1870,7 @@ assertIncludes(
   'bundled openclaw placeholder keep rule',
 );
 
-const tauriLeakTargets = [
-  'packages/sdkwork-claw-install/src/pages/install/Install.tsx',
-  'packages/sdkwork-claw-install/src/pages/install/InstallDetail.tsx',
-];
+const tauriLeakTargets = [];
 
 for (const relativePath of tauriLeakTargets) {
   const content = readText(relativePath);

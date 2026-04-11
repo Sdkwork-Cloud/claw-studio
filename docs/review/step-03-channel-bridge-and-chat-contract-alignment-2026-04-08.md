@@ -49,7 +49,7 @@
 ## Architecture Writeback
 
 - Added architecture note:
-  - `docs/架构/97-2026-04-08-platform-bridge-channel-write-contract.md`
+  - `docs/鏋舵瀯/97-2026-04-08-platform-bridge-channel-write-contract.md`
 - Reason:
   - channel configuration writes are now explicitly part of the root studio bridge contract for browser-hosted workbench flows
   - lazy platform adapters must forward every published workbench write capability instead of relying on package-local casts
@@ -59,4 +59,4 @@
 - Workspace lint is now headed by broader package blockers including:
   - `packages/sdkwork-claw-community/src/services/communityService.test.ts`
   - `packages/sdkwork-claw-dashboard/src/services/dashboardService.test.ts`
-  - `packages/sdkwork-claw-install/src/services/hubInstallProgressService.test.ts`
+  - `packages/removed-install-feature/src/services/installProgressService.test.ts`

@@ -14,7 +14,7 @@ function runTest(name: string, callback: () => void | Promise<void>) {
 }
 
 await runTest(
-  'chat runtime warmers stay disabled on auth, oauth callback, and install routes',
+  'chat runtime warmers stay disabled on auth and oauth callback routes',
   () => {
     assert.equal(shouldRenderChatRuntimeWarmersForPath('/auth'), false);
     assert.equal(shouldRenderChatRuntimeWarmersForPath('/login'), false);
@@ -24,8 +24,6 @@ await runTest(
       shouldRenderChatRuntimeWarmersForPath('/login/oauth/callback/github'),
       false,
     );
-    assert.equal(shouldRenderChatRuntimeWarmersForPath('/install'), false);
-    assert.equal(shouldRenderChatRuntimeWarmersForPath('/install/windows'), false);
   },
 );
 
@@ -35,5 +33,6 @@ await runTest(
     assert.equal(shouldRenderChatRuntimeWarmersForPath('/dashboard'), true);
     assert.equal(shouldRenderChatRuntimeWarmersForPath('/chat'), true);
     assert.equal(shouldRenderChatRuntimeWarmersForPath('/nodes'), true);
+    assert.equal(shouldRenderChatRuntimeWarmersForPath('/apps/openclaw'), true);
   },
 );

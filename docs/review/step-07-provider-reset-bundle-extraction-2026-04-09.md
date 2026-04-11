@@ -109,7 +109,6 @@ Relative to the immediately prior `1498 / 71` baseline from the agent reset-bund
   - `node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync('docs/release/releases.json','utf8')); const latest=data.releases[data.releases.length-1]; if(latest.tag!=='release-2026-04-09-122') throw new Error(latest.tag); console.log(latest.tag)"`
 - Repo-wide lint scope remains intentionally limited:
   - repo-wide `pnpm lint` is still not the release gate for this loop
-  - the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 
 ## Closure Status
 

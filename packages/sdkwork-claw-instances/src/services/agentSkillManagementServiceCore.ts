@@ -130,7 +130,7 @@ function resolveRemovalTargetPath(input: RemoveAgentSkillInput) {
   return normalizePath(input.baseDir) || getParentDirectory(input.filePath);
 }
 
-async function updateTrackedClawHubLockfile(params: {
+async function updateTrackedWorkspaceSkillLockfile(params: {
   platform: AgentSkillManagementDependencies['platform'];
   workspacePath: string | null;
   skillKey: string;
@@ -167,7 +167,7 @@ async function updateTrackedClawHubLockfile(params: {
     parsed = candidate as Record<string, unknown>;
   } catch (error) {
     throw new Error(
-      `Failed to update the tracked ClawHub installs for "${params.skillKey}": ${
+      `Failed to update the tracked workspace skills for "${params.skillKey}": ${
         error instanceof Error ? error.message : 'invalid lockfile'
       }`,
     );
@@ -315,7 +315,7 @@ class AgentSkillManagementService {
       await this.dependencies.platform.removePath(removalTargetPath);
     }
 
-    await updateTrackedClawHubLockfile({
+    await updateTrackedWorkspaceSkillLockfile({
       platform: this.dependencies.platform,
       workspacePath: resolveWorkspacePath(input),
       skillKey,

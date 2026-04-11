@@ -127,7 +127,7 @@ git commit -m "feat: reset root workspace to the v5 app surface"
 - Create or Replace: `packages/sdkwork-claw-github`
 - Create or Replace: `packages/sdkwork-claw-huggingface`
 - Create or Replace: `packages/sdkwork-claw-i18n`
-- Create or Replace: `packages/sdkwork-claw-install`
+- Create or Replace: `packages/removed-install-feature`
 - Create or Replace: `packages/sdkwork-claw-instances`
 - Create or Replace: `packages/sdkwork-claw-market`
 - Create or Replace: `packages/sdkwork-claw-settings`
@@ -148,7 +148,7 @@ git commit -m "feat: reset root workspace to the v5 app surface"
 - Remove: `packages/claw-studio-github`
 - Remove: `packages/claw-studio-huggingface`
 - Remove: `packages/claw-studio-infrastructure`
-- Remove: `packages/claw-studio-install`
+- Remove: `packages/removed-install-feature`
 - Remove: `packages/claw-studio-instances`
 - Remove: `packages/claw-studio-market`
 - Remove: `packages/claw-studio-settings`
@@ -447,7 +447,7 @@ git commit -m "feat: add sdkwork-claw-terminal feature package"
 - Modify: `packages/sdkwork-claw-extensions/src/**/*`
 - Modify: `packages/sdkwork-claw-github/src/**/*`
 - Modify: `packages/sdkwork-claw-huggingface/src/**/*`
-- Modify: `packages/sdkwork-claw-install/src/**/*`
+- Modify: `packages/removed-install-feature/src/**/*`
 - Modify: `packages/sdkwork-claw-instances/src/**/*`
 - Modify: `packages/sdkwork-claw-market/src/**/*`
 - Modify: `packages/sdkwork-claw-settings/src/**/*`
@@ -481,7 +481,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/sdkwork-claw-account packages/sdkwork-claw-apps packages/sdkwork-claw-auth packages/sdkwork-claw-center packages/sdkwork-claw-channels packages/sdkwork-claw-chat packages/sdkwork-claw-community packages/sdkwork-claw-devices packages/sdkwork-claw-docs packages/sdkwork-claw-extensions packages/sdkwork-claw-github packages/sdkwork-claw-huggingface packages/sdkwork-claw-install packages/sdkwork-claw-instances packages/sdkwork-claw-market packages/sdkwork-claw-settings packages/sdkwork-claw-tasks src/App.tsx scripts/check-v5-route-surface.mjs
+git add packages/sdkwork-claw-account packages/sdkwork-claw-apps packages/sdkwork-claw-auth packages/sdkwork-claw-center packages/sdkwork-claw-channels packages/sdkwork-claw-chat packages/sdkwork-claw-community packages/sdkwork-claw-devices packages/sdkwork-claw-docs packages/sdkwork-claw-extensions packages/sdkwork-claw-github packages/sdkwork-claw-huggingface packages/removed-install-feature packages/sdkwork-claw-instances packages/sdkwork-claw-market packages/sdkwork-claw-settings packages/sdkwork-claw-tasks src/App.tsx scripts/check-v5-route-surface.mjs
 git commit -m "feat: port v5 feature packages onto the new shared foundation"
 ```
 
@@ -503,7 +503,7 @@ git commit -m "feat: port v5 feature packages onto the new shared foundation"
 - Remove: `packages/claw-studio-github`
 - Remove: `packages/claw-studio-huggingface`
 - Remove: `packages/claw-studio-infrastructure`
-- Remove: `packages/claw-studio-install`
+- Remove: `packages/removed-install-feature`
 - Remove: `packages/claw-studio-instances`
 - Remove: `packages/claw-studio-market`
 - Remove: `packages/claw-studio-settings`

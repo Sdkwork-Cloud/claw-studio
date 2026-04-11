@@ -850,48 +850,6 @@ importers:
         specifier: workspace:*
         version: link:../sdkwork-claw-types
 
-  packages/sdkwork-claw-install:
-    dependencies:
-      '@sdkwork/claw-core':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-core
-      '@sdkwork/claw-i18n':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-i18n
-      '@sdkwork/claw-infrastructure':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-infrastructure
-      '@sdkwork/claw-types':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-types
-      '@sdkwork/claw-ui':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-ui
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      lucide-react:
-        specifier: ^1.7.0
-        version: 1.7.0(react@19.2.4)
-      motion:
-        specifier: ^12.38.0
-        version: 12.38.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      qrcode:
-        specifier: ^1.5.4
-        version: 1.5.4
-      react:
-        specifier: ^19.2.4
-        version: 19.2.4
-      react-i18next:
-        specifier: ^17.0.2
-        version: 17.0.2(i18next@26.0.3(typescript@6.0.2))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@6.0.2)
-      react-router-dom:
-        specifier: ^7.14.0
-        version: 7.14.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-
   packages/sdkwork-claw-instances:
     dependencies:
       '@monaco-editor/react':
@@ -1188,9 +1146,6 @@ importers:
       '@sdkwork/claw-i18n':
         specifier: workspace:*
         version: link:../sdkwork-claw-i18n
-      '@sdkwork/claw-install':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-install
       '@sdkwork/claw-instances':
         specifier: workspace:*
         version: link:../sdkwork-claw-instances

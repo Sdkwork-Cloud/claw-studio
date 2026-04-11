@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Clock,
   Cpu,
-  Download,
   GitBranch,
   Globe,
   Hash,
@@ -95,7 +94,6 @@ export function Sidebar() {
     {
       section: t('sidebar.setup'),
       items: [
-        { id: 'install', to: '/install', icon: Download, label: t('sidebar.install') },
         { id: 'instances', to: '/instances', icon: Server, label: t('sidebar.instances') },
         { id: 'devices', to: '/devices', icon: Cpu, label: t('sidebar.devices') },
       ],

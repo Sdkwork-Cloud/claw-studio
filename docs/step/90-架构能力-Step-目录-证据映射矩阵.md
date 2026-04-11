@@ -17,7 +17,7 @@
 | Channels / ClawHub / Skills | `08` `17` | `08` | `packages/sdkwork-claw-market` `packages/sdkwork-claw-channels` `packages/sdkwork-claw-agent` `packages/sdkwork-claw-instances/src/services` | `channelService.ts`、`marketService.ts`、`agentInstallService.ts` 对齐，安装/卸载/渠道回读 |
 | 性能与可观测 | `10` | `09` | `chat` `instances` `settings` `desktop` `scripts` | 指标、日志、容量 smoke |
 | 安全与质量门禁 | `11` | `10` | `scripts` `package.json` `tests` `server` `desktop` | gate matrix、OpenClaw 事实源测试、回归记录 |
-| 打包/发布/升级 | `12` | `11` | `packages/sdkwork-claw-distribution` `packages/sdkwork-claw-install` `scripts/release` `docs/release` | release profile、installer smoke、packaged launch、change log |
+| 打包/发布/升级 | `12` | `11` | `packages/sdkwork-claw-distribution` `packages/removed-install-feature` `scripts/release` `docs/release` | release profile、installer smoke、packaged launch、change log |
 | 商业化能力 | `01` `12` `14` | `12` | `packages/sdkwork-claw-account` `packages/sdkwork-claw-dashboard` `packages/sdkwork-claw-mall` `packages/sdkwork-claw-model-purchase` `packages/sdkwork-claw-points` | 权限/权益说明、运营证据、版本说明 |
 | 最终收口 | `13` `14` | `13` | 全仓 | 发布准入单、回滚单、下一轮 backlog |
 

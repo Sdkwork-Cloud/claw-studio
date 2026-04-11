@@ -24,6 +24,14 @@ function runTest(name, fn) {
 
 const packageJson = readJson('package.json');
 
+runTest('workspace lint compiles both web and desktop hosts before parity and automation gates', () => {
+  assert.match(packageJson.scripts.lint, /pnpm --filter @sdkwork\/claw-web lint/);
+  assert.match(packageJson.scripts.lint, /pnpm --filter @sdkwork\/claw-desktop lint/);
+  assert.match(packageJson.scripts.lint, /pnpm check:arch/);
+  assert.match(packageJson.scripts.lint, /pnpm check:parity/);
+  assert.match(packageJson.scripts.lint, /pnpm check:automation/);
+});
+
 runTest('OpenClaw quality gate keeps fact-source tests in parity runners', () => {
   const foundationRunner = read('scripts/run-sdkwork-foundation-check.mjs');
   const instancesRunner = read('scripts/run-sdkwork-instances-check.mjs');
@@ -36,6 +44,11 @@ runTest('OpenClaw quality gate keeps fact-source tests in parity runners', () =>
   assert.match(packageJson.scripts['check:parity'], /pnpm check:sdkwork-channels/);
   assert.match(packageJson.scripts['check:parity'], /pnpm check:sdkwork-instances/);
   assert.match(packageJson.scripts['check:parity'], /pnpm check:sdkwork-market/);
+  assert.match(
+    packageJson.scripts['check:sdkwork-hosts'],
+    /node scripts\/desktop-window-chrome-contract\.test\.mjs/,
+    'check:sdkwork-hosts must execute the desktop tray and window chrome contract',
+  );
 
   assert.match(
     packageJson.scripts['check:sdkwork-foundation'],
@@ -92,6 +105,11 @@ runTest('OpenClaw quality gate keeps fact-source tests in parity runners', () =>
     instancesRunner,
     /packages\/sdkwork-claw-instances\/src\/services\/openClawProviderWorkspacePresentation\.test\.ts/,
     'instances runner must execute provider workspace fact-source coverage',
+  );
+  assert.match(
+    instancesRunner,
+    /packages\/sdkwork-claw-instances\/src\/services\/instanceOnboardingService\.test\.ts/,
+    'instances runner must execute OpenClaw onboarding association coverage',
   );
   assert.match(
     marketRunner,

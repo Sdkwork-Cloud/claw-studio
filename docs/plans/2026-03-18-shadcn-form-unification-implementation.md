@@ -62,7 +62,7 @@ Keep the current `isOpen`, `onClose`, `title`, `children`, and `className` API s
 - Modify: `packages/sdkwork-claw-devices/src/pages/devices/Devices.tsx`
 - Modify: `packages/sdkwork-claw-settings/src/ApiKeysSettings.tsx`
 - Modify: `packages/sdkwork-claw-tasks/src/pages/Tasks.tsx`
-- Modify: `packages/sdkwork-claw-install/src/pages/install/Install.tsx`
+- Modify: `packages/removed-install-feature/src/pages/install/Install.tsx`
 
 **Step 1: Replace form controls with shared primitives**
 

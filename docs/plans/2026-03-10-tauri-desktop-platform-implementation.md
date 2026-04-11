@@ -192,8 +192,8 @@ git commit -m "feat: add distribution manifests for cn and global"
 - Create: `D:\sdkwork-opensource\claw-studio\packages\claw-studio-infrastructure\src\platform\contracts\installer.ts`
 - Create: `D:\sdkwork-opensource\claw-studio\packages\claw-studio-infrastructure\src\platform\registry.ts`
 - Modify: `D:\sdkwork-opensource\claw-studio\packages\claw-studio-infrastructure\src\platform\index.ts`
-- Modify: `D:\sdkwork-opensource\claw-studio\packages\claw-studio-install\src\pages\install\Install.tsx`
-- Modify: `D:\sdkwork-opensource\claw-studio\packages\claw-studio-install\src\pages\install\InstallDetail.tsx`
+- Modify: `D:\sdkwork-opensource\claw-studio\packages\removed-install-feature\src\pages\install\Install.tsx`
+- Modify: `D:\sdkwork-opensource\claw-studio\packages\removed-install-feature\src\pages\install\InstallDetail.tsx`
 
 **Step 1: Write the failing test**
 - Extend the architecture check to assert:
@@ -218,7 +218,7 @@ Expected: PASS for no direct Tauri page imports.
 **Step 5: Commit**
 
 ```bash
-git add packages/claw-studio-infrastructure packages/claw-studio-install
+git add packages/claw-studio-infrastructure packages/removed-install-feature
 git commit -m "refactor: move tauri access behind platform bridge contracts"
 ```
 
@@ -229,7 +229,7 @@ git commit -m "refactor: move tauri access behind platform bridge contracts"
 - Create: `D:\sdkwork-opensource\claw-studio\packages\claw-studio-business\src\services\runtimeService.ts`
 - Modify: `D:\sdkwork-opensource\claw-studio\packages\claw-studio-business\src\index.ts`
 - Modify: `D:\sdkwork-opensource\claw-studio\packages\claw-studio-business\package.json`
-- Modify: `D:\sdkwork-opensource\claw-studio\packages\claw-studio-install\src\services\index.ts`
+- Modify: `D:\sdkwork-opensource\claw-studio\packages\removed-install-feature\src\services\index.ts`
 
 **Step 1: Write the failing test**
 - Extend the architecture check to assert:
@@ -254,7 +254,7 @@ Expected: PASS for business service exports.
 **Step 5: Commit**
 
 ```bash
-git add packages/claw-studio-business packages/claw-studio-install
+git add packages/claw-studio-business packages/removed-install-feature
 git commit -m "feat: add runtime and installer business services"
 ```
 

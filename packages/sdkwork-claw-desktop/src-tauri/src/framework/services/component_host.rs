@@ -301,7 +301,6 @@ fn component_source_url(definition: &PackagedComponentDefinition) -> Option<Stri
             "openclaw" => "https://github.com/openclaw/openclaw".to_string(),
             "zeroclaw" => "https://github.com/zeroclaw-labs/zeroclaw".to_string(),
             "ironclaw" => "https://github.com/nearai/ironclaw".to_string(),
-            "hub-installer" => "https://github.com/Sdkwork-Cloud/hub-installer".to_string(),
             _ => return None,
         })
     })
@@ -328,11 +327,6 @@ fn component_docs(
             repo_doc(definition, "Overview", "README.md"),
             repo_doc(definition, "CLI entry", "src/main.rs"),
             repo_doc(definition, "LLM providers", "docs/LLM_PROVIDERS.md"),
-        ],
-        "hub-installer" => vec![
-            repo_doc(definition, "Overview", "README.md"),
-            repo_doc(definition, "Rust library", "rust/src/lib.rs"),
-            repo_doc(definition, "Install policy", "docs/install-policy.md"),
         ],
         _ => Vec::new(),
     }
@@ -407,10 +401,6 @@ fn component_capabilities(
             capability("assistant-runtime", "Assistant Runtime", "cli", "Primary agent run loop with REPL, routines, and workers.", &["ironclaw run", "ironclaw status"]),
             capability("webhook-and-web-gateway", "Webhook / Web Gateway", "http", "Webhook server, HTTP channel, and web gateway support.", &["WebhookServer", "GatewayChannel", "HttpChannel"]),
             capability("ops-and-extensions", "Ops / Extension Surface", "cli", "Setup, service, MCP, tools, skills, and registry commands.", &["ironclaw onboard", "ironclaw service", "ironclaw mcp", "ironclaw tools"]),
-        ],
-        "hub-installer" => vec![
-            capability("embedded-install-engine", "Embedded Install Engine", "embedded", "In-process Rust install engine for inspect/install/uninstall/backup.", &["run_hub_install", "run_hub_uninstall"]),
-            capability("registry-runtime", "Registry and Policy Runtime", "embedded", "Manifest registry, install policy resolution, runtime probing, and state tracking.", &["InstallEngine", "SoftwareRegistry", "resolve_install_policy"]),
         ],
         _ => Vec::new(),
     }

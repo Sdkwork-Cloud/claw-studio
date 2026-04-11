@@ -55,7 +55,7 @@ It should also block:
 ### In Scope
 
 - Settings pages/components under `packages/sdkwork-claw-settings/src`.
-- Install pages/components under `packages/sdkwork-claw-install/src`.
+- Install pages/components under `packages/removed-install-feature/src`.
 - App detail page under `packages/sdkwork-claw-apps/src/pages/apps/AppDetail.tsx`.
 - Shared contract checks under `scripts/check-i18n-contract.mjs`.
 - Locale resources and related tests.

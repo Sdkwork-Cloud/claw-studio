@@ -289,7 +289,6 @@ impl Default for UpgradesState {
             layout_version: LAYOUT_VERSION,
             components: bundled_component_defaults()
                 .into_iter()
-                .filter(|definition| definition.id != "hub-installer")
                 .map(|definition| {
                     (
                         definition.id,
@@ -368,7 +367,6 @@ pub fn sync_component_registry_state(
 ) -> Result<()> {
     let mut components = read_json_file::<ComponentsState>(&paths.components_file)?;
     let mut upgrades = read_json_file::<UpgradesState>(&paths.upgrades_file)?;
-
     for definition in definitions {
         let enabled_by_default = definition.startup_mode == PackagedComponentStartupMode::AutoStart;
         components
@@ -382,10 +380,6 @@ pub fn sync_component_registry_state(
                 entry.enabled_by_default = enabled_by_default;
             })
             .or_insert_with(|| ComponentStateEntry::from_definition(definition));
-
-        if definition.id == "hub-installer" {
-            continue;
-        }
 
         upgrades
             .components
@@ -530,7 +524,6 @@ mod tests {
             &std::fs::read_to_string(&paths.upgrades_file).expect("upgrades file"),
         )
         .expect("upgrades json");
-
         assert_eq!(layout.layout_version, 1);
         assert!(layout.install_root.replace('\\', "/").ends_with("install"));
         assert!(layout.machine_root.replace('\\', "/").ends_with("machine"));
@@ -619,14 +612,7 @@ mod tests {
                 .and_then(Value::as_bool),
             Some(false)
         );
-        assert_eq!(
-            components
-                .pointer("/entries/hub-installer/startupMode")
-                .and_then(Value::as_str),
-            Some("embedded")
-        );
         assert!(upgrades.components.contains_key("openclaw"));
-        assert!(!upgrades.components.contains_key("hub-installer"));
     }
 
     #[test]

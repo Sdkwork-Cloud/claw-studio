@@ -16,9 +16,14 @@ use crate::framework::{
         StorageDeleteRequest, StorageGetTextRequest, StorageListKeysRequest, StorageProviderKind,
         StoragePutTextRequest,
     },
+    install_records::{
+        resolve_openclaw_install_records_home_candidates,
+        InstallRecord,
+        InstallRecordStatus,
+        OPENCLAW_INSTALL_RECORDS_HOME_NAME,
+    },
     FrameworkError, Result,
 };
-use hub_installer_rs::{InstallRecord, InstallRecordStatus};
 use sdkwork_claw_host_core::{
     host_core_metadata,
     host_endpoints::{
@@ -3191,16 +3196,15 @@ fn build_local_external_openclaw_console_access(
     paths: &AppPaths,
     instance: &StudioInstanceRecord,
 ) -> Result<StudioInstanceConsoleAccessRecord> {
-    let installer_home = paths.user_root.join("hub-installer");
-    let install_record = resolve_local_external_openclaw_install_record(&installer_home, instance)?;
+    let install_record = resolve_local_external_openclaw_install_record(paths, instance)?;
     let install_method = install_record
         .as_ref()
-        .map(console_install_method_from_install_record)
+        .map(|(_, record)| console_install_method_from_install_record(record))
         .unwrap_or(StudioInstanceConsoleInstallMethod::Unknown);
 
-    if let Some(record) = install_record.as_ref() {
+    if let Some((installer_home, record)) = install_record.as_ref() {
         if let Some(config_path) =
-            discover_openclaw_config_path(paths, &installer_home, record, &install_method)
+            discover_openclaw_config_path(paths, installer_home.as_path(), record, &install_method)
         {
             let root = read_json5_object(&config_path)?;
             return Ok(build_openclaw_console_access(
@@ -3597,17 +3601,17 @@ fn token_looks_secret_ref(value: &str) -> bool {
 }
 
 fn resolve_local_external_openclaw_install_record(
-    installer_home: &Path,
+    paths: &AppPaths,
     instance: &StudioInstanceRecord,
-) -> Result<Option<InstallRecord>> {
-    let mut records = read_installed_openclaw_install_records(installer_home)?;
+) -> Result<Option<(PathBuf, InstallRecord)>> {
+    let mut records = read_installed_openclaw_install_records(paths)?;
     if records.is_empty() {
         return Ok(None);
     }
 
     let instance_workspace = normalized_path_key(instance.config.workspace_path.as_deref());
     if let Some(expected_workspace) = instance_workspace.as_deref() {
-        if let Some(index) = records.iter().position(|record| {
+        if let Some(index) = records.iter().position(|(_, record)| {
             [
                 Some(record.work_root.as_str()),
                 Some(record.install_root.as_str()),
@@ -3624,62 +3628,79 @@ fn resolve_local_external_openclaw_install_record(
     Ok(records.into_iter().next())
 }
 
-fn read_installed_openclaw_install_records(installer_home: &Path) -> Result<Vec<InstallRecord>> {
-    let records_dir = installer_home.join("state").join("install-records");
-    if !records_dir.is_dir() {
-        return Ok(Vec::new());
-    }
-
+fn read_installed_openclaw_install_records(
+    paths: &AppPaths,
+) -> Result<Vec<(PathBuf, InstallRecord)>> {
     let mut records = Vec::new();
-    for entry in fs::read_dir(&records_dir).map_err(|error| {
-        FrameworkError::Internal(format!("failed to read OpenClaw install records: {error}"))
-    })? {
-        let entry = entry.map_err(|error| {
-            FrameworkError::Internal(format!(
-                "failed to read OpenClaw install record entry: {error}"
-            ))
-        })?;
-        let file_type = entry.file_type().map_err(|error| {
-            FrameworkError::Internal(format!(
-                "failed to inspect OpenClaw install record entry: {error}"
-            ))
-        })?;
-        if !file_type.is_file() {
+
+    for installer_home in resolve_openclaw_install_records_home_candidates(&paths.user_root) {
+        let records_dir = installer_home.join("state").join("install-records");
+        if !records_dir.is_dir() {
             continue;
         }
 
-        let file_name = entry.file_name();
-        let file_name = file_name.to_string_lossy().to_ascii_lowercase();
-        if !file_name.starts_with(OPENCLAW_INSTALLER_SOFTWARE_NAME) || !file_name.ends_with(".json")
-        {
-            continue;
-        }
+        for entry in fs::read_dir(&records_dir).map_err(|error| {
+            FrameworkError::Internal(format!("failed to read OpenClaw install records: {error}"))
+        })? {
+            let entry = entry.map_err(|error| {
+                FrameworkError::Internal(format!(
+                    "failed to read OpenClaw install record entry: {error}"
+                ))
+            })?;
+            let file_type = entry.file_type().map_err(|error| {
+                FrameworkError::Internal(format!(
+                    "failed to inspect OpenClaw install record entry: {error}"
+                ))
+            })?;
+            if !file_type.is_file() {
+                continue;
+            }
 
-        let content = fs::read_to_string(entry.path()).map_err(|error| {
-            FrameworkError::Internal(format!(
-                "failed to read OpenClaw install record file: {error}"
-            ))
-        })?;
-        let record: InstallRecord = serde_json::from_str(&content).map_err(|error| {
-            FrameworkError::Internal(format!(
-                "failed to parse OpenClaw install record file: {error}"
-            ))
-        })?;
-        if record.status == InstallRecordStatus::Installed
-            && is_openclaw_family_software_name(&record.software_name)
-        {
-            records.push(record);
+            let file_name = entry.file_name();
+            let file_name = file_name.to_string_lossy().to_ascii_lowercase();
+            if !file_name.starts_with(OPENCLAW_INSTALLER_SOFTWARE_NAME)
+                || !file_name.ends_with(".json")
+            {
+                continue;
+            }
+
+            let content = fs::read_to_string(entry.path()).map_err(|error| {
+                FrameworkError::Internal(format!(
+                    "failed to read OpenClaw install record file: {error}"
+                ))
+            })?;
+            let record: InstallRecord = serde_json::from_str(&content).map_err(|error| {
+                FrameworkError::Internal(format!(
+                    "failed to parse OpenClaw install record file: {error}"
+                ))
+            })?;
+            if record.status == InstallRecordStatus::Installed
+                && is_openclaw_family_software_name(&record.software_name)
+            {
+                records.push((installer_home.clone(), record));
+            }
         }
     }
 
-    records.sort_by(|left, right| {
-        right
+    records.sort_by(|(left_home, left_record), (right_home, right_record)| {
+        right_record
             .updated_at
-            .cmp(&left.updated_at)
-            .then_with(|| right.installed_at.cmp(&left.installed_at))
-            .then_with(|| left.software_name.cmp(&right.software_name))
+            .cmp(&left_record.updated_at)
+            .then_with(|| right_record.installed_at.cmp(&left_record.installed_at))
+            .then_with(|| {
+                openclaw_install_records_home_rank(left_home)
+                    .cmp(&openclaw_install_records_home_rank(right_home))
+            })
+            .then_with(|| left_record.software_name.cmp(&right_record.software_name))
     });
     Ok(records)
+}
+
+fn openclaw_install_records_home_rank(installer_home: &Path) -> u8 {
+    match installer_home.file_name().and_then(|value| value.to_str()) {
+        Some(OPENCLAW_INSTALL_RECORDS_HOME_NAME) => 0,
+        _ => u8::MAX,
+    }
 }
 
 fn is_openclaw_family_software_name(software_name: &str) -> bool {
@@ -3864,13 +3885,13 @@ fn discover_local_external_openclaw_config_path(
         return None;
     }
 
-    let installer_home = paths.user_root.join("hub-installer");
-    let install_record = resolve_local_external_openclaw_install_record(&installer_home, instance)
+    let (installer_home, install_record) =
+        resolve_local_external_openclaw_install_record(paths, instance)
         .ok()
         .flatten()?;
     let install_method = console_install_method_from_install_record(&install_record);
 
-    discover_openclaw_config_path(paths, &installer_home, &install_record, &install_method)
+    discover_openclaw_config_path(paths, installer_home.as_path(), &install_record, &install_method)
 }
 
 fn openclaw_home_root_candidates(paths: &AppPaths, installer_home: &Path) -> Vec<PathBuf> {
@@ -5640,6 +5661,11 @@ mod tests {
     };
     use crate::framework::{
         config::AppConfig,
+        install_records::{
+            write_install_record, EffectiveRuntimePlatform, InstallControlLevel, InstallRecord,
+            InstallRecordStatus, InstallScope, SupportedPlatform,
+            OPENCLAW_INSTALL_RECORDS_HOME_NAME,
+        },
         paths::resolve_paths_for_root,
         services::{
             openclaw_runtime::ActivatedOpenClawRuntime,
@@ -5647,10 +5673,6 @@ mod tests {
             supervisor::{SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY},
         },
         storage::StorageProviderKind,
-    };
-    use hub_installer_rs::{
-        types::{EffectiveRuntimePlatform, InstallControlLevel, InstallScope, SupportedPlatform},
-        write_install_record, InstallRecord, InstallRecordStatus,
     };
     use sdkwork_claw_host_core::openclaw_control_plane::OpenClawGatewayInvokeRequest;
     use sdkwork_claw_server::bootstrap::{
@@ -6011,7 +6033,9 @@ mod tests {
         effective_runtime_platform: EffectiveRuntimePlatform,
         install_control_level: InstallControlLevel,
     ) {
-        let installer_home = paths.user_root.join("hub-installer");
+        let installer_home = paths
+            .user_root
+            .join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         let record = InstallRecord {
             schema_version: "1.0".to_string(),
             software_name: manifest_name.to_string(),
@@ -7573,7 +7597,9 @@ mod tests {
         let work_root = root.path().join("profile-work");
         let data_root = root.path().join("profile-data");
         let host_openclaw_home = paths.user_root.join(".openclaw");
-        let installer_home = paths.user_root.join("hub-installer");
+        let installer_home = paths
+            .user_root
+            .join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         fs::create_dir_all(&install_root).expect("create install root");
         fs::create_dir_all(&work_root).expect("create work root");
         fs::create_dir_all(&data_root).expect("create data root");
@@ -7678,7 +7704,9 @@ mod tests {
         let install_root = root.path().join("ansible-install");
         let work_root = root.path().join("ansible-work");
         let data_root = root.path().join("ansible-data");
-        let installer_home = paths.user_root.join("hub-installer");
+        let installer_home = paths
+            .user_root
+            .join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         fs::create_dir_all(&install_root).expect("create ansible install root");
         fs::create_dir_all(&work_root).expect("create ansible work root");
         fs::create_dir_all(&data_root).expect("create ansible data root");
@@ -7765,7 +7793,7 @@ mod tests {
             manifest_source_kind: "registry".to_string(),
             platform: SupportedPlatform::Ubuntu,
             effective_runtime_platform: EffectiveRuntimePlatform::Ubuntu,
-            installer_home: "/tmp/hub-installer".to_string(),
+            installer_home: format!("/tmp/{OPENCLAW_INSTALL_RECORDS_HOME_NAME}"),
             install_scope: InstallScope::User,
             install_root: "/tmp/openclaw/install".to_string(),
             work_root: "/tmp/openclaw/work".to_string(),
@@ -7787,7 +7815,9 @@ mod tests {
     fn local_external_openclaw_detail_prefers_install_record_matching_instance_workspace() {
         let (root, paths, config, storage, service) = studio_context();
         let host_openclaw_home = paths.user_root.join(".openclaw");
-        let installer_home = paths.user_root.join("hub-installer");
+        let installer_home = paths
+            .user_root
+            .join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         let profile_work_root = root.path().join("target-work");
         let profile_install_root = root.path().join("target-install");
         let profile_data_root = root.path().join("target-data");
@@ -7896,6 +7926,112 @@ mod tests {
                         websocket_url: Some("ws://127.0.0.1:28789".to_string()),
                         port: Some("28789".to_string()),
                         workspace_path: Some(profile_work_root.to_string_lossy().into_owned()),
+                        ..super::PartialStudioInstanceConfig::default()
+                    }),
+                },
+            )
+            .expect("create local external openclaw");
+
+        let detail = service
+            .get_instance_detail(&paths, &config, &storage, &instance.id)
+            .expect("load instance detail")
+            .expect("local external detail");
+        let serialized = serde_json::to_value(&detail).expect("serialize detail");
+        let console_access = serialized
+            .get("consoleAccess")
+            .and_then(Value::as_object)
+            .expect("detail should include console access");
+
+        assert_eq!(
+            console_access.get("installMethod").and_then(Value::as_str),
+            Some("pnpm")
+        );
+        assert_eq!(
+            console_access.get("authSource").and_then(Value::as_str),
+            Some("installRecord")
+        );
+    }
+
+    #[test]
+    fn local_external_openclaw_detail_reads_from_preferred_install_record_home() {
+        let (root, paths, config, storage, service) = studio_context();
+        let host_openclaw_home = paths.user_root.join(".openclaw");
+        let preferred_installer_home = paths
+            .user_root
+            .join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
+        let preferred_install_root = root.path().join("preferred-install");
+        let preferred_work_root = root.path().join("preferred-work");
+        let preferred_data_root = root.path().join("preferred-data");
+        fs::create_dir_all(&host_openclaw_home).expect("create host openclaw home");
+        fs::create_dir_all(&preferred_install_root).expect("create preferred install root");
+        fs::create_dir_all(&preferred_work_root).expect("create preferred work root");
+        fs::create_dir_all(&preferred_data_root).expect("create preferred data root");
+        fs::write(
+            host_openclaw_home.join("openclaw.json"),
+            r#"{
+  gateway: {
+    port: 28789,
+    auth: {
+      mode: "token",
+      token: "preferred-home-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("write external config");
+        write_install_record(
+            preferred_installer_home.to_string_lossy().as_ref(),
+            "openclaw-pnpm",
+            &InstallRecord {
+                schema_version: "1.0".to_string(),
+                software_name: "openclaw-pnpm".to_string(),
+                manifest_name: "OpenClaw Install (pnpm)".to_string(),
+                manifest_path: "./manifests/openclaw-pnpm.hub.yaml".to_string(),
+                manifest_source_input: "bundled-registry".to_string(),
+                manifest_source_kind: "registry".to_string(),
+                platform: SupportedPlatform::Windows,
+                effective_runtime_platform: EffectiveRuntimePlatform::Windows,
+                installer_home: preferred_installer_home.to_string_lossy().into_owned(),
+                install_scope: InstallScope::User,
+                install_root: preferred_install_root.to_string_lossy().into_owned(),
+                work_root: preferred_work_root.to_string_lossy().into_owned(),
+                bin_dir: preferred_install_root
+                    .join("bin")
+                    .to_string_lossy()
+                    .into_owned(),
+                data_root: preferred_data_root.to_string_lossy().into_owned(),
+                install_control_level: InstallControlLevel::Partial,
+                status: InstallRecordStatus::Installed,
+                installed_at: Some("2026-03-23T00:00:00Z".to_string()),
+                updated_at: "2026-03-23T00:00:00Z".to_string(),
+            },
+        )
+        .expect("write preferred install record");
+
+        let instance = service
+            .create_instance(
+                &paths,
+                &config,
+                &storage,
+                StudioCreateInstanceInput {
+                    name: "Preferred Home OpenClaw".to_string(),
+                    description: Some("Preferred-home OpenClaw runtime".to_string()),
+                    runtime_kind: StudioRuntimeKind::Openclaw,
+                    deployment_mode: StudioInstanceDeploymentMode::LocalExternal,
+                    transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
+                    icon_type: None,
+                    version: Some("1.0.0".to_string()),
+                    type_label: Some("OpenClaw External".to_string()),
+                    host: Some("127.0.0.1".to_string()),
+                    port: Some(28789),
+                    base_url: Some("http://127.0.0.1:28789".to_string()),
+                    websocket_url: Some("ws://127.0.0.1:28789".to_string()),
+                    storage: None,
+                    config: Some(super::PartialStudioInstanceConfig {
+                        base_url: Some("http://127.0.0.1:28789".to_string()),
+                        websocket_url: Some("ws://127.0.0.1:28789".to_string()),
+                        port: Some("28789".to_string()),
                         ..super::PartialStudioInstanceConfig::default()
                     }),
                 },

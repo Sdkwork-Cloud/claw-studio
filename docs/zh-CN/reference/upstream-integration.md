@@ -9,7 +9,7 @@
 当前有效架构如下：
 
 1. Tauri 与 Rust Host 负责安装、生命周期管理和打包期集成。
-2. Hub Installer 负责软件发现、受管安装记录和安装元数据。
+2. 桌面组件服务负责软件发现、受管安装记录和安装元数据。
 3. OpenClaw 是桌面端本地受管场景中的主运行时。
 4. Claw Studio 通过 OpenClaw 兼容配置文件和运行时桥接来读写 provider 与 agent 配置。
 5. Web Host 与 Desktop Host 保持轻量，只消费包根暴露的 API。
@@ -17,7 +17,7 @@
 ## 运行时边界
 
 - Rust Host：安装、升级、进程监管、原生命令桥接、事件分发
-- Hub Installer：软件注册表、包元数据、安装进度
+- 组件服务：软件注册表、包元数据、安装进度
 - OpenClaw Runtime：运行时行为、配置权威、agent 工作区、provider 配置
 - Feature Packages：只负责 UI 与产品流程
 

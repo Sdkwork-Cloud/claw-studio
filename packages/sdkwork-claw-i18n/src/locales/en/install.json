@@ -939,7 +939,7 @@
       "linux": "Linux",
       "windows": "Windows"
     },
-    "profileHint": "Claw Studio uses the same hub-installer profile family shown here. Use this page when you want the official docs, platform caveats, and method fit before running the guided installer.",
+    "profileHint": "Claw Studio now surfaces the official docs, platform caveats, and external download routes shown here. Use this page to choose the right installation method before leaving the app to complete setup.",
     "help": {
       "description": {
         "after": "for live support.",

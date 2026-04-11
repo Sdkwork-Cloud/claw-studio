@@ -26,7 +26,8 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('sdkwork-claw-apps routes remote app-store metadata through claw-core app sdk wrappers while keeping installs on hub-installer', () => {
+runTest('sdkwork-claw-apps keeps App Store metadata on claw-core wrappers while removing embedded install orchestration', () => {
+  const workspacePackage = readJson<{ scripts?: Record<string, string> }>('package.json');
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-apps/package.json');
   const indexSource = read('packages/sdkwork-claw-apps/src/index.ts');
   const appStoreEntrySource = read('packages/sdkwork-claw-apps/src/AppStore.tsx');
@@ -34,16 +35,23 @@ runTest('sdkwork-claw-apps routes remote app-store metadata through claw-core ap
   const serviceSource = read('packages/sdkwork-claw-apps/src/services/appStoreService.ts');
   const detailSource = read('packages/sdkwork-claw-apps/src/pages/apps/AppDetail.tsx');
   const storeSource = read('packages/sdkwork-claw-apps/src/pages/apps/AppStore.tsx');
-  const installerContractSource = read('packages/sdkwork-claw-infrastructure/src/platform/contracts/installer.ts');
+  const appsCheckRunnerSource = read('scripts/run-sdkwork-apps-check.mjs');
 
   assert.ok(exists('packages/sdkwork-claw-apps/src/AppStore.tsx'));
   assert.ok(exists('packages/sdkwork-claw-apps/src/AppDetail.tsx'));
   assert.ok(exists('packages/sdkwork-claw-apps/src/services/appStoreService.ts'));
+  assert.ok(exists('scripts/run-sdkwork-apps-check.mjs'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-apps']);
   assert.equal(pkg.dependencies?.['@sdkwork/claw-core'], 'workspace:*');
   assert.equal(pkg.dependencies?.['@sdkwork/claw-types'], 'workspace:*');
   assert.equal(pkg.dependencies?.['@sdkwork/claw-infrastructure'], 'workspace:*');
+  assert.match(
+    workspacePackage.scripts?.['check:sdkwork-apps'] ?? '',
+    /node scripts\/run-sdkwork-apps-check\.mjs && node --experimental-strip-types scripts\/sdkwork-apps-contract\.test\.ts/,
+  );
+  assert.match(appsCheckRunnerSource, /packages\/sdkwork-claw-apps\/src\/services\/appStoreService\.test\.ts/);
+  assert.match(appsCheckRunnerSource, /packages\/sdkwork-claw-apps\/src\/pages\/apps\/appCatalogPresentation\.test\.ts/);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-apps/);
   assert.match(appStoreEntrySource, /lazy\(\(\) =>/);
   assert.match(appStoreEntrySource, /\.\/pages\/apps\/AppStore/);
@@ -57,45 +65,32 @@ runTest('sdkwork-claw-apps routes remote app-store metadata through claw-core ap
   assert.match(serviceSource, /listApps\(/);
   assert.match(serviceSource, /listCategories\(/);
   assert.match(serviceSource, /getApp\(/);
-  assert.match(serviceSource, /installerService/);
-  assert.match(serviceSource, /listHubInstallCatalog/);
-  assert.match(serviceSource, /inspectInstall\(/);
   assert.match(serviceSource, /getInstallSurfaceSummaries\(/);
   assert.match(serviceSource, /getGuidedInstallNavigation\(/);
-  assert.match(serviceSource, /installDependencies\(/);
-  assert.match(serviceSource, /resolveAppInstallTarget/);
   assert.match(serviceSource, /catalogPresentationCache/);
   assert.match(serviceSource, /installSurfaceSummaryCache/);
-  assert.doesNotMatch(serviceSource, /const appInstallCatalog\s*=/);
-  assert.doesNotMatch(serviceSource, /getFeaturedApp\(/);
-  assert.doesNotMatch(serviceSource, /getTopCharts\(/);
-  assert.match(serviceSource, /installerService\.inspectHubInstall\(/);
-  assert.match(serviceSource, /installerService[\s\S]*listHubInstallCatalog\(/);
-  assert.match(serviceSource, /installerService\.runHubDependencyInstall\(/);
-  assert.match(serviceSource, /installerService\.runHubInstall\(/);
-  assert.match(serviceSource, /installerService\.runHubUninstall\(/);
-  assert.match(installerContractSource, /requestId\?:\s*string/);
-  assert.match(installerContractSource, /requestId\??:\s*string\s*\|\s*null/);
-  assert.match(installerContractSource, /operationKind:\s*HubInstallProgressOperationKind/);
-  assert.match(installerContractSource, /installStatus\??:\s*HubInstallRecordStatus\s*\|\s*null/);
+  assert.match(serviceSource, /Promise\.resolve\(\[\] as AppInstallDefinition\[\]\)/);
+  assert.match(serviceSource, /Embedded install integration was removed/);
+  assert.match(serviceSource, /return app\?\.installHomepage \|\| app\?\.downloadUrl \|\| app\?\.storeUrl \|\| '\/docs#script'/);
+  assert.doesNotMatch(serviceSource, /installerService/);
+  assert.doesNotMatch(serviceSource, /listInstallCatalog/);
+  assert.doesNotMatch(serviceSource, /inspectInstall/);
+  assert.doesNotMatch(serviceSource, /runInstallDependencies/);
+  assert.doesNotMatch(serviceSource, /runInstall/);
+  assert.doesNotMatch(serviceSource, /runUninstall/);
+  assert.doesNotMatch(serviceSource, /\/install\?/);
   assert.doesNotMatch(serviceSource, /setInterval\(/);
   assert.doesNotMatch(serviceSource, /Math\.random\(/);
   assert.doesNotMatch(serviceSource, /new Promise\(.*setTimeout/s);
 
-  assert.match(detailSource, /inspectInstall\(/);
-  assert.match(detailSource, /appStoreService\.getApp\(id\)/);
-  assert.match(detailSource, /installDependencies\(/);
-  assert.match(detailSource, /installApp\(/);
-  assert.match(detailSource, /definition\.variants/);
-  assert.match(detailSource, /assessment\.installStatus/);
-  assert.match(detailSource, /dependencyIds:/);
-  assert.match(detailSource, /currentProgressRequestIdRef/);
-  assert.match(detailSource, /event\.requestId/);
-  assert.match(detailSource, /requestAnimationFrame/);
-  assert.match(detailSource, /scheduleProgressFlush/);
-  assert.match(detailSource, /getGuidedInstallNavigation\(/);
-  assert.match(detailSource, /navigate\(guidedInstallNavigation\)/);
-  assert.doesNotMatch(detailSource, /installedTargets/);
+  assert.match(detailSource, /await appStoreService\.getApp\(id\)/);
+  assert.match(detailSource, /if \(!nextApp\.installable\)/);
+  assert.match(detailSource, /showExternalAccessOnly/);
+  assert.match(detailSource, /apps\.detail\.externalAccessDescription/);
+  assert.match(detailSource, /apps\.detail\.actions\.download/);
+  assert.match(detailSource, /apps\.detail\.actions\.openStore/);
+  assert.doesNotMatch(detailSource, /navigate\(guidedInstallNavigation\)/);
+  assert.doesNotMatch(detailSource, /navigate\('\/install/);
   assert.doesNotMatch(detailSource, /setInterval\(/);
   assert.doesNotMatch(detailSource, /Math\.random\(/);
 
@@ -110,11 +105,11 @@ runTest('sdkwork-claw-apps routes remote app-store metadata through claw-core ap
   assert.doesNotMatch(storeSource, /topCharts?/i);
 });
 
-runTest('the app install helper remains a thin shell over installer-provided catalog descriptors', () => {
+runTest('the app install helper remains a thin shell over install descriptor types without a local embedded catalog', () => {
   const catalogSource = read('packages/sdkwork-claw-apps/src/services/appInstallCatalog.ts');
 
   assert.doesNotMatch(catalogSource, /const appInstallCatalog\s*=/);
   assert.match(catalogSource, /resolveAppHostPlatform/);
   assert.match(catalogSource, /resolveAppInstallTarget/);
-  assert.match(catalogSource, /HubInstallCatalogEntry/);
+  assert.match(catalogSource, /InstallCatalogEntry/);
 });

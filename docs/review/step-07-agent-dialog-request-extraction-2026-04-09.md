@@ -81,7 +81,7 @@
 - `packages/sdkwork-claw-instances/src/services/openClawProviderWorkspacePresentation.ts`
   - still owns provider workspace managed/readonly presentation decisions
 - `packages/sdkwork-claw-market/src/services/marketService.ts`
-  - still routes ClawHub installs to the default agent workspace
+  - still routes skill installs to the default agent workspace
 - `packages/sdkwork-claw-desktop/src-tauri/src/framework/services/local_ai_proxy.rs`
   - still owns local proxy provider projection and default managed agent model projection
 - `packages/sdkwork-claw-desktop/src-tauri/src/plugins/mod.rs`
@@ -120,7 +120,6 @@ Relative to the immediately prior `1931` page baseline from the agent skill runn
   - `pnpm build`
 - Repo-wide lint status:
   - not rerun in this loop
-  - the latest session baseline still had an unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 
 ## Closure Status
 

@@ -1616,12 +1616,12 @@
   },
   "apps": {
     "store": {
-      "title": "Hub Installer Catalog",
-      "description": "Browse installable apps from the real hub-installer registry.",
+      "title": "App Catalog",
+      "description": "Browse app docs, downloads, and external store listings.",
       "searchPlaceholder": "Search catalog apps, packages, tools...",
-      "catalogBadge": "Hub Installer",
-      "catalogTitle": "Real catalog data, live install readiness",
-      "catalogDescription": "App Store now reads directly from the hub-installer catalog. Install readiness is inspected lazily so the page stays responsive while real status data streams in.",
+      "catalogBadge": "Catalog",
+      "catalogTitle": "Official docs, downloads, and store links",
+      "catalogDescription": "App Store now surfaces official docs, downloads, and external store links. Installation is completed outside the embedded desktop runtime.",
       "catalogTotals": "{{count}} apps across {{categories}} categories",
       "searchResultsDescription": "{{count}} matching catalog entries",
       "checkingInstallReadiness": "Checking install readiness in the background...",
@@ -1637,7 +1637,7 @@
       "catalogAppFallback": "Open details to inspect variants, dependencies, and installation guidance.",
       "categoryCount": "{{count}} apps",
       "emptyCatalogTitle": "No catalog entries available",
-      "emptyCatalogDescription": "hub-installer did not return any installable apps for this host yet.",
+      "emptyCatalogDescription": "No externally linked apps are available for this host yet.",
       "emptySearchTitle": "No matching catalog entries",
       "emptySearchDescription": "No catalog apps matched \"{{query}}\".",
       "overview": {
@@ -1646,7 +1646,8 @@
         "installed": "Installed",
         "ready": "Ready",
         "attention": "Needs attention"
-      }
+      },
+      "catalogNotesDescription": "Only published app metadata, docs links, download links, and store links are shown here."
     },
     "detail": {
       "notFoundTitle": "App not found",
@@ -1661,7 +1662,7 @@
       "openApp": "Open app",
       "about": "About this app",
       "catalogNotesTitle": "Catalog notes",
-      "catalogNotesDescription": "Only details published by hub-installer and the selected profile are shown here.",
+      "catalogNotesDescription": "Only details published by the remote catalog and the selected access path are shown here.",
       "information": "Information",
       "hostValue": "Host: {{host}}",
       "installProfilesCount": "{{count}} available",
@@ -6238,7 +6239,7 @@
         "linux": "Linux",
         "windows": "Windows"
       },
-      "profileHint": "Claw Studio uses the same hub-installer profile family shown here. Use this page when you want the official docs, platform caveats, and method fit before running the guided installer.",
+      "profileHint": "Claw Studio now surfaces the official docs, platform caveats, and external download routes shown here. Use this page to choose the right installation method before leaving the app to complete setup.",
       "help": {
         "description": {
           "after": "for live support.",

@@ -173,12 +173,6 @@ mod tests {
             .join("component-registry.json")
             .exists());
         assert!(paths
-            .foundation_dir
-            .join("hub-installer")
-            .join("registry")
-            .join("software-registry.yaml")
-            .exists());
-        assert!(paths
             .modules_dir
             .join("codex")
             .join("1.2.3")
@@ -265,10 +259,6 @@ mod tests {
 
     fn seed_fake_bundle_tree(bundle_root: &Path) {
         let component_dir = bundle_root.join("foundation").join("components");
-        let hub_registry_dir = bundle_root
-            .join("foundation")
-            .join("hub-installer")
-            .join("registry");
         let module_dir = bundle_root
             .join("modules")
             .join("codex")
@@ -277,7 +267,6 @@ mod tests {
         let runtime_dir = bundle_root.join("runtimes").join("node").join("22.16.0");
 
         std::fs::create_dir_all(&component_dir).expect("component dir");
-        std::fs::create_dir_all(&hub_registry_dir).expect("hub registry dir");
         std::fs::create_dir_all(&module_dir).expect("module dir");
         std::fs::create_dir_all(&runtime_dir).expect("runtime dir");
 
@@ -322,11 +311,6 @@ mod tests {
 }"#,
         )
         .expect("upgrade policy");
-        std::fs::write(
-            hub_registry_dir.join("software-registry.yaml"),
-            "schemaVersion: 1\nentries: []\n",
-        )
-        .expect("hub registry");
         std::fs::write(module_dir.join("codex.exe"), b"fake-codex").expect("codex binary");
         std::fs::write(runtime_dir.join("node.exe"), b"fake-node").expect("node runtime");
     }

@@ -21,7 +21,7 @@
 - `packages/sdkwork-claw-settings`
 - `packages/sdkwork-claw-market`
 - `packages/sdkwork-claw-channels`
-- `packages/sdkwork-claw-install`
+- `packages/removed-install-feature`
 - `packages/sdkwork-claw-server`
 - `packages/sdkwork-claw-distribution`
 - `scripts/`

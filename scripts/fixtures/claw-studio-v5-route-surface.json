@@ -22,8 +22,6 @@
     "/github/:id",
     "/huggingface",
     "/huggingface/:id",
-    "/install",
-    "/install/:method",
     "/instances",
     "/instances/:id",
     "/login",

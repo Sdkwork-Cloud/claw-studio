@@ -20,7 +20,6 @@
     "@sdkwork/claw-github": "workspace:*",
     "@sdkwork/claw-huggingface": "workspace:*",
     "@sdkwork/claw-i18n": "workspace:*",
-    "@sdkwork/claw-install": "workspace:*",
     "@sdkwork/claw-instances": "workspace:*",
     "@sdkwork/claw-mall": "workspace:*",
     "@sdkwork/claw-market": "workspace:*",
@@ -37,6 +36,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-i18next": "^17.0.2",
+    "qrcode": "^1.5.4",
     "react-router-dom": "^7.14.0",
     "sonner": "^2.0.7",
     "tailwindcss": "^4.2.2"

@@ -224,7 +224,7 @@ function createKernelStatus(callId: number) {
 
 function createInstallAssessment(callId: number) {
   return {
-    registryName: 'hub-installer',
+    registryName: 'remote-catalog',
     registrySource: 'bundled',
     softwareName: 'openclaw',
     manifestSource: 'bundled',
@@ -261,7 +261,7 @@ function createInstallAssessment(callId: number) {
 
 function createInstallResult() {
   return {
-    registryName: 'hub-installer',
+    registryName: 'remote-catalog',
     registrySource: 'bundled',
     softwareName: 'openclaw',
     manifestSource: 'bundled',
@@ -451,12 +451,12 @@ await runTest('installer platform de-duplicates install inspections and invalida
   configurePlatformBridge({
     installer: {
       ...originalBridge.installer,
-      async inspectHubInstall() {
+      async inspectInstall() {
         inspectCalls += 1;
         await sleep(10);
         return createInstallAssessment(inspectCalls);
       },
-      async runHubInstall() {
+      async runInstall() {
         installCalls += 1;
         return createInstallResult();
       },
@@ -470,11 +470,11 @@ await runTest('installer platform de-duplicates install inspections and invalida
       installScope: 'user',
     } as const;
     const [first, second] = await Promise.all([
-      installer.inspectHubInstall(request),
-      installer.inspectHubInstall(request),
+      installer.inspectInstall(request),
+      installer.inspectInstall(request),
     ]);
-    await installer.runHubInstall(request);
-    const third = await installer.inspectHubInstall(request);
+    await installer.runInstall(request);
+    const third = await installer.inspectInstall(request);
 
     assert.equal(inspectCalls, 2);
     assert.equal(installCalls, 1);
@@ -493,7 +493,7 @@ await runTest('installer platform de-duplicates rapid catalog lookups for the sa
   configurePlatformBridge({
     installer: {
       ...originalBridge.installer,
-      async listHubInstallCatalog(query) {
+      async listInstallCatalog(query) {
         catalogCalls += 1;
         await sleep(10);
         return [
@@ -516,8 +516,8 @@ await runTest('installer platform de-duplicates rapid catalog lookups for the sa
 
   try {
     const [first, second] = await Promise.all([
-      installer.listHubInstallCatalog({ hostPlatform: 'windows' }),
-      installer.listHubInstallCatalog({ hostPlatform: 'windows' }),
+      installer.listInstallCatalog({ hostPlatform: 'windows' }),
+      installer.listInstallCatalog({ hostPlatform: 'windows' }),
     ]);
 
     assert.equal(catalogCalls, 1);

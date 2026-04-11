@@ -255,7 +255,7 @@
       "title": "Claw Studio release-2026-04-08-03",
       "date": "2026-04-08",
       "status": "pending",
-      "summary": "Step 03 install-package root export iteration that restores namespace exports for guided wizard services, aligns sdkwork-claw-install service-root consumption with component expectations, and writes the guard back into the install contract script.",
+      "summary": "Step 03 install-package root export iteration that restores namespace exports for guided wizard services, aligns removed-install-feature service-root consumption with component expectations, and writes the guard back into the install contract script.",
       "notesFile": "release-2026-04-08-03.md",
       "carryForward": [
         "release-2026-04-07-01",
@@ -3190,7 +3190,7 @@
       "title": "Claw Studio release-2026-04-09-89",
       "date": "2026-04-09",
       "status": "pending",
-      "summary": "Step 07 instance-detail decomposition iteration that extracts the lower workbench chrome into a dedicated component and presentation-descriptor layer, reduces InstanceDetail from 2423 to 2073 lines, and keeps repo-wide lint blocked only by the current dirty worktree's unrelated hub-installer submodule URL contract mismatch.",
+      "summary": "Step 07 instance-detail decomposition iteration that extracts the lower workbench chrome into a dedicated component and presentation-descriptor layer, reduces InstanceDetail from 2423 to 2073 lines, and keeps repo-wide lint blocked only by the current dirty worktree's unrelated removed submodule URL contract mismatch.",
       "notesFile": "release-2026-04-09-89.md",
       "carryForward": [
         "release-2026-04-09-88"
@@ -3201,7 +3201,7 @@
       "title": "Claw Studio release-2026-04-09-90",
       "date": "2026-04-09",
       "status": "pending",
-      "summary": "Step 07 instance-detail decomposition iteration that extracts the top hero and action chrome into a dedicated header component, reduces InstanceDetail from 2073 to 1981 lines, and keeps the focused instance-detail verification, web TypeScript gate, and production build green while repo-wide lint remains yellow only because of the unrelated dirty-worktree hub-installer submodule URL contract mismatch.",
+      "summary": "Step 07 instance-detail decomposition iteration that extracts the top hero and action chrome into a dedicated header component, reduces InstanceDetail from 2073 to 1981 lines, and keeps the focused instance-detail verification, web TypeScript gate, and production build green while repo-wide lint remains yellow only because of the unrelated dirty-worktree removed submodule URL contract mismatch.",
       "notesFile": "release-2026-04-09-90.md",
       "carryForward": [
         "release-2026-04-09-89"

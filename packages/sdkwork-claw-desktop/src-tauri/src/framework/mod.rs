@@ -13,6 +13,7 @@ pub mod kernel;
 pub mod kernel_host;
 pub mod layout;
 pub mod logging;
+pub mod install_records;
 pub mod openclaw_release;
 pub mod paths;
 pub mod policy;

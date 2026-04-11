@@ -14,11 +14,11 @@ import {
 } from 'lucide-react';
 import {
   installerService,
-  type HubInstallAssessmentDependency,
-  type HubInstallCatalogVariant,
-  type HubInstallProgressEvent,
-  type HubInstallProgressOperationKind,
-  type HubInstallRecordStatus,
+  type InstallAssessmentDependency,
+  type InstallCatalogVariant,
+  type InstallProgressEvent,
+  type InstallProgressOperationKind,
+  type InstallRecordStatus,
   type RuntimeEventUnsubscribe,
 } from '@sdkwork/claw-infrastructure';
 import { toast } from 'sonner';
@@ -74,7 +74,7 @@ function createProgressSummary(): ProgressSummary {
 
 function createInstallProgressRequestId(
   softwareName: string,
-  operationKind: HubInstallProgressOperationKind,
+  operationKind: InstallProgressOperationKind,
 ) {
   installProgressRequestSequence += 1;
   return `${softwareName}-${operationKind}-${Date.now().toString(36)}-${installProgressRequestSequence.toString(36)}`;
@@ -120,7 +120,7 @@ function isBusyInstallState(installState: InstallState) {
   );
 }
 
-function reduceProgressEvent(state: ProgressSummary, event: HubInstallProgressEvent): ProgressSummary {
+function reduceProgressEvent(state: ProgressSummary, event: InstallProgressEvent): ProgressSummary {
   if (event.type === 'stageStarted') {
     return {
       ...state,
@@ -170,7 +170,7 @@ function reduceProgressEvent(state: ProgressSummary, event: HubInstallProgressEv
   return state;
 }
 
-function formatProgressEvent(t: Translator, event: HubInstallProgressEvent) {
+function formatProgressEvent(t: Translator, event: InstallProgressEvent) {
   if (event.type === 'dependencyStarted') {
     return t('apps.detail.progress.dependencyChecking', {
       target: event.description || event.target || event.dependencyId,
@@ -242,10 +242,10 @@ function formatProgressEvent(t: Translator, event: HubInstallProgressEvent) {
 }
 
 function matchesProgressEvent(
-  event: HubInstallProgressEvent,
+  event: InstallProgressEvent,
   requestId: string,
   softwareName: string,
-  operationKind: HubInstallProgressOperationKind,
+  operationKind: InstallProgressOperationKind,
 ) {
   if (event.requestId) {
     return event.requestId === requestId;
@@ -261,7 +261,7 @@ function getErrorMessage(error: unknown) {
   return String(error);
 }
 
-function getDependencyBadgeColor(dependency: HubInstallAssessmentDependency) {
+function getDependencyBadgeColor(dependency: InstallAssessmentDependency) {
   if (dependency.status === 'available') {
     return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300';
   }
@@ -313,7 +313,7 @@ function getBooleanLabel(t: Translator, value: boolean) {
 
 function getInstallStatusLabel(
   t: Translator,
-  value: HubInstallRecordStatus | null | undefined,
+  value: InstallRecordStatus | null | undefined,
 ) {
   if (value === 'installed') {
     return t('install.page.install.states.installed');
@@ -326,7 +326,7 @@ function getInstallStatusLabel(
   return t('apps.detail.installStatus.notManaged');
 }
 
-function getInstallStatusTone(value: HubInstallRecordStatus | null | undefined) {
+function getInstallStatusTone(value: InstallRecordStatus | null | undefined) {
   if (value === 'installed') {
     return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300';
   }
@@ -416,14 +416,14 @@ function getDirectoryLabel(t: Translator, entry: InstallDirectoryEntry) {
 
 function getDependencyStatusLabel(
   t: Translator,
-  value: HubInstallAssessmentDependency['status'],
+  value: InstallAssessmentDependency['status'],
 ) {
   return t(`install.page.assessment.dependencyStatus.${value}`, {
     defaultValue: humanizeLabel(value) || value,
   });
 }
 
-function getCheckTypeLabel(t: Translator, value: HubInstallAssessmentDependency['checkType']) {
+function getCheckTypeLabel(t: Translator, value: InstallAssessmentDependency['checkType']) {
   return t(`apps.detail.values.checkTypes.${normalizeTranslationToken(value)}`, {
     defaultValue: humanizeLabel(value) || value,
   });
@@ -484,7 +484,7 @@ function getMigrationModeLabel(t: Translator, value: string | null | undefined) 
 }
 
 function getVariantDocumentationUrl(
-  variant: HubInstallCatalogVariant | null,
+  variant: InstallCatalogVariant | null,
   inspection: AppInstallInspection | null,
   app: AppItem | null,
 ) {
@@ -517,7 +517,7 @@ export function AppDetail() {
   const progressFlushHandleRef = useRef<number | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [selectedVariantByApp, setSelectedVariantByApp] = useState<Record<string, string>>({});
-  const [optimisticInstallStatus, setOptimisticInstallStatus] = useState<HubInstallRecordStatus | null>(null);
+  const [optimisticInstallStatus, setOptimisticInstallStatus] = useState<InstallRecordStatus | null>(null);
   const [dependencyActionTarget, setDependencyActionTarget] = useState<string | 'all' | null>(null);
   const selectedVariantId = id ? selectedVariantByApp[id] ?? null : null;
 
@@ -604,7 +604,22 @@ export function AppDetail() {
       setAssessmentError(null);
 
       try {
-        const nextInspection = await appStoreService.inspectInstall(
+        const nextApp = await appStoreService.getApp(id);
+        if (!active) {
+          return;
+        }
+
+        setApp(nextApp);
+
+        if (!nextApp.installable) {
+          setInspection(null);
+          setOptimisticInstallStatus(null);
+          setAssessmentError(null);
+          setInstallState('idle');
+          return;
+        }
+
+        const nextInspection = await appStoreService.inspectSetup(
           id,
           requestedVariantId ? { variantId: requestedVariantId } : undefined,
         );
@@ -631,19 +646,7 @@ export function AppDetail() {
           return;
         }
 
-        let fallbackApp: AppItem | null = null;
-
-        try {
-          fallbackApp = await appStoreService.getApp(id);
-        } catch {
-          fallbackApp = null;
-        }
-
-        if (!active) {
-          return;
-        }
-
-        setApp(fallbackApp);
+        setApp(null);
         setInspection(null);
         setOptimisticInstallStatus(null);
         setAssessmentError(getErrorMessage(error));
@@ -701,6 +704,7 @@ export function AppDetail() {
     [inspection],
   );
   const installDocumentationUrl = getVariantDocumentationUrl(selectedVariant, inspection, app);
+  const showExternalAccessOnly = Boolean(app) && !inspection;
   const runtime = inspection?.assessment.runtime ?? null;
   const installBusy = isBusyInstallState(installState);
   const installStatus = optimisticInstallStatus ?? inspection?.assessment.installStatus ?? null;
@@ -760,7 +764,7 @@ export function AppDetail() {
   const startProgressTracking = async (
     requestId: string,
     softwareName: string,
-    operationKind: HubInstallProgressOperationKind,
+    operationKind: InstallProgressOperationKind,
   ) => {
     const unsubscribe = progressUnsubscribeRef.current;
     progressUnsubscribeRef.current = null;
@@ -771,7 +775,7 @@ export function AppDetail() {
 
     resetProgressState();
 
-    progressUnsubscribeRef.current = await installerService.subscribeHubInstallProgress((event) => {
+    progressUnsubscribeRef.current = await installerService.subscribeInstallProgress((event) => {
       if (
         currentProgressRequestIdRef.current !== requestId ||
         !matchesProgressEvent(event, requestId, softwareName, operationKind)
@@ -861,7 +865,7 @@ export function AppDetail() {
     await runDependencyInstall();
   };
 
-  const handleInstallDependency = async (dependency: HubInstallAssessmentDependency) => {
+  const handleInstallDependency = async (dependency: InstallAssessmentDependency) => {
     await runDependencyInstall(
       [dependency.id],
       dependency.description || dependency.target || dependency.id,
@@ -876,14 +880,6 @@ export function AppDetail() {
     setAssessmentError(null);
 
     try {
-      const guidedInstallNavigation = await appStoreService.getGuidedInstallNavigation(id, {
-        variantId: selectedVariantId ?? undefined,
-      });
-      if (guidedInstallNavigation) {
-        navigate(guidedInstallNavigation);
-        return;
-      }
-
       setInstallState('installing');
       const requestId = createInstallProgressRequestId(progressSoftwareName, 'install');
       await startProgressTracking(requestId, progressSoftwareName, 'install');
@@ -1056,35 +1052,61 @@ export function AppDetail() {
                 </button>
               ) : null}
 
-              {isInstalledTarget ? (
-                <button
-                  type="button"
-                  className="flex items-center gap-2 rounded-full bg-zinc-900 px-8 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                >
-                  <Check className="h-4 w-4" />
-                  {t('install.page.install.states.installed')}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleInstall}
-                  disabled={installBusy || !!blockingIssues.length || !inspection || !readyToInstall}
-                  className="flex items-center gap-2 rounded-full bg-primary-500 px-8 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-                >
-                  {installState === 'installing' ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  {installState === 'installing'
-                    ? t('apps.detail.installing')
-                    : selectedVariant
-                      ? t('apps.detail.actions.installVariant', { variant: selectedVariant.label })
-                      : t('apps.detail.installToLocal')}
-                </button>
-              )}
+              {inspection ? (
+                isInstalledTarget ? (
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 rounded-full bg-zinc-900 px-8 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                  >
+                    <Check className="h-4 w-4" />
+                    {t('install.page.install.states.installed')}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleInstall}
+                    disabled={installBusy || !!blockingIssues.length || !inspection || !readyToInstall}
+                    className="flex items-center gap-2 rounded-full bg-primary-500 px-8 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+                  >
+                    {installState === 'installing' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    {installState === 'installing'
+                      ? t('apps.detail.installing')
+                      : selectedVariant
+                        ? t('apps.detail.actions.installVariant', { variant: selectedVariant.label })
+                        : t('apps.detail.installToLocal')}
+                  </button>
+                )
+              ) : null}
 
-              {inspection && installDocumentationUrl ? (
+              {!inspection && app?.downloadUrl ? (
+                <a
+                  href={app.downloadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 rounded-full bg-primary-500 px-8 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-primary-600"
+                >
+                  <Download className="h-4 w-4" />
+                  {t('apps.detail.actions.download')}
+                </a>
+              ) : null}
+
+              {!inspection && app?.storeUrl ? (
+                <a
+                  href={app.storeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 rounded-full border border-zinc-300 px-5 py-2.5 font-bold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {t('apps.detail.actions.openStore')}
+                </a>
+              ) : null}
+
+              {installDocumentationUrl ? (
                 <a
                   href={installDocumentationUrl}
                   target="_blank"
@@ -1096,7 +1118,7 @@ export function AppDetail() {
                 </a>
               ) : null}
 
-              {isInstalledTarget ? (
+              {inspection && isInstalledTarget ? (
                 <button
                   type="button"
                   onClick={handleUninstall}
@@ -1195,6 +1217,12 @@ export function AppDetail() {
             {assessmentError ? (
               <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
                 {assessmentError}
+              </div>
+            ) : null}
+
+            {showExternalAccessOnly ? (
+              <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
+                {t('apps.detail.externalAccessDescription')}
               </div>
             ) : null}
           </div>

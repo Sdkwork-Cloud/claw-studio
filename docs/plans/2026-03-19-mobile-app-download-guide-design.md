@@ -68,7 +68,7 @@ Choose Option C.
 The best architecture-safe version of the feature is:
 
 - `@sdkwork/claw-shell` for the persistent header action and global modal mount
-- `@sdkwork/claw-install` for the mobile guidance service and UI components
+- `removed-install-feature` for the mobile guidance service and UI components
 - `@sdkwork/claw-core` for one-time prompt state
 - `@sdkwork/claw-i18n` for copy
 
@@ -116,7 +116,7 @@ Distribution-aware URLs should be resolved from the current environment:
 
 ## Architecture
 
-### `@sdkwork/claw-install`
+### `removed-install-feature`
 
 Add:
 

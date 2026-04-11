@@ -29,6 +29,7 @@ runNodeTypeScriptChecks([
   'packages/sdkwork-claw-instances/src/services/instanceWorkbenchHydration.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceActionCapabilities.test.ts',
+  'packages/sdkwork-claw-instances/src/services/instanceOnboardingService.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceFileWorkbench.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceMemoryWorkbenchPresentation.test.ts',
   'packages/sdkwork-claw-instances/src/services/openClawProviderRequestDraft.test.ts',

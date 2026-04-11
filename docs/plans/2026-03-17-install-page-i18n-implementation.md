@@ -13,8 +13,8 @@
 ### Task 1: Install Page Copy
 
 **Files:**
-- Modify: `packages/sdkwork-claw-install/src/pages/install/Install.tsx`
-- Modify: `packages/sdkwork-claw-install/src/pages/install/InstallDetail.tsx` (shared strings/live mirroring)
+- Modify: `packages/removed-install-feature/src/pages/install/Install.tsx`
+- Modify: `packages/removed-install-feature/src/pages/install/InstallDetail.tsx` (shared strings/live mirroring)
 - Test: `scripts/check-i18n-contract.mjs`
 
 **Step 1: Write/verbalize failing validation**
@@ -40,6 +40,6 @@ Expected: install files no longer flagged.
 
 **Step 5: Commit**
 ```
-git add packages/sdkwork-claw-install/src/pages/install/Install.tsx packages/sdkwork-claw-install/src/pages/install/InstallDetail.tsx docs/plans/2026-03-17-install-page-i18n-implementation.md
+git add packages/removed-install-feature/src/pages/install/Install.tsx packages/removed-install-feature/src/pages/install/InstallDetail.tsx docs/plans/2026-03-17-install-page-i18n-implementation.md
 git commit -m "feat: i18n install experience"
 ```

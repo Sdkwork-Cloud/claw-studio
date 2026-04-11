@@ -59,8 +59,8 @@ Expected: settings-related inline bilingual copy is no longer reported.
 **Files:**
 
 - Modify: `packages/sdkwork-claw-apps/src/pages/apps/AppDetail.tsx`
-- Modify: `packages/sdkwork-claw-install/src/pages/install/Install.tsx`
-- Modify: `packages/sdkwork-claw-install/src/components/OpenClawGuidedInstallWizard.tsx`
+- Modify: `packages/removed-install-feature/src/pages/install/Install.tsx`
+- Modify: `packages/removed-install-feature/src/components/OpenClawGuidedInstallWizard.tsx`
 - Modify: `packages/sdkwork-claw-i18n/src/locales/en.json`
 - Modify: `packages/sdkwork-claw-i18n/src/locales/zh.json`
 

@@ -44,7 +44,7 @@
 - Modify: `D:\javasource\spring-ai-plus\spring-ai-plus-business\apps\claw-studio\packages\sdkwork-claw-chat\src\services\instanceEffectiveModelCatalogService.ts`
 - Modify: `D:\javasource\spring-ai-plus\spring-ai-plus-business\apps\claw-studio\packages\sdkwork-claw-instances\src\services\instanceWorkbenchService.ts`
 - Modify: `D:\javasource\spring-ai-plus\spring-ai-plus-business\apps\claw-studio\packages\sdkwork-claw-devices\src\services\deviceService.ts`
-- Modify: `D:\javasource\spring-ai-plus\spring-ai-plus-business\apps\claw-studio\packages\sdkwork-claw-install\src\services\installBootstrapService.ts`
+- Modify: `D:\javasource\spring-ai-plus\spring-ai-plus-business\apps\claw-studio\packages\removed-install-feature\src\services\installBootstrapService.ts`
 - Modify: `D:\javasource\spring-ai-plus\spring-ai-plus-business\apps\claw-studio\packages\sdkwork-claw-dashboard\src\services\dashboardService.ts`
 - Modify: `D:\javasource\spring-ai-plus\spring-ai-plus-business\apps\claw-studio\packages\sdkwork-claw-model-purchase\src\services\modelPurchaseCatalog.ts`
 

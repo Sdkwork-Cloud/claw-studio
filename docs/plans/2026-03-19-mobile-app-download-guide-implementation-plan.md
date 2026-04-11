@@ -13,7 +13,7 @@
 ### Task 1: Lock the mobile guide contract in tests
 
 **Files:**
-- Create: `packages/sdkwork-claw-install/src/services/mobileAppGuideService.test.ts`
+- Create: `packages/removed-install-feature/src/services/mobileAppGuideService.test.ts`
 - Modify: `scripts/sdkwork-install-contract.test.ts`
 - Modify: `scripts/sdkwork-shell-contract.test.ts`
 
@@ -28,10 +28,10 @@ Add a new pure service test that asserts:
 
 Expand the install contract to assert that:
 
-- `packages/sdkwork-claw-install/src/components/MobileAppDownloadDialog.tsx` exists
-- `packages/sdkwork-claw-install/src/components/MobileAppDownloadSection.tsx` exists
-- `packages/sdkwork-claw-install/src/services/mobileAppGuideService.ts` exists
-- `packages/sdkwork-claw-install/src/index.ts` exports the mobile guide components
+- `packages/removed-install-feature/src/components/MobileAppDownloadDialog.tsx` exists
+- `packages/removed-install-feature/src/components/MobileAppDownloadSection.tsx` exists
+- `packages/removed-install-feature/src/services/mobileAppGuideService.ts` exists
+- `packages/removed-install-feature/src/index.ts` exports the mobile guide components
 
 Expand the shell contract to assert that:
 
@@ -42,7 +42,7 @@ Expand the shell contract to assert that:
 
 Run:
 
-- `node --experimental-strip-types packages/sdkwork-claw-install/src/services/mobileAppGuideService.test.ts`
+- `node --experimental-strip-types packages/removed-install-feature/src/services/mobileAppGuideService.test.ts`
 - `node --experimental-strip-types scripts/sdkwork-install-contract.test.ts`
 - `node --experimental-strip-types scripts/sdkwork-shell-contract.test.ts`
 
@@ -59,15 +59,15 @@ Re-run the same three commands and confirm they pass.
 ### Task 2: Implement the install feature mobile guidance surface
 
 **Files:**
-- Modify: `packages/sdkwork-claw-install/package.json`
-- Modify: `packages/sdkwork-claw-install/src/index.ts`
-- Modify: `packages/sdkwork-claw-install/src/components/index.ts`
-- Create: `packages/sdkwork-claw-install/src/components/MobileAppDownloadDialog.tsx`
-- Create: `packages/sdkwork-claw-install/src/components/MobileAppDownloadSection.tsx`
-- Create: `packages/sdkwork-claw-install/src/components/MobileAppDownloadChannelCard.tsx`
-- Create: `packages/sdkwork-claw-install/src/services/mobileAppGuideService.ts`
-- Modify: `packages/sdkwork-claw-install/src/services/index.ts`
-- Modify: `packages/sdkwork-claw-install/src/pages/install/Install.tsx`
+- Modify: `packages/removed-install-feature/package.json`
+- Modify: `packages/removed-install-feature/src/index.ts`
+- Modify: `packages/removed-install-feature/src/components/index.ts`
+- Create: `packages/removed-install-feature/src/components/MobileAppDownloadDialog.tsx`
+- Create: `packages/removed-install-feature/src/components/MobileAppDownloadSection.tsx`
+- Create: `packages/removed-install-feature/src/components/MobileAppDownloadChannelCard.tsx`
+- Create: `packages/removed-install-feature/src/services/mobileAppGuideService.ts`
+- Modify: `packages/removed-install-feature/src/services/index.ts`
+- Modify: `packages/removed-install-feature/src/pages/install/Install.tsx`
 
 **Step 1: Write the failing test**
 
@@ -77,7 +77,7 @@ Use the tests from Task 1 as the red phase.
 
 Re-run:
 
-- `node --experimental-strip-types packages/sdkwork-claw-install/src/services/mobileAppGuideService.test.ts`
+- `node --experimental-strip-types packages/removed-install-feature/src/services/mobileAppGuideService.test.ts`
 - `node --experimental-strip-types scripts/sdkwork-install-contract.test.ts`
 
 Expected: at least one assertion fails before the implementation is complete.
@@ -93,7 +93,7 @@ Expected: at least one assertion fails before the implementation is complete.
 
 Run:
 
-- `node --experimental-strip-types packages/sdkwork-claw-install/src/services/mobileAppGuideService.test.ts`
+- `node --experimental-strip-types packages/removed-install-feature/src/services/mobileAppGuideService.test.ts`
 - `node --experimental-strip-types scripts/sdkwork-install-contract.test.ts`
 
 Expected: both pass.
@@ -151,7 +151,7 @@ Add mobile app copy for:
 
 Run:
 
-- `node --experimental-strip-types packages/sdkwork-claw-install/src/services/mobileAppGuideService.test.ts`
+- `node --experimental-strip-types packages/removed-install-feature/src/services/mobileAppGuideService.test.ts`
 - `node --experimental-strip-types scripts/sdkwork-install-contract.test.ts`
 - `node --experimental-strip-types scripts/sdkwork-shell-contract.test.ts`
 

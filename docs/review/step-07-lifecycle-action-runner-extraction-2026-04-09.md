@@ -111,7 +111,6 @@ Relative to the immediately prior `1906` page baseline from the agent skill requ
   - `pnpm build`
 - Repo-wide lint status:
   - not rerun in this loop
-  - the latest session baseline still had an unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 
 ## Closure Status
 

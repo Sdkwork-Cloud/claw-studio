@@ -521,21 +521,21 @@ test('release asset packager records macOS OpenClaw staged-layout contract metad
   }
 });
 
-test('release asset packager removes legacy Windows desktop output paths before copying fresh installers', async () => {
+test('release asset packager removes stale Windows desktop output paths before copying fresh installers', async () => {
   const packagerPath = path.join(rootDir, 'scripts', 'release', 'package-release-assets.mjs');
   const packager = await import(pathToFileURL(packagerPath).href);
 
-  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-windows-desktop-legacy-'));
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-windows-desktop-stale-'));
   const targetDir = path.join(tempRoot, 'target');
   const bundleRoot = path.join(targetDir, 'x86_64-pc-windows-msvc', 'release', 'bundle', 'nsis');
   const outputDir = path.join(tempRoot, 'release-assets');
-  const legacyOutputDir = path.join(outputDir, 'desktop', 'windows', 'nsis');
-  const legacyInstallerPath = path.join(legacyOutputDir, 'legacy-installer.exe');
+  const staleOutputDir = path.join(outputDir, 'desktop', 'windows', 'nsis');
+  const staleInstallerPath = path.join(staleOutputDir, 'stale-desktop-installer.exe');
 
   try {
     mkdirSync(bundleRoot, { recursive: true });
-    mkdirSync(legacyOutputDir, { recursive: true });
-    writeFileSync(legacyInstallerPath, 'stale legacy desktop installer\n', 'utf8');
+    mkdirSync(staleOutputDir, { recursive: true });
+    writeFileSync(staleInstallerPath, 'stale desktop installer\n', 'utf8');
     writeFileSync(
       path.join(bundleRoot, 'Claw Studio_0.1.0_x64-setup.exe'),
       'synthetic desktop installer\n',
@@ -551,14 +551,14 @@ test('release asset packager removes legacy Windows desktop output paths before 
     });
 
     assert.equal(
-      existsSync(legacyOutputDir),
+      existsSync(staleOutputDir),
       false,
-      `expected legacy desktop output directory to be removed: ${legacyOutputDir}`,
+      `expected stale desktop output directory to be removed: ${staleOutputDir}`,
     );
     assert.equal(
-      existsSync(legacyInstallerPath),
+      existsSync(staleInstallerPath),
       false,
-      `expected stale legacy installer to be removed: ${legacyInstallerPath}`,
+      `expected stale desktop installer to be removed: ${staleInstallerPath}`,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

@@ -44,8 +44,6 @@
   - `InstanceDetailOverviewSection.tsx` still imported `InstanceManagementSummary` through a direct service subpath instead of the public service barrel
 - Repaired all three verification blockers with minimal changes.
 - Repo-wide `pnpm lint` still does not close fully because `check:sdkwork-install` fails on the current dirty worktree's unrelated `.gitmodules` state:
-  - actual: `git@github.com:Sdkwork-Cloud/hub-installer.git`
-  - expected by contract: `https://github.com/Sdkwork-Cloud/hub-installer`
 
 ## Boundary Decision
 
@@ -99,7 +97,6 @@ Relative to the prior loop's `2423`-line page baseline, this loop reduces `Insta
   - `pnpm build`
 - YELLOW:
   - `pnpm lint`
-  - reached `check:sdkwork-install` and failed on the unrelated `.gitmodules` hub-installer URL contract mismatch described above
 
 ## Closure Status
 

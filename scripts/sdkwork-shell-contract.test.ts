@@ -299,7 +299,7 @@ runTest('sdkwork-claw-shell defers optional header and dialog feature surfaces u
 
   assert.match(
     layoutSource,
-    /const MobileAppDownloadDialog = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-install'\)/,
+    /const MobileAppDownloadDialog = lazy\(\(\) =>[\s\S]*import\('\.\.\/\.\.\/components\/MobileAppDownloadDialog'\)/,
   );
   assert.match(
     layoutSource,
@@ -319,7 +319,7 @@ runTest('sdkwork-claw-shell defers optional header and dialog feature surfaces u
   assert.doesNotMatch(headerSource, /import \{ PointsHeaderEntry \} from '@sdkwork\/claw-points';/);
   assert.doesNotMatch(headerSource, /import \{ InstanceSwitcher \} from '\.\/InstanceSwitcher';/);
   assert.match(layoutSource, /shouldRenderChatRuntimeWarmersForPath/);
-  assert.match(warmersPolicySource, /ROUTE_PATHS\.INSTALL/);
+  assert.doesNotMatch(warmersPolicySource, /ROUTE_PATHS\.INSTALL/);
   assert.match(warmersPolicySource, /ROUTE_PATHS\.OAUTH_CALLBACK_PREFIX/);
   assert.match(layoutSource, /isMobileAppDialogOpen \?[\s\S]*<Suspense fallback=\{null\}>[\s\S]*<MobileAppDownloadDialog/);
   assert.match(layoutSource, /shouldRenderChatRuntimeWarmers \?[\s\S]*<Suspense fallback=\{null\}>[\s\S]*<ChatRuntimeWarmers/);
@@ -617,7 +617,8 @@ runTest('sdkwork-claw-shell only auto-prompts the mobile app guide from the dash
   const layoutSource = read('packages/sdkwork-claw-shell/src/application/layouts/MainLayout.tsx');
 
   assert.match(layoutSource, /const isPromptEligibleRoute = location\.pathname === ROUTE_PATHS\.DASHBOARD;/);
-  assert.match(layoutSource, /if \(isAuthRoute \|\| isInstallRoute \|\| !isPromptEligibleRoute \|\| hasSeenMobileAppPrompt\)/);
+  assert.match(layoutSource, /if \(isAuthRoute \|\| !isPromptEligibleRoute \|\| hasSeenMobileAppPrompt\)/);
+  assert.doesNotMatch(layoutSource, /isInstallRoute/);
 });
 
 runTest('sdkwork-claw-shell keeps sidebar collapse affordance on the hover edge and exposes a resize handle', () => {
@@ -646,7 +647,7 @@ runTest('sdkwork-claw-shell promotes ClawHub ahead of App Store in the ecosystem
   );
 });
 
-runTest('sdkwork-claw-shell keeps the registry center under the Claw联网 entry while hiding app store instead of the market by default', () => {
+runTest('sdkwork-claw-shell keeps the registry center under the Claw鑱旂綉 entry while hiding app store instead of the market by default', () => {
   const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
   const settingsSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
   const appStoreSource = read('packages/sdkwork-claw-core/src/stores/useAppStore.ts');
@@ -738,17 +739,11 @@ runTest('sdkwork-claw-shell removes api-router and model purchase from shell ent
   assert.doesNotMatch(settingsSource, /id: 'api-router', label: t\('sidebar\.apiRouter'\)/);
 });
 
-runTest('sdkwork-claw-shell labels the setup entry as Install Claw in both locales', () => {
+runTest('sdkwork-claw-shell removes the dedicated install sidebar entry while keeping setup surfaces discoverable', () => {
   const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
-  const enLocale = readJson<{ sidebar: { install: string } }>(
-    'packages/sdkwork-claw-i18n/src/locales/en.json',
-  );
-  const zhLocale = readJson<{ sidebar: { install: string } }>(
-    'packages/sdkwork-claw-i18n/src/locales/zh.json',
-  );
 
-  assert.match(sidebarSource, /id: 'install'/);
-  assert.match(sidebarSource, /label: t\('sidebar\.install'\)/);
-  assert.equal(enLocale.sidebar.install, 'Install Claw');
-  assert.equal(zhLocale.sidebar.install, '安装 Claw');
+  assert.doesNotMatch(sidebarSource, /id: 'install'/);
+  assert.doesNotMatch(sidebarSource, /to: '\/install'/);
+  assert.match(sidebarSource, /id: 'kernel'/);
+  assert.match(sidebarSource, /id: 'instances'/);
 });

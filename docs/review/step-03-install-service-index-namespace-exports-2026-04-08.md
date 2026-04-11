@@ -3,7 +3,7 @@
 ## 1. 当前问题
 
 - workspace `lint` 中，`GuidedInstallWizard.tsx` 与 `OpenClawGuidedInstallWizard.tsx` 报告无法从 `../services` 获取 `installGuidedWizardService` / `openClawInstallWizardService`。
-- 这不是 wizard service 文件缺失，而是 `packages/sdkwork-claw-install/src/services/index.ts` 只做了 `export * from ...`，没有提供组件实际在使用的模块命名空间导出。
+- 这不是 wizard service 文件缺失，而是 `packages/removed-install-feature/src/services/index.ts` 只做了 `export * from ...`，没有提供组件实际在使用的模块命名空间导出。
 
 ## 2. 根因分析
 
@@ -17,7 +17,7 @@
   - 新增契约断言，要求 `services/index.ts` 显式包含：
     - `export * as installGuidedWizardService from './installGuidedWizardService'`
     - `export * as openClawInstallWizardService from './openClawInstallWizardService'`
-- `packages/sdkwork-claw-install/src/services/index.ts`
+- `packages/removed-install-feature/src/services/index.ts`
   - 补充上述两条 namespace export，同时保留原有 `export * from ...`，不破坏现有散装函数消费者。
 
 ## 4. 验证结果
@@ -37,4 +37,4 @@
 ## 6. 剩余缺口
 
 - workspace `lint` 仍有很多历史类型问题，本轮只收口 install wizard service namespace export 漂移。
-- 下一轮如果继续留在 Step 03 领域，优先看 `sdkwork-claw-install` / `sdkwork-claw-market` 附近剩余的类型噪声是否还能用同样“小范围高价值”方式继续压缩。
+- 下一轮如果继续留在 Step 03 领域，优先看 `removed-install-feature` / `sdkwork-claw-market` 附近剩余的类型噪声是否还能用同样“小范围高价值”方式继续压缩。

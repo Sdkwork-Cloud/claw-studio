@@ -114,7 +114,6 @@ Relative to the immediately prior `1930` page baseline from the managed-config r
   - `pnpm build`
 - YELLOW on the latest session-wide repo verification:
   - `pnpm lint`
-  - still blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 
 ## Closure Status
 

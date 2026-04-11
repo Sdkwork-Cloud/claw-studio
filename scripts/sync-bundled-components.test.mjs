@@ -148,18 +148,15 @@ for (const [resourceId, expectedSource, expectedTarget] of [
   );
 }
 
-const vendoredHubInstallerRepoDir = syncModule.resolveComponentRepositoryDir({
-  component: {
-    checkoutDir: 'hub-installer',
-    repositoryDir: 'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\vendor\\hub-installer',
-  },
-  upstreamRootDir: 'D:\\workspace\\claw-studio\\.cache\\bundled-components\\upstreams',
-});
-
-assert.equal(
-  vendoredHubInstallerRepoDir,
-  'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\vendor\\hub-installer',
-  'sync-bundled-components must use the vendored hub-installer submodule as the source of truth',
+assert.deepEqual(
+  Object.keys(resources).sort(),
+  [
+    'foundation/components/',
+    'generated/br/b/',
+    'generated/br/o/',
+    'generated/br/w/',
+  ],
+  'sync-bundled-components must keep only OpenClaw, web dist, and foundation mappings in the Windows Tauri overlay',
 );
 
 const cachedOpenClawRepoDir = syncModule.resolveComponentRepositoryDir({
@@ -626,10 +623,6 @@ assert.match(
             id: 'openclaw',
             bundledVersion: '2026.3.24',
           },
-          {
-            id: 'hub-installer',
-            bundledVersion: 'bundled',
-          },
         ],
       },
       null,
@@ -650,6 +643,11 @@ assert.match(
     normalizedRegistry.components.find((entry) => entry.id === 'openclaw')?.bundledVersion,
     expectedOpenClawVersion,
     'sync-bundled-components must normalize the source component registry to the shared OpenClaw stable version',
+  );
+  assert.equal(
+    normalizedRegistry.components.length,
+    1,
+    'sync-bundled-components must keep the source component registry focused on active bundled components during normalization',
   );
   assert.deepEqual(
     normalizedFile,
@@ -685,7 +683,7 @@ assert.match(
     path.join(packageRoot, 'dist', 'cli-startup-metadata.json'),
     `${JSON.stringify(
       {
-        rootHelpText: '\n🦞 OpenClaw 2026.3.24 (685f174)\n',
+        rootHelpText: '\n馃 OpenClaw 2026.3.24 (685f174)\n',
       },
       null,
       2,

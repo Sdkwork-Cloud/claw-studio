@@ -40,7 +40,7 @@ Expected: FAIL on missing visual structure markers, not on unrelated files.
 ### Task 2: Refactor Install Page Layout Around Task Focus
 
 **Files:**
-- Modify: `packages/sdkwork-claw-install/src/pages/install/Install.tsx`
+- Modify: `packages/removed-install-feature/src/pages/install/Install.tsx`
 
 **Step 1: Write the failing test**
 

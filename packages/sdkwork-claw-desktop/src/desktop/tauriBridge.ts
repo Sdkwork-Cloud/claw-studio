@@ -7,10 +7,10 @@ import {
 } from '@sdkwork/claw-infrastructure';
 import type {
   HostPlatformStatusRecord,
-  HubInstallCatalogEntry,
-  HubInstallCatalogQuery,
-  HubInstallDependencyRequest,
-  HubInstallDependencyResult,
+  InstallCatalogEntry,
+  InstallCatalogQuery,
+  InstallDependencyRequest,
+  InstallDependencyResult,
   InternalNodeSessionRecord,
   LocalAiProxyMessageCaptureSettings,
   LocalAiProxyMessageLogRecord,
@@ -33,12 +33,12 @@ import type {
   ManageRolloutRecord,
   PaginatedResult,
   PreviewRolloutRequest,
-  HubInstallAssessmentResult,
-  HubInstallProgressEvent,
-  HubInstallRequest,
-  HubInstallResult,
-  HubUninstallRequest,
-  HubUninstallResult,
+  InstallAssessmentResult,
+  InstallProgressEvent,
+  InstallRequest,
+  InstallResult,
+  UninstallRequest,
+  UninstallResult,
   PlatformCapturedScreenshot,
   PlatformFetchedRemoteUrl,
   PlatformFileEntry,
@@ -188,6 +188,12 @@ export type {
 } from './desktopHostedBridge';
 
 const noopUnsubscribe: RuntimeEventUnsubscribe = () => {};
+
+function createEmbeddedInstallerRemovedError(action: string) {
+  return new Error(
+    `Embedded install integration was removed from the desktop runtime. Use docs, store pages, or download links instead of ${action}.`,
+  );
+}
 
 export async function getAppInfo(): Promise<DesktopAppInfo | null> {
   return runDesktopOrFallback(
@@ -853,20 +859,11 @@ export async function subscribeBuiltInOpenClawStatusChanged(
   );
 }
 
-export async function subscribeHubInstallProgress(
-  listener: (event: HubInstallProgressEvent) => void,
+export async function subscribeInstallProgress(
+  listener: (event: InstallProgressEvent) => void,
 ): Promise<RuntimeEventUnsubscribe> {
-  if (!isTauriRuntime()) {
-    return noopUnsubscribe;
-  }
-
-  return listenDesktopEvent<HubInstallProgressEvent>(
-    DESKTOP_EVENTS.hubInstallProgress,
-    listener,
-    {
-      operation: 'installer.subscribeHubInstallProgress',
-    },
-  );
+  void listener;
+  return noopUnsubscribe;
 }
 
 export async function openExternal(url: string): Promise<void> {
@@ -1118,54 +1115,39 @@ export async function closeWindow(): Promise<void> {
   await currentWindow.hide();
 }
 
-export async function runHubInstall(
-  request: HubInstallRequest,
-): Promise<HubInstallResult> {
-  return invokeDesktopCommand<HubInstallResult>(
-    DESKTOP_COMMANDS.runHubInstall,
-    { request },
-    { operation: 'installer.runHubInstall' },
-  );
+export async function runInstall(
+  request: InstallRequest,
+): Promise<InstallResult> {
+  void request;
+  throw createEmbeddedInstallerRemovedError('desktop install');
 }
 
-export async function listHubInstallCatalog(
-  query?: HubInstallCatalogQuery,
-): Promise<HubInstallCatalogEntry[]> {
-  return invokeDesktopCommand<HubInstallCatalogEntry[]>(
-    DESKTOP_COMMANDS.listHubInstallCatalog,
-    { query },
-    { operation: 'installer.listHubInstallCatalog' },
-  );
+export async function listInstallCatalog(
+  query?: InstallCatalogQuery,
+): Promise<InstallCatalogEntry[]> {
+  void query;
+  return [];
 }
 
-export async function runHubDependencyInstall(
-  request: HubInstallDependencyRequest,
-): Promise<HubInstallDependencyResult> {
-  return invokeDesktopCommand<HubInstallDependencyResult>(
-    DESKTOP_COMMANDS.runHubDependencyInstall,
-    { request },
-    { operation: 'installer.runHubDependencyInstall' },
-  );
+export async function runInstallDependencies(
+  request: InstallDependencyRequest,
+): Promise<InstallDependencyResult> {
+  void request;
+  throw createEmbeddedInstallerRemovedError('desktop dependency install');
 }
 
-export async function inspectHubInstall(
-  request: HubInstallRequest,
-): Promise<HubInstallAssessmentResult> {
-  return invokeDesktopCommand<HubInstallAssessmentResult>(
-    DESKTOP_COMMANDS.inspectHubInstall,
-    { request },
-    { operation: 'installer.inspectHubInstall' },
-  );
+export async function inspectInstall(
+  request: InstallRequest,
+): Promise<InstallAssessmentResult> {
+  void request;
+  throw createEmbeddedInstallerRemovedError('desktop install inspection');
 }
 
-export async function runHubUninstall(
-  request: HubUninstallRequest,
-): Promise<HubUninstallResult> {
-  return invokeDesktopCommand<HubUninstallResult>(
-    DESKTOP_COMMANDS.runHubUninstall,
-    { request },
-    { operation: 'installer.runHubUninstall' },
-  );
+export async function runUninstall(
+  request: UninstallRequest,
+): Promise<UninstallResult> {
+  void request;
+  throw createEmbeddedInstallerRemovedError('desktop uninstall');
 }
 
 async function resolveDesktopHostRuntime(): Promise<DesktopHostedRuntimeDescriptor | null> {
@@ -1425,12 +1407,12 @@ export const desktopTemplateApi = {
     closeWindow,
   },
   installer: {
-    listHubInstallCatalog,
-    inspectHubInstall,
-    runHubDependencyInstall,
-    runHubInstall,
-    runHubUninstall,
-    subscribeHubInstallProgress,
+    listInstallCatalog,
+    inspectInstall,
+    runInstallDependencies,
+    runInstall,
+    runUninstall,
+    subscribeInstallProgress,
   },
   manage: createDesktopHttpFirstManagePlatform(),
   internal: createDesktopHttpFirstInternalPlatform(),
@@ -1496,12 +1478,12 @@ export function configureDesktopPlatformBridge() {
       importOpenClawMirror: (request) => importOpenClawMirror(request),
     },
     installer: {
-      listHubInstallCatalog: (query) => listHubInstallCatalog(query),
-      inspectHubInstall: (request) => inspectHubInstall(request),
-      runHubDependencyInstall: (request) => runHubDependencyInstall(request),
-      runHubInstall: (request) => runHubInstall(request),
-      runHubUninstall: (request) => runHubUninstall(request),
-      subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
+      listInstallCatalog: (query) => listInstallCatalog(query),
+      inspectInstall: (request) => inspectInstall(request),
+      runInstallDependencies: (request) => runInstallDependencies(request),
+      runInstall: (request) => runInstall(request),
+      runUninstall: (request) => runUninstall(request),
+      subscribeInstallProgress: (listener) => subscribeInstallProgress(listener),
     },
     manage: createDesktopHttpFirstManagePlatform(),
     internal: createDesktopHttpFirstInternalPlatform(),

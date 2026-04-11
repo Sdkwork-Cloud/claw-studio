@@ -56,10 +56,10 @@ Target structure for the new platform work:
   - Modify: `packages/sdkwork-claw-shell/src/components/Sidebar.tsx`
   - Modify: `packages/sdkwork-claw-shell/src/application/router/routePrefetch.ts`
 - Installation and upgrade UX:
-  - Modify: `packages/sdkwork-claw-install/src/pages/install/installPageModel.ts`
-  - Modify: `packages/sdkwork-claw-install/src/pages/install/Install.tsx`
-  - Create: `packages/sdkwork-claw-install/src/services/kernelTopologyCatalogService.ts`
-  - Create: `packages/sdkwork-claw-install/src/services/kernelTopologyCatalogService.test.ts`
+  - Modify: `packages/removed-install-feature/src/pages/install/installPageModel.ts`
+  - Modify: `packages/removed-install-feature/src/pages/install/Install.tsx`
+  - Create: `packages/removed-install-feature/src/services/kernelTopologyCatalogService.ts`
+  - Create: `packages/removed-install-feature/src/services/kernelTopologyCatalogService.test.ts`
 - Docs and references:
   - Create: `docs/reference/kernel-topology-matrix.md`
   - Create: `docs/reference/kernel-host-api.md`
@@ -467,10 +467,10 @@ git commit -m "feat: add native silent kernel hosting"
 
 **Files:**
 
-- Modify: `packages/sdkwork-claw-install/src/pages/install/installPageModel.ts`
-- Modify: `packages/sdkwork-claw-install/src/pages/install/Install.tsx`
-- Create: `packages/sdkwork-claw-install/src/services/kernelTopologyCatalogService.ts`
-- Create: `packages/sdkwork-claw-install/src/services/kernelTopologyCatalogService.test.ts`
+- Modify: `packages/removed-install-feature/src/pages/install/installPageModel.ts`
+- Modify: `packages/removed-install-feature/src/pages/install/Install.tsx`
+- Create: `packages/removed-install-feature/src/services/kernelTopologyCatalogService.ts`
+- Create: `packages/removed-install-feature/src/services/kernelTopologyCatalogService.test.ts`
 
 - [ ] **Step 1: Write failing tests for topology normalization**
 
@@ -483,7 +483,7 @@ await runTest('kernelTopologyCatalogService groups npm and pnpm under localExter
 
 - [ ] **Step 2: Run the focused test**
 
-Run: `pnpm --filter @sdkwork/claw-install exec tsx packages/sdkwork-claw-install/src/services/kernelTopologyCatalogService.test.ts`
+Run: `pnpm --filter removed-install-feature exec tsx packages/removed-install-feature/src/services/kernelTopologyCatalogService.test.ts`
 
 Expected: FAIL because topology grouping does not exist.
 
@@ -503,14 +503,14 @@ Keep detailed method docs, but move them under the selected topology.
 
 - [ ] **Step 5: Re-run the focused test**
 
-Run: `pnpm --filter @sdkwork/claw-install exec tsx packages/sdkwork-claw-install/src/services/kernelTopologyCatalogService.test.ts`
+Run: `pnpm --filter removed-install-feature exec tsx packages/removed-install-feature/src/services/kernelTopologyCatalogService.test.ts`
 
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/sdkwork-claw-install
+git add packages/removed-install-feature
 git commit -m "feat: normalize openclaw install methods into kernel topologies"
 ```
 
@@ -730,7 +730,7 @@ git commit -m "docs: add kernel topology and host api references"
 
 - Test: `packages/sdkwork-claw-desktop/src-tauri`
 - Test: `packages/sdkwork-claw-core`
-- Test: `packages/sdkwork-claw-install`
+- Test: `packages/removed-install-feature`
 - Test: `packages/sdkwork-claw-instances`
 - Test: `packages/sdkwork-claw-settings`
 - Modify as needed: files touched in Tasks 1-11
@@ -747,7 +747,7 @@ Run: `pnpm --filter @sdkwork/claw-core exec tsx packages/sdkwork-claw-core/src/s
 
 Expected: PASS.
 
-Run: `pnpm --filter @sdkwork/claw-install exec tsx packages/sdkwork-claw-install/src/services/kernelTopologyCatalogService.test.ts`
+Run: `pnpm --filter removed-install-feature exec tsx packages/removed-install-feature/src/services/kernelTopologyCatalogService.test.ts`
 
 Expected: PASS.
 

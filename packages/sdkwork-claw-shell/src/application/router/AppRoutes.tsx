@@ -123,16 +123,6 @@ const HuggingFaceModels = lazy(() =>
     default: module.HuggingFaceModels,
   })),
 );
-const Install = lazy(() =>
-  import('@sdkwork/claw-install').then((module) => ({
-    default: module.Install,
-  })),
-);
-const InstallDetail = lazy(() =>
-  import('@sdkwork/claw-install').then((module) => ({
-    default: module.InstallDetail,
-  })),
-);
 const InstanceDetail = lazy(() =>
   import('@sdkwork/claw-instances').then((module) => ({
     default: module.InstanceDetail,
@@ -276,26 +266,6 @@ export function AppRoutes() {
             <PageWrapper>
               <Suspense fallback={<RouteFallback />}>
                 <UsageWorkspace />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/install"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <Install />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/install/:method"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <InstallDetail />
               </Suspense>
             </PageWrapper>
           }

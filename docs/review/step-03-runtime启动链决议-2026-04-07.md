@@ -12,7 +12,7 @@
 - `packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime_snapshot.rs`
 - `packages/sdkwork-claw-desktop/src-tauri/src/commands/desktop_kernel.rs`
 - `packages/sdkwork-claw-settings/src/services/kernelCenterService.ts`
-- `packages/sdkwork-claw-install/src/services/openClawBootstrapService.ts`
+- `packages/removed-install-feature/src/services/openClawBootstrapService.ts`
 
 ## 3. 后续硬约束
 

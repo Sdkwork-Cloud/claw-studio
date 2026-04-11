@@ -10,7 +10,7 @@ It replaces older notes that centered desktop integration around a separate prov
 The active desktop architecture is:
 
 1. Tauri and the Rust host own installation, lifecycle, and bundle-time integration.
-2. Hub Installer owns packaged software discovery and managed installation records.
+2. Desktop component services own packaged software discovery and managed installation records.
 3. OpenClaw is the primary built-in runtime for local-managed desktop flows.
 4. Claw Studio reads and writes provider and agent configuration through OpenClaw-compatible config files and runtime bridges.
 5. Web and desktop hosts stay thin and consume package-root APIs only.
@@ -18,7 +18,7 @@ The active desktop architecture is:
 ## Runtime Boundaries
 
 - Rust host: install, upgrade, supervise, bridge commands, and expose native events
-- Hub Installer: software registry, package metadata, and install progress
+- Component services: software registry, package metadata, and install progress
 - OpenClaw runtime: runtime process behavior, config authority, agent workspace, and provider configuration
 - Feature packages: UI and product workflows only
 

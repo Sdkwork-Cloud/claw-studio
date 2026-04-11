@@ -99,7 +99,6 @@ Relative to the prior current-worktree baseline from `release-2026-04-09-93`, th
   - `pnpm build`
 - YELLOW:
   - `pnpm lint`
-  - still blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 
 ## Closure Status
 

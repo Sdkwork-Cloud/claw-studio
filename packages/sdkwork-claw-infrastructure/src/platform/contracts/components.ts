@@ -1,8 +1,7 @@
 export type RuntimeBundledComponentId =
   | 'openclaw'
   | 'zeroclaw'
-  | 'ironclaw'
-  | 'hub-installer';
+  | 'ironclaw';
 
 export type RuntimeDesktopComponentKind =
   | 'binary'

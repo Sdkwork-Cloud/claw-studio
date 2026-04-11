@@ -939,7 +939,7 @@
       "linux": "Linux",
       "windows": "Windows"
     },
-    "profileHint": "Claw Studio 使用的就是这里展示的同一套 hub-installer 安装方案。在运行分步安装前，你可以先在这里确认官方文档、平台注意事项和方式适配度。",
+      "profileHint": "Claw Studio 现在会展示这里列出的官方文档、平台注意事项和外部下载入口。先在这里确认适合你的安装方式，再离开应用完成安装。",
     "help": {
       "description": {
         "after": "获取实时支持。",

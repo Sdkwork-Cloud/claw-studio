@@ -8,8 +8,6 @@ export const ROUTE_PATHS = {
   FORGOT_PASSWORD: '/forgot-password',
   OAUTH_CALLBACK_PREFIX: '/login/oauth/callback',
   OAUTH_CALLBACK: '/login/oauth/callback/:provider',
-  INSTALL: '/install',
-  INSTALL_DETAIL: '/install/:method',
   INSTANCES: '/instances',
   INSTANCE_DETAIL: '/instances/:id',
   DEVICES: '/devices',

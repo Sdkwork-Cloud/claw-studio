@@ -175,7 +175,7 @@ Required features include:
 - `claw-studio-extensions` -> `sdkwork-claw-extensions`
 - `claw-studio-github` -> `sdkwork-claw-github`
 - `claw-studio-huggingface` -> `sdkwork-claw-huggingface`
-- `claw-studio-install` -> `sdkwork-claw-install`
+- `removed-install-feature` -> `removed-install-feature`
 - `claw-studio-instances` -> `sdkwork-claw-instances`
 - `claw-studio-market` -> `sdkwork-claw-market`
 - `claw-studio-settings` -> `sdkwork-claw-settings`

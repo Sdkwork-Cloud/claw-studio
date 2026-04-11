@@ -1,34 +1,34 @@
 import type { RuntimeEventUnsubscribe } from './runtime.ts';
 
-export type HubInstallScope = 'user' | 'system';
-export type HubInstallPlatform =
+export type InstallScope = 'user' | 'system';
+export type InstallPlatform =
   | 'windows'
   | 'macos'
   | 'ubuntu'
   | 'android'
   | 'ios'
   | 'wsl';
-export type HubInstallRecordStatus = 'installed' | 'uninstalled';
-export type HubInstallControlLevel = 'managed' | 'partial' | 'opaque';
-export type HubInstallContainerRuntimePreference = 'auto' | 'host' | 'wsl';
-export type HubInstallProgressStream = 'stdout' | 'stderr';
-export type HubInstallProgressOperationKind =
+export type InstallRecordStatus = 'installed' | 'uninstalled';
+export type InstallControlLevel = 'managed' | 'partial' | 'opaque';
+export type InstallContainerRuntimePreference = 'auto' | 'host' | 'wsl';
+export type InstallProgressStream = 'stdout' | 'stderr';
+export type InstallProgressOperationKind =
   | 'install'
   | 'dependencyInstall'
   | 'uninstall';
-export type HubInstallCatalogHostPlatform = Extract<
-  HubInstallPlatform,
+export type InstallCatalogHostPlatform = Extract<
+  InstallPlatform,
   'windows' | 'macos' | 'ubuntu'
 >;
-export type HubInstallCatalogRuntimePlatform = 'host' | 'wsl';
+export type InstallCatalogRuntimePlatform = 'host' | 'wsl';
 
-export interface HubInstallRequest {
+export interface InstallRequest {
   softwareName: string;
   requestId?: string;
   registrySource?: string;
-  installScope?: HubInstallScope;
-  effectiveRuntimePlatform?: HubInstallPlatform;
-  containerRuntimePreference?: HubInstallContainerRuntimePreference;
+  installScope?: InstallScope;
+  effectiveRuntimePlatform?: InstallPlatform;
+  containerRuntimePreference?: InstallContainerRuntimePreference;
   wslDistribution?: string;
   dockerContext?: string;
   dockerHost?: string;
@@ -44,25 +44,25 @@ export interface HubInstallRequest {
   variables?: Record<string, string>;
 }
 
-export interface HubInstallCatalogQuery {
-  hostPlatform?: HubInstallCatalogHostPlatform;
+export interface InstallCatalogQuery {
+  hostPlatform?: InstallCatalogHostPlatform;
 }
 
-export interface HubInstallCatalogVariant {
+export interface InstallCatalogVariant {
   id: string;
   label: string;
   summary: string;
   softwareName: string;
-  hostPlatforms: HubInstallCatalogHostPlatform[];
-  runtimePlatform: HubInstallCatalogRuntimePlatform;
+  hostPlatforms: InstallCatalogHostPlatform[];
+  runtimePlatform: InstallCatalogRuntimePlatform;
   manifestName?: string | null;
   manifestDescription?: string | null;
   manifestHomepage?: string | null;
-  installationMethod?: HubInstallAssessmentInstallationMethod | null;
-  request: HubInstallRequest;
+  installationMethod?: InstallAssessmentInstallationMethod | null;
+  request: InstallRequest;
 }
 
-export interface HubInstallCatalogEntry {
+export interface InstallCatalogEntry {
   appId: string;
   title: string;
   developer: string;
@@ -73,11 +73,11 @@ export interface HubInstallCatalogEntry {
   tags: string[];
   defaultVariantId: string;
   defaultSoftwareName: string;
-  supportedHostPlatforms: HubInstallCatalogHostPlatform[];
-  variants: HubInstallCatalogVariant[];
+  supportedHostPlatforms: InstallCatalogHostPlatform[];
+  variants: InstallCatalogVariant[];
 }
 
-export interface HubInstallStageReport {
+export interface InstallStageReport {
   stage: string;
   success: boolean;
   durationMs: number;
@@ -85,7 +85,7 @@ export interface HubInstallStageReport {
   failedSteps: number;
 }
 
-export interface HubInstallArtifactReport {
+export interface InstallArtifactReport {
   artifactId: string;
   artifactType: string;
   success: boolean;
@@ -93,7 +93,7 @@ export interface HubInstallArtifactReport {
   detail: string;
 }
 
-export interface HubInstallResult {
+export interface InstallResult {
   registryName: string;
   registrySource: string;
   softwareName: string;
@@ -101,30 +101,30 @@ export interface HubInstallResult {
   manifestName: string;
   success: boolean;
   durationMs: number;
-  platform: HubInstallPlatform;
-  effectiveRuntimePlatform: HubInstallPlatform;
-  resolvedInstallScope: HubInstallScope;
+  platform: InstallPlatform;
+  effectiveRuntimePlatform: InstallPlatform;
+  resolvedInstallScope: InstallScope;
   resolvedInstallRoot: string;
   resolvedWorkRoot: string;
   resolvedBinDir: string;
   resolvedDataRoot: string;
-  installControlLevel: HubInstallControlLevel;
-  stageReports: HubInstallStageReport[];
-  artifactReports: HubInstallArtifactReport[];
+  installControlLevel: InstallControlLevel;
+  stageReports: InstallStageReport[];
+  artifactReports: InstallArtifactReport[];
 }
 
-export interface HubInstallDependencyRequest extends HubInstallRequest {
+export interface InstallDependencyRequest extends InstallRequest {
   dependencyIds?: string[];
   continueOnError?: boolean;
 }
 
-export interface HubInstallDependencyReport {
+export interface InstallDependencyReport {
   dependencyId: string;
   description?: string | null;
   target: string;
   required: boolean;
-  statusBefore: HubInstallAssessmentDependencyStatus;
-  statusAfter: HubInstallAssessmentDependencyStatus;
+  statusBefore: InstallAssessmentDependencyStatus;
+  statusAfter: InstallAssessmentDependencyStatus;
   attemptedAutoRemediation: boolean;
   success: boolean;
   skipped: boolean;
@@ -133,7 +133,7 @@ export interface HubInstallDependencyReport {
   error?: string | null;
 }
 
-export interface HubInstallDependencyResult {
+export interface InstallDependencyResult {
   manifestName: string;
   manifestSource: string;
   manifestSourceInput: string;
@@ -143,27 +143,27 @@ export interface HubInstallDependencyResult {
   softwareName: string;
   success: boolean;
   durationMs: number;
-  platform: HubInstallPlatform;
-  effectiveRuntimePlatform: HubInstallPlatform;
-  resolvedInstallScope: HubInstallScope;
+  platform: InstallPlatform;
+  effectiveRuntimePlatform: InstallPlatform;
+  resolvedInstallScope: InstallScope;
   resolvedInstallRoot: string;
   resolvedWorkRoot: string;
   resolvedBinDir: string;
   resolvedDataRoot: string;
-  installControlLevel: HubInstallControlLevel;
-  dependencyReports: HubInstallDependencyReport[];
+  installControlLevel: InstallControlLevel;
+  dependencyReports: InstallDependencyReport[];
 }
 
-export type HubInstallAssessmentSeverity = 'error' | 'warning' | 'info';
-export type HubInstallAssessmentDependencyStatus =
+export type InstallAssessmentSeverity = 'error' | 'warning' | 'info';
+export type InstallAssessmentDependencyStatus =
   | 'available'
   | 'missing'
   | 'remediable'
   | 'unsupported';
-export type HubInstallAssessmentCheckType = 'command' | 'file' | 'env' | 'platform';
-export type HubInstallAssessmentShellKind = 'bash' | 'powershell' | 'cmd';
-export type HubInstallResolvedContainerRuntime = 'host' | 'wsl';
-export type HubInstallAssessmentMethodType =
+export type InstallAssessmentCheckType = 'command' | 'file' | 'env' | 'platform';
+export type InstallAssessmentShellKind = 'bash' | 'powershell' | 'cmd';
+export type InstallResolvedContainerRuntime = 'host' | 'wsl';
+export type InstallAssessmentMethodType =
   | 'binary'
   | 'command'
   | 'container'
@@ -173,105 +173,105 @@ export type HubInstallAssessmentMethodType =
   | 'source'
   | 'wsl'
   | string;
-export type HubInstallAssessmentDataItemKind =
+export type InstallAssessmentDataItemKind =
   | 'database'
   | 'directory'
   | 'file'
   | 'log'
   | string;
-export type HubInstallAssessmentDataUninstallPolicy = 'manual' | 'preserve' | 'remove' | string;
-export type HubInstallAssessmentMigrationMode = 'command' | 'manual' | string;
+export type InstallAssessmentDataUninstallPolicy = 'manual' | 'preserve' | 'remove' | string;
+export type InstallAssessmentMigrationMode = 'command' | 'manual' | string;
 
-export interface HubInstallAssessmentCommand {
+export interface InstallAssessmentCommand {
   description: string;
   commandLine: string;
-  shellKind?: HubInstallAssessmentShellKind | null;
+  shellKind?: InstallAssessmentShellKind | null;
   workingDirectory?: string | null;
   requiresElevation: boolean;
   autoRun: boolean;
 }
 
-export interface HubInstallAssessmentDependency {
+export interface InstallAssessmentDependency {
   id: string;
   description?: string | null;
   required: boolean;
-  checkType: HubInstallAssessmentCheckType;
+  checkType: InstallAssessmentCheckType;
   target: string;
-  status: HubInstallAssessmentDependencyStatus;
+  status: InstallAssessmentDependencyStatus;
   supportsAutoRemediation: boolean;
-  remediationCommands: HubInstallAssessmentCommand[];
+  remediationCommands: InstallAssessmentCommand[];
 }
 
-export interface HubInstallAssessmentInstallationMethod {
+export interface InstallAssessmentInstallationMethod {
   id: string;
   label: string;
-  type: HubInstallAssessmentMethodType;
+  type: InstallAssessmentMethodType;
   summary: string;
   supported?: boolean | null;
   documentationUrl?: string | null;
   notes: string[];
 }
 
-export interface HubInstallAssessmentInstallationDirectory {
+export interface InstallAssessmentInstallationDirectory {
   id?: string | null;
   path: string;
   customizable?: boolean | null;
   purpose?: string | null;
 }
 
-export interface HubInstallAssessmentInstallationDirectories {
-  installRoot?: HubInstallAssessmentInstallationDirectory | null;
-  workRoot?: HubInstallAssessmentInstallationDirectory | null;
-  binDir?: HubInstallAssessmentInstallationDirectory | null;
-  dataRoot?: HubInstallAssessmentInstallationDirectory | null;
-  additional: HubInstallAssessmentInstallationDirectory[];
+export interface InstallAssessmentInstallationDirectories {
+  installRoot?: InstallAssessmentInstallationDirectory | null;
+  workRoot?: InstallAssessmentInstallationDirectory | null;
+  binDir?: InstallAssessmentInstallationDirectory | null;
+  dataRoot?: InstallAssessmentInstallationDirectory | null;
+  additional: InstallAssessmentInstallationDirectory[];
 }
 
-export interface HubInstallAssessmentInstallation {
-  method: HubInstallAssessmentInstallationMethod;
-  alternatives: HubInstallAssessmentInstallationMethod[];
-  directories?: HubInstallAssessmentInstallationDirectories | null;
+export interface InstallAssessmentInstallation {
+  method: InstallAssessmentInstallationMethod;
+  alternatives: InstallAssessmentInstallationMethod[];
+  directories?: InstallAssessmentInstallationDirectories | null;
 }
 
-export interface HubInstallAssessmentDataItem {
+export interface InstallAssessmentDataItem {
   id: string;
   title: string;
-  kind: HubInstallAssessmentDataItemKind;
+  kind: InstallAssessmentDataItemKind;
   path?: string | null;
   description?: string | null;
   includes: string[];
   sensitive?: boolean | null;
   backupByDefault?: boolean | null;
-  uninstallByDefault: HubInstallAssessmentDataUninstallPolicy;
+  uninstallByDefault: InstallAssessmentDataUninstallPolicy;
 }
 
-export interface HubInstallAssessmentMigrationStrategy {
+export interface InstallAssessmentMigrationStrategy {
   id: string;
   source: string;
   title: string;
-  mode: HubInstallAssessmentMigrationMode;
+  mode: InstallAssessmentMigrationMode;
   summary: string;
   supported?: boolean | null;
   documentationUrl?: string | null;
-  previewCommands: HubInstallAssessmentCommand[];
-  applyCommands: HubInstallAssessmentCommand[];
+  previewCommands: InstallAssessmentCommand[];
+  applyCommands: InstallAssessmentCommand[];
   dataItemIds: string[];
   warnings: string[];
 }
 
-export interface HubInstallAssessmentIssue {
-  severity: HubInstallAssessmentSeverity;
+export interface InstallAssessmentIssue {
+  severity: InstallAssessmentSeverity;
   code: string;
   message: string;
   dependencyId?: string | null;
 }
 
-export interface HubInstallAssessmentRuntime {
-  hostPlatform: HubInstallPlatform;
-  requestedRuntimePlatform: HubInstallPlatform;
-  effectiveRuntimePlatform: HubInstallPlatform;
-  containerRuntimePreference?: HubInstallContainerRuntimePreference | null;
-  resolvedContainerRuntime?: HubInstallResolvedContainerRuntime | null;
+export interface InstallAssessmentRuntime {
+  hostPlatform: InstallPlatform;
+  requestedRuntimePlatform: InstallPlatform;
+  effectiveRuntimePlatform: InstallPlatform;
+  containerRuntimePreference?: InstallContainerRuntimePreference | null;
+  resolvedContainerRuntime?: InstallResolvedContainerRuntime | null;
   wslDistribution?: string | null;
   availableWslDistributions: string[];
   wslAvailable: boolean;
@@ -281,7 +281,7 @@ export interface HubInstallAssessmentRuntime {
   commandAvailability: Record<string, boolean>;
 }
 
-export interface HubInstallAssessmentResult {
+export interface InstallAssessmentResult {
   registryName: string;
   registrySource: string;
   softwareName: string;
@@ -291,38 +291,38 @@ export interface HubInstallAssessmentResult {
   manifestHomepage?: string | null;
   ready: boolean;
   requiresElevatedSetup: boolean;
-  platform: HubInstallPlatform;
-  effectiveRuntimePlatform: HubInstallPlatform;
-  resolvedInstallScope: HubInstallScope;
+  platform: InstallPlatform;
+  effectiveRuntimePlatform: InstallPlatform;
+  resolvedInstallScope: InstallScope;
   resolvedInstallRoot: string;
   resolvedWorkRoot: string;
   resolvedBinDir: string;
   resolvedDataRoot: string;
-  installControlLevel: HubInstallControlLevel;
-  installStatus?: HubInstallRecordStatus | null;
-  dependencies: HubInstallAssessmentDependency[];
-  issues: HubInstallAssessmentIssue[];
+  installControlLevel: InstallControlLevel;
+  installStatus?: InstallRecordStatus | null;
+  dependencies: InstallAssessmentDependency[];
+  issues: InstallAssessmentIssue[];
   recommendations: string[];
-  installation?: HubInstallAssessmentInstallation | null;
-  dataItems: HubInstallAssessmentDataItem[];
-  migrationStrategies: HubInstallAssessmentMigrationStrategy[];
-  runtime: HubInstallAssessmentRuntime;
+  installation?: InstallAssessmentInstallation | null;
+  dataItems: InstallAssessmentDataItem[];
+  migrationStrategies: InstallAssessmentMigrationStrategy[];
+  runtime: InstallAssessmentRuntime;
 }
 
-export interface HubUninstallRequest extends HubInstallRequest {
+export interface UninstallRequest extends InstallRequest {
   purgeData?: boolean;
   backupBeforeUninstall?: boolean;
 }
 
-export type HubUninstallTarget = 'data' | 'install' | 'work';
-export type HubUninstallTargetStatus = 'removed' | 'missing' | 'preserved';
+export type UninstallTarget = 'data' | 'install' | 'work';
+export type UninstallTargetStatus = 'removed' | 'missing' | 'preserved';
 
-export interface HubUninstallTargetReport {
-  target: HubUninstallTarget;
-  status: HubUninstallTargetStatus;
+export interface UninstallTargetReport {
+  target: UninstallTarget;
+  status: UninstallTargetStatus;
 }
 
-export interface HubUninstallResult {
+export interface UninstallResult {
   registryName: string;
   registrySource: string;
   softwareName: string;
@@ -330,23 +330,23 @@ export interface HubUninstallResult {
   manifestName: string;
   success: boolean;
   durationMs: number;
-  platform: HubInstallPlatform;
-  effectiveRuntimePlatform: HubInstallPlatform;
-  resolvedInstallScope: HubInstallScope;
+  platform: InstallPlatform;
+  effectiveRuntimePlatform: InstallPlatform;
+  resolvedInstallScope: InstallScope;
   resolvedInstallRoot: string;
   resolvedWorkRoot: string;
   resolvedBinDir: string;
   resolvedDataRoot: string;
-  installControlLevel: HubInstallControlLevel;
+  installControlLevel: InstallControlLevel;
   purgeData: boolean;
-  stageReports: HubInstallStageReport[];
-  targetReports: HubUninstallTargetReport[];
+  stageReports: InstallStageReport[];
+  targetReports: UninstallTargetReport[];
 }
 
-export type HubInstallProgressEvent = {
+export type InstallProgressEvent = {
   requestId?: string | null;
   softwareName: string;
-  operationKind: HubInstallProgressOperationKind;
+  operationKind: InstallProgressOperationKind;
 } & (
   | {
       type: 'stageStarted';
@@ -383,7 +383,7 @@ export type HubInstallProgressEvent = {
       target: string;
       success: boolean;
       skipped: boolean;
-      statusAfter: HubInstallAssessmentDependencyStatus;
+      statusAfter: InstallAssessmentDependencyStatus;
     }
   | {
       type: 'stepStarted';
@@ -399,7 +399,7 @@ export type HubInstallProgressEvent = {
   | {
       type: 'stepLogChunk';
       stepId: string;
-      stream: HubInstallProgressStream;
+      stream: InstallProgressStream;
       chunk: string;
     }
   | {
@@ -413,14 +413,14 @@ export type HubInstallProgressEvent = {
 );
 
 export interface InstallerPlatformAPI {
-  listHubInstallCatalog(
-    query?: HubInstallCatalogQuery,
-  ): Promise<HubInstallCatalogEntry[]>;
-  inspectHubInstall(request: HubInstallRequest): Promise<HubInstallAssessmentResult>;
-  runHubDependencyInstall(request: HubInstallDependencyRequest): Promise<HubInstallDependencyResult>;
-  runHubInstall(request: HubInstallRequest): Promise<HubInstallResult>;
-  runHubUninstall(request: HubUninstallRequest): Promise<HubUninstallResult>;
-  subscribeHubInstallProgress(
-    listener: (event: HubInstallProgressEvent) => void,
+  listInstallCatalog(
+    query?: InstallCatalogQuery,
+  ): Promise<InstallCatalogEntry[]>;
+  inspectInstall(request: InstallRequest): Promise<InstallAssessmentResult>;
+  runInstallDependencies(request: InstallDependencyRequest): Promise<InstallDependencyResult>;
+  runInstall(request: InstallRequest): Promise<InstallResult>;
+  runUninstall(request: UninstallRequest): Promise<UninstallResult>;
+  subscribeInstallProgress(
+    listener: (event: InstallProgressEvent) => void,
   ): Promise<RuntimeEventUnsubscribe>;
 }

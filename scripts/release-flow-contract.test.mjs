@@ -2066,7 +2066,7 @@ test('release sync defers heavyweight openclaw builds to the dedicated preparati
   );
   assert.deepEqual(
     syncModule.createComponentExecutionPlan({
-      componentId: 'hub-installer',
+      componentId: 'generic-bundled-component',
       devMode: false,
       releaseMode: true,
     }),

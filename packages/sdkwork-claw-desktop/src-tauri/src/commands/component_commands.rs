@@ -96,7 +96,7 @@ mod tests {
     }
 
     #[test]
-    fn desktop_component_control_supports_embedded_component_contract() {
+    fn desktop_component_control_rejects_unknown_components() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let logger = init_logger(&paths).expect("logger");
@@ -107,11 +107,9 @@ mod tests {
         ));
         let state = AppState::from_context(context);
 
-        let result = desktop_component_control_from_state(&state, "hub-installer", "start")
-            .expect("component control");
+        let error = desktop_component_control_from_state(&state, "missing-component", "start")
+            .expect_err("unknown component should be rejected");
 
-        assert_eq!(result.component_id, "hub-installer");
-        assert_eq!(result.outcome, "embedded");
-        assert!(result.affected_service_ids.is_empty());
+        assert!(error.to_string().contains("component not found"));
     }
 }

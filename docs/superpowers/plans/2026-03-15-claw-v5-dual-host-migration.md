@@ -61,7 +61,7 @@
 - Create or replace: `packages/sdkwork-claw-extensions`
 - Create or replace: `packages/sdkwork-claw-github`
 - Create or replace: `packages/sdkwork-claw-huggingface`
-- Create or replace: `packages/sdkwork-claw-install`
+- Create or replace: `packages/removed-install-feature`
 - Create or replace: `packages/sdkwork-claw-instances`
 - Create or replace: `packages/sdkwork-claw-market`
 - Create or replace: `packages/sdkwork-claw-settings`
@@ -273,7 +273,7 @@ git commit -m "feat: add sdkwork claw host and shared package skeleton"
 - Create: `packages/sdkwork-claw-extensions/*`
 - Create: `packages/sdkwork-claw-github/*`
 - Create: `packages/sdkwork-claw-huggingface/*`
-- Create: `packages/sdkwork-claw-install/*`
+- Create: `packages/removed-install-feature/*`
 - Create: `packages/sdkwork-claw-instances/*`
 - Create: `packages/sdkwork-claw-market/*`
 - Create: `packages/sdkwork-claw-settings/*`
@@ -312,7 +312,7 @@ Expected: PASS for package existence and package-name assertions.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/sdkwork-claw-account packages/sdkwork-claw-apps packages/sdkwork-claw-auth packages/sdkwork-claw-center packages/sdkwork-claw-channels packages/sdkwork-claw-chat packages/sdkwork-claw-community packages/sdkwork-claw-devices packages/sdkwork-claw-docs packages/sdkwork-claw-extensions packages/sdkwork-claw-github packages/sdkwork-claw-huggingface packages/sdkwork-claw-install packages/sdkwork-claw-instances packages/sdkwork-claw-market packages/sdkwork-claw-settings packages/sdkwork-claw-tasks scripts/check-sdkwork-claw-structure.mjs
+git add packages/sdkwork-claw-account packages/sdkwork-claw-apps packages/sdkwork-claw-auth packages/sdkwork-claw-center packages/sdkwork-claw-channels packages/sdkwork-claw-chat packages/sdkwork-claw-community packages/sdkwork-claw-devices packages/sdkwork-claw-docs packages/sdkwork-claw-extensions packages/sdkwork-claw-github packages/sdkwork-claw-huggingface packages/removed-install-feature packages/sdkwork-claw-instances packages/sdkwork-claw-market packages/sdkwork-claw-settings packages/sdkwork-claw-tasks scripts/check-sdkwork-claw-structure.mjs
 git commit -m "feat: add sdkwork claw feature package skeleton"
 ```
 
@@ -605,7 +605,7 @@ git commit -m "feat: port sdkwork claw workspace and ecosystem features"
 - Create or replace: `packages/sdkwork-claw-center/**/*`
 - Create or replace: `packages/sdkwork-claw-devices/**/*`
 - Create or replace: `packages/sdkwork-claw-docs/**/*`
-- Create or replace: `packages/sdkwork-claw-install/**/*`
+- Create or replace: `packages/removed-install-feature/**/*`
 - Create or replace: `packages/sdkwork-claw-instances/**/*`
 - Create or replace: `packages/sdkwork-claw-market/**/*`
 - Create or replace: `packages/sdkwork-claw-settings/**/*`
@@ -649,7 +649,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/sdkwork-claw-center packages/sdkwork-claw-devices packages/sdkwork-claw-docs packages/sdkwork-claw-install packages/sdkwork-claw-instances packages/sdkwork-claw-market packages/sdkwork-claw-settings packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx packages/sdkwork-claw-shell/src/components/Sidebar.tsx scripts/v5-product-contract.test.ts scripts/check-sdkwork-claw-route-surface.mjs
+git add packages/sdkwork-claw-center packages/sdkwork-claw-devices packages/sdkwork-claw-docs packages/removed-install-feature packages/sdkwork-claw-instances packages/sdkwork-claw-market packages/sdkwork-claw-settings packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx packages/sdkwork-claw-shell/src/components/Sidebar.tsx scripts/v5-product-contract.test.ts scripts/check-sdkwork-claw-route-surface.mjs
 git commit -m "feat: port sdkwork claw setup and support features"
 ```
 
@@ -792,7 +792,7 @@ git commit -m "feat: switch workspace tooling to sdkwork claw packages"
 - Remove after verification: `packages/claw-studio-github`
 - Remove after verification: `packages/claw-studio-huggingface`
 - Remove after verification: `packages/claw-studio-infrastructure`
-- Remove after verification: `packages/claw-studio-install`
+- Remove after verification: `packages/removed-install-feature`
 - Remove after verification: `packages/claw-studio-instances`
 - Remove after verification: `packages/claw-studio-market`
 - Remove after verification: `packages/claw-studio-settings`
@@ -838,7 +838,7 @@ Expected: PASS
 
 ```bash
 git add scripts/check-sdkwork-claw-structure.mjs scripts/check-sdkwork-claw-hosts.mjs
-git rm -r packages/claw-studio-account packages/claw-studio-apps packages/claw-studio-business packages/claw-studio-channels packages/claw-studio-chat packages/claw-studio-claw-center packages/claw-studio-community packages/claw-studio-desktop packages/claw-studio-devices packages/claw-studio-distribution packages/claw-studio-docs packages/claw-studio-domain packages/claw-studio-extensions packages/claw-studio-github packages/claw-studio-huggingface packages/claw-studio-infrastructure packages/claw-studio-install packages/claw-studio-instances packages/claw-studio-market packages/claw-studio-settings packages/claw-studio-shared-ui packages/claw-studio-shell packages/claw-studio-tasks packages/claw-studio-web
+git rm -r packages/claw-studio-account packages/claw-studio-apps packages/claw-studio-business packages/claw-studio-channels packages/claw-studio-chat packages/claw-studio-claw-center packages/claw-studio-community packages/claw-studio-desktop packages/claw-studio-devices packages/claw-studio-distribution packages/claw-studio-docs packages/claw-studio-domain packages/claw-studio-extensions packages/claw-studio-github packages/claw-studio-huggingface packages/claw-studio-infrastructure packages/removed-install-feature packages/claw-studio-instances packages/claw-studio-market packages/claw-studio-settings packages/claw-studio-shared-ui packages/claw-studio-shell packages/claw-studio-tasks packages/claw-studio-web
 git commit -m "feat: remove obsolete claw studio package graph"
 ```
 

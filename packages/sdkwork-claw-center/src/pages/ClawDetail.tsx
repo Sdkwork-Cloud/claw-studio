@@ -122,7 +122,7 @@ export function ClawDetail() {
 
   const handleQuickConnect = () => {
     if (!quickConnectState) {
-      navigate('/install?product=openclaw');
+      navigate('/docs#script');
       return;
     }
 

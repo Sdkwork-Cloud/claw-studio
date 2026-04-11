@@ -718,36 +718,66 @@ runTest('sdkwork hosts persist app language through a host callback while the sh
   assert.match(webRuntimeSource, /async setAppLanguage\(_language: RuntimeLanguagePreference\): Promise<void> \{\}/);
 });
 
-runTest('sdkwork-claw-desktop wires hub-installer execution through a real Tauri command and progress event', () => {
+runTest('sdkwork-claw-desktop removes deprecated installer commands, metadata, and bundled registry resources from the desktop bridge', () => {
   const bridgeSource = read('packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts');
   const catalogSource = read('packages/sdkwork-claw-desktop/src/desktop/catalog.ts');
   const commandsMod = read('packages/sdkwork-claw-desktop/src-tauri/src/commands/mod.rs');
   const bootstrap = read('packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs');
+  const layoutSource = read('packages/sdkwork-claw-desktop/src-tauri/src/framework/layout.rs');
   const tauriConfig = read('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json');
+  const tauriMacosConfig = read('packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json');
+  const tauriBundleOverlay = read(
+    'packages/sdkwork-claw-desktop/src-tauri/generated/tauri.bundle.overlay.json',
+  );
+  const componentRegistry = read(
+    'packages/sdkwork-claw-desktop/src-tauri/foundation/components/component-registry.json',
+  );
+  const serviceDefaults = read(
+    'packages/sdkwork-claw-desktop/src-tauri/foundation/components/service-defaults.json',
+  );
+  const componentLibrarySource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/componentLibrary.ts',
+  );
+  const componentContractsSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/contracts/components.ts',
+  );
 
-  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_install.rs'));
-  assert.ok(
-    exists(
-      'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/software-registry.yaml',
-    ),
-  );
+  assert.ok(!exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/run_install.rs'));
+  assert.ok(!exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/run_uninstall.rs'));
+  assert.ok(!exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/install_catalog.rs'));
+  assert.ok(!exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/install_progress.rs'));
+  assert.doesNotMatch(catalogSource, /listInstallCatalog:\s*'list_install_catalog'/);
+  assert.doesNotMatch(catalogSource, /inspectInstall:\s*'inspect_install'/);
+  assert.doesNotMatch(catalogSource, /runInstallDependencies:\s*'run_install_dependencies'/);
+  assert.doesNotMatch(catalogSource, /runInstall:\s*'run_install'/);
+  assert.doesNotMatch(catalogSource, /runUninstall:\s*'run_uninstall'/);
+  assert.doesNotMatch(catalogSource, /installProgress:\s*'[^']*installer[^']*'/i);
+  assert.doesNotMatch(bridgeSource, /invokeDesktopCommand<InstallResult>\(\s*DESKTOP_COMMANDS\.runInstall/);
+  assert.doesNotMatch(bridgeSource, /invokeDesktopCommand<InstallAssessmentResult>\(\s*DESKTOP_COMMANDS\.inspectInstall/);
+  assert.doesNotMatch(bridgeSource, /invokeDesktopCommand<InstallDependencyResult>\(\s*DESKTOP_COMMANDS\.runInstallDependencies/);
+  assert.doesNotMatch(bridgeSource, /invokeDesktopCommand<UninstallResult>\(\s*DESKTOP_COMMANDS\.runUninstall/);
+  assert.doesNotMatch(bridgeSource, /listenDesktopEvent<InstallProgressEvent>\(\s*DESKTOP_EVENTS\.installProgress/);
+  assert.doesNotMatch(commandsMod, /pub mod run_install;/);
+  assert.doesNotMatch(commandsMod, /pub mod run_uninstall;/);
+  assert.doesNotMatch(commandsMod, /pub mod install_catalog;/);
+  assert.doesNotMatch(commandsMod, /pub mod install_progress;/);
+  assert.doesNotMatch(bootstrap, /commands::install_catalog::list_install_catalog/);
+  assert.doesNotMatch(bootstrap, /commands::run_install::inspect_install/);
+  assert.doesNotMatch(bootstrap, /commands::run_install::run_install_dependencies/);
+  assert.doesNotMatch(bootstrap, /commands::run_install::run_install/);
+  assert.doesNotMatch(bootstrap, /commands::run_uninstall::run_uninstall/);
   assert.doesNotMatch(
-    bridgeSource,
-    /Desktop installer runtime is not enabled in the base Tauri foundation\./,
+    layoutSource,
+    new RegExp(['LEGACY', 'OPENCLAW', 'INSTALL', 'RECORDS', 'HOME', 'NAME'].join('_')),
   );
-  assert.match(catalogSource, /runHubInstall:\s*'run_hub_install'/);
-  assert.match(catalogSource, /hubInstallProgress:\s*'hub-installer:progress'/);
-  assert.match(
-    bridgeSource,
-    /invokeDesktopCommand<HubInstallResult>\(\s*DESKTOP_COMMANDS\.runHubInstall,\s*\{\s*request\s*\}/,
-  );
-  assert.match(bridgeSource, /subscribeHubInstallProgress/);
-  assert.match(commandsMod, /pub mod run_hub_install;/);
-  assert.match(
-    bootstrap,
-    /commands::run_hub_install::run_hub_install/,
-  );
-  assert.match(tauriConfig, /vendor\/hub-installer\/registry/);
+  assert.doesNotMatch(tauriConfig, /vendor\/[^/]+\/registry\//);
+  assert.doesNotMatch(tauriMacosConfig, /vendor\/[^/]+\/registry\//);
+  assert.doesNotMatch(tauriBundleOverlay, /vendor\/[^/]+\/registry\//);
+  assert.doesNotMatch(componentRegistry, /"id":\s*"[^"]*installer[^"]*"/i);
+  assert.doesNotMatch(componentRegistry, /modules\/[^/]*installer[^/]*\/current/i);
+  assert.doesNotMatch(serviceDefaults, /"embeddedComponentIds"\s*:\s*\[[^\]]*installer/i);
+  assert.doesNotMatch(componentLibrarySource, /'[^']*installer[^']*'/i);
+  assert.doesNotMatch(componentContractsSource, /\|\s*'[^']*installer[^']*'/i);
 });
 
 runTest('sdkwork-claw-desktop keeps browser mocks out of desktop business bridges', () => {
@@ -1022,10 +1052,10 @@ await runAsyncTest('sdkwork-claw-infrastructure shares the configured platform b
   const registryCopyB = await import(`${registryUrl}?bridge-copy=b`);
   const originalBridge = registryCopyA.getPlatformBridge();
   const sharedInstaller = {
-    async listHubInstallCatalog() {
+    async listInstallCatalog() {
       return [];
     },
-    async inspectHubInstall() {
+    async inspectInstall() {
       return {
         ready: true,
         installStatus: 'not-installed',
@@ -1034,16 +1064,16 @@ await runAsyncTest('sdkwork-claw-infrastructure shares the configured platform b
         installations: [],
       };
     },
-    async runHubDependencyInstall() {
+    async runInstallDependencies() {
       return { success: true, dependencyReports: [] };
     },
-    async runHubInstall() {
+    async runInstall() {
       return { success: true, summary: '', stageReports: [], artifactReports: [] };
     },
-    async runHubUninstall() {
+    async runUninstall() {
       return { success: true, targetReports: [] };
     },
-    async subscribeHubInstallProgress() {
+    async subscribeInstallProgress() {
       return () => {};
     },
   };

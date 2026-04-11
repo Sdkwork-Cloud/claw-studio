@@ -1,11 +1,11 @@
 {
   "store": {
-    "title": "Hub Installer Catalog",
-    "description": "Browse installable apps from the real hub-installer registry.",
+    "title": "App Catalog",
+    "description": "Browse app docs, downloads, and external store listings.",
     "searchPlaceholder": "Search catalog apps, packages, tools...",
-    "catalogBadge": "Hub Installer",
-    "catalogTitle": "Real catalog data, live install readiness",
-    "catalogDescription": "App Store now reads directly from the hub-installer catalog. Install readiness is inspected lazily so the page stays responsive while real status data streams in.",
+    "catalogBadge": "Catalog",
+    "catalogTitle": "Official docs, downloads, and store links",
+    "catalogDescription": "App Store now surfaces official docs, downloads, and external store links. Installation is completed outside the embedded desktop runtime.",
     "catalogTotals": "{{count}} apps across {{categories}} categories",
     "searchResultsDescription": "{{count}} matching catalog entries",
     "checkingInstallReadiness": "Checking install readiness in the background...",
@@ -18,10 +18,10 @@
     "dependencyHint": "{{count}} dependency checks need attention",
     "reviewHint": "Review setup requirements before installing",
     "hostPlatforms": "Hosts",
-    "catalogAppFallback": "Open details to inspect variants, dependencies, and installation guidance.",
+    "catalogAppFallback": "Open details to review the official access links and integration notes.",
     "categoryCount": "{{count}} apps",
     "emptyCatalogTitle": "No catalog entries available",
-    "emptyCatalogDescription": "hub-installer did not return any installable apps for this host yet.",
+    "emptyCatalogDescription": "No externally linked apps are available for this host yet.",
     "emptySearchTitle": "No matching catalog entries",
     "emptySearchDescription": "No catalog apps matched \"{{query}}\".",
     "overview": {
@@ -30,7 +30,8 @@
       "installed": "Installed",
       "ready": "Ready",
       "attention": "Needs attention"
-    }
+    },
+    "catalogNotesDescription": "Only published app metadata, docs links, download links, and store links are shown here."
   },
   "detail": {
     "notFoundTitle": "App not found",
@@ -45,13 +46,14 @@
     "openApp": "Open app",
     "about": "About this app",
     "catalogNotesTitle": "Catalog notes",
-    "catalogNotesDescription": "Only details published by hub-installer and the selected profile are shown here.",
+    "catalogNotesDescription": "Only details published by the remote catalog and the selected access path are shown here.",
     "information": "Information",
     "hostValue": "Host: {{host}}",
     "installProfilesCount": "{{count}} available",
     "dependencyChecks": "{{count}} dependency checks",
     "installStatusNote": "State comes from the Rust assessment record for this selected profile.",
     "installBlockedFallback": "Install is currently blocked.",
+    "externalAccessDescription": "Embedded install flows were removed from Claw Studio. Use the official docs, store page, or direct download link for this app.",
     "methodFallback": "Managed profile",
     "metadata": {
       "registry": "Registry",
@@ -78,8 +80,10 @@
       "installAllDependencies": "Install all dependencies",
       "installingDependencies": "Installing dependencies...",
       "installVariant": "Install {{variant}}",
+      "download": "Download",
       "docs": "Docs",
       "openInstallationDocs": "Open installation docs",
+      "openStore": "Open store",
       "profileDocs": "Profile docs",
       "selected": "Selected",
       "useProfile": "Use profile",

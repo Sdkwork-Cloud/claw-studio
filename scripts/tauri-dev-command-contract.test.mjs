@@ -179,9 +179,6 @@ if (!Array.isArray(bundledResources) || !bundledResources.includes('generated/bu
 if (!Array.isArray(bundledResources) || !bundledResources.includes('foundation/components/')) {
   fail('Desktop Tauri bundle resources must include foundation/components/ as a directory resource root.');
 }
-if (!Array.isArray(bundledResources) || !bundledResources.includes('vendor/hub-installer/registry/')) {
-  fail('Desktop Tauri bundle resources must include vendor/hub-installer/registry/ as a directory resource root.');
-}
 if (Array.isArray(bundledResources) && bundledResources.some((resource) => resource.includes('/**/*'))) {
   fail('Desktop Tauri bundle resources must prefer directory resource roots over recursive glob patterns for packaged folders.');
 }
@@ -202,7 +199,6 @@ const expectedWindowsBundleSources = [
   'foundation/components/',
   'generated/br/b/',
   'generated/br/w/',
-  'vendor/hub-installer/registry/',
   'generated/br/o/',
 ];
 
@@ -210,6 +206,10 @@ for (const source of expectedWindowsBundleSources) {
   if (!(source in windowsBundleResources)) {
     fail(`Desktop Windows bundle overlay must map "${source}" as a bundled resource root.`);
   }
+}
+
+if (JSON.stringify(Object.keys(windowsBundleResources).sort()) !== JSON.stringify(expectedWindowsBundleSources.sort())) {
+  fail('Desktop Windows bundle overlay must keep only foundation, bundled mirror, browser shell, and OpenClaw resource mappings.');
 }
 
 for (const source of Object.keys(windowsBundleResources)) {
@@ -231,7 +231,6 @@ const expectedUnixBundleResources = {
   'foundation/components/': 'foundation/components/',
   'generated/bundled/': 'generated/bundled/',
   '../dist/': 'dist/',
-  'vendor/hub-installer/registry/': 'vendor/hub-installer/registry/',
   'generated/release/openclaw-resource/': 'resources/openclaw/',
 };
 
@@ -248,6 +247,10 @@ for (const [platformLabel, platformConfig] of [
     if (platformBundleResources[source] !== target) {
       fail(`Desktop ${platformLabel} Tauri config must map "${source}" to "${target}".`);
     }
+  }
+
+  if (Object.keys(platformBundleResources).length !== Object.keys(expectedUnixBundleResources).length) {
+    fail(`Desktop ${platformLabel} Tauri config must not include extra legacy bundle resource mappings.`);
   }
 }
 

@@ -615,65 +615,6 @@ const componentSources = [
       });
     },
   },
-  {
-    id: 'hub-installer',
-    repoUrl: 'https://github.com/Sdkwork-Cloud/hub-installer.git',
-    checkoutDir: 'hub-installer',
-    // Hub Installer is maintained through the vendored desktop submodule so
-    // runtime, release artifacts, and future updates stay pinned to one source.
-    repositoryDir: path.join(
-      rootDir,
-      'packages',
-      'sdkwork-claw-desktop',
-      'src-tauri',
-      'vendor',
-      'hub-installer',
-    ),
-    resolveVersion(repoDir, sha) {
-      return `${readCargoPackageVersion(path.join(repoDir, 'rust', 'Cargo.toml')) ?? '0.0.0'}+${sha}`;
-    },
-    build(repoDir) {
-      const targetDir = rustTargetDir('hub-installer');
-      runCommand(cargoCmd, ['build', '--manifest-path', 'rust/Cargo.toml', '--release', '--bin', 'hub-installer-rs'], {
-        cwd: repoDir,
-        env: { CARGO_TARGET_DIR: targetDir },
-      });
-    },
-    stage(repoDir, version) {
-      const targetDir = rustTargetDir('hub-installer');
-      const versionDir = path.join(bundledRoot, 'modules', 'hub-installer', version);
-      const foundationRegistryDir = path.join(
-        bundledRoot,
-        'foundation',
-        'hub-installer',
-        'registry',
-      );
-      if (devMode) {
-        prepareBundledOutputRootSync(versionDir, { logger: console.warn });
-      } else {
-        removeDirectoryWithRetriesSync(versionDir);
-      }
-      fs.mkdirSync(path.join(versionDir, 'bin'), { recursive: true });
-      fs.mkdirSync(path.join(versionDir, 'registry'), { recursive: true });
-      fs.mkdirSync(foundationRegistryDir, { recursive: true });
-      copyFile(
-        path.join(targetDir, 'release', withExe('hub-installer-rs')),
-        path.join(versionDir, 'bin', withExe('hub-installer-rs')),
-        {
-          allowEquivalentExistingOnLock: devMode,
-          logger: console.warn,
-        },
-      );
-      copyDirectoryContents(path.join(repoDir, 'registry'), path.join(versionDir, 'registry'), {
-        allowEquivalentExistingOnLock: devMode,
-        logger: console.warn,
-      });
-      copyDirectoryContents(path.join(repoDir, 'registry'), foundationRegistryDir, {
-        allowEquivalentExistingOnLock: devMode,
-        logger: console.warn,
-      });
-    },
-  },
 ];
 
 async function main() {
@@ -1121,20 +1062,21 @@ export function normalizeComponentRegistryOpenClawVersion(
 
   const registry = {
     ...sourceRegistry,
-    components: sourceComponents.map((entry) => {
+    components: sourceComponents.flatMap((entry) => {
       if (!entry || typeof entry !== 'object') {
-        return entry;
+        return [entry];
       }
 
-      if (entry.id !== 'openclaw' || entry.bundledVersion === bundledOpenClawVersion) {
-        return entry;
+      const componentId = typeof entry.id === 'string' ? entry.id.trim() : '';
+      if (componentId !== 'openclaw' || entry.bundledVersion === bundledOpenClawVersion) {
+        return [entry];
       }
 
       changed = true;
-      return {
+      return [{
         ...entry,
         bundledVersion: bundledOpenClawVersion,
-      };
+      }];
     }),
   };
 
@@ -1503,7 +1445,6 @@ export function createTauriBundleOverlayConfig({
         // lost drive prefixes and MAX_PATH expansion through repo-relative roots.
         [resolveWindowsTauriBundleBridgeSource('bundled')]: 'generated/bundled/',
         [resolveWindowsTauriBundleBridgeSource('web-dist')]: 'dist/',
-        'vendor/hub-installer/registry/': 'vendor/hub-installer/registry/',
         [resolveWindowsTauriBundleBridgeSource('openclaw')]: 'resources/openclaw/',
       },
     },

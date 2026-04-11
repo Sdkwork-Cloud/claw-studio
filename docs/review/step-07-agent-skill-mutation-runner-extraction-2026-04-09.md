@@ -114,7 +114,6 @@ Relative to the immediately prior `1938` page baseline from the agent CRUD runne
   - `pnpm build`
 - YELLOW on fresh repo-wide verification:
   - `pnpm lint`
-  - still blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 
 ## Closure Status
 

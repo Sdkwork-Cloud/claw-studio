@@ -167,7 +167,7 @@ function resolveInstallAgent(workbench: Awaited<ReturnType<InstanceWorkbenchServ
   const agentId = defaultAgent?.agent?.id;
 
   if (!agentId) {
-    throw new Error('No default OpenClaw agent workspace is available for ClawHub installation.');
+    throw new Error('No default OpenClaw agent workspace is available for skill installation.');
   }
 
   return {

@@ -28,7 +28,6 @@ use tauri_plugin_opener::OpenerExt;
 const MAIN_WINDOW_LABEL: &str = "main";
 const TRAY_ICON_ID: &str = "main_tray";
 const ROUTE_DASHBOARD: &str = "/dashboard";
-const ROUTE_INSTALL: &str = "/install";
 const ROUTE_APPS: &str = "/apps";
 const ROUTE_INSTANCES: &str = "/instances";
 const ROUTE_TASKS: &str = "/tasks";
@@ -36,7 +35,6 @@ const ROUTE_SETTINGS: &str = "/settings";
 
 pub(crate) const TRAY_MENU_ID_SHOW_WINDOW: &str = "show_window";
 pub(crate) const TRAY_MENU_ID_OPEN_DASHBOARD: &str = "open_dashboard";
-pub(crate) const TRAY_MENU_ID_OPEN_INSTALL: &str = "open_install";
 pub(crate) const TRAY_MENU_ID_OPEN_APPS: &str = "open_apps";
 pub(crate) const TRAY_MENU_ID_OPEN_INSTANCES: &str = "open_instances";
 pub(crate) const TRAY_MENU_ID_OPEN_TASKS: &str = "open_tasks";
@@ -93,7 +91,6 @@ struct TrayLabels {
     open_window: &'static str,
     navigate: &'static str,
     dashboard: &'static str,
-    install: &'static str,
     apps: &'static str,
     instances: &'static str,
     tasks: &'static str,
@@ -222,11 +219,6 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::path_exists::path_exists,
             commands::path_exists_for_user_tooling::path_exists_for_user_tooling,
             commands::get_path_info::get_path_info,
-            commands::hub_install_catalog::list_hub_install_catalog,
-            commands::run_hub_install::inspect_hub_install,
-            commands::run_hub_install::run_hub_dependency_install,
-            commands::run_hub_install::run_hub_install,
-            commands::run_hub_uninstall::run_hub_uninstall,
             commands::read_binary_file::read_binary_file,
             commands::write_binary_file::write_binary_file,
             commands::open_external::open_external,
@@ -262,7 +254,6 @@ pub(crate) fn tray_action_for_menu_id(id: &str) -> Option<TrayAction> {
     match id {
         TRAY_MENU_ID_SHOW_WINDOW => Some(TrayAction::ShowWindow),
         TRAY_MENU_ID_OPEN_DASHBOARD => Some(TrayAction::OpenRoute(ROUTE_DASHBOARD)),
-        TRAY_MENU_ID_OPEN_INSTALL => Some(TrayAction::OpenRoute(ROUTE_INSTALL)),
         TRAY_MENU_ID_OPEN_APPS => Some(TrayAction::OpenRoute(ROUTE_APPS)),
         TRAY_MENU_ID_OPEN_INSTANCES => Some(TrayAction::OpenRoute(ROUTE_INSTANCES)),
         TRAY_MENU_ID_OPEN_TASKS => Some(TrayAction::OpenRoute(ROUTE_TASKS)),
@@ -309,10 +300,6 @@ pub(crate) fn build_tray_menu_spec(language: TrayLanguage) -> Vec<TrayMenuEntry>
                 TrayMenuEntry::Item {
                     id: TRAY_MENU_ID_OPEN_DASHBOARD,
                     label: labels.dashboard.to_string(),
-                },
-                TrayMenuEntry::Item {
-                    id: TRAY_MENU_ID_OPEN_INSTALL,
-                    label: labels.install.to_string(),
                 },
                 TrayMenuEntry::Item {
                     id: TRAY_MENU_ID_OPEN_APPS,
@@ -867,7 +854,6 @@ fn tray_labels_for(language: TrayLanguage) -> TrayLabels {
             open_window: "Open Window",
             navigate: "Navigate",
             dashboard: "Dashboard",
-            install: "Install",
             apps: "Apps",
             instances: "Instances",
             tasks: "Tasks",
@@ -886,7 +872,6 @@ fn tray_labels_for(language: TrayLanguage) -> TrayLabels {
             open_window: "\u{6253}\u{5f00}\u{7a97}\u{53e3}",
             navigate: "\u{5bfc}\u{822a}",
             dashboard: "\u{5de5}\u{4f5c}\u{53f0}",
-            install: "\u{5b89}\u{88c5}",
             apps: "\u{5e94}\u{7528}",
             instances: "\u{5b9e}\u{4f8b}",
             tasks: "\u{4efb}\u{52a1}",
@@ -912,7 +897,6 @@ fn build_tray_menu<R: Runtime>(
     let labels = tray_labels_for(language);
     let open_menu = SubmenuBuilder::new(app, labels.navigate)
         .text(TRAY_MENU_ID_OPEN_DASHBOARD, labels.dashboard)
-        .text(TRAY_MENU_ID_OPEN_INSTALL, labels.install)
         .text(TRAY_MENU_ID_OPEN_APPS, labels.apps)
         .text(TRAY_MENU_ID_OPEN_INSTANCES, labels.instances)
         .text(TRAY_MENU_ID_OPEN_TASKS, labels.tasks)
@@ -1282,10 +1266,6 @@ mod tests {
         assert_eq!(
             tray_action_for_menu_id("open_dashboard"),
             Some(TrayAction::OpenRoute("/dashboard"))
-        );
-        assert_eq!(
-            tray_action_for_menu_id("open_install"),
-            Some(TrayAction::OpenRoute("/install"))
         );
         assert_eq!(
             tray_action_for_menu_id("open_apps"),

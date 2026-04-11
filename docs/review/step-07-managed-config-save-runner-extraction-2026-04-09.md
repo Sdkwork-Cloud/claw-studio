@@ -115,7 +115,6 @@ Because the dirty worktree already carries additional in-flight Step 07 edits be
   - `pnpm build`
 - YELLOW on fresh repo-wide verification:
   - `pnpm lint`
-  - still blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 
 ## Closure Status
 

@@ -40,7 +40,7 @@ Track the active `sdkwork-claw-*` workspace graph, its `@sdkwork/claw-*` package
 | `packages/sdkwork-claw-extensions` | `@sdkwork/claw-extensions` | extension install and manage flows | V5 feature package implemented locally |
 | `packages/sdkwork-claw-github` | `@sdkwork/claw-github` | GitHub repository flows | V5 feature package implemented locally |
 | `packages/sdkwork-claw-huggingface` | `@sdkwork/claw-huggingface` | Hugging Face discovery and model detail | V5 feature package implemented locally |
-| `packages/sdkwork-claw-install` | `@sdkwork/claw-install` | installation flows and system requirements | V5 feature package implemented locally |
+| `packages/removed-install-feature` | `removed-install-feature` | installation flows and system requirements | V5 feature package implemented locally |
 | `packages/sdkwork-claw-instances` | `@sdkwork/claw-instances` | instance management flows | V5 feature package implemented locally |
 | `packages/sdkwork-claw-market` | `@sdkwork/claw-market` | market, skill, and pack views | V5 feature package implemented locally |
 | `packages/sdkwork-claw-settings` | `@sdkwork/claw-settings` | settings pages and API key management | V5 feature package implemented locally |

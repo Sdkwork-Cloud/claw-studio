@@ -182,7 +182,10 @@ runTest('desktop tray route bridge stays host-local and drives navigation throug
   );
 
   assert.doesNotMatch(bridgeSource, /react-router-dom/);
-  assert.match(bridgeSource, /ROUTE_PATHS\.INSTALL/);
+  assert.doesNotMatch(bridgeSource, /ROUTE_PATHS\.INSTALL/);
+  assert.match(bridgeSource, /ROUTE_PATHS\.DASHBOARD/);
+  assert.match(bridgeSource, /ROUTE_PATHS\.APPS/);
+  assert.match(bridgeSource, /ROUTE_PATHS\.INSTANCES/);
   assert.match(bridgeSource, /ROUTE_PATHS\.TASKS/);
   assert.match(bridgeSource, /window\.history\.pushState/);
   assert.match(bridgeSource, /new PopStateEvent\('popstate'\)/);

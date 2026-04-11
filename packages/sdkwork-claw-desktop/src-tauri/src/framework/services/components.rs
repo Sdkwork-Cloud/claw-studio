@@ -205,10 +205,7 @@ mod tests {
             resources.service_defaults.manual_component_ids,
             vec!["zeroclaw".to_string(), "ironclaw".to_string()]
         );
-        assert_eq!(
-            resources.service_defaults.embedded_component_ids,
-            vec!["hub-installer".to_string()]
-        );
+        assert!(resources.service_defaults.embedded_component_ids.is_empty());
         assert_eq!(resources.upgrade_policy.default_channel, "stable");
         assert_eq!(resources.upgrade_policy.approval_mode, "manual");
     }

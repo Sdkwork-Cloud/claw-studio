@@ -5,7 +5,6 @@ import { listenDesktopEvent } from '../runtime';
 
 const ALLOWED_TRAY_ROUTES = new Set<string>([
   ROUTE_PATHS.DASHBOARD,
-  ROUTE_PATHS.INSTALL,
   ROUTE_PATHS.APPS,
   ROUTE_PATHS.INSTANCES,
   ROUTE_PATHS.TASKS,

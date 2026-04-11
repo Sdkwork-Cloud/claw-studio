@@ -30,16 +30,6 @@
       "installSubdir": "modules/ironclaw/current",
       "upgradeChannel": "stable",
       "serviceIds": ["ironclaw"]
-    },
-    {
-      "id": "hub-installer",
-      "displayName": "Hub Installer",
-      "kind": "embeddedLibrary",
-      "bundledVersion": "bundled",
-      "startupMode": "embedded",
-      "installSubdir": "modules/hub-installer/current",
-      "upgradeChannel": "stable",
-      "serviceIds": []
     }
   ]
 }

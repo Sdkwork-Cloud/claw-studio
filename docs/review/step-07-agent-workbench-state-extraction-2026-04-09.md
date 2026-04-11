@@ -92,7 +92,7 @@
 - `packages/sdkwork-claw-desktop/src-tauri/src/framework/services/local_ai_proxy.rs`
 - `packages/sdkwork-claw-desktop/src-tauri/src/plugins/mod.rs`
 
-These sources remain the authority for browser-backed OpenClaw workbench persistence, managed channel/config truth, ClawHub install flows, managed-provider readonly routing, local proxy provider projection, and desktop plugin/runtime registration. This loop only centralizes page-side agent-workbench selection and load orchestration around those already-authoritative runtime surfaces.
+These sources remain the authority for browser-backed OpenClaw workbench persistence, managed channel/config truth, default-agent skill install flows, managed-provider readonly routing, local proxy provider projection, and desktop plugin/runtime registration. This loop only centralizes page-side agent-workbench selection and load orchestration around those already-authoritative runtime surfaces.
 
 ## Fresh Measurements
 

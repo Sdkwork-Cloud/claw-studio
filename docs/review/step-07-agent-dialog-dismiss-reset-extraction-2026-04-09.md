@@ -100,7 +100,6 @@ Relative to the immediately prior `1741` page baseline from the dialog draft-sel
   - `node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync('docs/release/releases.json','utf8')); const latest=data.releases[data.releases.length-1]; if(latest.tag!=='release-2026-04-09-104') throw new Error(latest.tag); console.log(latest.tag)"`
 - Repo-wide lint status:
   - repo-wide `pnpm lint` was not rerun in this loop
-  - the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 
 ## Closure Status
 

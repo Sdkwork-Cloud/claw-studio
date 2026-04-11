@@ -30,7 +30,6 @@
       "foundation/components/",
       "generated/bundled/",
       "../dist/",
-      "vendor/hub-installer/registry/",
       "resources/openclaw/"
     ],
     "icon": [

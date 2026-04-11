@@ -883,8 +883,8 @@ Responsibilities:
 
 Extend:
 
-- `packages/sdkwork-claw-install/src/services/openClawBootstrapService.ts`
-- `packages/sdkwork-claw-install/src/services/installBootstrapService.ts`
+- `packages/removed-install-feature/src/services/openClawBootstrapService.ts`
+- `packages/removed-install-feature/src/services/installBootstrapService.ts`
 
 Responsibilities:
 

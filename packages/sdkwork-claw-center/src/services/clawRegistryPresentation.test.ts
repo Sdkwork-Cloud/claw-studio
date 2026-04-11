@@ -262,7 +262,7 @@ await runTest('resolveRegistryQuickConnectAction falls back to instance detail w
   });
 });
 
-await runTest('resolveRegistryQuickConnectAction points to install when no openclaw instance exists', () => {
+await runTest('resolveRegistryQuickConnectAction points to docs when no openclaw instance exists', () => {
   const action = resolveRegistryQuickConnectAction([
     {
       id: 'custom-http',
@@ -276,7 +276,7 @@ await runTest('resolveRegistryQuickConnectAction points to install when no openc
 
   assert.deepEqual(action, {
     kind: 'install',
-    to: '/install?product=openclaw',
+    to: '/docs#script',
     instanceId: null,
   });
 });

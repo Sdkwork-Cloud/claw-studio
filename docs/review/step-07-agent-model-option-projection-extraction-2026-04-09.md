@@ -109,7 +109,6 @@ Relative to the immediately prior `1460` page baseline, this loop produces anoth
   - `node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync('docs/release/releases.json','utf8')); const latest=data.releases[data.releases.length-1]; if(latest.tag!=='release-2026-04-09-130') throw new Error(latest.tag); console.log(latest.tag)"`
 - Session-known yellow:
   - repo-wide `pnpm lint` is still not rerun in this loop
-  - the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 
 ## Closure Status
 

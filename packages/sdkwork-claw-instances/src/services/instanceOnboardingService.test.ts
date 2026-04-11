@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import type {
-  HubInstallAssessmentResult,
-  HubInstallCatalogEntry,
-  HubInstallRequest,
+  InstallAssessmentResult,
+  InstallCatalogEntry,
+  InstallRequest,
   RuntimeInfo,
   StudioCreateInstanceInput,
   StudioInstanceRecord,
@@ -91,10 +91,10 @@ function createRuntimeInfo(overrides: Partial<RuntimeInfo> = {}): RuntimeInfo {
 
 function createAssessment(
   softwareName: string,
-  overrides: Partial<HubInstallAssessmentResult> = {},
-): HubInstallAssessmentResult {
+  overrides: Partial<InstallAssessmentResult> = {},
+): InstallAssessmentResult {
   return {
-    registryName: 'hub-installer',
+    registryName: 'remote-catalog',
     registrySource: 'https://example.com/registry',
     softwareName,
     manifestSource: `${softwareName}.hub.yaml`,
@@ -148,7 +148,7 @@ function createAssessment(
   };
 }
 
-function createCatalogEntry(): HubInstallCatalogEntry {
+function createCatalogEntry(): InstallCatalogEntry {
   return {
     appId: 'app-openclaw',
     title: 'OpenClaw',
@@ -257,8 +257,8 @@ await runTest('discoverInstalledOpenClawInstalls returns installed variants with
       getRuntimeInfo: async () => createRuntimeInfo(),
     },
     installerApi: {
-      listHubInstallCatalog: async () => [catalog],
-      inspectHubInstall: async (request) => {
+      listInstallCatalog: async () => [catalog],
+      inspectInstall: async (request) => {
         if (request.softwareName === 'openclaw-pnpm') {
           return createAssessment('openclaw-pnpm');
         }
@@ -332,8 +332,8 @@ await runTest(
         getRuntimeInfo: async () => createRuntimeInfo(),
       },
       installerApi: {
-        listHubInstallCatalog: async () => [catalog],
-        inspectHubInstall: async (request) => {
+        listInstallCatalog: async () => [catalog],
+        inspectInstall: async (request) => {
           if (request.softwareName === 'openclaw-pnpm') {
             return createAssessment('openclaw-pnpm');
           }
@@ -382,8 +382,8 @@ await runTest('discoverInstalledOpenClawInstalls keeps installs visible when the
       getRuntimeInfo: async () => createRuntimeInfo(),
     },
     installerApi: {
-      listHubInstallCatalog: async () => [createCatalogEntry()],
-      inspectHubInstall: async (request) => {
+      listInstallCatalog: async () => [createCatalogEntry()],
+      inspectInstall: async (request) => {
         if (request.softwareName === 'openclaw-pnpm') {
           return createAssessment('openclaw-pnpm', {
             installStatus: 'uninstalled',
@@ -438,8 +438,8 @@ await runTest('associateInstalledOpenClawInstall updates an existing matching lo
       getRuntimeInfo: async () => createRuntimeInfo(),
     },
     installerApi: {
-      listHubInstallCatalog: async () => [createCatalogEntry()],
-      inspectHubInstall: async (request) => {
+      listInstallCatalog: async () => [createCatalogEntry()],
+      inspectInstall: async (request) => {
         assert.equal(request.softwareName, 'openclaw-pnpm');
         return createAssessment('openclaw-pnpm');
       },
@@ -523,8 +523,8 @@ await runTest('associateOpenClawConfigPath creates a local-external instance fro
       }),
     },
     installerApi: {
-      listHubInstallCatalog: async () => [createCatalogEntry()],
-      inspectHubInstall: async () => createAssessment('openclaw-pnpm'),
+      listInstallCatalog: async () => [createCatalogEntry()],
+      inspectInstall: async () => createAssessment('openclaw-pnpm'),
     },
     studioApi: {
       listInstances: async () => [],
@@ -591,8 +591,8 @@ await runTest(
         getRuntimeInfo: async () => createRuntimeInfo(),
       },
       installerApi: {
-        listHubInstallCatalog: async () => [createCatalogEntry()],
-        inspectHubInstall: async () => createAssessment('openclaw-pnpm'),
+        listInstallCatalog: async () => [createCatalogEntry()],
+        inspectInstall: async () => createAssessment('openclaw-pnpm'),
       },
       studioApi: {
         listInstances: async () => [],
@@ -655,8 +655,8 @@ await runTest('createRemoteOpenClawInstance maps a polished remote gateway form 
       getRuntimeInfo: async () => createRuntimeInfo(),
     },
     installerApi: {
-      listHubInstallCatalog: async () => [createCatalogEntry()],
-      inspectHubInstall: async () => createAssessment('openclaw-pnpm'),
+      listInstallCatalog: async () => [createCatalogEntry()],
+      inspectInstall: async () => createAssessment('openclaw-pnpm'),
     },
     studioApi: {
       listInstances: async () => [],

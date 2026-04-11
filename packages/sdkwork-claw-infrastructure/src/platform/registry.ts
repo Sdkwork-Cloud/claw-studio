@@ -150,8 +150,8 @@ type TimedPromiseCacheEntry<T> = {
 type KernelInfoCacheValue = Awaited<ReturnType<KernelPlatformAPI['getInfo']>>;
 type KernelStatusCacheValue = Awaited<ReturnType<KernelPlatformAPI['getStatus']>>;
 type RuntimeInfoCacheValue = Awaited<ReturnType<RuntimePlatformAPI['getRuntimeInfo']>>;
-type InstallerCatalogCacheValue = Awaited<ReturnType<InstallerPlatformAPI['listHubInstallCatalog']>>;
-type InstallerInspectCacheValue = Awaited<ReturnType<InstallerPlatformAPI['inspectHubInstall']>>;
+type InstallerCatalogCacheValue = Awaited<ReturnType<InstallerPlatformAPI['listInstallCatalog']>>;
+type InstallerInspectCacheValue = Awaited<ReturnType<InstallerPlatformAPI['inspectInstall']>>;
 
 const STUDIO_LIST_CACHE_KEY = '__all__';
 const STUDIO_LIST_CACHE_TTL_MS = 1_500;
@@ -229,7 +229,7 @@ function invalidateInstallerCaches() {
 }
 
 function createInstallerCatalogCacheKey(
-  query?: Parameters<InstallerPlatformAPI['listHubInstallCatalog']>[0],
+  query?: Parameters<InstallerPlatformAPI['listInstallCatalog']>[0],
 ) {
   return JSON.stringify({
     hostPlatform: query?.hostPlatform ?? null,
@@ -247,7 +247,7 @@ function normalizeInstallerVariables(variables?: Record<string, string>) {
 }
 
 function createInstallerInspectCacheKey(
-  request: Parameters<InstallerPlatformAPI['inspectHubInstall']>[0],
+  request: Parameters<InstallerPlatformAPI['inspectInstall']>[0],
 ) {
   return JSON.stringify({
     softwareName: request.softwareName,
@@ -453,28 +453,28 @@ export const internal: InternalPlatformAPI = {
 };
 
 export const installer: InstallerPlatformAPI = {
-  listHubInstallCatalog: (query) =>
+  listInstallCatalog: (query) =>
     withTimedPromiseCache(
       installerCatalogCache,
       createInstallerCatalogCacheKey(query),
       INSTALLER_INSPECT_CACHE_TTL_MS,
-      () => getPlatformBridge().installer.listHubInstallCatalog(query),
+      () => getPlatformBridge().installer.listInstallCatalog(query),
     ),
-  inspectHubInstall: (request) =>
+  inspectInstall: (request) =>
     withTimedPromiseCache(
       installerInspectCache,
       createInstallerInspectCacheKey(request),
       INSTALLER_INSPECT_CACHE_TTL_MS,
-      () => getPlatformBridge().installer.inspectHubInstall(request),
+      () => getPlatformBridge().installer.inspectInstall(request),
     ),
-  runHubDependencyInstall: (request) =>
-    invalidateInstallerAfter(() => getPlatformBridge().installer.runHubDependencyInstall(request)),
-  runHubInstall: (request) =>
-    invalidateInstallerAfter(() => getPlatformBridge().installer.runHubInstall(request)),
-  runHubUninstall: (request) =>
-    invalidateInstallerAfter(() => getPlatformBridge().installer.runHubUninstall(request)),
-  subscribeHubInstallProgress: (listener) =>
-    getPlatformBridge().installer.subscribeHubInstallProgress(listener),
+  runInstallDependencies: (request) =>
+    invalidateInstallerAfter(() => getPlatformBridge().installer.runInstallDependencies(request)),
+  runInstall: (request) =>
+    invalidateInstallerAfter(() => getPlatformBridge().installer.runInstall(request)),
+  runUninstall: (request) =>
+    invalidateInstallerAfter(() => getPlatformBridge().installer.runUninstall(request)),
+  subscribeInstallProgress: (listener) =>
+    getPlatformBridge().installer.subscribeInstallProgress(listener),
 };
 
 export const studio: StudioPlatformAPI = {

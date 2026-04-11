@@ -1,4 +1,4 @@
-﻿# OpenClaw Gateway WebChat Design
+# OpenClaw Gateway WebChat Design
 
 ## Goal
 
@@ -11,7 +11,7 @@ The current OpenClaw chat integration is only transport-compatible with OpenAI-s
 1. `packages/sdkwork-claw-chat/src/services/instanceChatRouteService.ts` resolves `openclawGatewayWs` instances to HTTP chat completions whenever `baseUrl` exists, even though upstream control-ui/webchat uses Gateway WebSocket commands.
 2. `packages/sdkwork-claw-chat/src/services/chatService.ts` sends single request/response style `POST /v1/chat/completions` traffic and does not use `chat.history`, `chat.send`, `chat.abort`, or streamed `chat` events.
 3. `packages/sdkwork-claw-chat/src/store/useChatStore.ts` persists OpenClaw conversations through `studioConversationGateway.ts`, making local Claw Studio storage the effective source of truth instead of the Gateway session store.
-4. `packages/sdkwork-claw-install/src/services/openClawBootstrapService.ts` currently syncs local-external OpenClaw instances with `authToken: null`, which is a likely blocker for authenticated WebSocket parity.
+4. `packages/removed-install-feature/src/services/openClawBootstrapService.ts` currently syncs local-external OpenClaw instances with `authToken: null`, which is a likely blocker for authenticated WebSocket parity.
 
 This creates split-brain state:
 
@@ -32,7 +32,7 @@ This creates split-brain state:
 
 The change stays inside feature and install boundaries rather than expanding the general `studio` CRUD contract.
 
-- `packages/sdkwork-claw-install` owns keeping synced OpenClaw instance metadata complete enough for runtime access, including auth token propagation.
+- `packages/removed-install-feature` owns keeping synced OpenClaw instance metadata complete enough for runtime access, including auth token propagation.
 - `packages/sdkwork-claw-chat` owns the OpenClaw-specific Gateway WebSocket client, protocol adapter, session projection, and page integration.
 - Existing local conversation persistence remains available only for non-OpenClaw routes.
 

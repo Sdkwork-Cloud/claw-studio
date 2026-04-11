@@ -85,7 +85,6 @@ Relative to the immediately previous `2073`-line page baseline from the same day
   - `pnpm --filter @sdkwork/claw-web lint`
   - `pnpm build`
 - YELLOW:
-  - repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated `.gitmodules` hub-installer URL mismatch already present in the dirty worktree
 
 ## Closure Status
 

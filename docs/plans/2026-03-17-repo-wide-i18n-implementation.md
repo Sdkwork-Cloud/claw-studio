@@ -156,7 +156,7 @@ Expected: PASS for shell/settings surfaces.
 - Modify: `packages/sdkwork-claw-extensions/src/pages/**/*`
 - Modify: `packages/sdkwork-claw-github/src/pages/**/*`
 - Modify: `packages/sdkwork-claw-huggingface/src/pages/**/*`
-- Modify: `packages/sdkwork-claw-install/src/pages/**/*`
+- Modify: `packages/removed-install-feature/src/pages/**/*`
 - Modify: `packages/sdkwork-claw-instances/src/pages/**/*`
 - Modify: `packages/sdkwork-claw-market/src/pages/**/*`
 - Modify: `packages/sdkwork-claw-tasks/src/**/*`

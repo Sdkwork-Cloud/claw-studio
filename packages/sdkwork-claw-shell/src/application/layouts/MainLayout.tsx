@@ -9,14 +9,14 @@ import { AppRoutes } from '../router/AppRoutes';
 import { ROUTE_PATHS } from '../router/routePaths';
 import { shouldRenderChatRuntimeWarmersForPath } from './chatRuntimeWarmersPolicy';
 
+const MobileAppDownloadDialog = lazy(() =>
+  import('../../components/MobileAppDownloadDialog').then((module) => ({
+    default: module.MobileAppDownloadDialog,
+  })),
+);
 const ChatRuntimeWarmers = lazy(() =>
   import('../../components/ChatRuntimeWarmers').then((module) => ({
     default: module.ChatRuntimeWarmers,
-  })),
-);
-const MobileAppDownloadDialog = lazy(() =>
-  import('@sdkwork/claw-install').then((module) => ({
-    default: module.MobileAppDownloadDialog,
   })),
 );
 
@@ -36,16 +36,13 @@ export function MainLayout() {
     location.pathname === ROUTE_PATHS.REGISTER ||
     location.pathname === ROUTE_PATHS.FORGOT_PASSWORD ||
     location.pathname.startsWith(ROUTE_PATHS.OAUTH_CALLBACK_PREFIX);
-  const isInstallRoute =
-    location.pathname === ROUTE_PATHS.INSTALL ||
-    location.pathname.startsWith(`${ROUTE_PATHS.INSTALL}/`);
   const shouldRenderChatWarmersForPath = shouldRenderChatRuntimeWarmersForPath(
     location.pathname,
   );
   const isPromptEligibleRoute = location.pathname === ROUTE_PATHS.DASHBOARD;
 
   useEffect(() => {
-    if (isAuthRoute || isInstallRoute || !isPromptEligibleRoute || hasSeenMobileAppPrompt) {
+    if (isAuthRoute || !isPromptEligibleRoute || hasSeenMobileAppPrompt) {
       return;
     }
 
@@ -58,7 +55,6 @@ export function MainLayout() {
   }, [
     hasSeenMobileAppPrompt,
     isAuthRoute,
-    isInstallRoute,
     isPromptEligibleRoute,
     markMobileAppPromptSeen,
     openMobileAppDialog,

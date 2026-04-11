@@ -49,5 +49,5 @@
 
 - 在继续追查 `@sdkwork/claw-instances` 根入口时，`scripts/sdkwork-instances-contract.test.ts` 的下一处红灯已经转移到 `@monaco-editor/react` 依赖断言，不再是最早的 root export 断点。
 - workspace `lint` 当前剩余可见的 `TS2352` 主要集中在：
-  - `packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts`
+  - `packages/removed-install-feature/src/services/openClawBootstrapService.test.ts`
   - `packages/sdkwork-claw-settings/src/services/providerConfigCenterService.test.ts`

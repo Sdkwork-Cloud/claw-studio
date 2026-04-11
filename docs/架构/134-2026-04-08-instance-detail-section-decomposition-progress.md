@@ -746,7 +746,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the prior `2423` page baseline from the immediately previous loop, the page hotspot is now reduced to `2073` without changing OpenClaw truth-source routing, Provider Center managed classification, Local Proxy boundaries, or desktop runtime/plugin ownership.
 - Fresh verification in this loop reached:
   - green: focused presentation test, new chrome render test, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - yellow: repo-wide `pnpm lint` still fails later in `check:sdkwork-install` because the current dirty worktree `.gitmodules` file points `hub-installer` at `git@github.com:Sdkwork-Cloud/hub-installer.git` while the install contract still expects the HTTPS form
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidate should stay page-side and target the remaining header / action chrome cluster before revisiting lower-yield helper cleanup.
 
 ## Latest Progress Addendum XIX
@@ -775,7 +774,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `2073` page baseline, the page hotspot is now reduced to `1981` without changing OpenClaw authority routing, Provider Center managed classification, Local Proxy boundaries, or desktop runtime/plugin ownership.
 - Fresh verification in this loop reached:
   - green: new header render test, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - yellow: repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated `.gitmodules` hub-installer URL mismatch already present in the dirty worktree
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should now pivot from visual chrome to the remaining page-owned orchestration clusters.
 
 ## Latest Progress Addendum XX
@@ -852,7 +850,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `2161` page baseline from the section-model helper loop, the page hotspot is now reduced to `2102` without changing OpenClaw authority routing, Provider Center managed classification, Local Proxy boundaries, or desktop runtime/plugin ownership.
 - Fresh verification in this loop reached:
   - green: the two new managed section tests, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - yellow: repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining orchestration clusters outside the `memory` / `tools` composition boundary.
 
 ## Latest Progress Addendum XXII
@@ -891,7 +888,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `2102` page baseline, the page hotspot is now reduced to `2009` without changing OpenClaw authority routing, Provider Center managed classification, Local Proxy boundaries, or desktop runtime/plugin ownership.
 - Fresh verification in this loop reached:
   - green: new section-content render test, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - yellow: repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining orchestration clusters around provider catalog mutation lifecycle and managed-channel runtime orchestration.
 
 ## Latest Progress Addendum XXIII
@@ -930,7 +926,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `2009` page baseline, the page hotspot is now reduced to `1972` without changing OpenClaw authority routing, Provider Center managed classification, Local Proxy boundaries, or desktop runtime/plugin ownership.
 - Fresh verification in this loop reached:
   - green: new provider-catalog request helper test, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - yellow: repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining provider runner/completion helpers or the managed-channel runtime orchestration cluster.
 
 ## Latest Progress Addendum XXIV
@@ -967,7 +962,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1972` page baseline, the page hotspot is now reduced to `1823` without changing OpenClaw authority routing, Provider Center managed classification, Local Proxy boundaries, or desktop runtime/plugin ownership.
 - Fresh verification in this loop reached:
   - green: new managed-channel helper test, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - yellow: repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining provider runner/completion helpers or other page-owned orchestration clusters outside the new managed-channel helper boundary.
 
 ## Latest Progress Addendum XXV
@@ -1001,7 +995,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1823` page baseline, the page hotspot is now reduced to `1770` without changing OpenClaw authority routing, Provider Center managed classification, Local Proxy boundaries, or desktop runtime/plugin ownership.
 - Fresh verification in this loop reached:
   - green: updated provider helper test, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - yellow: repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining managed-config save runner or agent/skill action orchestration clusters.
 
 ## Latest Progress Addendum XXVI
@@ -1039,7 +1032,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Because the dirty worktree already carries additional in-flight Step 07 edits beyond the prior release-note snapshot, this addendum records a verified boundary improvement and fresh hotspot re-baseline rather than claiming a clean raw page-size delta from the earlier `1770` page note.
 - Fresh verification in and after this loop reached:
   - green: `openClawManagedConfigMutationSupport.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - yellow: repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should move to the remaining page-owned agent/skill orchestration frontier or another shared runner boundary that preserves page write authority.
 
 ## Latest Progress Addendum XXVII
@@ -1081,7 +1073,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1930` page baseline from Addendum XXVI, the raw page line count now re-measures at `1938`. This loop still improves the page-side authority boundary, but it is not a raw shrink because the current worktree keeps explicit injected runner wiring and agent-input validation in the page shell.
 - Fresh verification in this loop reached:
   - green: `openClawAgentMutationSupport.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - yellow: repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining agent skill orchestration or agent dialog request-construction frontier.
 
 ## Latest Progress Addendum XXVIII
@@ -1124,7 +1115,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1938` page baseline from Addendum XXVII, the page hotspot now moves down to `1931`.
 - Fresh verification in this loop reached:
   - green: `openClawAgentSkillMutationSupport.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - yellow: fresh repo-wide `pnpm lint` still remains blocked later in `check:sdkwork-install` by the unrelated dirty-worktree `.gitmodules` hub-installer URL mismatch
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining agent dialog request-construction frontier or another page-owned orchestration cluster.
 
 ## Latest Progress Addendum XXIX
@@ -1167,7 +1157,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1931` page baseline from Addendum XXVIII, the page hotspot now moves down to `1926`.
 - Fresh verification in this loop reached:
   - green: `openClawAgentMutationSupport.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target dialog-open draft setup or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XXX
@@ -1209,7 +1198,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1926` page baseline from Addendum XXIX, the page hotspot now moves down to `1906`.
 - Fresh verification in this loop reached:
   - green: `openClawAgentSkillMutationSupport.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target dialog-open draft setup, lifecycle action orchestration, or another remaining page-owned cluster.
 
 ## Latest Progress Addendum XXXI
@@ -1250,7 +1238,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1906` page baseline from Addendum XXX, the raw page line count now re-measures at `1911`. This loop is still a verified boundary improvement, but not a raw shrink, because the current worktree keeps explicit injected lifecycle runner wiring in the page shell while moving the repeated orchestration cluster into the shared helper.
 - Fresh verification in this loop reached:
   - green: `instanceLifecycleActionSupport.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target dialog-open draft setup or another remaining page-owned cluster.
 
 ## Latest Progress Addendum XXXII
@@ -1294,7 +1281,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1911` page baseline from Addendum XXXI, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1741`. This addendum records the fresh measured baseline after the current loop rather than claiming the entire raw delta belongs only to this single helper extraction.
 - Fresh verification in this loop reached:
   - green: `openClawAgentPresentation.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-103`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another remaining agent dialog state/reset cluster or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XXXIII
@@ -1336,7 +1322,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1741` page baseline from Addendum XXXII, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1742`. This addendum records a verified boundary improvement rather than a raw shrink, because the shared helper now owns more callback sequencing while the page still injects explicit setter authority.
 - Fresh verification in this loop reached:
   - green: `instanceDetailSectionModels.test.tsx`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-104`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another remaining dialog reset cluster or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XXXIV
@@ -1390,7 +1375,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1742` page baseline from Addendum XXXIII, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1909`. This addendum records a verified boundary improvement rather than a raw shrink, because the worktree advanced elsewhere while the shared helper now owns more provider dialog callback sequencing and the managed composition wrapper became thinner.
 - Fresh verification in this loop reached:
   - green: `instanceDetailSectionModels.test.tsx`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-105`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another provider dialog open/create draft setup cluster or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XXXV
@@ -1439,7 +1423,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1909` page baseline from Addendum XXXIV, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1924`. This addendum records a verified boundary improvement rather than a raw shrink, because the worktree advanced elsewhere while the new helper now owns the remaining provider create/edit draft-selection baseline.
 - Fresh verification in this loop reached:
   - green: `openClawProviderPresentation.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-106`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another remaining page-owned provider dialog visibility/open callback cluster or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XXXVI
@@ -1486,7 +1469,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1924` page baseline from Addendum XXXV, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1898`. This addendum records a verified page shrink while the section-model helper absorbed the section-facing provider dialog launch orchestration.
 - Fresh verification in this loop reached:
   - green: `instanceDetailSectionModels.test.tsx`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-107`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another remaining provider dialog or provider-config orchestration cluster, or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XXXVII
@@ -1542,7 +1524,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1898` page baseline from Addendum XXXVI, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1881`. This addendum records another verified page shrink while the provider workspace helper absorbed the selected-provider read-side derivation.
 - Fresh verification in this loop reached:
   - green: `openClawProviderWorkspacePresentation.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-108`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another provider draft/reset or dialog cluster, or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XXXVIII
@@ -1591,7 +1572,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1881` page baseline from Addendum XXXVII, the fresh current-worktree re-baseline now measures `InstanceDetail.tsx` at `1648`. This addendum records a verified boundary improvement while the section-model helper absorbed the remaining provider workspace draft callback shaping from the page.
 - Fresh verification in this loop reached:
   - green: `instanceDetailSectionModels.test.tsx`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-109`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another provider workspace request-parse or save-request cluster, or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XXXIX
@@ -1634,7 +1614,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1648` page baseline from Addendum XXXVIII, the fresh current-worktree re-baseline now measures `InstanceDetail.tsx` at `1647`. This addendum records another verified page-side boundary improvement while the provider presentation helper absorbed the remaining provider dialog presentation derivation.
 - Fresh verification in this loop reached:
   - green: `openClawProviderPresentation.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-110`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another provider dialog submit-request or save-orchestration cluster, or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XL
@@ -1683,7 +1662,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1647` page baseline from Addendum XXXIX, the fresh current-worktree re-baseline now measures `InstanceDetail.tsx` at `1636`. This addendum records another verified page-side boundary improvement while the provider catalog mutation support helper absorbed the repeated provider mutation build-result dispatch boilerplate.
 - Fresh verification in this loop reached:
   - green: `openClawProviderCatalogMutationSupport.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-111`
-  - note: repo-wide `pnpm lint` was not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another provider dialog state-reset input cluster, or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XLI
@@ -1732,7 +1710,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1636` page baseline from Addendum XL, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1731`. This addendum records a verified boundary improvement rather than a raw page shrink, because the shared helper now owns the remaining provider handler construction while the worktree has also advanced elsewhere.
 - Fresh verification in this loop reached:
   - green: `openClawProviderCatalogMutationSupport.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-112`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another provider dialog state-reset input cluster, or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XLII
@@ -1773,7 +1750,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1731` page baseline from Addendum XLI, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1725`. This addendum records both a verified boundary improvement and a small page shrink while the shared provider presentation helper absorbed the reset-drafts bundle.
 - Fresh verification in this loop reached:
   - green: `openClawProviderPresentation.test.ts`, `instanceDetailSectionModels.test.tsx`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-113`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target remaining provider dialog draft initialization or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XLIII
@@ -1811,7 +1787,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1725` page baseline from Addendum XLII, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1720`. This addendum records another verified page shrink while the page stopped depending directly on the lower-level provider create-state factories.
 - Fresh verification in this loop reached:
   - green: `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-114`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target remaining provider dialog launch-state construction or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XLIV
@@ -1855,7 +1830,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Because the dirty worktree already carries adjacent Step 07 edits, this addendum records a verified boundary improvement and a fresh current-worktree re-baseline rather than attributing the whole page delta only to the webFetch helper extraction.
 - Fresh verification in this loop reached:
   - green: `openClawManagedConfigDrafts.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-115`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another managed-config draft-state cluster or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XLV
@@ -1900,7 +1874,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1566` page baseline from Addendum XLIV, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1554`. This addendum records another verified page shrink while the shared managed-config helper absorbed the remaining managed webSearch sync shaping.
 - Fresh verification in this loop reached:
   - green: `openClawManagedConfigDrafts.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-116`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another managed-config draft-state cluster or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XLVI
@@ -1948,7 +1921,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Because the dirty worktree already carries adjacent Step 07 edits and this loop traded inline page logic for shared helper surface, this addendum records a verified boundary improvement and a fresh current-worktree re-baseline rather than claiming a raw page shrink.
 - Fresh verification in this loop reached:
   - green: `openClawManagedConfigDrafts.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-117`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another managed-config draft-state/update cluster or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XLVII
@@ -2000,7 +1972,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1557` page baseline from Addendum XLVI, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1510`. This addendum records both a verified boundary improvement and another page shrink while the repeated managed-config draft patch lambdas moved into shared helpers.
 - Fresh verification in this loop reached:
   - green: `openClawManagedConfigDrafts.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-118`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target managed-config init/reset shaping or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XLVIII
@@ -2051,7 +2022,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Because the dirty worktree already carries adjacent Step 07 edits, this addendum records a verified boundary improvement and a fresh current-worktree re-baseline rather than attributing every hotspot delta only to this loop.
 - Fresh verification in this loop reached:
   - green: `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-119`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target a managed-config reset bundle or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum XLIX
@@ -2109,7 +2079,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - This loop also brings managed webFetch reset behavior into the same shared reset bundle during instance switches.
 - Fresh verification in this loop reached:
   - green: `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-120`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum L
@@ -2162,7 +2131,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - This loop also brings `removingAgentSkillKeys` into the same shared reset bundle during instance switches.
 - Fresh verification in this loop reached:
   - green: `openClawAgentPresentation.test.ts`, `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-121`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining provider-side reset cluster or another remaining page-owned orchestration cluster.
 
 ## Latest Progress Addendum LI
@@ -2207,7 +2175,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1498 / 71` baseline from Addendum L, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1637` and `openClawProviderPresentation.ts` at `108`. This addendum records a verified boundary improvement and a fresh current-worktree re-baseline rather than claiming a raw page shrink, because the dirty worktree already carries adjacent Step 07 edits beyond this provider reset extraction.
 - Fresh verification in this loop reached:
   - green: `openClawProviderPresentation.test.ts`, `openClawProviderWorkspacePresentation.test.ts`, `openClawAgentPresentation.test.ts`, `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-122`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another small page-owned orchestration cluster, especially the remaining workbench file/memory loading reset pair or another effect-owned transient bundle.
 
 ## Latest Progress Addendum LII
@@ -2249,7 +2216,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1637 / 111` baseline from Addendum LI, the current dirty worktree now re-measures `InstanceDetail.tsx` at `1632` and `openClawProviderWorkspacePresentation.ts` at `142`. This addendum records both a verified boundary improvement and a small page shrink while the provider workspace sync-state logic moved out of the page.
 - Fresh verification in this loop reached:
   - green: `openClawProviderWorkspacePresentation.test.ts`, `openClawProviderPresentation.test.ts`, `openClawAgentPresentation.test.ts`, `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-123`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the managed-channel sync effect or another remaining transient/reset cluster.
 
 ## Latest Progress Addendum LIII
@@ -2293,7 +2259,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Because the dirty worktree already carries adjacent Step 07 edits, this addendum records a verified boundary improvement and a fresh current-worktree re-baseline rather than attributing every hotspot delta only to this extraction.
 - Fresh verification in this loop reached:
   - green: `openClawManagedChannelPresentation.test.ts`, `openClawManagedChannelMutationSupport.test.ts`, `openClawProviderWorkspacePresentation.test.ts`, `openClawProviderPresentation.test.ts`, `openClawAgentPresentation.test.ts`, `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-124`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining workbench file/memory loading reset pair or another small transient/reset cluster.
 
 ## Latest Progress Addendum LIV
@@ -2336,7 +2301,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Because the dirty worktree already carries adjacent Step 07 edits, this addendum records a verified boundary improvement and a fresh current-worktree re-baseline rather than attributing every hotspot delta only to this extraction.
 - Fresh verification in this loop reached:
   - green: `instanceWorkbenchHydration.test.ts`, `openClawManagedChannelPresentation.test.ts`, `openClawManagedChannelMutationSupport.test.ts`, `openClawProviderWorkspacePresentation.test.ts`, `openClawProviderPresentation.test.ts`, `openClawAgentPresentation.test.ts`, `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-125`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining managed-channel selection/draft derivation cluster or another small transient/reset bundle.
 
 ## Latest Progress Addendum LV
@@ -2378,7 +2342,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Because the dirty worktree already carries adjacent Step 07 edits, this addendum records a verified boundary improvement and a fresh current-worktree re-baseline rather than attributing every hotspot delta only to this extraction.
 - Fresh verification in this loop reached:
   - green: `openClawManagedChannelPresentation.test.ts`, `openClawManagedChannelMutationSupport.test.ts`, `instanceWorkbenchHydration.test.ts`, `openClawProviderWorkspacePresentation.test.ts`, `openClawProviderPresentation.test.ts`, `openClawAgentPresentation.test.ts`, `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-126`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the remaining managed-channel workspace projection cluster or the inline managed-channel lookup inside `onToggleManagedChannel`.
 
 ## Latest Progress Addendum LVI
@@ -2421,7 +2384,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Because the dirty worktree already carries adjacent Step 07 edits, this addendum records a verified boundary improvement and a fresh current-worktree re-baseline rather than attributing every hotspot delta only to this extraction.
 - Fresh verification in this loop reached:
   - green: `openClawManagedChannelPresentation.test.ts`, `openClawManagedChannelMutationSupport.test.ts`, `instanceWorkbenchHydration.test.ts`, `openClawProviderWorkspacePresentation.test.ts`, `openClawProviderPresentation.test.ts`, `openClawAgentPresentation.test.ts`, `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-127`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the inline managed-channel lookup inside `onToggleManagedChannel` or another small transient/reset bundle.
 
 ## Latest Progress Addendum LVII
@@ -2460,7 +2422,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Because the dirty worktree already carries adjacent Step 07 edits, this addendum records a verified boundary improvement and a fresh current-worktree re-baseline rather than attributing every hotspot delta only to this extraction.
 - Fresh verification in this loop reached:
   - green: `openClawManagedChannelPresentation.test.ts`, `openClawManagedChannelMutationSupport.test.ts`, `instanceWorkbenchHydration.test.ts`, `openClawProviderWorkspacePresentation.test.ts`, `openClawProviderPresentation.test.ts`, `openClawAgentPresentation.test.ts`, `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-128`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target the readonly channel projection cluster or another small pure projection bundle.
 
 ## Latest Progress Addendum LVIII
@@ -2505,7 +2466,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1474` page baseline, this loop produces a real page-size drop while preserving page authority boundaries.
 - Fresh verification in this loop reached:
   - green: `openClawChannelPresentation.test.ts`, `openClawManagedChannelPresentation.test.ts`, `openClawManagedChannelMutationSupport.test.ts`, `instanceWorkbenchHydration.test.ts`, `openClawProviderWorkspacePresentation.test.ts`, `openClawProviderPresentation.test.ts`, `openClawAgentPresentation.test.ts`, `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-129`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target `availableAgentModelOptions` or another small pure projection bundle.
 
 ## Latest Progress Addendum LIX
@@ -2546,7 +2506,6 @@ All commands passed on fresh execution in the same loop that produced this note.
 - Relative to the immediately prior `1460` page baseline, this loop produces another real page-size drop while preserving page authority boundaries.
 - Fresh verification in this loop reached:
   - green: `openClawChannelPresentation.test.ts`, `openClawManagedChannelPresentation.test.ts`, `openClawManagedChannelMutationSupport.test.ts`, `instanceWorkbenchHydration.test.ts`, `openClawProviderWorkspacePresentation.test.ts`, `openClawProviderPresentation.test.ts`, `openClawAgentPresentation.test.ts`, `openClawManagedConfigDrafts.test.ts`, `instanceMemoryWorkbenchPresentation.test.ts`, `scripts/sdkwork-instances-contract.test.ts`, `pnpm check:sdkwork-instances`, `pnpm --filter @sdkwork/claw-web lint`, `pnpm build`, and the `releases.json` latest-tag parse check for `release-2026-04-09-130`
-  - note: repo-wide `pnpm lint` is still not rerun in this loop; the latest session baseline still had the unrelated `.gitmodules` hub-installer URL mismatch later in `check:sdkwork-install`
 - `Step 07 / CP07-3` remains in progress. The next decomposition candidates should stay page-side and target another small pure projection/reset bundle or move into section-level lazy split design.
 
 ## Latest Progress Addendum LX

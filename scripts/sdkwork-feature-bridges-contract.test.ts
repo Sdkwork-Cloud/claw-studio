@@ -110,14 +110,6 @@ const packageContracts = [
     ],
   },
   {
-    pkg: 'install',
-    files: [
-      'packages/sdkwork-claw-install/src/Install.tsx',
-      'packages/sdkwork-claw-install/src/InstallDetail.tsx',
-    ],
-    requiredExports: ["export * from './Install';", "export * from './InstallDetail';"],
-  },
-  {
     pkg: 'model-purchase',
     files: [
       'packages/sdkwork-claw-model-purchase/src/ModelPurchase.tsx',

@@ -3,7 +3,7 @@
 ## 1. Context
 
 - After the earlier Step 03 market and install package contract loops, workspace lint still reported two `TS2352` blockers:
-  - `packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts`
+  - `packages/removed-install-feature/src/services/openClawBootstrapService.test.ts`
   - `packages/sdkwork-claw-settings/src/services/providerConfigCenterService.test.ts`
 - The goal of this loop was to remove those type drifts first, then continue verification until the next real blocker surfaced.
 
@@ -14,7 +14,7 @@
 
 ## 3. Changes
 
-- `packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts`
+- `packages/removed-install-feature/src/services/openClawBootstrapService.test.ts`
   - Introduced `StudioCreateInstanceInput`, `StudioCreateInstanceRecord`, and `StudioUpdateInstanceInput` aliases derived from `StudioPlatformAPI`.
   - Re-typed the `instanceState.created` and `instanceState.updated` collectors to those real contract types.
   - Removed the `Record<string, unknown>` casts from `createInstance` and `updateInstance`.
@@ -31,7 +31,7 @@
 | Command | Result | Note |
 | --- | --- | --- |
 | `pnpm.cmd lint` targeted scan for `openClawBootstrapService.test.ts`, `providerConfigCenterService.test.ts`, and `TS2352` | passed | returned `targeted-clean`; the Step 03 cast diagnostics are gone |
-| `node --experimental-strip-types packages/sdkwork-claw-install/src/services/openClawBootstrapService.test.ts` | passed | install/bootstrap regression slice still green after the type cleanup |
+| `node --experimental-strip-types packages/removed-install-feature/src/services/openClawBootstrapService.test.ts` | passed | install/bootstrap regression slice still green after the type cleanup |
 | `node --experimental-strip-types packages/sdkwork-claw-settings/src/services/providerConfigCenterService.test.ts` | passed | settings/provider routing slice now runs under the Node root export path |
 
 ## 5. Remaining Gaps

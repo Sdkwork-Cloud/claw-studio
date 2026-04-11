@@ -8,9 +8,7 @@ function isColdRoute(pathname: string) {
     pathname === '/login' ||
     pathname === '/register' ||
     pathname === '/forgot-password' ||
-    pathname.startsWith('/login/oauth/callback') ||
-    pathname === '/install' ||
-    pathname.startsWith('/install/')
+    pathname.startsWith('/login/oauth/callback')
   );
 }
 

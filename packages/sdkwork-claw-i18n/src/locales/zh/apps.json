@@ -1,11 +1,11 @@
 {
   "store": {
-    "title": "Hub Installer 目录",
-    "description": "浏览来自真实 hub-installer registry 的可安装应用。",
+    "title": "应用目录",
+    "description": "浏览应用文档、下载入口和外部商店链接。",
     "searchPlaceholder": "搜索 catalog 应用、包、工具...",
-    "catalogBadge": "Hub Installer",
-    "catalogTitle": "真实 catalog 数据，实时安装就绪状态",
-    "catalogDescription": "App Store 现在直接读取 hub-installer catalog，并按需检查安装就绪状态，让页面在展示真实状态时仍保持流畅。",
+    "catalogBadge": "Catalog",
+    "catalogTitle": "官方文档、下载入口与商店链接",
+    "catalogDescription": "App Store 现在展示官方文档、下载入口和外部商店链接。安装流程已移出内嵌桌面运行时。",
     "catalogTotals": "{{categories}} 个分类，共 {{count}} 个应用",
     "searchResultsDescription": "{{count}} 个匹配的 catalog 条目",
     "checkingInstallReadiness": "正在后台检查安装就绪情况...",
@@ -21,7 +21,7 @@
     "catalogAppFallback": "打开详情以查看安装方案、依赖检查和安装指引。",
     "categoryCount": "{{count}} 个应用",
     "emptyCatalogTitle": "当前没有可用的 catalog 条目",
-    "emptyCatalogDescription": "hub-installer 还没有为当前主机返回可安装应用。",
+    "emptyCatalogDescription": "当前主机暂无可用的外部分发应用。",
     "emptySearchTitle": "没有匹配的 catalog 条目",
     "emptySearchDescription": "没有找到与“{{query}}”匹配的 catalog 应用。",
     "overview": {
@@ -30,7 +30,8 @@
       "installed": "已安装",
       "ready": "可安装",
       "attention": "需处理"
-    }
+    },
+    "catalogNotesDescription": "这里只展示已发布的应用元数据、文档链接、下载链接和商店链接。"
   },
   "detail": {
     "notFoundTitle": "未找到应用",
@@ -45,13 +46,14 @@
     "openApp": "打开应用",
     "about": "关于此应用",
     "catalogNotesTitle": "Catalog 说明",
-    "catalogNotesDescription": "这里只展示 hub-installer 和当前所选方案实际提供的元数据。",
+    "catalogNotesDescription": "这里只展示远程目录和当前访问路径实际发布的详情。",
     "information": "信息",
     "hostValue": "主机：{{host}}",
     "installProfilesCount": "{{count}} 个可用方案",
     "dependencyChecks": "{{count}} 项依赖检查",
     "installStatusNote": "状态来自 Rust 评估结果中当前所选安装方案的记录。",
     "installBlockedFallback": "当前安装被阻止。",
+    "externalAccessDescription": "Claw Studio 已移除内嵌安装流程。请使用该应用的官方文档、商店页面或直接下载链接完成安装。",
     "methodFallback": "托管方案",
     "metadata": {
       "registry": "Registry",
@@ -78,8 +80,10 @@
       "installAllDependencies": "安装全部依赖",
       "installingDependencies": "正在安装依赖...",
       "installVariant": "安装 {{variant}}",
+      "download": "下载",
       "docs": "文档",
       "openInstallationDocs": "打开安装文档",
+      "openStore": "打开商店",
       "profileDocs": "方案文档",
       "selected": "已选中",
       "useProfile": "使用此方案",

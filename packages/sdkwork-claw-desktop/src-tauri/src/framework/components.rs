@@ -73,18 +73,6 @@ pub fn bundled_component_defaults() -> Vec<PackagedComponentDefinition> {
             source_url: None,
             commit: None,
         },
-        PackagedComponentDefinition {
-            id: "hub-installer".to_string(),
-            display_name: "Hub Installer".to_string(),
-            kind: PackagedComponentKind::EmbeddedLibrary,
-            bundled_version: "bundled".to_string(),
-            startup_mode: PackagedComponentStartupMode::Embedded,
-            install_subdir: "modules/hub-installer/current".to_string(),
-            upgrade_channel: "stable".to_string(),
-            service_ids: Vec::new(),
-            source_url: None,
-            commit: None,
-        },
     ]
 }
 
@@ -98,10 +86,7 @@ pub fn default_startup_component_ids(definitions: &[PackagedComponentDefinition]
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        bundled_component_defaults, default_startup_component_ids, PackagedComponentKind,
-        PackagedComponentStartupMode,
-    };
+    use super::{bundled_component_defaults, default_startup_component_ids};
 
     #[test]
     fn bundled_component_defaults_cover_packaged_platform_contract() {
@@ -113,21 +98,11 @@ mod tests {
 
         assert_eq!(
             ids,
-            vec!["openclaw", "zeroclaw", "ironclaw", "hub-installer"]
+            vec!["openclaw", "zeroclaw", "ironclaw"]
         );
         assert_eq!(
             default_startup_component_ids(&definitions),
             vec!["openclaw".to_string()]
-        );
-
-        let hub_installer = definitions
-            .iter()
-            .find(|definition| definition.id == "hub-installer")
-            .expect("hub installer definition");
-        assert_eq!(hub_installer.kind, PackagedComponentKind::EmbeddedLibrary);
-        assert_eq!(
-            hub_installer.startup_mode,
-            PackagedComponentStartupMode::Embedded
         );
     }
 }
