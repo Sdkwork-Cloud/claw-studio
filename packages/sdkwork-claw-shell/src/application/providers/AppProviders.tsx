@@ -1,9 +1,10 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { I18nextProvider } from 'react-i18next';
 import { Toaster } from 'sonner';
 import { useAppStore, type LanguagePreference } from '@sdkwork/claw-core';
-import { ensureI18n } from '@sdkwork/claw-i18n';
+import { ensureI18n, i18n } from '@sdkwork/claw-i18n';
 import { LanguageManager } from './LanguageManager';
 import { ThemeManager } from './ThemeManager';
 
@@ -88,17 +89,19 @@ export function AppProviders({
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeManager />
-      <LanguageManager onLanguagePreferenceChange={onLanguagePreferenceChange} />
-      <Router>
-        {children}
-        <Toaster
-          position="bottom-right"
-          richColors
-          theme={themeMode === 'system' ? 'system' : themeMode === 'dark' ? 'dark' : 'light'}
-        />
-      </Router>
-    </QueryClientProvider>
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeManager />
+        <LanguageManager onLanguagePreferenceChange={onLanguagePreferenceChange} />
+        <Router>
+          {children}
+          <Toaster
+            position="bottom-right"
+            richColors
+            theme={themeMode === 'system' ? 'system' : themeMode === 'dark' ? 'dark' : 'light'}
+          />
+        </Router>
+      </QueryClientProvider>
+    </I18nextProvider>
   );
 }

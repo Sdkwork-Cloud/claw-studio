@@ -153,7 +153,16 @@ fn ensure_generated_bundled_placeholder(directory: &Path) {
     let has_real_entries = match fs::read_dir(directory) {
         Ok(entries) => entries
             .filter_map(Result::ok)
-            .any(|entry| entry.file_name() != GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME),
+            .any(|entry| {
+                if entry.file_name() == GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME {
+                    return false;
+                }
+
+                match entry.file_type() {
+                    Ok(file_type) => file_type.is_file(),
+                    Err(_) => true,
+                }
+            }),
         Err(error) => {
             cargo_warn(&format!(
                 "failed to inspect generated bundled resources at {}: {}",

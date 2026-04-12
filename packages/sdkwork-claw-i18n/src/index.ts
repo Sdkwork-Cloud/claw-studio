@@ -1,4 +1,4 @@
-import i18n from 'i18next';
+import { createInstance } from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { initReactI18next } from 'react-i18next';
 import en from './locales/en/index.ts';
@@ -51,6 +51,8 @@ export const translationResources = {
   pl: englishTranslationBundle,
   id: englishTranslationBundle,
 } as const;
+
+const i18n = createInstance();
 
 let initialization: Promise<typeof i18n> | null = null;
 
