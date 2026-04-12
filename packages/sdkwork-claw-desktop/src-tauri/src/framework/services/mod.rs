@@ -22,6 +22,7 @@ pub mod filesystem;
 pub mod integrations;
 pub mod jobs;
 pub mod kernel;
+pub mod kernel_runtime_authority;
 pub mod local_ai_proxy;
 pub mod local_ai_proxy_observability;
 pub mod local_ai_proxy_snapshot;

@@ -10,6 +10,7 @@ pub mod error;
 pub mod events;
 pub mod filesystem;
 pub mod kernel;
+pub mod kernel_runtime;
 pub mod kernel_host;
 pub mod layout;
 pub mod logging;
