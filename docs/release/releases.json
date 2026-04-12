@@ -4108,6 +4108,14 @@
       "carryForward": [
         "release-2026-04-10-171"
       ]
+    },
+    {
+      "tag": "release-2026-04-12-173",
+      "title": "Claw Studio release-2026-04-12-173",
+      "date": "2026-04-12",
+      "status": "published",
+      "summary": "Published hotfix release that restores packaged desktop documentation intro translations, adds a focused docs locale regression test, and verifies the rebuilt Windows release executable renders localized docs copy without raw keys.",
+      "notesFile": "release-2026-04-12-173.md"
     }
   ]
 }
