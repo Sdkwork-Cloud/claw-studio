@@ -4900,7 +4900,25 @@
       },
       "description": "OpenClaw 是一个本地优先平台，用于在桌面、服务器和边缘设备上部署、管理并扩展 AI 智能体。",
       "features": {
-        "title": "关键特性"
+        "title": "关键特性",
+        "items": {
+          "localFirst": {
+            "title": "本地优先控制面",
+            "description": "让智能体、运行时和凭据尽量留在你信任的机器与环境附近。"
+          },
+          "extensibleSkills": {
+            "title": "可扩展技能包",
+            "description": "把可复用技能组合成可安装、可共享的工作流，方便团队统一复用。"
+          },
+          "aiPowered": {
+            "title": "AI 驱动自动化",
+            "description": "在同一个 Studio 体验里协调智能体、网关与设备上的自动化执行。"
+          },
+          "developerFriendly": {
+            "title": "开发者友好运行时",
+            "description": "源码构建、CLI 工具和打包运行时可以在同一套产品里顺畅衔接。"
+          }
+        }
       },
       "howItWorks": {
         "description": "OpenClaw 将编排、运行时访问和设备执行分离，让你在跨环境扩展工作负载时仍保持控制。",

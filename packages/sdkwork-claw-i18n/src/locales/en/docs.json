@@ -49,7 +49,25 @@
     },
     "description": "OpenClaw is a local-first platform for deploying, managing, and extending AI agents across desktop, servers, and edge devices.",
     "features": {
-      "title": "Key features"
+      "title": "Key features",
+      "items": {
+        "localFirst": {
+          "title": "Local-first control",
+          "description": "Keep agents, runtimes, and credentials close to the machines you trust."
+        },
+        "extensibleSkills": {
+          "title": "Extensible skill packs",
+          "description": "Compose reusable skills into installable workflows your team can share."
+        },
+        "aiPowered": {
+          "title": "AI-powered automation",
+          "description": "Coordinate agents, gateways, and devices from a single studio experience."
+        },
+        "developerFriendly": {
+          "title": "Developer-friendly runtime",
+          "description": "Move between source builds, CLI tools, and packaged runtimes without changing products."
+        }
+      }
     },
     "howItWorks": {
       "description": "OpenClaw separates orchestration, runtime access, and device execution so you can keep control of your workloads while scaling them across environments.",
