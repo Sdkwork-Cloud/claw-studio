@@ -4097,6 +4097,17 @@
       "carryForward": [
         "release-2026-04-10-170"
       ]
+    },
+    {
+      "tag": "release-2026-04-12-172",
+      "title": "Claw Studio release-2026-04-12-172",
+      "date": "2026-04-12",
+      "status": "published",
+      "summary": "Published GitHub release that merges all previously unpublished release-note chains, lands the desktop release i18n instance-binding fix, and hardens generated bundle placeholder detection for Tauri resource resolution.",
+      "notesFile": "release-2026-04-12-172.md",
+      "carryForward": [
+        "release-2026-04-10-171"
+      ]
     }
   ]
 }
