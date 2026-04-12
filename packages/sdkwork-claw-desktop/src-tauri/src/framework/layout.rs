@@ -306,6 +306,111 @@ impl Default for UpgradesState {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+pub struct KernelAuthorityState {
+    pub layout_version: u32,
+    pub runtime_id: String,
+    pub active_install_key: Option<String>,
+    pub fallback_install_key: Option<String>,
+    pub managed_config_path: Option<String>,
+    pub owned_runtime_roots: Vec<String>,
+    pub legacy_runtime_roots: Vec<String>,
+    pub quarantined_paths: Vec<String>,
+    pub last_activation_at: Option<String>,
+    pub last_error: Option<String>,
+}
+
+impl Default for KernelAuthorityState {
+    fn default() -> Self {
+        Self {
+            layout_version: LAYOUT_VERSION,
+            runtime_id: "openclaw".to_string(),
+            active_install_key: None,
+            fallback_install_key: None,
+            managed_config_path: None,
+            owned_runtime_roots: Vec::new(),
+            legacy_runtime_roots: Vec::new(),
+            quarantined_paths: Vec::new(),
+            last_activation_at: None,
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct KernelMigrationState {
+    pub layout_version: u32,
+    pub runtime_id: String,
+    pub last_config_source_path: Option<String>,
+    pub last_config_target_path: Option<String>,
+    pub last_config_migrated_at: Option<String>,
+    pub last_data_source_path: Option<String>,
+    pub last_data_target_path: Option<String>,
+    pub last_data_migrated_at: Option<String>,
+    pub last_error: Option<String>,
+}
+
+impl Default for KernelMigrationState {
+    fn default() -> Self {
+        Self {
+            layout_version: LAYOUT_VERSION,
+            runtime_id: "openclaw".to_string(),
+            last_config_source_path: None,
+            last_config_target_path: None,
+            last_config_migrated_at: None,
+            last_data_source_path: None,
+            last_data_target_path: None,
+            last_data_migrated_at: None,
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RuntimeUpgradeStateEntry {
+    pub active_install_key: Option<String>,
+    pub fallback_install_key: Option<String>,
+    pub last_attempted_version: Option<String>,
+    pub last_applied_version: Option<String>,
+    pub last_attempted_at: Option<String>,
+    pub last_error: Option<String>,
+}
+
+impl Default for RuntimeUpgradeStateEntry {
+    fn default() -> Self {
+        Self {
+            active_install_key: None,
+            fallback_install_key: None,
+            last_attempted_version: None,
+            last_applied_version: None,
+            last_attempted_at: None,
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RuntimeUpgradesState {
+    pub layout_version: u32,
+    pub runtimes: BTreeMap<String, RuntimeUpgradeStateEntry>,
+}
+
+impl Default for RuntimeUpgradesState {
+    fn default() -> Self {
+        Self {
+            layout_version: LAYOUT_VERSION,
+            runtimes: BTreeMap::from([(
+                "openclaw".to_string(),
+                RuntimeUpgradeStateEntry::default(),
+            )]),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct RetentionBucket {
     pub active_slots: u32,
     pub fallback_slots: u32,
@@ -358,6 +463,12 @@ pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
     write_json_if_missing(&paths.service_file, &ServiceState::default())?;
     write_json_if_missing(&paths.components_file, &ComponentsState::default())?;
     write_json_if_missing(&paths.upgrades_file, &UpgradesState::default())?;
+    write_json_if_missing(&paths.openclaw_authority_file, &KernelAuthorityState::default())?;
+    write_json_if_missing(&paths.openclaw_migrations_file, &KernelMigrationState::default())?;
+    write_json_if_missing(
+        &paths.openclaw_runtime_upgrades_file,
+        &RuntimeUpgradesState::default(),
+    )?;
     Ok(())
 }
 
@@ -463,7 +574,8 @@ where
 mod tests {
     use super::{
         initialize_machine_state, set_active_runtime_version, sync_component_registry_state,
-        ActiveState, InventoryState, LayoutState, PinnedState, RetentionState, UpgradesState,
+        ActiveState, InventoryState, KernelAuthorityState, KernelMigrationState, LayoutState,
+        PinnedState, RetentionState, RuntimeUpgradesState, UpgradesState,
     };
     use crate::framework::{
         components::{
@@ -613,6 +725,48 @@ mod tests {
             Some(false)
         );
         assert!(upgrades.components.contains_key("openclaw"));
+    }
+
+    #[test]
+    fn initializes_openclaw_authority_state_files_with_expected_defaults() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        initialize_machine_state(&paths).expect("initialize machine state");
+
+        let authority = serde_json::from_str::<KernelAuthorityState>(
+            &std::fs::read_to_string(&paths.openclaw_authority_file).expect("authority file"),
+        )
+        .expect("authority json");
+        let migrations = serde_json::from_str::<KernelMigrationState>(
+            &std::fs::read_to_string(&paths.openclaw_migrations_file).expect("migrations file"),
+        )
+        .expect("migrations json");
+        let runtime_upgrades = serde_json::from_str::<RuntimeUpgradesState>(
+            &std::fs::read_to_string(&paths.openclaw_runtime_upgrades_file)
+                .expect("runtime upgrades file"),
+        )
+        .expect("runtime upgrades json");
+
+        assert_eq!(authority.layout_version, 1);
+        assert_eq!(authority.runtime_id, "openclaw");
+        assert!(authority.active_install_key.is_none());
+        assert!(authority.managed_config_path.is_none());
+        assert!(authority.owned_runtime_roots.is_empty());
+
+        assert_eq!(migrations.layout_version, 1);
+        assert!(migrations.last_config_source_path.is_none());
+        assert!(migrations.last_data_source_path.is_none());
+        assert!(migrations.last_error.is_none());
+
+        assert!(runtime_upgrades.runtimes.contains_key("openclaw"));
+        assert_eq!(
+            runtime_upgrades
+                .runtimes
+                .get("openclaw")
+                .and_then(|entry| entry.last_applied_version.as_deref()),
+            None
+        );
     }
 
     #[test]

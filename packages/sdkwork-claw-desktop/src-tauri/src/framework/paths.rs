@@ -46,6 +46,14 @@ pub struct AppPaths {
     pub studio_backups_dir: PathBuf,
     pub user_logs_dir: PathBuf,
     pub config_dir: PathBuf,
+    pub kernels_state_dir: PathBuf,
+    pub openclaw_kernel_dir: PathBuf,
+    pub openclaw_authority_file: PathBuf,
+    pub openclaw_migrations_file: PathBuf,
+    pub openclaw_runtime_upgrades_file: PathBuf,
+    pub openclaw_managed_config_dir: PathBuf,
+    pub openclaw_managed_config_file: PathBuf,
+    pub openclaw_quarantine_dir: PathBuf,
     pub data_dir: PathBuf,
     pub cache_dir: PathBuf,
     pub logs_dir: PathBuf,
@@ -109,6 +117,10 @@ impl AppPaths {
             self.studio_backups_dir.clone(),
             self.user_logs_dir.clone(),
             self.config_dir.clone(),
+            self.kernels_state_dir.clone(),
+            self.openclaw_kernel_dir.clone(),
+            self.openclaw_managed_config_dir.clone(),
+            self.openclaw_quarantine_dir.clone(),
             self.data_dir.clone(),
             self.cache_dir.clone(),
             self.logs_dir.clone(),
@@ -199,6 +211,14 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
     let user_logs_dir = user_root.join("logs");
 
     let config_dir = machine_state_dir.clone();
+    let kernels_state_dir = config_dir.join("kernels");
+    let openclaw_kernel_dir = kernels_state_dir.join("openclaw");
+    let openclaw_authority_file = openclaw_kernel_dir.join("authority.json");
+    let openclaw_migrations_file = openclaw_kernel_dir.join("migrations.json");
+    let openclaw_runtime_upgrades_file = openclaw_kernel_dir.join("runtime-upgrades.json");
+    let openclaw_managed_config_dir = openclaw_kernel_dir.join("managed-config");
+    let openclaw_managed_config_file = openclaw_managed_config_dir.join("openclaw.json");
+    let openclaw_quarantine_dir = openclaw_kernel_dir.join("quarantine");
     let data_dir = studio_dir.clone();
     let cache_dir = machine_staging_dir.clone();
     let logs_dir = machine_logs_dir.join("app");
@@ -270,6 +290,14 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
         studio_backups_dir,
         user_logs_dir,
         config_dir,
+        kernels_state_dir,
+        openclaw_kernel_dir,
+        openclaw_authority_file,
+        openclaw_migrations_file,
+        openclaw_runtime_upgrades_file,
+        openclaw_managed_config_dir,
+        openclaw_managed_config_file,
+        openclaw_quarantine_dir,
         data_dir,
         cache_dir,
         logs_dir,
@@ -581,6 +609,34 @@ mod tests {
         assert!(paths.openclaw_home_dir.exists());
         assert!(paths.openclaw_state_dir.exists());
         assert!(paths.openclaw_workspace_dir.exists());
+    }
+
+    #[test]
+    fn creates_openclaw_authority_management_directories() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        assert!(normalize(&paths.kernels_state_dir).ends_with("machine/state/kernels"));
+        assert!(normalize(&paths.openclaw_kernel_dir).ends_with("machine/state/kernels/openclaw"));
+        assert!(normalize(&paths.openclaw_authority_file)
+            .ends_with("machine/state/kernels/openclaw/authority.json"));
+        assert!(normalize(&paths.openclaw_migrations_file)
+            .ends_with("machine/state/kernels/openclaw/migrations.json"));
+        assert!(normalize(&paths.openclaw_runtime_upgrades_file)
+            .ends_with("machine/state/kernels/openclaw/runtime-upgrades.json"));
+        assert!(normalize(&paths.openclaw_managed_config_dir)
+            .ends_with("machine/state/kernels/openclaw/managed-config"));
+        assert!(normalize(&paths.openclaw_managed_config_file)
+            .ends_with("machine/state/kernels/openclaw/managed-config/openclaw.json"));
+        assert!(normalize(&paths.openclaw_quarantine_dir)
+            .ends_with("machine/state/kernels/openclaw/quarantine"));
+        assert!(paths.kernels_state_dir.exists());
+        assert!(paths.openclaw_kernel_dir.exists());
+        assert!(paths.openclaw_managed_config_dir.exists());
+        assert!(paths.openclaw_quarantine_dir.exists());
+        assert!(paths.openclaw_authority_file.exists());
+        assert!(paths.openclaw_migrations_file.exists());
+        assert!(paths.openclaw_runtime_upgrades_file.exists());
     }
 
     #[test]
