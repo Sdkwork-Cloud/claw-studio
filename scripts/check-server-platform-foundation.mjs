@@ -52,6 +52,7 @@ assertPath('packages/sdkwork-claw-server/src-host/src/main.rs', 'server Rust ent
 assertPath('packages/sdkwork-claw-server/src-host/src/bootstrap.rs', 'server bootstrap module');
 assertPath('packages/sdkwork-claw-server/src-host/src/cli.rs', 'server cli module');
 assertPath('packages/sdkwork-claw-server/src-host/src/config.rs', 'server config module');
+assertPath('scripts/run-cargo.mjs', 'shared cargo launcher');
 assertPath(
   'packages/sdkwork-claw-server/src-host/src/port_governance.rs',
   'server port governance module',
@@ -97,6 +98,12 @@ if (rootPackage?.scripts?.['server:dev'] !== 'pnpm --dir packages/sdkwork-claw-s
 }
 if (rootPackage?.scripts?.['server:build'] !== 'node scripts/run-claw-server-build.mjs') {
   failures.push('Root package server:build script must use the shared server build helper.');
+}
+if (
+  rootPackage?.scripts?.['check:server']
+  !== 'node scripts/check-server-platform-foundation.mjs && node scripts/run-cargo.mjs test --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml'
+) {
+  failures.push('Root package check:server script must execute cargo through the shared Rust toolchain launcher.');
 }
 if (serverPackage?.scripts?.dev !== 'cargo run --manifest-path src-host/Cargo.toml') {
   failures.push('Server package dev script must run the native Rust host entry.');

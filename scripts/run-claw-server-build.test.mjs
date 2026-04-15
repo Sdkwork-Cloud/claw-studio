@@ -132,3 +132,96 @@ test('server build helper rejects a missing --target value instead of silently f
     /Missing value for --target/,
   );
 });
+
+test('server build helper uses the shared Rust toolchain path for native cargo builds', async () => {
+  const modulePath = path.join(rootDir, 'scripts', 'run-claw-server-build.mjs');
+  const helper = await import(pathToFileURL(modulePath).href);
+
+  assert.equal(typeof helper.runServerBuild, 'function');
+
+  let ensureCalls = 0;
+  let wrapCalls = 0;
+  let spawnInvocation = null;
+
+  const plan = helper.runServerBuild({
+    env: {
+      PATH: 'base-path',
+      SDKWORK_TEST_ENV: '1',
+    },
+    hostPlatform: 'linux',
+    ensureRustToolchain() {
+      ensureCalls += 1;
+    },
+    withRustToolchainPathFn(env) {
+      wrapCalls += 1;
+      assert.equal(env.PATH, 'base-path');
+      assert.equal(env.SDKWORK_TEST_ENV, '1');
+      return {
+        ...env,
+        PATH: 'rust-toolchain-path',
+      };
+    },
+    spawnSyncImpl(command, args, options) {
+      spawnInvocation = { command, args, options };
+      return {
+        status: 0,
+      };
+    },
+  });
+
+  assert.equal(plan.command, 'cargo');
+  assert.equal(ensureCalls, 1);
+  assert.equal(wrapCalls, 1);
+  assert.deepEqual(spawnInvocation, {
+    command: 'cargo',
+    args: ['build', '--manifest-path', 'src-host/Cargo.toml', '--release'],
+    options: {
+      cwd: path.join(rootDir, 'packages', 'sdkwork-claw-server'),
+      env: {
+        PATH: 'rust-toolchain-path',
+        SDKWORK_TEST_ENV: '1',
+      },
+      stdio: 'inherit',
+    },
+  });
+});
+
+test('server build helper keeps WSL builds independent from the local Rust toolchain wrapper', async () => {
+  const modulePath = path.join(rootDir, 'scripts', 'run-claw-server-build.mjs');
+  const helper = await import(pathToFileURL(modulePath).href);
+
+  assert.equal(typeof helper.runServerBuild, 'function');
+
+  let spawnInvocation = null;
+
+  const plan = helper.runServerBuild({
+    targetTriple: 'x86_64-unknown-linux-gnu',
+    env: {
+      PATH: 'base-path',
+      SDKWORK_TEST_ENV: '1',
+    },
+    hostPlatform: 'win32',
+    wslDistributions: ['Ubuntu-22.04'],
+    ensureRustToolchain() {
+      throw new Error('native rust toolchain guard must not run for WSL builds');
+    },
+    withRustToolchainPathFn() {
+      throw new Error('native rust toolchain path wrapper must not run for WSL builds');
+    },
+    spawnSyncImpl(command, args, options) {
+      spawnInvocation = { command, args, options };
+      return {
+        status: 0,
+      };
+    },
+  });
+
+  assert.equal(plan.command, 'wsl.exe');
+  assert.equal(plan.runner, 'wsl');
+  assert.equal(plan.wslDistribution, 'Ubuntu-22.04');
+  assert.equal(spawnInvocation?.command, 'wsl.exe');
+  assert.equal(spawnInvocation?.options.cwd, path.join(rootDir, 'packages', 'sdkwork-claw-server'));
+  assert.equal(spawnInvocation?.options.stdio, 'inherit');
+  assert.equal(spawnInvocation?.options.env.PATH, 'base-path');
+  assert.equal(spawnInvocation?.options.env.SDKWORK_TEST_ENV, '1');
+});

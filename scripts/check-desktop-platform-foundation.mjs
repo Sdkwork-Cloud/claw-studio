@@ -163,6 +163,7 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/platform/mod.rs', 'desktop platform module'],
   ['scripts/prepare-openclaw-runtime.mjs', 'bundled openclaw runtime prepare script'],
   ['scripts/prepare-openclaw-runtime.test.mjs', 'bundled openclaw runtime prepare test'],
+  ['scripts/run-cargo.mjs', 'shared Rust toolchain launcher'],
   ['scripts/verify-desktop-build-assets.mjs', 'desktop bundled asset verification script'],
   ['scripts/ensure-tauri-dev-binary-unlocked.mjs', 'tauri dev binary unlock guard script'],
   ['scripts/ensure-tauri-dev-binary-unlocked.test.mjs', 'tauri dev binary unlock guard test'],
@@ -208,6 +209,13 @@ for (const scriptName of ['tauri:dev', 'tauri:build', 'tauri:icon', 'tauri:info'
 assertScript(desktopPackage, desktopPackagePath, 'dev:tauri');
 assertScript(desktopPackage, desktopPackagePath, 'prepare:openclaw-runtime');
 assertScript(rootPackage, rootPackagePath, 'sync:bundled-components');
+
+if (
+  rootPackage?.scripts?.['check:desktop']
+  && !rootPackage.scripts['check:desktop'].includes('node scripts/run-cargo.mjs test --manifest-path packages/sdkwork-claw-desktop/src-tauri/Cargo.toml')
+) {
+  failures.push('Root package check:desktop script must execute cargo through the shared Rust toolchain launcher.');
+}
 
 assertDependency(desktopPackage, desktopPackagePath, '@tauri-apps/cli', 'devDependencies');
 assertIncludes(

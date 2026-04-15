@@ -417,7 +417,7 @@ export function createPointsWalletService(
 
       return mapRechargeResult(
         unwrapAppSdkResponse<PointsRechargeVO>(
-          await client.account.createRecharge(request),
+          await client.account.rechargePoints(request),
           'Failed to recharge points.',
         ),
       );

@@ -83,12 +83,13 @@ Important variables:
 
 - AI capabilities require an active OpenClaw-compatible instance and Provider Center configuration
 - `VITE_API_BASE_URL`: backend API base URL
-- `VITE_ACCESS_TOKEN`: optional backend token
 - `VITE_APP_ID`: desktop update app id
 - `VITE_RELEASE_CHANNEL`: desktop update release channel
 - `CLAW_SERVER_HOST`: native server bind host
 - `CLAW_SERVER_PORT`: native server listen port
 - `CLAW_SERVER_DATA_DIR`: native server state directory
+
+Desktop and browser hosts must not inject root access tokens through Vite env files. Keep privileged credentials inside trusted hosts or host-mediated auth flows.
 
 Desktop-specific examples also exist in `packages/sdkwork-claw-desktop/.env.example`, and server runtime defaults live in `packages/sdkwork-claw-server/.env.example`.
 

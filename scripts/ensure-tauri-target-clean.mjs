@@ -2,6 +2,10 @@ import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  resolveDefaultDesktopCargoTargetDir,
+  resolveDesktopCargoTargetDir,
+} from './desktop-cargo-target.mjs';
+import {
   buildOpenClawManifest,
   DEFAULT_NODE_VERSION,
   DEFAULT_OPENCLAW_VERSION,
@@ -267,21 +271,38 @@ function inspectSingleTauriTarget(resolvedSrcTauriDir, targetDir, { env = proces
   };
 }
 
-function resolveCandidateTargetDirs(resolvedSrcTauriDir) {
-  const targetDirs = [path.join(resolvedSrcTauriDir, 'target')];
+function resolveCandidateTargetDirs(resolvedSrcTauriDir, env = process.env) {
   const packageRootDir = path.dirname(resolvedSrcTauriDir);
+  const targetDirs = [];
+  const configuredTargetDir = String(env?.CARGO_TARGET_DIR ?? '').trim();
+
+  if (configuredTargetDir.length > 0) {
+    targetDirs.push(resolveDesktopCargoTargetDir({
+      desktopPackageDir: packageRootDir,
+      env,
+      platform: process.platform,
+      cwd: process.cwd(),
+    }));
+  } else if (path.basename(packageRootDir).toLowerCase() === 'sdkwork-claw-desktop') {
+    targetDirs.push(resolveDefaultDesktopCargoTargetDir({
+      desktopPackageDir: packageRootDir,
+      platform: process.platform,
+    }));
+  }
+
+  targetDirs.push(path.join(resolvedSrcTauriDir, 'target'));
   const packageTargetDir = path.join(packageRootDir, '.tauri-target');
 
   if (!targetDirs.includes(packageTargetDir)) {
     targetDirs.push(packageTargetDir);
   }
 
-  return targetDirs;
+  return [...new Set(targetDirs)];
 }
 
 export function inspectTauriTarget(srcTauriDir = 'src-tauri', { env = process.env } = {}) {
   const resolvedSrcTauriDir = path.resolve(srcTauriDir);
-  const targetDirs = resolveCandidateTargetDirs(resolvedSrcTauriDir);
+  const targetDirs = resolveCandidateTargetDirs(resolvedSrcTauriDir, env);
   const targetInspections = targetDirs.map((targetDir) =>
     inspectSingleTauriTarget(resolvedSrcTauriDir, targetDir, { env }),
   );

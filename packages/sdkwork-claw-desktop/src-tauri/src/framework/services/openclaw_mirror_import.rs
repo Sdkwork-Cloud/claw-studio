@@ -1,5 +1,8 @@
 use super::{
-    local_ai_proxy::{LocalAiProxyLifecycle, LocalAiProxyService, LocalAiProxyServiceHealth},
+    local_ai_proxy::{
+        LocalAiProxyLifecycle, LocalAiProxyService, LocalAiProxyServiceHealth,
+        OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER,
+    },
     local_ai_proxy_snapshot::{
         resolve_provider_center_profile_id, restore_provider_center_catalog,
         LocalAiProxyProviderCenterCatalogSnapshot, LocalAiProxySnapshot,
@@ -1782,7 +1785,7 @@ fn verify_managed_openclaw_provider(
         route,
         &local_proxy_projection.health,
     );
-    let expected_api_key = local_proxy_projection.snapshot.auth_token.trim();
+    let expected_api_key = OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER;
 
     let provider_root = root
         .get("models")
@@ -1951,7 +1954,7 @@ fn run_post_import_doctor(paths: &AppPaths, runtime: &ActivatedOpenClawRuntime) 
     command.arg("--yes");
     command.current_dir(&runtime.runtime_dir);
     command.env("PATH", prepend_path_env(&paths.user_bin_dir));
-    command.envs(runtime.managed_env());
+    command.envs(runtime.managed_env_with_local_ai_proxy(paths)?);
 
     let output = command.output()?;
     if output.status.success() {
@@ -4947,7 +4950,7 @@ mod tests {
         );
         assert_eq!(
             restored_openclaw_config["models"]["providers"]["sdkwork-local-proxy"]["apiKey"],
-            Value::String("sk_sdkwork_api_key".to_string())
+            Value::String("${SDKWORK_LOCAL_PROXY_TOKEN}".to_string())
         );
         assert!(
             restored_openclaw_config["models"]["providers"]["sdkwork-local-proxy"]["baseUrl"]

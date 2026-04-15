@@ -321,7 +321,7 @@ mod tests {
             vec!["openclaw_gateway".to_string()]
         );
         assert_eq!(info.supervisor.lifecycle, "running");
-        assert_eq!(info.bundled_components.component_count, 4);
+        assert_eq!(info.bundled_components.component_count, 3);
         assert_eq!(
             info.bundled_components.default_startup_component_ids,
             vec!["openclaw".to_string()]
@@ -363,6 +363,36 @@ mod tests {
                 .expect("runtime config path"),
         )
         .ends_with("user-home/openclaw-home/.openclaw/openclaw.json"));
+        assert!(normalize_path_suffix(
+            payload["openClawRuntime"]["authority"]["managedConfigPath"]
+                .as_str()
+                .expect("authority managed config path"),
+        )
+        .ends_with("machine/state/kernels/openclaw/managed-config/openclaw.json"));
+        let owned_runtime_roots = payload["openClawRuntime"]["authority"]["ownedRuntimeRoots"]
+            .as_array()
+            .expect("authority owned runtime roots");
+        assert_eq!(owned_runtime_roots.len(), 2);
+        assert!(normalize_path_suffix(
+            owned_runtime_roots[0]
+                .as_str()
+                .expect("primary owned runtime root"),
+        )
+        .ends_with("install/runtimes/openclaw"));
+        assert!(normalize_path_suffix(
+            owned_runtime_roots[1]
+                .as_str()
+                .expect("legacy owned runtime root"),
+        )
+        .ends_with("machine/runtime/runtimes/openclaw"));
+        assert_eq!(
+            payload["openClawRuntime"]["authority"]["readinessProbe"]["supportsLoopbackHealthProbe"],
+            true
+        );
+        assert_eq!(
+            payload["openClawRuntime"]["authority"]["readinessProbe"]["healthProbeTimeoutMs"],
+            750
+        );
         assert_eq!(
             payload["openClawRuntime"]["startupChain"][0]["id"],
             "configureOpenClawGateway"

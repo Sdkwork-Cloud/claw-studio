@@ -41,6 +41,12 @@ import type {
   StudioPlatformAPI,
   StudioUpdateInstanceInput,
 } from './contracts/studio.ts';
+import {
+  sanitizeBrowserInstanceRegistryDocument,
+  sanitizeBrowserInstanceRecord,
+  sanitizeBrowserWorkbenchRegistryDocument,
+  sanitizeBrowserWorkbenchSnapshot,
+} from './browserPersistencePolicy.ts';
 
 const INSTANCE_STORAGE_KEY = 'claw-studio:studio:instances:v1';
 const CONVERSATION_STORAGE_KEY = 'claw-studio:studio:conversations:v1';
@@ -53,6 +59,10 @@ const DEFAULT_OPENCLAW_CONFIG_FILE_ID = '/workspace/main/openclaw.json';
 
 type BrowserOpenClawWorkbenchChannelRecord = StudioWorkbenchSnapshot['channels'][number] & {
   values?: Record<string, string>;
+};
+
+type BrowserOpenClawWorkbenchSnapshot = Omit<StudioWorkbenchSnapshot, 'channels'> & {
+  channels: BrowserOpenClawWorkbenchChannelRecord[];
 };
 
 interface BrowserOpenClawChannelTemplate {
@@ -414,7 +424,7 @@ interface StudioConversationRegistryDocument {
 
 interface StudioWorkbenchRegistryDocument {
   version: 1;
-  workbenches: Record<string, StudioWorkbenchSnapshot>;
+  workbenches: Record<string, BrowserOpenClawWorkbenchSnapshot>;
 }
 
 function now() {
@@ -449,10 +459,8 @@ function createDefaultInstanceConfig(
     autoUpdate: input?.autoUpdate ?? true,
     logLevel: input?.logLevel ?? 'info',
     corsOrigins: input?.corsOrigins ?? '*',
-    workspacePath: input?.workspacePath ?? null,
     baseUrl: input?.baseUrl ?? 'http://127.0.0.1:18789',
     websocketUrl: input?.websocketUrl ?? 'ws://127.0.0.1:18789',
-    authToken: input?.authToken ?? null,
   };
 }
 
@@ -698,9 +706,13 @@ function createBrowserOpenClawChannelRecord(input: {
   template: BrowserOpenClawChannelTemplate;
   values?: Record<string, string>;
   enabled?: boolean;
+  configuredFieldCount?: number;
 }): BrowserOpenClawWorkbenchChannelRecord {
   const values = normalizeChannelValues(input.values);
-  const configuredFieldCount = countConfiguredChannelValues(values);
+  const configuredFieldCount =
+    typeof input.configuredFieldCount === 'number'
+      ? input.configuredFieldCount
+      : countConfiguredChannelValues(values);
   const enabled =
     typeof input.enabled === 'boolean'
       ? input.enabled
@@ -796,7 +808,9 @@ function updateWorkbenchConfigFile(
   ]);
 }
 
-function createDefaultWorkbenchSnapshot(instance: StudioInstanceRecord): StudioWorkbenchSnapshot {
+function createDefaultWorkbenchSnapshot(
+  instance: StudioInstanceRecord,
+): BrowserOpenClawWorkbenchSnapshot {
   if (!isManagedOpenClawWorkbenchInstance(instance)) {
     return {
       channels: [],
@@ -858,7 +872,7 @@ function createDefaultWorkbenchSnapshot(instance: StudioInstanceRecord): StudioW
         name: 'OpenAI',
         provider: 'openai',
         endpoint: 'https://api.openai.com/v1',
-        apiKeySource: 'env:OPENAI_API_KEY',
+        apiKeySource: '',
         status: 'configurationRequired',
         defaultModelId: 'gpt-5.4',
         reasoningModelId: 'o4-mini',
@@ -964,11 +978,14 @@ function cloneWorkbenchProvider(
   };
 }
 
-function cloneWorkbenchSnapshot(snapshot: StudioWorkbenchSnapshot): StudioWorkbenchSnapshot {
+function cloneWorkbenchSnapshot(
+  snapshot: BrowserOpenClawWorkbenchSnapshot,
+): BrowserOpenClawWorkbenchSnapshot {
   return {
     channels: snapshot.channels.map((channel) => ({
       ...channel,
       setupSteps: [...channel.setupSteps],
+      values: channel.values ? { ...channel.values } : undefined,
     })),
     cronTasks: {
       tasks: snapshot.cronTasks.tasks.map(cloneWorkbenchTask),
@@ -1005,7 +1022,9 @@ function createWorkbenchFallback(instances: StudioInstanceRecord[]): StudioWorkb
 
 function readWorkbenchRegistry(instances: StudioInstanceRecord[] = readInstances().instances): StudioWorkbenchRegistryDocument {
   const storage = getStorage();
-  const fallback = createWorkbenchFallback(instances);
+  const fallback = sanitizeBrowserWorkbenchRegistryDocument(
+    createWorkbenchFallback(instances),
+  );
 
   if (!storage) {
     return fallback;
@@ -1019,13 +1038,18 @@ function readWorkbenchRegistry(instances: StudioInstanceRecord[] = readInstances
 
   try {
     const parsed = JSON.parse(raw) as Partial<StudioWorkbenchRegistryDocument>;
-    return {
+    const sanitizedDocument = sanitizeBrowserWorkbenchRegistryDocument({
       version: 1,
       workbenches: {
         ...fallback.workbenches,
-        ...(asObject(parsed.workbenches) as Record<string, StudioWorkbenchSnapshot>),
+        ...(asObject(parsed.workbenches) as Record<string, BrowserOpenClawWorkbenchSnapshot>),
       },
-    };
+    });
+    const sanitizedRaw = JSON.stringify(sanitizedDocument);
+    if (sanitizedRaw !== raw) {
+      storage.setItem(WORKBENCH_STORAGE_KEY, sanitizedRaw);
+    }
+    return sanitizedDocument;
   } catch {
     storage.setItem(WORKBENCH_STORAGE_KEY, JSON.stringify(fallback));
     return fallback;
@@ -1038,7 +1062,10 @@ function writeWorkbenchRegistry(document: StudioWorkbenchRegistryDocument) {
     return;
   }
 
-  storage.setItem(WORKBENCH_STORAGE_KEY, JSON.stringify(document));
+  storage.setItem(
+    WORKBENCH_STORAGE_KEY,
+    JSON.stringify(sanitizeBrowserWorkbenchRegistryDocument(document)),
+  );
 }
 
 function readManagedOpenClawWorkbench(instance: StudioInstanceRecord): StudioWorkbenchSnapshot | null {
@@ -1055,7 +1082,7 @@ function readManagedOpenClawWorkbench(instance: StudioInstanceRecord): StudioWor
   const created = createDefaultWorkbenchSnapshot(instance);
   document.workbenches[instance.id] = created;
   writeWorkbenchRegistry(document);
-  return cloneWorkbenchSnapshot(created);
+  return cloneWorkbenchSnapshot(sanitizeBrowserWorkbenchSnapshot(created));
 }
 
 function updateManagedOpenClawWorkbench(
@@ -1072,9 +1099,10 @@ function updateManagedOpenClawWorkbench(
   const current = document.workbenches[instanceId] || createDefaultWorkbenchSnapshot(instance);
   const next = updater(cloneWorkbenchSnapshot(current), instance);
   next.memory = buildOpenClawMemoryEntries(next.files);
-  document.workbenches[instanceId] = next;
+  const sanitizedNext = sanitizeBrowserWorkbenchSnapshot(next);
+  document.workbenches[instanceId] = sanitizedNext;
   writeWorkbenchRegistry(document);
-  return cloneWorkbenchSnapshot(next);
+  return cloneWorkbenchSnapshot(sanitizedNext);
 }
 
 function removeManagedOpenClawWorkbench(instanceId: string) {
@@ -1107,10 +1135,10 @@ function synchronizeManagedOpenClawWorkbench(instance: StudioInstanceRecord) {
 
 function readInstances(): StudioInstanceRegistryDocument {
   const storage = getStorage();
-  const fallback: StudioInstanceRegistryDocument = {
+  const fallback = sanitizeBrowserInstanceRegistryDocument({
     version: 1,
     instances: [createDefaultBuiltInInstance()],
-  };
+  });
 
   if (!storage) {
     return fallback;
@@ -1126,18 +1154,21 @@ function readInstances(): StudioInstanceRegistryDocument {
     const parsed = JSON.parse(raw) as Partial<StudioInstanceRegistryDocument>;
     const storedInstances = Array.isArray(parsed.instances) ? parsed.instances : [];
     const instances = storedInstances.map((instance) =>
-      instance.id === DEFAULT_INSTANCE_ID ? normalizeBuiltInInstance(instance) : instance,
+      sanitizeBrowserInstanceRecord(
+        instance.id === DEFAULT_INSTANCE_ID ? normalizeBuiltInInstance(instance) : instance,
+      ),
     );
     if (!instances.some((instance) => instance.id === DEFAULT_INSTANCE_ID)) {
       instances.unshift(createDefaultBuiltInInstance());
     }
 
-    const normalizedDocument = {
+    const normalizedDocument = sanitizeBrowserInstanceRegistryDocument({
       version: 1,
       instances,
-    } satisfies StudioInstanceRegistryDocument;
-    if (JSON.stringify(normalizedDocument) !== raw) {
-      storage.setItem(INSTANCE_STORAGE_KEY, JSON.stringify(normalizedDocument));
+    } satisfies StudioInstanceRegistryDocument);
+    const normalizedRaw = JSON.stringify(normalizedDocument);
+    if (normalizedRaw !== raw) {
+      storage.setItem(INSTANCE_STORAGE_KEY, normalizedRaw);
     }
 
     return normalizedDocument;
@@ -1153,7 +1184,10 @@ function writeInstances(document: StudioInstanceRegistryDocument) {
     return;
   }
 
-  storage.setItem(INSTANCE_STORAGE_KEY, JSON.stringify(document));
+  storage.setItem(
+    INSTANCE_STORAGE_KEY,
+    JSON.stringify(sanitizeBrowserInstanceRegistryDocument(document)),
+  );
 }
 
 function readConversations(): StudioConversationRegistryDocument {
@@ -2242,6 +2276,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
         template,
         values: current?.values,
         enabled,
+        configuredFieldCount: current?.configuredFieldCount,
       });
 
       return {

@@ -54,11 +54,13 @@ export function buildBundledOpenClawStartupAlert(
 
 function resolveBundledStartupFailureActionDetailKey(startupError: string) {
   const normalizedError = startupError.toLowerCase();
+  const includesLocalizedAccessDenied = startupError.includes('\u62d2\u7edd\u8bbf\u95ee');
 
   if (
     normalizedError.includes('access denied') ||
+    normalizedError.includes('access is denied') ||
     normalizedError.includes('os error 5') ||
-    startupError.includes('鎷掔粷璁块棶')
+    includesLocalizedAccessDenied
   ) {
     return 'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.actions.runtimeAccessDenied';
   }

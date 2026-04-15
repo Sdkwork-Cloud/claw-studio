@@ -15,9 +15,6 @@ export interface AppEnvConfig {
     baseUrl: string;
     timeout: number;
   };
-  auth: {
-    accessToken: string;
-  };
   update: {
     appId: number | null;
     releaseChannel: string;
@@ -87,19 +84,6 @@ function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/g, '');
 }
 
-function normalizeAccessToken(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return '';
-  }
-
-  if (trimmed.toLowerCase().startsWith('bearer ')) {
-    return trimmed.slice(7).trim();
-  }
-
-  return trimmed;
-}
-
 function resolveDistributionId(source: AppEnvSource): AppDistributionId {
   return readString(source, 'VITE_DISTRIBUTION_ID') === 'cn' ? 'cn' : 'global';
 }
@@ -122,7 +106,6 @@ export function createAppEnvConfig(source: AppEnvSource = readRuntimeEnvSource()
   const isTauri = detectTauriRuntime();
   const baseUrl = normalizeBaseUrl(readString(source, 'VITE_API_BASE_URL'));
   const timeout = readPositiveNumber(source, 'VITE_TIMEOUT') ?? DEFAULT_TIMEOUT;
-  const accessToken = normalizeAccessToken(readString(source, 'VITE_ACCESS_TOKEN'));
   const appId = readPositiveNumber(source, 'VITE_APP_ID');
 
   return {
@@ -133,9 +116,6 @@ export function createAppEnvConfig(source: AppEnvSource = readRuntimeEnvSource()
     api: {
       baseUrl,
       timeout,
-    },
-    auth: {
-      accessToken,
     },
     update: {
       appId,
@@ -154,10 +134,6 @@ export function createAppEnvConfig(source: AppEnvSource = readRuntimeEnvSource()
 }
 
 export const APP_ENV = createAppEnvConfig();
-
-export function readAccessToken(config: AppEnvConfig = APP_ENV): string {
-  return config.auth.accessToken;
-}
 
 export function hasDesktopUpdateConfig(config: AppEnvConfig = APP_ENV): boolean {
   return !!config.api.baseUrl && config.update.appId !== null;

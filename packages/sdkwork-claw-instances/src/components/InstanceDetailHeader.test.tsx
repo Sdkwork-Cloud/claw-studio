@@ -63,3 +63,50 @@ await runTest(
     assert.doesNotMatch(markup, /instances\.detail\.actions\.setAsActive/);
   },
 );
+
+await runTest(
+  'InstanceDetailHeader keeps the control-page action visible for built-in instances while suppressing uninstall',
+  () => {
+    const markup = renderToStaticMarkup(
+      <InstanceDetailHeader
+        activeInstanceId={null}
+        instance={{
+          id: 'local-built-in',
+          name: 'Built-In OpenClaw',
+          status: 'online',
+          ip: '127.0.0.1',
+          uptime: '9m',
+          type: 'builtin',
+          version: '2026.4.14',
+        } as any}
+        runtimeStatus="healthy"
+        canSetActive={false}
+        canOpenOpenClawConsole
+        canControlLifecycle
+        canRestartLifecycle
+        canStopLifecycle
+        canStartLifecycle={false}
+        canDelete={false}
+        t={(key) =>
+          key === 'instances.detail.actions.openOpenClawConsole'
+            ? '打开控制页面'
+            : key === 'instances.detail.actions.uninstallInstance'
+              ? '卸载实例'
+              : key
+        }
+        getSharedStatusLabel={(status) => `status:${status}`}
+        getStatusBadge={(status) => `status-badge:${status}`}
+        getRuntimeStatusTone={(status) => `runtime-tone:${status}`}
+        onSetActive={() => undefined}
+        onOpenOpenClawConsole={() => undefined}
+        onRestart={() => undefined}
+        onStop={() => undefined}
+        onStart={() => undefined}
+        onDelete={() => undefined}
+      />,
+    );
+
+    assert.match(markup, /打开控制页面/);
+    assert.doesNotMatch(markup, /卸载实例/);
+  },
+);

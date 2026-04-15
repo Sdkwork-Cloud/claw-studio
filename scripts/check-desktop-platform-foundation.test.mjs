@@ -25,6 +25,16 @@ assert.match(
 );
 assert.match(
   foundationCheckSource,
+  /scripts\/run-cargo\.mjs/,
+  'desktop platform foundation check must require the shared Rust toolchain launcher for desktop cargo checks',
+);
+assert.match(
+  foundationCheckSource,
+  /shared Rust toolchain launcher/,
+  'desktop platform foundation check must report an actionable desktop cargo launcher failure',
+);
+assert.match(
+  foundationCheckSource,
   /'foundation\/components\/'/,
   'desktop platform foundation check must validate directory resource roots instead of recursive glob patterns',
 );

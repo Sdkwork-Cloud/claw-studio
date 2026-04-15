@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
+import {
+  DEFAULT_BUNDLED_OPENCLAW_VERSION,
+  type StudioInstanceDetailRecord,
+} from '@sdkwork/claw-types';
 import { buildBundledOpenClawStartupAlert } from './bundledOpenClawStartupAlert.ts';
 
 function runTest(name: string, callback: () => void | Promise<void>) {
@@ -28,7 +31,7 @@ function createDetail(
       isBuiltIn: true,
       isDefault: true,
       iconType: 'server',
-      version: '2026.4.9',
+      version: DEFAULT_BUNDLED_OPENCLAW_VERSION,
       typeLabel: 'OpenClaw Gateway',
       host: '127.0.0.1',
       port: 18871,
@@ -196,6 +199,27 @@ await runTest(
         }),
       ),
       null,
+    );
+  },
+);
+
+await runTest(
+  'buildBundledOpenClawStartupAlert classifies localized access denied startup failures',
+  () => {
+    const alert = buildBundledOpenClawStartupAlert(
+      createDetail({
+        lifecycle: {
+          ...createDetail().lifecycle,
+          lastActivationStage: 'prepareRuntimeActivation',
+          lastError:
+            'Windows \u62d2\u7edd\u8bbf\u95ee bundled runtime \u76ee\u5f55\uff0c\u65e0\u6cd5\u5b8c\u6210\u5185\u7f6e runtime \u843d\u5730',
+        },
+      }),
+    );
+
+    assert.equal(
+      alert?.recommendedActionDetailKey,
+      'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.actions.runtimeAccessDenied',
     );
   },
 );

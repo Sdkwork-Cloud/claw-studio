@@ -32,6 +32,24 @@ runTest('desktop build optimization keeps core shared runtime in stable chunks',
     'claw-platform-web-studio',
   );
   assert.equal(
+    manualChunks(
+      'C:/repo/apps/claw-studio/packages/sdkwork-claw-i18n/src/index.ts',
+    ),
+    'claw-i18n-runtime',
+  );
+  assert.equal(
+    manualChunks(
+      'C:/repo/apps/claw-studio/packages/sdkwork-claw-i18n/src/locales/en/index.ts',
+    ),
+    'claw-i18n-en',
+  );
+  assert.equal(
+    manualChunks(
+      'C:/repo/apps/claw-studio/packages/sdkwork-claw-i18n/src/locales/zh/index.ts',
+    ),
+    'claw-i18n-zh',
+  );
+  assert.equal(
     manualChunks('C:/repo/shared-sdk/index.ts'),
     'sdkwork-app-sdk',
   );

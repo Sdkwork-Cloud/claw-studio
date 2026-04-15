@@ -44,6 +44,13 @@ await runTest('assessOpenClawUpgradeReadiness reports ready when local upgrade i
       nodeVersion: '22.16.0',
       packageName: 'openclaw',
       runtimeSupplementalPackages: ['@buape/carbon@0.0.0-beta-20260327000044'],
+      runtimeSupplementalPackageExceptions: [
+        {
+          spec: '@buape/carbon@0.0.0-beta-20260327000044',
+          reason: 'Approved prerelease dependency for the bundled runtime.',
+          reviewedAt: '2026-04-15',
+        },
+      ],
     });
     createJson(path.join(tempRoot, 'packages', 'sdkwork-claw-desktop', 'src-tauri', 'resources', 'openclaw', 'manifest.json'), {
       schemaVersion: 1,
@@ -102,6 +109,13 @@ await runTest('assessOpenClawUpgradeReadiness reports missing local upgrade inpu
       nodeVersion: '22.16.0',
       packageName: 'openclaw',
       runtimeSupplementalPackages: ['@buape/carbon@0.0.0-beta-20260327000044'],
+      runtimeSupplementalPackageExceptions: [
+        {
+          spec: '@buape/carbon@0.0.0-beta-20260327000044',
+          reason: 'Approved prerelease dependency for the bundled runtime.',
+          reviewedAt: '2026-04-15',
+        },
+      ],
     });
     createJson(path.join(tempRoot, 'packages', 'sdkwork-claw-desktop', 'src-tauri', 'resources', 'openclaw', 'manifest.json'), {
       schemaVersion: 1,
@@ -158,6 +172,13 @@ await runTest(
         nodeVersion: '22.16.0',
         packageName: 'openclaw',
         runtimeSupplementalPackages: ['@buape/carbon@0.0.0-beta-20260327000044'],
+        runtimeSupplementalPackageExceptions: [
+          {
+            spec: '@buape/carbon@0.0.0-beta-20260327000044',
+            reason: 'Approved prerelease dependency for the bundled runtime.',
+            reviewedAt: '2026-04-15',
+          },
+        ],
       });
       createJson(
         path.join(

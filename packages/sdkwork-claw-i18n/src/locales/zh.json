@@ -296,8 +296,11 @@
         "endpoint": "端点"
       },
       "runtimeStates": {
+        "inactive": "未激活",
+        "ready": "就绪",
         "running": "运行中",
         "starting": "启动中",
+        "stopping": "停止中",
         "recovering": "恢复中",
         "degraded": "已降级",
         "crashLoop": "崩溃循环",
@@ -348,6 +351,7 @@
         "startupEvidence": "启动证据",
         "storage": "存储",
         "provenance": "运行来源",
+        "runtimeAuthority": "运行时授权",
         "capabilityRollup": "能力汇总",
         "managedDirectories": "托管目录",
         "supervisorAndBundles": "监管器与内置组件",
@@ -425,6 +429,10 @@
         "configPath": "配置文件路径",
         "runtimeHome": "运行时主目录",
         "runtimeInstallDir": "运行时安装目录",
+        "managedConfigPath": "受控配置路径",
+        "ownedRuntimeRoot": "受控运行时根目录 {{index}}",
+        "supportsLoopbackHealthProbe": "支持回环健康探测",
+        "healthProbeTimeoutMs": "健康探测超时",
         "machineState": "机器状态目录",
         "machineStaging": "机器暂存目录",
         "userRoot": "用户根目录",
@@ -508,6 +516,7 @@
         "unknown": "未知"
       },
       "localAiProxyLifecycle": {
+        "ready": "就绪",
         "running": "运行中",
         "failed": "失败",
         "stopped": "已停止",
@@ -3657,7 +3666,7 @@
       },
       "actions": {
         "setAsActive": "设为活跃",
-        "openOpenClawConsole": "打开 OpenClaw 控制台",
+        "openOpenClawConsole": "打开控制页面",
         "restart": "重启",
         "stop": "停止",
         "start": "启动",
@@ -6929,6 +6938,7 @@
         "observabilityDbPath": "可观测数据库"
       },
       "runtimeLifecycle": {
+        "ready": "就绪",
         "running": "运行中",
         "failed": "失败",
         "stopped": "已停止",
@@ -7070,6 +7080,13 @@
       "selectAllAgents": "全选",
       "clearAgentSelection": "清空",
       "applyConfig": "应用配置"
+    },
+    "actionSupportReasons": {
+      "runtimeUnavailable": "当前宿主不提供本地代理运行时。",
+      "runtimeStatusUnavailable": "本地代理运行时状态暂时不可用。",
+      "quickApplyTargetsUnavailable": "快速应用目标暂时不可用。",
+      "quickApplyInstanceUnavailable": "当前没有可写的 OpenClaw 实例可用于快速应用。",
+      "quickApplyRequiresLoopback": "快速应用只能用于仅回环监听的本地代理运行时。"
     },
     "import": {
       "sources": {

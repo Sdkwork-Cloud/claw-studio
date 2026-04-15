@@ -77,8 +77,11 @@
       "endpoint": "端点"
     },
     "runtimeStates": {
+      "inactive": "未激活",
+      "ready": "就绪",
       "running": "运行中",
       "starting": "启动中",
+      "stopping": "停止中",
       "recovering": "恢复中",
       "degraded": "已降级",
       "crashLoop": "崩溃循环",
@@ -129,6 +132,7 @@
       "startupEvidence": "启动证据",
       "storage": "存储",
       "provenance": "运行来源",
+      "runtimeAuthority": "\u8fd0\u884c\u65f6\u6388\u6743",
       "capabilityRollup": "能力汇总",
       "managedDirectories": "托管目录",
       "supervisorAndBundles": "监管器与内置组件",
@@ -206,6 +210,10 @@
       "configPath": "配置文件路径",
       "runtimeHome": "运行时主目录",
       "runtimeInstallDir": "运行时安装目录",
+      "managedConfigPath": "\u53d7\u63a7\u914d\u7f6e\u8def\u5f84",
+      "ownedRuntimeRoot": "\u53d7\u63a7\u8fd0\u884c\u65f6\u6839\u76ee\u5f55 {{index}}",
+      "supportsLoopbackHealthProbe": "\u652f\u6301\u56de\u73af\u5065\u5eb7\u63a2\u6d4b",
+      "healthProbeTimeoutMs": "\u5065\u5eb7\u63a2\u6d4b\u8d85\u65f6",
       "machineState": "机器状态目录",
       "machineStaging": "机器暂存目录",
       "userRoot": "用户根目录",
@@ -289,6 +297,7 @@
       "unknown": "未知"
     },
     "localAiProxyLifecycle": {
+      "ready": "就绪",
       "running": "运行中",
       "failed": "失败",
       "stopped": "已停止",

@@ -20,6 +20,19 @@ function assertIncludes(relPath, pattern, label) {
   }
 }
 
+function assertIncludesOneOf(relPath, patterns, label) {
+  const source = read(relPath);
+  if (!source) {
+    return;
+  }
+
+  if (patterns.some((pattern) => source.includes(pattern))) {
+    return;
+  }
+
+  errors.push(`Missing ${label} in ${relPath}`);
+}
+
 function assertAnyIncludes(relPaths, pattern, label) {
   const sources = relPaths.map((relPath) => ({
     relPath,
@@ -94,9 +107,12 @@ assertIncludes(
   'allow:',
   'web Vite external workspace fs allow list',
 );
-assertIncludes(
+assertIncludesOneOf(
   'packages/sdkwork-claw-web/vite.config.ts',
-  '../../../../..',
+  [
+    '../../../../..',
+    "const monorepoRoot = path.resolve(canonicalWorkspaceRootDir, '../..');",
+  ],
   'web Vite monorepo fs allow root',
 );
 assertIncludes(
@@ -104,9 +120,12 @@ assertIncludes(
   'allow:',
   'desktop Vite external workspace fs allow list',
 );
-assertIncludes(
+assertIncludesOneOf(
   'packages/sdkwork-claw-desktop/vite.config.ts',
-  '../../../../..',
+  [
+    '../../../../..',
+    "const monorepoRoot = path.resolve(canonicalWorkspaceRootDir, '../..');",
+  ],
   'desktop Vite monorepo fs allow root',
 );
 assertAnyIncludes(

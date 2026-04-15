@@ -251,6 +251,36 @@ await runTest(
 );
 
 await runTest(
+  'buildDetailOnlyWorkbenchSnapshot preserves built-in and transport metadata needed by the instance detail action model',
+  () => {
+    const detail = createOpenClawDetail('local-built-in', {
+      instance: {
+        ...createOpenClawDetail('local-built-in').instance,
+        deploymentMode: 'local-managed',
+        transportKind: 'openclawGatewayWs',
+        isBuiltIn: true,
+        baseUrl: 'http://127.0.0.1:18789',
+        websocketUrl: 'ws://127.0.0.1:18789',
+        storage: {
+          provider: 'localFile',
+          namespace: 'local-built-in',
+        },
+      },
+    });
+
+    const snapshot = snapshotSupportModule?.buildDetailOnlyWorkbenchSnapshot(detail);
+
+    assert.equal(snapshot?.instance.isBuiltIn, true);
+    assert.equal(snapshot?.instance.runtimeKind, 'openclaw');
+    assert.equal(snapshot?.instance.deploymentMode, 'local-managed');
+    assert.equal(snapshot?.instance.transportKind, 'openclawGatewayWs');
+    assert.equal(snapshot?.instance.baseUrl, 'http://127.0.0.1:18789');
+    assert.equal(snapshot?.instance.websocketUrl, 'ws://127.0.0.1:18789');
+    assert.equal(snapshot?.instance.storage?.namespace, 'local-built-in');
+  },
+);
+
+await runTest(
   'finalizeOpenClawSnapshot overlays managed config ownership while preserving runtime readiness',
   () => {
     const detail = createOpenClawDetail('finalized-openclaw', {

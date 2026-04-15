@@ -293,3 +293,41 @@ await runTest(
     assert.equal(derivedState.managedChannelWorkspaceItems[0]?.values.token, 'draft-token');
   },
 );
+
+await runTest(
+  'buildInstanceDetailDerivedState treats built-in detail metadata as authoritative for destructive actions when the snapshot instance omits isBuiltIn',
+  () => {
+    const workbench = createWorkbench();
+    delete workbench.instance.isBuiltIn;
+
+    const derivedState = buildInstanceDetailDerivedState({
+      id: 'instance-1',
+      workbench,
+      selectedProviderId: null,
+      providerDeleteId: null,
+      providerModelDeleteId: null,
+      providerDrafts: {},
+      providerRequestDrafts: {},
+      selectedManagedChannelId: null,
+      managedChannelDrafts: {},
+      selectedWebSearchProviderId: null,
+      webSearchProviderDrafts: {},
+      providerDialogDraft: {
+        id: '',
+        name: '',
+        endpoint: '',
+        apiKeySource: '',
+        defaultModelId: '',
+        reasoningModelId: '',
+        embeddingModelId: '',
+        modelsText: '',
+        requestOverridesText: '',
+      },
+      t: (key: string) => key,
+    });
+
+    assert.equal(workbench.detail.instance.isBuiltIn, true);
+    assert.equal(workbench.instance.isBuiltIn, undefined);
+    assert.equal(derivedState.canDelete, false);
+  },
+);

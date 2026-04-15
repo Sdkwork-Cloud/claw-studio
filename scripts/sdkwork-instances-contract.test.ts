@@ -2680,7 +2680,10 @@ runTest('sdkwork-claw-instances gates instance detail lifecycle actions with bac
     /detail\?\.lifecycle\.lifecycleControllable \?\? detail\?\.lifecycle\.startStopSupported/,
   );
   assert.match(detailSource, /buildInstanceDetailDerivedState/);
-  assert.match(derivedStateSource, /const actionCapabilities = buildInstanceActionCapabilities\(instance, detail\);/);
+  assert.match(
+    derivedStateSource,
+    /const actionCapabilityInstance = instance[\s\S]*isBuiltIn: instance\.isBuiltIn \?\? detail\?\.instance\.isBuiltIn,[\s\S]*const actionCapabilities = buildInstanceActionCapabilities\(actionCapabilityInstance, detail\);/,
+  );
   assert.match(derivedStateSource, /canControlLifecycle: actionCapabilities\.canControlLifecycle,/);
   assert.match(derivedStateSource, /canStopLifecycle: actionCapabilities\.canStop,/);
   assert.match(derivedStateSource, /canStartLifecycle: actionCapabilities\.canStart,/);

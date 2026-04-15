@@ -301,7 +301,7 @@
     },
     "actions": {
       "setAsActive": "设为活跃",
-      "openOpenClawConsole": "打开 OpenClaw 控制台",
+      "openOpenClawConsole": "打开控制页面",
       "restart": "重启",
       "stop": "停止",
       "start": "启动",

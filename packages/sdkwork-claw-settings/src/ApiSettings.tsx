@@ -359,6 +359,8 @@ export function ApiSettings() {
       label: t('apiLogs.logs.runtimeFields.proxyLifecycle'),
       value: (() => {
         switch (runtimeSummary.lifecycle.trim().toLowerCase()) {
+          case 'ready':
+            return t('apiLogs.logs.runtimeLifecycle.ready');
           case 'running':
             return t('apiLogs.logs.runtimeLifecycle.running');
           case 'failed':

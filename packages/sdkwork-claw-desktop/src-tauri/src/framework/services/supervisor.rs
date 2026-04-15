@@ -135,6 +135,7 @@ pub struct SupervisorService {
     runtime: Arc<Mutex<SupervisorRuntime>>,
     openclaw_runtime: Arc<Mutex<Option<ActivatedOpenClawRuntime>>>,
     managed_processes: Arc<Mutex<HashMap<String, ManagedServiceProcessHandle>>>,
+    openclaw_gateway_operation: Arc<Mutex<()>>,
 }
 
 #[derive(Clone, Debug)]
@@ -222,6 +223,7 @@ impl SupervisorService {
             })),
             openclaw_runtime: Arc::new(Mutex::new(None)),
             managed_processes: Arc::new(Mutex::new(HashMap::new())),
+            openclaw_gateway_operation: Arc::new(Mutex::new(())),
         }
     }
 
@@ -349,6 +351,15 @@ impl SupervisorService {
     }
 
     pub fn start_openclaw_gateway(&self, paths: &AppPaths) -> Result<()> {
+        let _operation = self.lock_openclaw_gateway_operation()?;
+        self.start_openclaw_gateway_locked(paths)
+    }
+
+    fn start_openclaw_gateway_locked(&self, paths: &AppPaths) -> Result<()> {
+        if self.is_service_running(SERVICE_ID_OPENCLAW_GATEWAY)? {
+            return Ok(());
+        }
+
         let runtime = self
             .lock_openclaw_runtime()?
             .clone()
@@ -376,7 +387,7 @@ impl SupervisorService {
             command.arg("gateway");
             command.current_dir(&runtime.runtime_dir);
             command.env("PATH", prepend_path_env(&paths.user_bin_dir));
-            command.envs(runtime.managed_env());
+            command.envs(runtime.managed_env_with_local_ai_proxy(paths)?);
             command.stdout(Stdio::from(stdout));
             command.stderr(Stdio::from(stderr));
 
@@ -385,6 +396,7 @@ impl SupervisorService {
                     match wait_for_gateway_ready(
                         &mut child,
                         &runtime,
+                        paths,
                         DEFAULT_OPENCLAW_GATEWAY_READY_TIMEOUT_MS,
                     ) {
                         Ok(()) => {
@@ -457,11 +469,17 @@ impl SupervisorService {
     }
 
     pub fn restart_openclaw_gateway(&self, paths: &AppPaths) -> Result<()> {
-        let _ = self.stop_openclaw_gateway();
-        self.start_openclaw_gateway(paths)
+        let _operation = self.lock_openclaw_gateway_operation()?;
+        let _ = self.stop_openclaw_gateway_locked();
+        self.start_openclaw_gateway_locked(paths)
     }
 
     pub fn stop_openclaw_gateway(&self) -> Result<()> {
+        let _operation = self.lock_openclaw_gateway_operation()?;
+        self.stop_openclaw_gateway_locked()
+    }
+
+    fn stop_openclaw_gateway_locked(&self) -> Result<()> {
         self.stop_service_process(SERVICE_ID_OPENCLAW_GATEWAY)
     }
 
@@ -662,6 +680,14 @@ impl SupervisorService {
         })
     }
 
+    fn lock_openclaw_gateway_operation(&self) -> Result<MutexGuard<'_, ()>> {
+        self.openclaw_gateway_operation.lock().map_err(|_| {
+            FrameworkError::Internal(
+                "openclaw gateway operation lock poisoned".to_string(),
+            )
+        })
+    }
+
     fn refresh_service_runtime_state(&self, service_id: &str) -> Result<()> {
         let lifecycle = {
             let runtime = self.lock_runtime()?;
@@ -729,7 +755,11 @@ impl SupervisorService {
                 return Ok(());
             };
 
-            let readiness = probe_gateway_ready(&runtime, true);
+            let readiness = self
+                .paths
+                .as_ref()
+                .map(|paths| probe_gateway_ready(&runtime, paths, true))
+                .unwrap_or_else(|| probe_gateway_invoke_ready(&runtime));
             if readiness.is_ready() {
                 if matches!(lifecycle, ManagedServiceLifecycle::Failed) {
                     self.record_running(service_id, observed_pid)?;
@@ -886,6 +916,7 @@ fn terminate_managed_process(child: &mut Child, timeout_ms: u64) -> Result<Optio
 fn wait_for_gateway_ready(
     child: &mut Child,
     runtime: &ActivatedOpenClawRuntime,
+    paths: &AppPaths,
     timeout_ms: u64,
 ) -> Result<()> {
     let deadline = Instant::now() + Duration::from_millis(timeout_ms);
@@ -904,7 +935,7 @@ fn wait_for_gateway_ready(
         }
 
         let include_health_probe = Instant::now() >= next_health_probe_at;
-        let readiness = probe_gateway_ready(runtime, include_health_probe);
+        let readiness = probe_gateway_ready(runtime, paths, include_health_probe);
         if readiness.is_ready() {
             return Ok(());
         }
@@ -943,6 +974,7 @@ fn should_retry_openclaw_gateway_spawn_error(error: &std::io::Error) -> bool {
 
 fn probe_gateway_ready(
     runtime: &ActivatedOpenClawRuntime,
+    paths: &AppPaths,
     include_health_probe: bool,
 ) -> GatewayProbeStatus {
     let invoke_probe = probe_gateway_invoke_ready(runtime);
@@ -954,8 +986,11 @@ fn probe_gateway_ready(
         return invoke_probe;
     }
 
-    let health_probe =
-        probe_gateway_cli_health_ready(runtime, DEFAULT_OPENCLAW_GATEWAY_HEALTH_PROBE_TIMEOUT_MS);
+    let health_probe = probe_gateway_cli_health_ready(
+        runtime,
+        paths,
+        DEFAULT_OPENCLAW_GATEWAY_HEALTH_PROBE_TIMEOUT_MS,
+    );
     if health_probe.is_ready() {
         return health_probe;
     }
@@ -1013,30 +1048,70 @@ fn probe_gateway_invoke_ready(runtime: &ActivatedOpenClawRuntime) -> GatewayProb
         ));
     }
 
-    let mut response = Vec::new();
-    if let Err(error) = stream.read_to_end(&mut response) {
+    let status_line = match read_http_status_line(&mut stream) {
+        Ok(Some(status_line)) => status_line,
+        Ok(None) => {
+            return GatewayProbeStatus::Pending(
+                "invoke probe returned an empty response".to_string(),
+            )
+        }
+        Err(error) => {
         return GatewayProbeStatus::Pending(format!(
             "invoke probe read failed for {}: {}",
             loopback, error
         ));
-    }
+        }
+    };
 
-    let response_text = String::from_utf8_lossy(&response);
-    if response_text.starts_with("HTTP/1.1 200") || response_text.starts_with("HTTP/1.0 200") {
+    if status_line.starts_with("HTTP/1.1 200") || status_line.starts_with("HTTP/1.0 200") {
         return GatewayProbeStatus::Ready;
     }
 
-    let status_line = response_text
-        .lines()
-        .next()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .unwrap_or("invoke probe returned an empty response");
     GatewayProbeStatus::Pending(format!("invoke probe returned {}", status_line))
+}
+
+fn read_http_status_line(stream: &mut TcpStream) -> std::io::Result<Option<String>> {
+    let mut response = Vec::new();
+    let mut chunk = [0_u8; 1024];
+
+    loop {
+        match stream.read(&mut chunk) {
+            Ok(0) => return Ok(extract_http_status_line(&response)),
+            Ok(bytes_read) => {
+                response.extend_from_slice(&chunk[..bytes_read]);
+                if let Some(status_line) = extract_http_status_line(&response) {
+                    return Ok(Some(status_line));
+                }
+            }
+            Err(error) => {
+                if extract_http_status_line(&response).is_some() {
+                    return Ok(extract_http_status_line(&response));
+                }
+                return Err(error);
+            }
+        }
+    }
+}
+
+fn extract_http_status_line(response: &[u8]) -> Option<String> {
+    let header_end = response
+        .windows(2)
+        .position(|window| window == b"\r\n")
+        .or_else(|| response.iter().position(|byte| *byte == b'\n'))?;
+    let line = String::from_utf8_lossy(&response[..header_end])
+        .trim_end_matches('\r')
+        .trim()
+        .to_string();
+    if line.is_empty() {
+        None
+    } else {
+        Some(line)
+    }
 }
 
 fn probe_gateway_cli_health_ready(
     runtime: &ActivatedOpenClawRuntime,
+    paths: &AppPaths,
     timeout_ms: u64,
 ) -> GatewayProbeStatus {
     if !is_loopback_port_accepting(runtime.gateway_port) {
@@ -1054,10 +1129,17 @@ fn probe_gateway_cli_health_ready(
     command.arg("--json");
     command.arg("--timeout");
     command.arg(timeout_ms.to_string());
-    command.arg("--config");
-    command.arg(&runtime.config_path);
     command.current_dir(&runtime.runtime_dir);
-    command.envs(runtime.managed_env());
+    let managed_env = match runtime.managed_env_with_local_ai_proxy(paths) {
+        Ok(env) => env,
+        Err(error) => {
+            return GatewayProbeStatus::Pending(format!(
+                "gateway health probe could not resolve local ai proxy token: {}",
+                error
+            ));
+        }
+    };
+    command.envs(managed_env);
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
 
@@ -1473,6 +1555,7 @@ mod tests {
         fs,
         net::TcpListener,
         process::Command,
+        sync::{Arc, Barrier},
         thread,
         time::{Duration, Instant, UNIX_EPOCH},
     };
@@ -1767,6 +1850,72 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_gateway_start_requests_do_not_spawn_duplicate_processes() {
+        let service = SupervisorService::new();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_gateway_runtime_with_script(
+            &paths,
+            "import fs from 'node:fs';\nimport http from 'node:http';\nconst args = process.argv.slice(2);\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst attemptPath = `${configPath}.startup-attempt`;\nconst readyPath = `${configPath}.startup-ready`;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nconst expectedAuthorization = `Bearer ${process.env.OPENCLAW_GATEWAY_TOKEN ?? ''}`;\nif (args[0] === 'gateway' && args[1] === 'health') {\n  if (fs.existsSync(readyPath)) {\n    process.stdout.write(JSON.stringify({ ok: true, result: { status: 'ok' } }));\n    process.exit(0);\n  }\n  process.stderr.write('gateway warming');\n  process.exit(1);\n}\nconst attempt = (fs.existsSync(attemptPath) ? Number(fs.readFileSync(attemptPath, 'utf8')) : 0) + 1;\nfs.writeFileSync(attemptPath, String(attempt));\nconst server = http.createServer((req, res) => {\n  if (req.url !== '/tools/invoke' || req.method !== 'POST') {\n    res.writeHead(404, { 'content-type': 'application/json' });\n    res.end(JSON.stringify({ ok: false, error: { message: 'unexpected path' } }));\n    return;\n  }\n  if ((req.headers.authorization ?? '') !== expectedAuthorization) {\n    res.writeHead(401, { 'content-type': 'application/json' });\n    res.end(JSON.stringify({ ok: false, error: { message: 'unauthorized' } }));\n    return;\n  }\n  let body = '';\n  req.setEncoding('utf8');\n  req.on('data', (chunk) => { body += chunk; });\n  req.on('end', () => {\n    const payload = body.trim() ? JSON.parse(body) : {};\n    if (!fs.existsSync(readyPath)) {\n      res.writeHead(503, { 'content-type': 'application/json' });\n      res.end(JSON.stringify({ ok: false, error: { message: 'gateway warming' } }));\n      return;\n    }\n    res.writeHead(200, { 'content-type': 'application/json' });\n    res.end(JSON.stringify({ ok: true, result: { method: payload.action ? `${payload.tool}.${payload.action}` : payload.tool ?? 'unknown' } }));\n  });\n});\nserver.listen(gatewayPort, '127.0.0.1', () => {\n  setTimeout(() => {\n    fs.writeFileSync(readyPath, 'ok');\n  }, 1800);\n});\nsetInterval(() => {}, 1000);\n"
+                .to_string(),
+        );
+        let attempt_path = runtime.config_path.with_extension("json.startup-attempt");
+        let start_barrier = Arc::new(Barrier::new(3));
+
+        service
+            .configure_openclaw_gateway(&runtime)
+            .expect("configure runtime");
+
+        let first_service = service.clone();
+        let first_paths = paths.clone();
+        let first_barrier = start_barrier.clone();
+        let first_start = thread::spawn(move || {
+            first_barrier.wait();
+            first_service
+                .start_openclaw_gateway(&first_paths)
+                .map_err(|error| error.to_string())
+        });
+
+        let second_service = service.clone();
+        let second_paths = paths.clone();
+        let second_barrier = start_barrier.clone();
+        let second_start = thread::spawn(move || {
+            second_barrier.wait();
+            second_service
+                .start_openclaw_gateway(&second_paths)
+                .map_err(|error| error.to_string())
+        });
+
+        start_barrier.wait();
+
+        first_start
+            .join()
+            .expect("first start thread should join")
+            .expect("first concurrent start should succeed");
+        second_start
+            .join()
+            .expect("second start thread should join")
+            .expect("second concurrent start should reuse the in-flight startup");
+
+        assert_eq!(
+            fs::read_to_string(&attempt_path).expect("startup attempt marker"),
+            "1",
+            "concurrent start requests must converge on a single spawned gateway process",
+        );
+
+        let running = service.snapshot().expect("running snapshot");
+        let openclaw = running
+            .services
+            .into_iter()
+            .find(|managed_service| managed_service.id == SERVICE_ID_OPENCLAW_GATEWAY)
+            .expect("openclaw service");
+        assert_eq!(openclaw.lifecycle, ManagedServiceLifecycle::Running);
+        assert!(openclaw.pid.is_some());
+
+        service.begin_shutdown().expect("shutdown");
+    }
+
+    #[test]
     fn supervisor_retries_gateway_start_when_the_first_cold_start_exits_immediately() {
         let service = SupervisorService::new();
         let root = tempfile::tempdir().expect("temp dir");
@@ -1820,12 +1969,40 @@ mod tests {
         gateway.envs(runtime.managed_env());
         let mut gateway = gateway.spawn().expect("spawn gateway");
 
-        let readiness = wait_for_gateway_ready(&mut gateway, &runtime, 5_000);
+        let readiness = wait_for_gateway_ready(&mut gateway, &runtime, &paths, 5_000);
 
         let _ = force_process_shutdown(&mut gateway);
         let _ = gateway.wait();
 
         readiness.expect("gateway should become ready via the allowlisted cron.status probe");
+    }
+
+    #[test]
+    fn wait_for_gateway_ready_accepts_a_successful_invoke_status_before_connection_close() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_gateway_runtime_with_script(
+            &paths,
+            "import fs from 'node:fs';\nimport http from 'node:http';\nconst args = process.argv.slice(2);\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nconst expectedAuthorization = `Bearer ${process.env.OPENCLAW_GATEWAY_TOKEN ?? ''}`;\nif (args[0] === 'gateway' && args[1] === 'health') {\n  setTimeout(() => {\n    process.stdout.write(JSON.stringify({ ok: true, result: { status: 'ok' } }));\n    process.exit(0);\n  }, 1200);\n} else {\n  const server = http.createServer((req, res) => {\n    if (req.url !== '/tools/invoke' || req.method !== 'POST') {\n      res.writeHead(404, { 'content-type': 'application/json' });\n      res.end(JSON.stringify({ ok: false, error: { message: 'unexpected path' } }));\n      return;\n    }\n    if ((req.headers.authorization ?? '') !== expectedAuthorization) {\n      res.writeHead(401, { 'content-type': 'application/json' });\n      res.end(JSON.stringify({ ok: false, error: { message: 'unauthorized' } }));\n      return;\n    }\n    let body = '';\n    req.setEncoding('utf8');\n    req.on('data', (chunk) => { body += chunk; });\n    req.on('end', () => {\n      const payload = body.trim() ? JSON.parse(body) : {};\n      const responseBody = JSON.stringify({ ok: true, result: { method: payload.action ? `${payload.tool}.${payload.action}` : payload.tool ?? 'unknown' } });\n      res.writeHead(200, { 'content-type': 'application/json' });\n      res.flushHeaders();\n      res.write(responseBody.slice(0, 20));\n      setTimeout(() => {\n        res.end(responseBody.slice(20));\n      }, 600);\n    });\n  });\n  server.listen(gatewayPort, '127.0.0.1');\n  setInterval(() => {}, 1000);\n}\n"
+                .to_string(),
+        );
+
+        let mut gateway = Command::new(&runtime.node_path);
+        configure_command_for_managed_process(&mut gateway);
+        gateway.arg(&runtime.cli_path);
+        gateway.arg("gateway");
+        gateway.current_dir(&runtime.runtime_dir);
+        gateway.envs(runtime.managed_env());
+        let mut gateway = gateway.spawn().expect("spawn gateway");
+
+        let readiness = wait_for_gateway_ready(&mut gateway, &runtime, &paths, 5_000);
+
+        let _ = force_process_shutdown(&mut gateway);
+        let _ = gateway.wait();
+
+        readiness.expect(
+            "gateway should become ready once /tools/invoke returns HTTP 200 even before the connection closes",
+        );
     }
 
     #[test]
@@ -1846,13 +2023,44 @@ mod tests {
         gateway.envs(runtime.managed_env());
         let mut gateway = gateway.spawn().expect("spawn gateway");
 
-        let readiness = wait_for_gateway_ready(&mut gateway, &runtime, 5_000);
+        let readiness = wait_for_gateway_ready(&mut gateway, &runtime, &paths, 5_000);
 
         let _ = force_process_shutdown(&mut gateway);
         let _ = gateway.wait();
 
         readiness.expect(
             "gateway should become ready via upstream gateway health even when /tools/invoke stays unavailable",
+        );
+    }
+
+    #[test]
+    fn gateway_health_probe_uses_environment_config_without_cli_config_flag() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_gateway_runtime_with_script(
+            &paths,
+            "import fs from 'node:fs';\nimport http from 'node:http';\nconst args = process.argv.slice(2);\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nif (args[0] === 'gateway' && args[1] === 'health') {\n  if (args.includes('--config')) {\n    process.stderr.write('unexpected --config');\n    process.exit(1);\n  }\n  process.stdout.write(JSON.stringify({ ok: true, result: { status: 'ok' } }));\n  process.exit(0);\n}\nif (args[0] !== 'gateway') {\n  process.stderr.write(`unexpected args: ${args.join(' ')}`);\n  process.exit(1);\n}\nconst server = http.createServer((_req, res) => {\n  res.writeHead(404, { 'content-type': 'application/json' });\n  res.end(JSON.stringify({ ok: false, error: { message: 'tools invoke unavailable during startup' } }));\n});\nserver.listen(gatewayPort, '127.0.0.1');\nsetInterval(() => {}, 1000);\n"
+                .to_string(),
+        );
+
+        let mut gateway = Command::new(&runtime.node_path);
+        configure_command_for_managed_process(&mut gateway);
+        gateway.arg(&runtime.cli_path);
+        gateway.arg("gateway");
+        gateway.current_dir(&runtime.runtime_dir);
+        gateway.envs(runtime.managed_env());
+        let mut gateway = gateway.spawn().expect("spawn gateway");
+
+        thread::sleep(Duration::from_millis(200));
+        let readiness = super::probe_gateway_cli_health_ready(&runtime, &paths, 1_500);
+
+        let _ = force_process_shutdown(&mut gateway);
+        let _ = gateway.wait();
+
+        assert!(
+            readiness.is_ready(),
+            "health probe should rely on OPENCLAW_CONFIG_PATH instead of passing an unsupported --config flag: {}",
+            readiness.detail()
         );
     }
 
@@ -1922,7 +2130,7 @@ mod tests {
         let mut stale_gateway = stale_gateway.spawn().expect("spawn stale gateway");
         #[cfg(windows)]
         let stale_gateway_pid = stale_gateway.id();
-        wait_for_gateway_ready(&mut stale_gateway, &runtime, 5_000)
+        wait_for_gateway_ready(&mut stale_gateway, &runtime, &paths, 5_000)
             .expect("stale gateway should become ready");
         #[cfg(windows)]
         drop(stale_gateway);

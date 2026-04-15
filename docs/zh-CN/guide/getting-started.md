@@ -88,12 +88,13 @@ pnpm release:finalize
 
 - AI 能力依赖一个可用的 OpenClaw 兼容实例以及 Provider Center 配置
 - `VITE_API_BASE_URL`：后端 API 地址
-- `VITE_ACCESS_TOKEN`：可选的后端访问令牌
 - `VITE_APP_ID`：桌面更新使用的应用 id
 - `VITE_RELEASE_CHANNEL`：桌面更新使用的发布通道
 - `CLAW_SERVER_HOST`：原生 Server 监听地址
 - `CLAW_SERVER_PORT`：原生 Server 监听端口
 - `CLAW_SERVER_DATA_DIR`：原生 Server 数据目录
+
+浏览器和桌面 Host 不得通过 Vite env 注入 root access token；高权限凭据应保留在可信宿主或宿主代理认证链路中。
 
 桌面端补充示例见 `packages/sdkwork-claw-desktop/.env.example`，服务端默认变量见 `packages/sdkwork-claw-server/.env.example`。
 

@@ -18,7 +18,7 @@ import {
 
 const rootDir = path.resolve(import.meta.dirname, '..');
 const fakeNodeExecutableContent = 'synthetic-node-runtime';
-const expectedOpenClawVersion = '2026.4.9';
+const expectedOpenClawVersion = '2026.4.14';
 const expectedNodeVersion = '22.16.0';
 
 function buildExpectedInstallReadyLayout(manifest, mode) {

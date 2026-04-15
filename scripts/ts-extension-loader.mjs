@@ -2,15 +2,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isSharedSdkSourceMode } from './shared-sdk-mode.mjs';
+import {
+  resolveCanonicalWorkspaceRootDir,
+  resolveWorkspaceRootDir,
+} from './workspace-root.mjs';
 
 const FILE_SUFFIXES = ['.ts', '.tsx', '.js', '.mjs', '.cjs'];
 const INDEX_SUFFIXES = ['index.ts', 'index.tsx', 'index.js', 'index.mjs', 'index.cjs'];
-const WORKSPACE_ROOT = path.resolve(import.meta.dirname, '..');
+const WORKSPACE_ROOT = resolveWorkspaceRootDir(import.meta.dirname);
+const CANONICAL_WORKSPACE_ROOT = resolveCanonicalWorkspaceRootDir(import.meta.dirname);
 const WORKSPACE_PACKAGES_ROOT = path.resolve(WORKSPACE_ROOT, 'packages');
 const EXTRA_WORKSPACE_PACKAGE_SOURCE_SPECS = [
   {
     packageName: '@sdkwork/core-pc-react',
-    packageRoot: path.resolve(WORKSPACE_ROOT, '../sdkwork-core/sdkwork-core-pc-react'),
+    packageRoot: path.resolve(CANONICAL_WORKSPACE_ROOT, '../sdkwork-core/sdkwork-core-pc-react'),
     entryBySubpath: {
       '.': 'src/index.ts',
       './app': 'src/app/index.ts',
@@ -26,14 +31,14 @@ const SHARED_SDK_SOURCE_SPECS = [
   {
     packageName: '@sdkwork/app-sdk',
     sourceRoot: path.resolve(
-      WORKSPACE_ROOT,
+      CANONICAL_WORKSPACE_ROOT,
       '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/src',
     ),
   },
   {
     packageName: '@sdkwork/sdk-common',
     sourceRoot: path.resolve(
-      WORKSPACE_ROOT,
+      CANONICAL_WORKSPACE_ROOT,
       '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript/src',
     ),
   },

@@ -1,9 +1,17 @@
 {
-  "stableVersion": "2026.4.9",
+  "stableVersion": "2026.4.14",
   "nodeVersion": "22.16.0",
   "packageName": "openclaw",
-  "_comment_runtimeSupplementalPackages": "TODO: @buape/carbon is pinned to a 0.0.0-beta pre-release. Re-pin to a stable semver (>=1.0.0) once upstream publishes one. See openclaw-release.mjs warnUnstableSupplementalPackages().",
+  "_comment_runtimeSupplementalPackages": "Supplemental runtime dependencies must stay pinned to exact package specs.",
   "runtimeSupplementalPackages": [
     "@buape/carbon@0.0.0-beta-20260327000044"
+  ],
+  "_comment_runtimeSupplementalPackageExceptions": "Every unstable or prerelease supplemental dependency must declare an explicit exception with rationale and review date. Remove the exception once a stable semver is available.",
+  "runtimeSupplementalPackageExceptions": [
+    {
+      "spec": "@buape/carbon@0.0.0-beta-20260327000044",
+      "reason": "Upstream has not published a stable semver release yet, but the bundled runtime still requires this supplemental package.",
+      "reviewedAt": "2026-04-15"
+    }
   ]
 }

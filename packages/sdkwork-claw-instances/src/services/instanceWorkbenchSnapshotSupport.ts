@@ -120,6 +120,17 @@ function mapStudioInstance(instance: StudioInstanceRecord) {
     cpu: instance.cpu,
     memory: instance.memory,
     totalMemory: instance.totalMemory,
+    isBuiltIn: instance.isBuiltIn,
+    runtimeKind: instance.runtimeKind,
+    deploymentMode: instance.deploymentMode,
+    transportKind: instance.transportKind,
+    baseUrl: instance.baseUrl ?? null,
+    websocketUrl: instance.websocketUrl ?? null,
+    storage: instance.storage
+      ? {
+          ...instance.storage,
+        }
+      : undefined,
   } as const;
 }
 

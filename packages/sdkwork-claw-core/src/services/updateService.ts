@@ -5,6 +5,7 @@ import {
   platform,
   runtime,
   type AppEnvConfig,
+  type AppUpdateClientOptions,
   type AppUpdateCheckRequest,
   type AppUpdateCheckResult,
   type RuntimeInfo,
@@ -27,13 +28,18 @@ export interface UpdateServiceDependencies {
   getLocale?: () => string | undefined;
   checkAppUpdate?: (
     request: AppUpdateCheckRequest,
-    options?: { env?: AppEnvConfig },
+    options?: AppUpdateClientOptions,
   ) => Promise<AppUpdateCheckResult>;
   openExternal?: (url: string) => Promise<void>;
 }
 
 function resolveUpdatePlatform(runtimeInfo: RuntimeInfo): string {
-  const target = `${runtimeInfo.system?.family || ''} ${runtimeInfo.system?.os || ''}`.toLowerCase();
+  const target = [
+    runtimeInfo.system?.family || '',
+    runtimeInfo.system?.os || '',
+    runtimeInfo.app?.target || '',
+    runtimeInfo.system?.target || '',
+  ].join(' ').toLowerCase();
 
   if (target.includes('windows')) {
     return 'desktop_windows';
@@ -55,7 +61,7 @@ function resolveArchitecture(runtimeInfo: RuntimeInfo): string {
 
   const target = runtimeInfo.app?.target || runtimeInfo.system?.target || '';
   const segments = target.split('-').filter(Boolean);
-  return segments.at(-1) || 'unknown';
+  return segments[0] || 'unknown';
 }
 
 function resolveLocale(getLocale?: () => string | undefined): string | undefined {

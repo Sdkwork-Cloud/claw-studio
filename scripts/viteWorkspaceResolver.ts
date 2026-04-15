@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { resolveCanonicalWorkspaceRootDir } from './workspace-root.mjs';
 
 const WORKSPACE_PACKAGE_PATTERN = /^@sdkwork\/(claw-[^/]+)$/;
 const WORKTREE_WORKSPACE_PACKAGE_PATTERN = /(?:^|[\\/])\.worktrees[\\/][^\\/]+[\\/]packages[\\/](sdkwork-claw-[^\\/]+)([\\/].*)$/;
 const WORKTREE_ROOT_PATTERN = /(?:^|[\\/])\.worktrees(?:[\\/]|$)/;
+const RESOLVABLE_SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'];
 const EXTRA_WORKSPACE_PACKAGE_CONFIGS: Array<{
   packageName: string;
   relativePackageDir: string;
@@ -44,12 +46,65 @@ function normalizeResolvedPath(pathname: string) {
   return stripViteFsPrefix(pathname).replace(/[\\/]+/g, path.sep);
 }
 
+function isPathWithinDirectory(candidatePath: string, directoryPath: string) {
+  const relativePath = path.relative(
+    path.resolve(directoryPath),
+    path.resolve(candidatePath),
+  );
+
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+function resolveExistingModulePath(candidatePath: string) {
+  if (fs.existsSync(candidatePath)) {
+    const stat = fs.statSync(candidatePath);
+    if (stat.isFile()) {
+      return candidatePath;
+    }
+
+    if (stat.isDirectory()) {
+      for (const extension of RESOLVABLE_SOURCE_EXTENSIONS) {
+        const directoryIndexPath = path.join(candidatePath, `index${extension}`);
+        if (fs.existsSync(directoryIndexPath)) {
+          return directoryIndexPath;
+        }
+      }
+    }
+  }
+
+  if (path.extname(candidatePath)) {
+    return candidatePath;
+  }
+
+  for (const extension of RESOLVABLE_SOURCE_EXTENSIONS) {
+    const extensionCandidate = `${candidatePath}${extension}`;
+    if (fs.existsSync(extensionCandidate)) {
+      return extensionCandidate;
+    }
+  }
+
+  for (const extension of RESOLVABLE_SOURCE_EXTENSIONS) {
+    const directoryIndexPath = path.join(candidatePath, `index${extension}`);
+    if (fs.existsSync(directoryIndexPath)) {
+      return directoryIndexPath;
+    }
+  }
+
+  return candidatePath;
+}
+
 function resolveCurrentWorkspacePackagePath(
   packageDirName: string,
   relativeSourcePath: string,
   packagesRootDir: string,
 ) {
   return path.resolve(packagesRootDir, packageDirName, relativeSourcePath);
+}
+
+function resolveCanonicalPackagesRootDir(packagesRootDir: string) {
+  const workspaceRootDir = path.resolve(packagesRootDir, '..');
+  const canonicalWorkspaceRootDir = resolveCanonicalWorkspaceRootDir(workspaceRootDir);
+  return path.resolve(canonicalWorkspaceRootDir, 'packages');
 }
 
 function resolveExtraWorkspacePackagePath(
@@ -67,7 +122,11 @@ function resolveExtraWorkspacePackagePath(
     return null;
   }
 
-  return path.resolve(packagesRootDir, config.relativePackageDir, relativeSourcePath);
+  return path.resolve(
+    resolveCanonicalPackagesRootDir(packagesRootDir),
+    config.relativePackageDir,
+    relativeSourcePath,
+  );
 }
 
 function remapWorktreeWorkspacePath(pathname: string, packagesRootDir: string) {
@@ -94,11 +153,15 @@ function isRelativeSpecifier(pathname: string) {
 export function shouldAttemptWorkspaceResolverRemap(
   source: string,
   importer?: string,
+  packagesRootDir?: string,
 ) {
   const { pathname } = splitSpecifier(source);
   const normalizedPathname = stripViteFsPrefix(pathname);
 
   if (WORKTREE_ROOT_PATTERN.test(normalizedPathname)) {
+    if (packagesRootDir && isPathWithinDirectory(normalizeResolvedPath(pathname), packagesRootDir)) {
+      return false;
+    }
     return true;
   }
 
@@ -106,9 +169,16 @@ export function shouldAttemptWorkspaceResolverRemap(
     return false;
   }
 
-  return WORKTREE_ROOT_PATTERN.test(
-    stripViteFsPrefix(splitSpecifier(importer).pathname),
-  );
+  const importerPathname = splitSpecifier(importer).pathname;
+  if (!WORKTREE_ROOT_PATTERN.test(stripViteFsPrefix(importerPathname))) {
+    return false;
+  }
+
+  if (packagesRootDir && isPathWithinDirectory(normalizeResolvedPath(importerPathname), packagesRootDir)) {
+    return false;
+  }
+
+  return true;
 }
 
 export function shouldEnableWorktreeWorkspaceResolver(
@@ -137,12 +207,17 @@ export function resolveWorkspacePackageAliases(packagesRootDir: string) {
     }));
 
   const extraAliases = EXTRA_WORKSPACE_PACKAGE_CONFIGS.flatMap((config) => {
+    const canonicalPackagesRootDir = resolveCanonicalPackagesRootDir(packagesRootDir);
     return Object.entries(config.entryBySubpath)
       .map(([subpath, relativeSourcePath]) => ({
         find: subpath === '.'
           ? config.packageName
           : `${config.packageName}${subpath.slice(1)}`,
-        replacement: path.resolve(packagesRootDir, config.relativePackageDir, relativeSourcePath),
+        replacement: path.resolve(
+          canonicalPackagesRootDir,
+          config.relativePackageDir,
+          relativeSourcePath,
+        ),
       }));
   });
 
@@ -194,7 +269,7 @@ export function remapWorktreeWorkspaceImport(
   const { pathname, suffix } = splitSpecifier(source);
   const directWorktreePath = remapWorktreeWorkspacePath(pathname, packagesRootDir);
   if (directWorktreePath) {
-    return `${directWorktreePath}${suffix}`;
+    return `${resolveExistingModulePath(directWorktreePath)}${suffix}`;
   }
 
   if (!importer || !isRelativeSpecifier(pathname)) {
@@ -211,5 +286,5 @@ export function remapWorktreeWorkspaceImport(
     packagesRootDir,
   );
 
-  return remappedRelativePath ? `${remappedRelativePath}${suffix}` : null;
+  return remappedRelativePath ? `${resolveExistingModulePath(remappedRelativePath)}${suffix}` : null;
 }

@@ -12,7 +12,17 @@ async function runTest(name: string, fn: () => Promise<void>) {
   }
 }
 
-async function withMockedWindowStorage(fn: () => Promise<void>) {
+const INSTANCE_STORAGE_KEY = 'claw-studio:studio:instances:v1';
+const WORKBENCH_STORAGE_KEY = 'claw-studio:studio:workbench:v1';
+
+interface MockedWindowStorageContext {
+  storage: Map<string, string>;
+  readJson(key: string): unknown;
+}
+
+async function withMockedWindowStorage(
+  fn: (context: MockedWindowStorageContext) => Promise<void>,
+) {
   const originalWindow = (globalThis as typeof globalThis & { window?: unknown }).window;
   const storage = new Map<string, string>();
   const localStorage = {
@@ -32,7 +42,13 @@ async function withMockedWindowStorage(fn: () => Promise<void>) {
   };
 
   try {
-    await fn();
+    await fn({
+      storage,
+      readJson(key: string) {
+        const value = storage.get(key);
+        return value ? JSON.parse(value) : null;
+      },
+    });
   } finally {
     (globalThis as typeof globalThis & { window?: unknown }).window = originalWindow;
   }
@@ -157,7 +173,7 @@ await runTest('web studio preserves advanced OpenClaw cron fields inside the per
 });
 
 await runTest('web studio persists current-session OpenClaw jobs, file edits, and provider edits through the workbench detail', async () => {
-  await withMockedWindowStorage(async () => {
+  await withMockedWindowStorage(async ({ readJson }) => {
     const platform = new WebStudioPlatform();
     const taskName = 'Web studio current session cron test';
 
@@ -230,11 +246,31 @@ await runTest('web studio persists current-session OpenClaw jobs, file edits, an
       updatedDetail?.workbench?.llmProviders.find((provider) => provider.id === 'openai')?.defaultModelId,
       nextModelId,
     );
+    const persistedWorkbench = readJson(WORKBENCH_STORAGE_KEY) as {
+      workbenches?: Record<string, {
+        llmProviders?: Array<{
+          id: string;
+          endpoint?: string;
+          apiKeySource?: string;
+          config?: {
+            request?: unknown;
+          };
+        }>;
+      }>;
+    } | null;
+    const persistedProvider = persistedWorkbench?.workbenches?.['local-built-in']?.llmProviders?.find(
+      (provider) => provider.id === 'openai',
+    );
+
+    assert.ok(persistedProvider);
+    assert.equal(persistedProvider?.endpoint, 'https://api.openai.com/v1');
+    assert.equal(persistedProvider?.apiKeySource, '');
+    assert.equal(persistedProvider?.config?.request, undefined);
   });
 });
 
 await runTest('web studio persists managed channel configuration through the browser workbench detail', async () => {
-  await withMockedWindowStorage(async () => {
+  await withMockedWindowStorage(async ({ readJson }) => {
     const platform = new WebStudioPlatform();
 
     const saved = await platform.saveInstanceChannelConfig('local-built-in', 'wehcat', {
@@ -257,6 +293,43 @@ await runTest('web studio persists managed channel configuration through the bro
     assert.equal(wehcat?.status, 'connected');
     assert.equal(wehcat?.configuredFieldCount, 3);
     assert.equal(wehcat?.values?.appId, 'wx1234567890abcdef');
+    assert.equal(wehcat?.values?.appSecret, undefined);
+    assert.equal(wehcat?.values?.token, undefined);
+
+    const persistedWorkbench = readJson(WORKBENCH_STORAGE_KEY) as {
+      workbenches?: Record<string, {
+        channels?: Array<{
+          id: string;
+          configuredFieldCount?: number;
+          values?: Record<string, string>;
+        }>;
+        files?: Array<{
+          id: string;
+          content: string;
+        }>;
+      }>;
+    } | null;
+    const persistedWehcat = persistedWorkbench?.workbenches?.['local-built-in']?.channels?.find(
+      (channel) => channel.id === 'wehcat',
+    );
+    const persistedConfigFile = persistedWorkbench?.workbenches?.['local-built-in']?.files?.find(
+      (file) => file.id === '/workspace/main/openclaw.json',
+    );
+    const persistedConfigRoot = persistedConfigFile
+      ? JSON.parse(persistedConfigFile.content) as {
+          channels?: Record<string, Record<string, unknown>>;
+        }
+      : null;
+
+    assert.ok(persistedWehcat);
+    assert.equal(persistedWehcat?.configuredFieldCount, 3);
+    assert.deepEqual(persistedWehcat?.values, {
+      appId: 'wx1234567890abcdef',
+    });
+    assert.deepEqual(persistedConfigRoot?.channels?.wehcat, {
+      appId: 'wx1234567890abcdef',
+      enabled: true,
+    });
 
     const disabled = await platform.setInstanceChannelEnabled('local-built-in', 'wehcat', false);
     assert.equal(disabled, true);
@@ -271,7 +344,8 @@ await runTest('web studio persists managed channel configuration through the bro
     assert.ok(wehcat);
     assert.equal(wehcat?.enabled, false);
     assert.equal(wehcat?.status, 'disconnected');
-    assert.equal(wehcat?.values?.token, 'verify-token');
+    assert.equal(wehcat?.configuredFieldCount, 3);
+    assert.equal(wehcat?.values?.token, undefined);
 
     const deleted = await platform.deleteInstanceChannelConfig('local-built-in', 'wehcat');
     assert.equal(deleted, true);
@@ -416,8 +490,50 @@ await runTest(
   },
 );
 
+await runTest('web studio strips trusted built-in instance config state from browser storage', async () => {
+  await withMockedWindowStorage(async ({ readJson }) => {
+    const platform = new WebStudioPlatform();
+
+    await platform.updateInstanceConfig('local-built-in', {
+      port: '18789',
+      sandbox: true,
+      autoUpdate: true,
+      logLevel: 'info',
+      corsOrigins: '*',
+      workspacePath: 'C:\\kernel\\workspace',
+      baseUrl: 'http://127.0.0.1:18789',
+      websocketUrl: 'ws://127.0.0.1:18789',
+      authToken: 'root-secret',
+    });
+
+    const config = await platform.getInstanceConfig('local-built-in');
+    const persistedInstances = readJson(INSTANCE_STORAGE_KEY) as {
+      instances?: Array<{
+        id: string;
+        config?: {
+          workspacePath?: string | null;
+          authToken?: string | null;
+          baseUrl?: string | null;
+          websocketUrl?: string | null;
+        };
+      }>;
+    } | null;
+    const persistedBuiltIn = persistedInstances?.instances?.find(
+      (instance) => instance.id === 'local-built-in',
+    );
+
+    assert.equal(config?.workspacePath, undefined);
+    assert.equal(config?.authToken, undefined);
+    assert.ok(persistedBuiltIn);
+    assert.equal(persistedBuiltIn?.config?.workspacePath, undefined);
+    assert.equal(persistedBuiltIn?.config?.authToken, undefined);
+    assert.equal(persistedBuiltIn?.config?.baseUrl, 'http://127.0.0.1:18789');
+    assert.equal(persistedBuiltIn?.config?.websocketUrl, 'ws://127.0.0.1:18789');
+  });
+});
+
 await runTest('web studio upgrades the stored built-in OpenClaw instance metadata to the latest bundled version', async () => {
-  await withMockedWindowStorage(async () => {
+  await withMockedWindowStorage(async ({ readJson }) => {
     const storage = (globalThis as typeof globalThis & {
       window: { localStorage: { setItem(key: string, value: string): void; getItem(key: string): string | null } };
     }).window.localStorage;
@@ -479,17 +595,29 @@ await runTest('web studio upgrades the stored built-in OpenClaw instance metadat
     const platform = new WebStudioPlatform();
     const instances = await platform.listInstances();
     const builtIn = instances.find((instance) => instance.id === 'local-built-in');
-    const persisted = storage.getItem('claw-studio:studio:instances:v1');
-    const persistedDocument = persisted ? JSON.parse(persisted) : null;
+    const persistedDocument = readJson(INSTANCE_STORAGE_KEY) as {
+      instances?: Array<{
+        id: string;
+        version?: string;
+        config?: {
+          workspacePath?: string | null;
+          authToken?: string | null;
+        };
+      }>;
+    } | null;
+    const persistedBuiltIn = persistedDocument?.instances?.find(
+      (instance) => instance.id === 'local-built-in',
+    );
 
     assert.ok(builtIn);
     assert.equal(builtIn?.version, DEFAULT_BUNDLED_OPENCLAW_VERSION);
     assert.equal(builtIn?.port, 19991);
     assert.equal(builtIn?.baseUrl, 'http://127.0.0.1:19991');
     assert.equal(
-      persistedDocument?.instances?.find((instance: { id: string }) => instance.id === 'local-built-in')
-        ?.version,
+      persistedBuiltIn?.version,
       DEFAULT_BUNDLED_OPENCLAW_VERSION,
     );
+    assert.equal(persistedBuiltIn?.config?.workspacePath, undefined);
+    assert.equal(persistedBuiltIn?.config?.authToken, undefined);
   });
 });

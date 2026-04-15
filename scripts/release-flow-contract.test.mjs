@@ -239,7 +239,7 @@ test('root package exposes release helper scripts for desktop and asset packagin
   assert.match(rootPackage.scripts['lint'], /pnpm check:automation/);
   assert.match(rootPackage.scripts['check:shared-sdk-release-parity'], /node scripts\/check-shared-sdk-release-parity\.mjs/);
   assert.match(rootPackage.scripts['check:server'], /node scripts\/check-server-platform-foundation\.mjs/);
-  assert.match(rootPackage.scripts['check:server'], /cargo test --manifest-path packages\/sdkwork-claw-server\/src-host\/Cargo\.toml/);
+  assert.match(rootPackage.scripts['check:server'], /node scripts\/run-cargo\.mjs test --manifest-path packages\/sdkwork-claw-server\/src-host\/Cargo\.toml/);
   assert.match(
     rootPackage.scripts['check:desktop-openclaw-runtime'],
     /node scripts\/verify-desktop-openclaw-release-assets\.test\.mjs/,
@@ -598,10 +598,24 @@ test('shared sdk package preparation resolves the workspace root consistently fr
   const helper = await import(pathToFileURL(helperPath).href);
   assert.equal(typeof helper.resolveWorkspaceRootDir, 'function');
   assert.equal(typeof helper.createSharedSdkPackageContext, 'function');
+  assert.equal(typeof helper.resolveCanonicalWorkspaceRootDir, 'function');
 
   const packageDir = path.join(rootDir, 'packages', 'sdkwork-claw-web');
-  assert.equal(helper.resolveWorkspaceRootDir(rootDir), rootDir);
-  assert.equal(helper.resolveWorkspaceRootDir(packageDir), rootDir);
+  const expectedWorkspaceRoot = rootDir;
+  const expectedCanonicalWorkspaceRoot = rootDir.includes(`${path.sep}.worktrees${path.sep}`)
+    ? path.resolve(rootDir, '..', '..')
+    : rootDir;
+  const worktreePackageDir = path.join(
+    expectedWorkspaceRoot,
+    '.worktrees',
+    'synthetic-worktree',
+    'packages',
+    'sdkwork-claw-web',
+  );
+  assert.equal(helper.resolveWorkspaceRootDir(rootDir), expectedWorkspaceRoot);
+  assert.equal(helper.resolveWorkspaceRootDir(packageDir), expectedWorkspaceRoot);
+  assert.equal(helper.resolveWorkspaceRootDir(worktreePackageDir), expectedWorkspaceRoot);
+  assert.equal(helper.resolveCanonicalWorkspaceRootDir(packageDir), expectedCanonicalWorkspaceRoot);
 
   assert.deepEqual(
     helper.createSharedSdkPackageContext({
@@ -609,25 +623,26 @@ test('shared sdk package preparation resolves the workspace root consistently fr
       env: { SDKWORK_SHARED_SDK_MODE: 'git' },
     }),
     {
-      workspaceRoot: rootDir,
+      workspaceRoot: expectedWorkspaceRoot,
+      canonicalWorkspaceRoot: expectedCanonicalWorkspaceRoot,
       sharedAppSdkRoot: path.resolve(
-        rootDir,
+        expectedCanonicalWorkspaceRoot,
         '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript',
       ),
       sharedSdkCommonRoot: path.resolve(
-        rootDir,
+        expectedCanonicalWorkspaceRoot,
         '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript',
       ),
       sharedImBackendSdkRoot: path.resolve(
-        rootDir,
+        expectedCanonicalWorkspaceRoot,
         '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/generated/server-openapi',
       ),
       sharedOpenchatImSdkRoot: path.resolve(
-        rootDir,
+        expectedCanonicalWorkspaceRoot,
         '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/composed',
       ),
       sharedOpenchatImWukongimAdapterRoot: path.resolve(
-        rootDir,
+        expectedCanonicalWorkspaceRoot,
         '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/adapter-wukongim',
       ),
       mode: 'git',
@@ -1030,6 +1045,37 @@ test('git-backed shared sdk source detection resolves origin from nested directo
   }
 });
 
+test('git-backed shared sdk source helper normalizes local clone repo URLs to file URLs without rewriting remote URLs', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'prepare-shared-sdk-git-sources.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-shared-sdk-clone-url-'));
+  const localRepoRoot = path.join(tempRoot, 'source-repo');
+
+  mkdirSync(localRepoRoot, { recursive: true });
+
+  try {
+    assert.equal(typeof helper.resolveGitCloneRepoUrl, 'function');
+    assert.equal(
+      helper.resolveGitCloneRepoUrl(localRepoRoot),
+      pathToFileURL(localRepoRoot).href,
+    );
+    assert.equal(
+      helper.resolveGitCloneRepoUrl('https://example.com/sdkwork/shared-sdk.git'),
+      'https://example.com/sdkwork/shared-sdk.git',
+    );
+    assert.equal(
+      helper.resolveGitCloneRepoUrl('git@github.com:Sdkwork-Cloud/sdkwork-core.git'),
+      'git@github.com:Sdkwork-Cloud/sdkwork-core.git',
+    );
+    assert.equal(
+      helper.resolveGitCloneRepoUrl(pathToFileURL(localRepoRoot).href),
+      pathToFileURL(localRepoRoot).href,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('git-backed shared sdk source helper parses monorepo submodule layouts and resolves config-backed package roots', async () => {
   const helperPath = path.join(rootDir, 'scripts', 'prepare-shared-sdk-git-sources.mjs');
   const helper = await import(pathToFileURL(helperPath).href);
@@ -1042,12 +1088,18 @@ test('git-backed shared sdk source helper parses monorepo submodule layouts and 
   assert.equal(typeof helper.resolveMonorepoPackageRoot, 'function');
   assert.equal(typeof helper.resolveCheckoutRootForRepoUrl, 'function');
   assert.equal(typeof helper.resolvePackageRootForCheckoutRoot, 'function');
+  assert.equal(typeof helper.resolveGitCloneRepoUrl, 'function');
   assert.equal(typeof helper.parseGitSubmodulePaths, 'function');
   assert.equal(typeof helper.materializePackageRootFromMonorepo, 'function');
   assert.equal(helper.DEFAULT_SHARED_SDK_APP_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git');
   assert.equal(helper.DEFAULT_SHARED_SDK_COMMON_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git');
   assert.equal(helper.DEFAULT_SHARED_SDK_CORE_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-core.git');
   assert.equal(helper.DEFAULT_SHARED_SDK_RELEASE_CONFIG_PATH, 'config/shared-sdk-release-sources.json');
+  assert.match(
+    read('scripts/prepare-shared-sdk-git-sources.mjs'),
+    /advice\.detachedHead=false/,
+    'shared sdk git source helper must suppress detached HEAD advice in green release automation logs',
+  );
 
   const repoRoot = path.join(rootDir, '.tmp', 'shared-sdk-layout');
   const spec = {
@@ -1972,7 +2024,16 @@ test('release asset packager knows how to filter desktop bundle outputs, resolve
     false,
   );
   assert.equal(
-    packager.resolveDesktopBundleRoot({ targetTriple: 'aarch64-pc-windows-msvc' }).replaceAll('\\', '/'),
+    packager.resolveDesktopBundleRoot({
+      targetTriple: 'aarch64-pc-windows-msvc',
+      targetDir: path.join(
+        rootDir,
+        'packages',
+        'sdkwork-claw-desktop',
+        'src-tauri',
+        'target',
+      ),
+    }).replaceAll('\\', '/'),
     path.join(
       rootDir,
       'packages',

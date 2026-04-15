@@ -1,13 +1,18 @@
 use crate::{
     framework::{
         kernel::{
-            DesktopOpenClawProviderProjectionInfo, DesktopOpenClawRuntimeInfo,
+            DesktopOpenClawProviderProjectionInfo, DesktopOpenClawRuntimeAuthorityInfo,
+            DesktopOpenClawRuntimeAuthorityProbeInfo, DesktopOpenClawRuntimeInfo,
             DesktopOpenClawRuntimeStageInfo,
         },
         paths::AppPaths,
         services::{
+            kernel_runtime_authority::KernelRuntimeAuthorityService,
             local_ai_proxy::{
-                LocalAiProxyLifecycle, LocalAiProxyService, LocalAiProxyServiceStatus,
+                resolve_projected_openclaw_provider_api,
+                resolve_projected_openclaw_provider_base_url, LocalAiProxyLifecycle,
+                LocalAiProxyService, LocalAiProxyServiceStatus, OPENCLAW_LOCAL_PROXY_PROVIDER_AUTH,
+                OPENCLAW_LOCAL_PROXY_PROVIDER_ID,
             },
             openclaw_runtime::{load_manifest, ActivatedOpenClawRuntime, OPENCLAW_RUNTIME_ID},
             supervisor::{
@@ -22,8 +27,6 @@ use crate::{
 use serde_json::{Map, Value};
 use std::{fs, path::Path};
 
-const MANAGED_PROVIDER_ID: &str = "sdkwork-local-proxy";
-
 #[derive(Clone, Debug, Default)]
 pub struct OpenClawRuntimeSnapshotService;
 
@@ -36,6 +39,13 @@ struct ProviderProjectionEvidence {
     auth: Option<String>,
     default_model: Option<String>,
     available: bool,
+}
+
+#[derive(Clone, Debug)]
+struct ExpectedProviderProjectionContract {
+    base_url: String,
+    api: &'static str,
+    auth: &'static str,
 }
 
 impl OpenClawRuntimeSnapshotService {
@@ -68,6 +78,7 @@ impl OpenClawRuntimeSnapshotService {
             &local_ai_proxy_status,
             &provider_projection,
         );
+        let authority = KernelRuntimeAuthorityService::new().openclaw_contract(paths)?;
         let manifest = configured_runtime
             .as_ref()
             .and_then(|runtime| load_manifest(&runtime.install_dir.join("manifest.json")).ok());
@@ -119,8 +130,22 @@ impl OpenClawRuntimeSnapshotService {
                 .as_ref()
                 .map(|health| health.base_url.clone()),
             local_ai_proxy_snapshot_path: path_string(&paths.local_ai_proxy_snapshot_file),
+            authority: DesktopOpenClawRuntimeAuthorityInfo {
+                managed_config_path: path_string(&authority.managed_config_path),
+                owned_runtime_roots: authority
+                    .owned_runtime_roots
+                    .iter()
+                    .map(|path| path_string(path))
+                    .collect(),
+                readiness_probe: DesktopOpenClawRuntimeAuthorityProbeInfo {
+                    supports_loopback_health_probe: authority
+                        .readiness_probe
+                        .supports_loopback_health_probe,
+                    health_probe_timeout_ms: authority.readiness_probe.health_probe_timeout_ms,
+                },
+            },
             provider_projection: DesktopOpenClawProviderProjectionInfo {
-                provider_id: MANAGED_PROVIDER_ID.to_string(),
+                provider_id: OPENCLAW_LOCAL_PROXY_PROVIDER_ID.to_string(),
                 available: provider_projection.available,
                 status: provider_projection.status,
                 base_url: provider_projection.base_url,
@@ -289,43 +314,54 @@ fn build_provider_projection(
         .and_then(Value::as_str)
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-    let expected_proxy_base_url = local_ai_proxy_status
-        .health
-        .as_ref()
-        .map(|health| health.base_url.as_str());
     let default_model_managed = default_model
         .as_deref()
-        .map(|value| value.starts_with("sdkwork-local-proxy/"))
+        .map(|value| value.starts_with(&format!("{}/", OPENCLAW_LOCAL_PROXY_PROVIDER_ID)))
         .unwrap_or(false);
+    let expected_contract = resolve_expected_provider_projection_contract(local_ai_proxy_status);
+    let drift_reasons = collect_provider_projection_drift_reasons(
+        expected_contract.as_ref(),
+        base_url.as_deref(),
+        api.as_deref(),
+        auth.as_deref(),
+        default_model.as_deref(),
+        default_model_managed,
+    );
 
     let (status, detail) = match (
-        expected_proxy_base_url,
-        base_url.as_deref(),
-        default_model_managed,
         &local_ai_proxy_status.lifecycle,
+        expected_contract.as_ref(),
+        drift_reasons.is_empty(),
     ) {
-        (Some(expected), Some(actual), true, LocalAiProxyLifecycle::Running)
-            if expected == actual =>
-        {
+        (LocalAiProxyLifecycle::Running, Some(expected), true) => {
             (
                 "ready".to_string(),
                 format!(
-                    "Managed provider projects the local AI proxy at {actual} with default model {}.",
+                    "Managed provider projects the local AI proxy at {} with {} auth, {} API, and default model {}.",
+                    expected.base_url,
+                    expected.auth,
+                    expected.api,
                     default_model.as_deref().unwrap_or("unknown")
                 ),
             )
         }
-        (Some(expected), Some(actual), _, LocalAiProxyLifecycle::Running) => (
+        (LocalAiProxyLifecycle::Running, Some(_), false) => (
             "degraded".to_string(),
             format!(
-                "Managed provider base URL {actual} or default model {} is out of sync with local proxy {expected}.",
-                default_model.as_deref().unwrap_or("unknown")
+                "Managed provider projection is out of sync with the local AI proxy: {}.",
+                drift_reasons.join("; ")
             ),
         ),
-        (_, Some(actual), _, _) => (
+        (LocalAiProxyLifecycle::Running, None, _) => (
+            "degraded".to_string(),
+            "Local AI proxy reports running, but projection validation details are unavailable."
+                .to_string(),
+        ),
+        (_, _, _) if base_url.is_some() => (
             "pending".to_string(),
             format!(
-                "Managed provider is configured at {actual}, but the local AI proxy is not ready yet."
+                "Managed provider is configured at {}, but the local AI proxy is not ready yet.",
+                base_url.as_deref().unwrap_or("unknown")
             ),
         ),
         _ => (
@@ -343,6 +379,81 @@ fn build_provider_projection(
         default_model,
         available: true,
     }
+}
+
+fn resolve_expected_provider_projection_contract(
+    local_ai_proxy_status: &LocalAiProxyServiceStatus,
+) -> Option<ExpectedProviderProjectionContract> {
+    let health = local_ai_proxy_status.health.as_ref()?;
+    let client_protocol = health
+        .default_routes
+        .iter()
+        .find(|route| route.id == health.default_route_id)
+        .map(|route| route.client_protocol.as_str())
+        .or_else(|| {
+            health
+                .default_routes
+                .first()
+                .map(|route| route.client_protocol.as_str())
+        })
+        .unwrap_or("openai-compatible");
+
+    Some(ExpectedProviderProjectionContract {
+        base_url: resolve_projected_openclaw_provider_base_url(client_protocol, &health.base_url),
+        api: resolve_projected_openclaw_provider_api(client_protocol),
+        auth: OPENCLAW_LOCAL_PROXY_PROVIDER_AUTH,
+    })
+}
+
+fn collect_provider_projection_drift_reasons(
+    expected_contract: Option<&ExpectedProviderProjectionContract>,
+    actual_base_url: Option<&str>,
+    actual_api: Option<&str>,
+    actual_auth: Option<&str>,
+    default_model: Option<&str>,
+    default_model_managed: bool,
+) -> Vec<String> {
+    let mut reasons = Vec::new();
+
+    if let Some(expected) = expected_contract {
+        if actual_base_url != Some(expected.base_url.as_str()) {
+            reasons.push(match actual_base_url {
+                Some(actual) => format!(
+                    "base URL {actual} does not match expected {}",
+                    expected.base_url
+                ),
+                None => format!("base URL is missing; expected {}", expected.base_url),
+            });
+        }
+
+        if actual_api != Some(expected.api) {
+            reasons.push(match actual_api {
+                Some(actual) => {
+                    format!("api {actual} does not match expected {}", expected.api)
+                }
+                None => format!("api is missing; expected {}", expected.api),
+            });
+        }
+
+        if actual_auth != Some(expected.auth) {
+            reasons.push(match actual_auth {
+                Some(actual) => {
+                    format!("auth {actual} does not match expected {}", expected.auth)
+                }
+                None => format!("auth is missing; expected {}", expected.auth),
+            });
+        }
+    }
+
+    if !default_model_managed {
+        reasons.push(format!(
+            "default model {} is not managed by {}",
+            default_model.unwrap_or("unknown"),
+            OPENCLAW_LOCAL_PROXY_PROVIDER_ID
+        ));
+    }
+
+    reasons
 }
 
 fn load_openclaw_config_root(path: &Path) -> (Value, Option<String>) {
@@ -374,4 +485,138 @@ fn load_openclaw_config_root(path: &Path) -> (Value, Option<String>) {
 
 fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_provider_projection;
+    use crate::framework::services::local_ai_proxy::{
+        LocalAiProxyDefaultRouteHealth, LocalAiProxyLifecycle, LocalAiProxyServiceHealth,
+        LocalAiProxyServiceStatus,
+    };
+    use serde_json::json;
+
+    fn create_running_local_ai_proxy_status(client_protocol: &str) -> LocalAiProxyServiceStatus {
+        LocalAiProxyServiceStatus {
+            lifecycle: LocalAiProxyLifecycle::Running,
+            health: Some(LocalAiProxyServiceHealth {
+                base_url: "http://127.0.0.1:18791/v1".to_string(),
+                active_port: 18_791,
+                loopback_only: true,
+                default_route_id: "default-route".to_string(),
+                default_route_name: "SDKWork Default".to_string(),
+                default_routes: vec![LocalAiProxyDefaultRouteHealth {
+                    client_protocol: client_protocol.to_string(),
+                    id: "default-route".to_string(),
+                    name: "SDKWork Default".to_string(),
+                    managed_by: "system-default".to_string(),
+                    upstream_protocol: "sdkwork".to_string(),
+                    upstream_base_url: "https://ai.sdkwork.com".to_string(),
+                    model_count: 3,
+                }],
+                upstream_base_url: "https://ai.sdkwork.com".to_string(),
+                model_count: 3,
+                snapshot_path: "C:/runtime/local-ai-proxy.snapshot.json".to_string(),
+                log_path: "C:/runtime/local-ai-proxy.log".to_string(),
+            }),
+            route_metrics: Vec::new(),
+            route_tests: Vec::new(),
+            last_error: None,
+        }
+    }
+
+    #[test]
+    fn build_provider_projection_accepts_gemini_root_base_url_for_running_proxy() {
+        let config_root = json!({
+            "models": {
+                "providers": {
+                    "sdkwork-local-proxy": {
+                        "baseUrl": "http://127.0.0.1:18791",
+                        "api": "google-generative-ai",
+                        "auth": "api-key"
+                    }
+                }
+            },
+            "agents": {
+                "defaults": {
+                    "model": {
+                        "primary": "sdkwork-local-proxy/gemini-2.5-pro"
+                    }
+                }
+            }
+        });
+
+        let projection = build_provider_projection(
+            &config_root,
+            None,
+            &create_running_local_ai_proxy_status("gemini"),
+        );
+
+        assert_eq!(projection.status, "ready");
+        assert!(projection
+            .detail
+            .contains("sdkwork-local-proxy/gemini-2.5-pro"));
+    }
+
+    #[test]
+    fn build_provider_projection_degrades_when_api_does_not_match_default_route_protocol() {
+        let config_root = json!({
+            "models": {
+                "providers": {
+                    "sdkwork-local-proxy": {
+                        "baseUrl": "http://127.0.0.1:18791",
+                        "api": "openai-completions",
+                        "auth": "api-key"
+                    }
+                }
+            },
+            "agents": {
+                "defaults": {
+                    "model": {
+                        "primary": "sdkwork-local-proxy/gemini-2.5-pro"
+                    }
+                }
+            }
+        });
+
+        let projection = build_provider_projection(
+            &config_root,
+            None,
+            &create_running_local_ai_proxy_status("gemini"),
+        );
+
+        assert_eq!(projection.status, "degraded");
+        assert!(projection.detail.contains("api"));
+    }
+
+    #[test]
+    fn build_provider_projection_degrades_when_auth_mode_does_not_match_proxy_contract() {
+        let config_root = json!({
+            "models": {
+                "providers": {
+                    "sdkwork-local-proxy": {
+                        "baseUrl": "http://127.0.0.1:18791/v1",
+                        "api": "openai-completions",
+                        "auth": "bearer"
+                    }
+                }
+            },
+            "agents": {
+                "defaults": {
+                    "model": {
+                        "primary": "sdkwork-local-proxy/gpt-5.4"
+                    }
+                }
+            }
+        });
+
+        let projection = build_provider_projection(
+            &config_root,
+            None,
+            &create_running_local_ai_proxy_status("openai-compatible"),
+        );
+
+        assert_eq!(projection.status, "degraded");
+        assert!(projection.detail.contains("auth"));
+    }
 }

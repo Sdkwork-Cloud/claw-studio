@@ -32,6 +32,7 @@ function extractCommunityTranslationKeys() {
     'packages/sdkwork-claw-community/src/pages/community/Community.tsx',
     'packages/sdkwork-claw-community/src/pages/community/CommunityPostDetail.tsx',
     'packages/sdkwork-claw-community/src/pages/community/NewPost.tsx',
+    'packages/sdkwork-claw-community/src/pages/community/NewPostWorkspace.tsx',
   ];
   const pattern = /community\.[A-Za-z0-9_.]+/g;
   const matches = new Set<string>();
@@ -164,7 +165,7 @@ runTest('sdkwork-claw-community routes classifieds through the shared app sdk in
   const recommendationSource = read(
     'packages/sdkwork-claw-community/src/services/communityRecommendations.ts',
   );
-  const newPostSource = read('packages/sdkwork-claw-community/src/pages/community/NewPost.tsx');
+  const newPostSource = read('packages/sdkwork-claw-community/src/pages/community/NewPostWorkspace.tsx');
   const llmServiceSource = read('packages/sdkwork-claw-community/src/services/llmService.ts');
   const detailSource = read('packages/sdkwork-claw-community/src/pages/community/CommunityPostDetail.tsx');
 
@@ -228,6 +229,19 @@ runTest('sdkwork-claw-community routes classifieds through the shared app sdk in
   assert.match(detailSource, /xl:grid-cols-\[minmax\(0,1fr\)_360px\]/);
   assert.doesNotMatch(detailSource, /relative h-64 w-full md:h-96/);
   assert.doesNotMatch(detailSource, /-mt-20/);
+});
+
+runTest('sdkwork-claw-community keeps the NewPost route shell separate from the heavy tiptap editor workspace', () => {
+  const newPostRouteSource = read('packages/sdkwork-claw-community/src/pages/community/NewPost.tsx');
+
+  assert.ok(exists('packages/sdkwork-claw-community/src/pages/community/NewPostWorkspace.tsx'));
+  assert.match(newPostRouteSource, /Suspense/);
+  assert.match(newPostRouteSource, /lazy\(\(\) =>/);
+  assert.match(newPostRouteSource, /\.\/NewPostWorkspace/);
+  assert.doesNotMatch(newPostRouteSource, /@tiptap\/react/);
+  assert.doesNotMatch(newPostRouteSource, /@tiptap\/extension-/);
+  assert.doesNotMatch(newPostRouteSource, /EditorContent/);
+  assert.doesNotMatch(newPostRouteSource, /useEditor/);
 });
 
 runTest('sdkwork-claw-community keeps the route surface and locale coverage aligned with the final classifieds UI', () => {

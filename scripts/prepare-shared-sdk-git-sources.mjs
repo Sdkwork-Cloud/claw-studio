@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -481,6 +481,40 @@ function resolveTargetRef({ repoUrl, spec, workspaceRootDir, env, checkoutRoot, 
   return resolveRemoteDefaultBranch(repoUrl);
 }
 
+function isExplicitGitTransportUrl(repoUrl) {
+  const normalizedRepoUrl = String(repoUrl ?? '').trim();
+  if (normalizedRepoUrl.length === 0) {
+    return false;
+  }
+
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(normalizedRepoUrl)) {
+    return true;
+  }
+
+  if (/^[^@/\\\s]+@[^:/\\\s]+:.+/.test(normalizedRepoUrl)) {
+    return true;
+  }
+
+  if (/^[A-Za-z]:([\\/]|$)/.test(normalizedRepoUrl)) {
+    return false;
+  }
+
+  return /^[^:/\\\s]+:.+/.test(normalizedRepoUrl);
+}
+
+export function resolveGitCloneRepoUrl(repoUrl) {
+  const normalizedRepoUrl = String(repoUrl ?? '').trim();
+  if (normalizedRepoUrl.length === 0) {
+    return normalizedRepoUrl;
+  }
+
+  if (isExplicitGitTransportUrl(normalizedRepoUrl)) {
+    return normalizedRepoUrl;
+  }
+
+  return pathToFileURL(path.resolve(normalizedRepoUrl)).href;
+}
+
 function assertGitCheckoutIsClean(repoRoot, label) {
   const statusOutput = run('git', ['-C', repoRoot, 'status', '--porcelain'], {
     captureStdout: true,
@@ -495,17 +529,18 @@ function assertGitCheckoutIsClean(repoRoot, label) {
 }
 
 function cloneSourceRepo({ repoRoot, repoUrl, targetRef }) {
+  const cloneRepoUrl = resolveGitCloneRepoUrl(repoUrl);
   fs.mkdirSync(path.dirname(repoRoot), { recursive: true });
-  run('git', ['clone', '--depth', '1', repoUrl, repoRoot]);
+  run('git', ['clone', '--depth', '1', cloneRepoUrl, repoRoot]);
   run('git', ['-C', repoRoot, 'fetch', '--depth', '1', 'origin', targetRef]);
-  run('git', ['-C', repoRoot, 'checkout', '--force', 'FETCH_HEAD']);
+  run('git', ['-c', 'advice.detachedHead=false', '-C', repoRoot, 'checkout', '--force', 'FETCH_HEAD']);
 }
 
 function syncExistingSourceRepo({ repoRoot, repoUrl, targetRef, label }) {
   assertGitCheckoutIsClean(repoRoot, label);
   run('git', ['-C', repoRoot, 'remote', 'set-url', 'origin', repoUrl]);
   run('git', ['-C', repoRoot, 'fetch', '--depth', '1', 'origin', targetRef]);
-  run('git', ['-C', repoRoot, 'checkout', '--force', 'FETCH_HEAD']);
+  run('git', ['-c', 'advice.detachedHead=false', '-C', repoRoot, 'checkout', '--force', 'FETCH_HEAD']);
 }
 
 function ensureSourceSpecReady(spec, workspaceRootDir, env, syncExistingRepos) {

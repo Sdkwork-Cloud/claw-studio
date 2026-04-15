@@ -201,7 +201,7 @@ test('desktop packaged launch smoke prefers the root desktop executable over nes
     'bundled',
     'modules',
     'openclaw-helper',
-    '2026.4.9',
+    '2026.4.14',
     'bin',
     'openclaw-helper.exe',
   );
@@ -283,6 +283,70 @@ test('desktop packaged launch smoke waits until captured evidence reaches the sh
   assert.equal(result.phase, 'shell-mounted');
   assert.equal(result.status, 'passed');
   assert.equal(pollCount, 2);
+});
+
+test('desktop packaged launch smoke retries transient Windows cleanup lock failures', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-packaged-launch.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  assert.equal(typeof smoke.removeDirectoryWithRetries, 'function');
+
+  let attempts = 0;
+  await smoke.removeDirectoryWithRetries('C:/synthetic/temp-smoke-root', {
+    maxRetries: 3,
+    retryDelayMs: 1,
+    delayFn: async () => {},
+    rmSyncFn() {
+      attempts += 1;
+      if (attempts === 1) {
+        const error = new Error('resource busy or locked');
+        error.code = 'EBUSY';
+        throw error;
+      }
+    },
+  });
+
+  assert.equal(attempts, 2);
+});
+
+test('desktop packaged launch smoke executes the Windows installer through PowerShell Start-Process', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-packaged-launch.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  assert.equal(typeof smoke.prepareDesktopPackagedLaunch, 'function');
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-windows-installer-'));
+  const smokeRoot = path.join(tempRoot, 'smoke-root');
+  const expectedBinaryPath = path.join(smokeRoot, 'install-root', 'Claw Studio.exe');
+  let commandInvocation = null;
+
+  try {
+    const preparedLaunch = await smoke.prepareDesktopPackagedLaunch({
+      artifactPath: 'E:/synthetic/Claw Studio_0.1.0_x64-setup.exe',
+      artifact: {
+        relativePath: 'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe',
+      },
+      releasePlatform: 'windows',
+      smokeRoot,
+      env: {},
+      runCommandFn(commandOptions) {
+        commandInvocation = commandOptions;
+        mkdirSync(path.dirname(expectedBinaryPath), { recursive: true });
+        writeFileSync(expectedBinaryPath, 'synthetic desktop launcher\n', 'utf8');
+      },
+    });
+
+    assert.equal(commandInvocation.command, 'powershell.exe');
+    assert.ok(
+      commandInvocation.args.some((argument) => String(argument).includes('Start-Process')),
+    );
+    assert.equal(
+      preparedLaunch.launcher.command.replaceAll('\\', '/'),
+      expectedBinaryPath.replaceAll('\\', '/'),
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test('desktop packaged launch smoke captures packaged startup evidence and forwards it into the canonical startup smoke report', async () => {

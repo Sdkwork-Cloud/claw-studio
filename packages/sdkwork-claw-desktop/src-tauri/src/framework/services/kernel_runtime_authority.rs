@@ -15,7 +15,16 @@ impl KernelRuntimeAuthorityService {
     }
 
     pub fn openclaw_contract(&self, paths: &AppPaths) -> Result<KernelRuntimeContract> {
-        OpenClawKernelAdapter::new().contract(paths)
+        let adapter = OpenClawKernelAdapter::new();
+        self.contract_for_adapter(&adapter, paths)
+    }
+
+    fn contract_for_adapter(
+        &self,
+        adapter: &dyn KernelRuntimeAdapter,
+        paths: &AppPaths,
+    ) -> Result<KernelRuntimeContract> {
+        adapter.contract(paths)
     }
 }
 

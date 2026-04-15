@@ -45,7 +45,7 @@ test('desktop release build cli wraps the entrypoint with a top-level error hand
   );
 });
 
-test('desktop release build helper creates an OpenClaw release-asset preflight for bundle-capable phases', async () => {
+test('desktop release build helper creates the correct OpenClaw preflight for bundle and all phases', async () => {
   const modulePath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
   const helper = await import(pathToFileURL(modulePath).href);
 
@@ -73,8 +73,32 @@ test('desktop release build helper creates an OpenClaw release-asset preflight f
     platform: 'darwin',
     hostArch: 'arm64',
   });
+  assert.equal(allPreflight.command, process.execPath);
+  assert.deepEqual(
+    allPreflight.args,
+    ['scripts/prepare-openclaw-runtime.mjs'],
+    'phase=all must prepare and verify the bundled OpenClaw runtime before delegating into tauri:build',
+  );
   assert.equal(allPreflight.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'macos');
   assert.equal(allPreflight.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
+});
+
+test('desktop release build helper assigns Windows builds to the shared short cargo target directory', async () => {
+  const modulePath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const helper = await import(pathToFileURL(modulePath).href);
+
+  const plan = helper.createDesktopReleaseBuildPlan({
+    phase: 'bundle',
+    platform: 'win32',
+    hostArch: 'x64',
+    env: {},
+    targetTriple: 'x86_64-pc-windows-msvc',
+  });
+
+  assert.match(
+    plan.env.CARGO_TARGET_DIR.replaceAll('\\', '/'),
+    /^D:\/\.sdkwork-claw\/cargo-target\/[0-9a-f]{10}\/desktop$/,
+  );
 });
 
 test('desktop release build all-phase plan forwards bundle customization flags into the desktop package script', async () => {

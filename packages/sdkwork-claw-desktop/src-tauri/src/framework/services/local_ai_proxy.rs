@@ -23,13 +23,15 @@ use tokio::sync::oneshot;
 
 pub const SERVICE_ID_LOCAL_AI_PROXY: &str = "local_ai_proxy";
 const LOCAL_AI_PROXY_CONFIG_SCHEMA_VERSION: u32 = 1;
-const OPENCLAW_LOCAL_PROXY_PROVIDER_ID: &str = "sdkwork-local-proxy";
-const OPENCLAW_LOCAL_PROXY_PROVIDER_OPENAI_API: &str = "openai-completions";
-const OPENCLAW_LOCAL_PROXY_PROVIDER_ANTHROPIC_API: &str = "anthropic-messages";
-const OPENCLAW_LOCAL_PROXY_PROVIDER_GEMINI_API: &str = "google-generative-ai";
-const OPENCLAW_LOCAL_PROXY_PROVIDER_AUTH: &str = "api-key";
-const ANTHROPIC_CLIENT_PROTOCOL: &str = "anthropic";
-const GEMINI_CLIENT_PROTOCOL: &str = "gemini";
+pub(crate) const OPENCLAW_LOCAL_PROXY_PROVIDER_ID: &str = "sdkwork-local-proxy";
+pub(crate) const OPENCLAW_LOCAL_PROXY_PROVIDER_OPENAI_API: &str = "openai-completions";
+pub(crate) const OPENCLAW_LOCAL_PROXY_PROVIDER_ANTHROPIC_API: &str = "anthropic-messages";
+pub(crate) const OPENCLAW_LOCAL_PROXY_PROVIDER_GEMINI_API: &str = "google-generative-ai";
+pub(crate) const OPENCLAW_LOCAL_PROXY_PROVIDER_AUTH: &str = "api-key";
+pub(crate) const OPENCLAW_LOCAL_PROXY_TOKEN_ENV_VAR: &str = "SDKWORK_LOCAL_PROXY_TOKEN";
+pub(crate) const OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER: &str = "${SDKWORK_LOCAL_PROXY_TOKEN}";
+pub(crate) const ANTHROPIC_CLIENT_PROTOCOL: &str = "anthropic";
+pub(crate) const GEMINI_CLIENT_PROTOCOL: &str = "gemini";
 const OLLAMA_UPSTREAM_PROTOCOL: &str = "ollama";
 const ANTHROPIC_VERSION_HEADER: &str = "anthropic-version";
 const ANTHROPIC_BETA_HEADER: &str = "anthropic-beta";
@@ -448,6 +450,31 @@ fn is_loopback_host(value: &str) -> bool {
         || normalized == "::1"
         || normalized == "localhost"
         || normalized.ends_with(".localhost")
+}
+
+pub(crate) fn resolve_projected_openclaw_provider_api(client_protocol: &str) -> &'static str {
+    match client_protocol.trim() {
+        ANTHROPIC_CLIENT_PROTOCOL => OPENCLAW_LOCAL_PROXY_PROVIDER_ANTHROPIC_API,
+        GEMINI_CLIENT_PROTOCOL => OPENCLAW_LOCAL_PROXY_PROVIDER_GEMINI_API,
+        _ => OPENCLAW_LOCAL_PROXY_PROVIDER_OPENAI_API,
+    }
+}
+
+pub(crate) fn resolve_projected_openclaw_provider_base_url(
+    client_protocol: &str,
+    health_base_url: &str,
+) -> String {
+    let trimmed = health_base_url.trim();
+    if client_protocol.trim() != GEMINI_CLIENT_PROTOCOL {
+        return trimmed.to_string();
+    }
+
+    let root = trimmed.trim_end_matches("/v1").trim_end_matches('/');
+    if root.is_empty() {
+        trimmed.to_string()
+    } else {
+        root.to_string()
+    }
 }
 
 fn append_proxy_log(path: &Path, message: &str) -> Result<()> {
@@ -3256,7 +3283,7 @@ mod tests {
         );
         assert_eq!(
             projected["models"]["providers"]["sdkwork-local-proxy"]["apiKey"],
-            LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY
+            "${SDKWORK_LOCAL_PROXY_TOKEN}"
         );
         assert_eq!(
             projected["models"]["providers"]["sdkwork-local-proxy"]["api"],

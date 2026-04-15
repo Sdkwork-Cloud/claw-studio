@@ -2964,6 +2964,105 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn desktop_combined_hosted_startup_preflight_rejects_remote_origins_for_control_plane_surfaces()
+    {
+        let app =
+            build_desktop_combined_browser_session_test_app("hosted-startup-preflight-remote-origin");
+
+        for path in [
+            "/claw/internal/v1/host-platform",
+            "/claw/manage/v1/host-endpoints",
+            "/claw/manage/v1/openclaw/runtime",
+            "/claw/manage/v1/openclaw/gateway",
+            "/claw/api/v1/studio/instances",
+        ] {
+            let response = app
+                .clone()
+                .oneshot(build_cors_preflight_request_with_origin(
+                    path,
+                    "GET",
+                    REMOTE_BROWSER_ORIGIN,
+                ))
+                .await
+                .expect("remote origin preflight request should return a response");
+            let status = response.status();
+            let headers = response.headers().clone();
+
+            assert_eq!(
+                status,
+                StatusCode::FORBIDDEN,
+                "expected remote-origin preflight rejection for {path}",
+            );
+            assert_eq!(
+                header_value(&headers, &header::ACCESS_CONTROL_ALLOW_ORIGIN).as_deref(),
+                None,
+                "remote origin should not receive allow-origin for {path}",
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn desktop_combined_hosted_startup_preflight_stays_blocked_for_non_browser_internal_routes(
+    ) {
+        let app = build_desktop_combined_browser_session_test_app(
+            "hosted-startup-preflight-non-browser-internal",
+        );
+
+        let response = app
+            .oneshot(build_cors_preflight_request(
+                "/claw/internal/v1/node-sessions",
+                "GET",
+            ))
+            .await
+            .expect("non-browser internal preflight request should return a response");
+        let status = response.status();
+        let headers = response.headers().clone();
+
+        assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(
+            header_value(&headers, &header::ACCESS_CONTROL_ALLOW_ORIGIN).as_deref(),
+            None,
+        );
+    }
+
+    #[tokio::test]
+    async fn desktop_combined_control_plane_responses_do_not_mirror_remote_origins() {
+        let app =
+            build_desktop_combined_browser_session_test_app("hosted-startup-response-remote-origin");
+
+        for path in [
+            "/claw/internal/v1/host-platform",
+            "/claw/manage/v1/host-endpoints",
+            "/claw/api/v1/studio/instances",
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(path)
+                        .header(header::ORIGIN, REMOTE_BROWSER_ORIGIN)
+                        .header("x-claw-browser-session", DESKTOP_BROWSER_SESSION_TOKEN)
+                        .body(Body::empty())
+                        .expect("remote-origin control-plane request should build"),
+                )
+                .await
+                .expect("remote-origin control-plane request should return a response");
+            let status = response.status();
+            let headers = response.headers().clone();
+
+            assert_eq!(
+                status,
+                StatusCode::OK,
+                "expected successful control-plane response for {path}",
+            );
+            assert_eq!(
+                header_value(&headers, &header::ACCESS_CONTROL_ALLOW_ORIGIN).as_deref(),
+                None,
+                "remote origin should not be mirrored for {path}",
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn openapi_discovery_route_returns_native_document_metadata() {
         let app = build_router(build_server_state_with_rollout_data_dir(
             create_test_rollout_data_dir("openapi-discovery"),
@@ -5263,6 +5362,7 @@ mod tests {
     }
 
     const DESKTOP_HOSTED_BROWSER_ORIGIN: &str = "http://127.0.0.1:1426";
+    const REMOTE_BROWSER_ORIGIN: &str = "https://evil.example.com";
     const DESKTOP_BROWSER_SESSION_TOKEN: &str = "desktop-session-token";
 
     fn build_desktop_combined_browser_session_test_app(label: &str) -> axum::Router {
@@ -5282,10 +5382,22 @@ mod tests {
     }
 
     fn build_cors_preflight_request(path: &str, requested_method: &str) -> Request<Body> {
+        build_cors_preflight_request_with_origin(
+            path,
+            requested_method,
+            DESKTOP_HOSTED_BROWSER_ORIGIN,
+        )
+    }
+
+    fn build_cors_preflight_request_with_origin(
+        path: &str,
+        requested_method: &str,
+        origin: &str,
+    ) -> Request<Body> {
         Request::builder()
             .method("OPTIONS")
             .uri(path)
-            .header(header::ORIGIN, DESKTOP_HOSTED_BROWSER_ORIGIN)
+            .header(header::ORIGIN, origin)
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, requested_method)
             .header(
                 header::ACCESS_CONTROL_REQUEST_HEADERS,

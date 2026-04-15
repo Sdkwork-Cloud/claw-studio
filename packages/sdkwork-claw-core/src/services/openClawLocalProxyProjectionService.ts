@@ -5,14 +5,15 @@ import type {
   StudioWorkbenchLLMProviderRequestOverridesRecord,
 } from '@sdkwork/claw-types';
 import {
-  LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY,
   normalizeLocalAiProxyRouteRecords,
   selectDefaultLocalAiProxyRoute,
 } from './localAiProxyRouteService.ts';
 import { normalizeOpenClawProviderRequestOverrides } from './openClawProviderRuntimeConfigService.ts';
 
 export const OPENCLAW_LOCAL_PROXY_PROVIDER_ID = 'sdkwork-local-proxy';
-export const OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY = LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY;
+export const OPENCLAW_LOCAL_PROXY_TOKEN_ENV_VAR = 'SDKWORK_LOCAL_PROXY_TOKEN';
+export const OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER = '${SDKWORK_LOCAL_PROXY_TOKEN}';
+export const OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY = OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER;
 
 export interface OpenClawLocalProxyProjectionProviderModel {
   id: string;

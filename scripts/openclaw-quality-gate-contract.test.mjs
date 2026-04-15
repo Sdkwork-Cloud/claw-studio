@@ -32,6 +32,17 @@ runTest('workspace lint compiles both web and desktop hosts before parity and au
   assert.match(packageJson.scripts.lint, /pnpm check:automation/);
 });
 
+runTest('automation gate freezes browser secret and persistence boundary contracts', () => {
+  assert.match(
+    packageJson.scripts['check:automation'] ?? '',
+    /node scripts\/client-secret-boundary-contract\.test\.mjs/,
+  );
+  assert.match(
+    packageJson.scripts['check:automation'] ?? '',
+    /node scripts\/browser-persistence-policy-contract\.test\.mjs/,
+  );
+});
+
 runTest('OpenClaw quality gate keeps fact-source tests in parity runners', () => {
   const foundationRunner = read('scripts/run-sdkwork-foundation-check.mjs');
   const instancesRunner = read('scripts/run-sdkwork-instances-check.mjs');

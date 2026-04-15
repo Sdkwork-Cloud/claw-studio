@@ -60,13 +60,14 @@ Desktop is now one release family inside the broader packaging system. The GitHu
 Desktop runtime behavior relies on typed environment configuration from the infrastructure layer. Common variables include:
 
 - `VITE_API_BASE_URL`
-- `VITE_ACCESS_TOKEN`
 - `VITE_APP_ID`
 - `VITE_RELEASE_CHANNEL`
 - `VITE_DISTRIBUTION_ID`
 - `VITE_PLATFORM`
 - `VITE_TIMEOUT`
 - `VITE_ENABLE_STARTUP_UPDATE_CHECK`
+
+Desktop shells keep privileged credentials in trusted hosts or host-mediated auth flows rather than injecting root tokens through Vite env.
 
 The root `.env.example` and `packages/sdkwork-claw-desktop/.env.example` document these values.
 

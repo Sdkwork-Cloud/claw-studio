@@ -43,3 +43,21 @@ await runTest('provider config center lets users open route details from the row
   assert.equal(doubleClickIndex < editIndex, true);
   assert.equal(doubleClickIndex < testIndex, true);
 });
+
+await runTest(
+  'provider config center disables unsupported quick-apply and test actions instead of exposing false affordances',
+  () => {
+    const source = readFileSync(new URL('./ProviderConfigCenter.tsx', import.meta.url), 'utf8');
+
+    assert.match(source, /providerConfigCenterService\.getActionSupport\(/);
+    assert.match(source, /resolveActionSupportReasonLabel\(/);
+    assert.match(source, /case 'quickApplyRequiresLoopback':/);
+    assert.match(source, /disabled=\{!actionSupport\.quickApply\.available\}/);
+    assert.match(source, /title=\{resolveActionSupportReasonLabel\(t, actionSupport\.quickApply\) \|\| undefined\}/);
+    assert.match(source, /disabled=\{!actionSupport\.test\.available \|\| Boolean\(testingRouteId\)\}/);
+    assert.match(
+      source,
+      /title=\{actionSupport\.test\.available \? undefined : resolveActionSupportReasonLabel\(t, actionSupport\.test\) \|\| undefined\}/,
+    );
+  },
+);

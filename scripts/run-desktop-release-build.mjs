@@ -6,6 +6,10 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import {
+  buildDesktopCargoTargetEnv,
+  resolveDesktopCargoTargetDir,
+} from './desktop-cargo-target.mjs';
 import { withRustToolchainPath } from './ensure-tauri-rust-toolchain.mjs';
 import { normalizeViteMode } from './run-vite-host.mjs';
 import { withSupportedWindowsCmakeGenerator } from './desktop-build-helpers.mjs';
@@ -199,7 +203,13 @@ export function createDesktopReleaseBuildPlan({
         targetTriple: requestedTargetTriple,
       })
     : { ...env };
-  const rustToolchainEnv = withRustToolchainPath(resolvedEnv, { platform });
+  const cargoTargetEnv = buildDesktopCargoTargetEnv({
+    workspaceRootDir: rootDir,
+    env: resolvedEnv,
+    platform,
+    cwd: rootDir,
+  });
+  const rustToolchainEnv = withRustToolchainPath(cargoTargetEnv, { platform });
   rustToolchainEnv.SDKWORK_VITE_MODE = normalizeViteMode(
     viteMode ?? rustToolchainEnv.SDKWORK_VITE_MODE,
     'production',
@@ -234,7 +244,9 @@ export function buildDesktopReleaseBuildPreflightPlan({
   targetTriple = '',
   phase = 'all',
 } = {}) {
-  if (!shouldRunOpenClawBundlePreflight(phase)) {
+  const normalizedPhase = String(phase ?? 'all').trim().toLowerCase() || 'all';
+
+  if (!shouldRunOpenClawBundlePreflight(normalizedPhase)) {
     return null;
   }
 
@@ -252,7 +264,9 @@ export function buildDesktopReleaseBuildPreflightPlan({
 
   return {
     command: process.execPath,
-    args: ['scripts/verify-desktop-openclaw-release-assets.mjs'],
+    args: normalizedPhase === 'all'
+      ? ['scripts/prepare-openclaw-runtime.mjs']
+      : ['scripts/verify-desktop-openclaw-release-assets.mjs'],
     cwd: rootDir,
     env: withSupportedWindowsCmakeGenerator(
       withRustToolchainPath(targetEnv, { platform }),
@@ -571,6 +585,13 @@ function runCli() {
       process.exit(1);
     }
 
+    const desktopTargetDir = resolveDesktopCargoTargetDir({
+      workspaceRootDir: rootDir,
+      env: plan.env,
+      platform: process.platform,
+      cwd: rootDir,
+    });
+
     const repairedMacosDmg =
       (code ?? 0) !== 0
       && options.phase === 'bundle'
@@ -578,6 +599,7 @@ function runCli() {
         platform: process.platform,
         targetTriple: options.targetTriple,
         bundleTargets: plan.bundleTargets,
+        targetDir: desktopTargetDir,
       });
 
     if (
@@ -587,6 +609,7 @@ function runCli() {
         platform: process.platform,
         targetTriple: options.targetTriple,
         bundleTargets: plan.bundleTargets,
+        targetDir: desktopTargetDir,
       })
     ) {
       if (repairedMacosDmg) {

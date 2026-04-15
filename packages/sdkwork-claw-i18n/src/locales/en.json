@@ -298,8 +298,11 @@
         "endpoint": "Endpoint"
       },
       "runtimeStates": {
+        "inactive": "Inactive",
+        "ready": "Ready",
         "running": "Running",
         "starting": "Starting",
+        "stopping": "Stopping",
         "recovering": "Recovering",
         "degraded": "Degraded",
         "crashLoop": "Crash Loop",
@@ -350,6 +353,7 @@
         "startupEvidence": "Startup Evidence",
         "storage": "Storage",
         "provenance": "Provenance",
+        "runtimeAuthority": "Runtime Authority",
         "capabilityRollup": "Capability Rollup",
         "managedDirectories": "Managed Directories",
         "supervisorAndBundles": "Supervisor And Bundles",
@@ -427,6 +431,10 @@
         "configPath": "Config Path",
         "runtimeHome": "Runtime Home",
         "runtimeInstallDir": "Runtime Install Dir",
+        "managedConfigPath": "Managed Config Path",
+        "ownedRuntimeRoot": "Owned Runtime Root {{index}}",
+        "supportsLoopbackHealthProbe": "Supports Loopback Health Probe",
+        "healthProbeTimeoutMs": "Health Probe Timeout",
         "machineState": "Machine State",
         "machineStaging": "Machine Staging",
         "userRoot": "User Root",
@@ -510,6 +518,7 @@
         "unknown": "Unknown"
       },
       "localAiProxyLifecycle": {
+        "ready": "Ready",
         "running": "Running",
         "failed": "Failed",
         "stopped": "Stopped",
@@ -1634,7 +1643,7 @@
       "dependencyHint": "{{count}} dependency checks need attention",
       "reviewHint": "Review setup requirements before installing",
       "hostPlatforms": "Hosts",
-      "catalogAppFallback": "Open details to inspect variants, dependencies, and installation guidance.",
+      "catalogAppFallback": "Open details to review the official access links and integration notes.",
       "categoryCount": "{{count}} apps",
       "emptyCatalogTitle": "No catalog entries available",
       "emptyCatalogDescription": "No externally linked apps are available for this host yet.",
@@ -1669,6 +1678,7 @@
       "dependencyChecks": "{{count}} dependency checks",
       "installStatusNote": "State comes from the Rust assessment record for this selected profile.",
       "installBlockedFallback": "Install is currently blocked.",
+      "externalAccessDescription": "Embedded install flows were removed from Claw Studio. Use the official docs, store page, or direct download link for this app.",
       "methodFallback": "Managed profile",
       "metadata": {
         "registry": "Registry",
@@ -1695,8 +1705,10 @@
         "installAllDependencies": "Install all dependencies",
         "installingDependencies": "Installing dependencies...",
         "installVariant": "Install {{variant}}",
+        "download": "Download",
         "docs": "Docs",
         "openInstallationDocs": "Open installation docs",
+        "openStore": "Open store",
         "profileDocs": "Profile docs",
         "selected": "Selected",
         "useProfile": "Use profile",
@@ -3765,7 +3777,7 @@
       },
       "actions": {
         "setAsActive": "Set as Active",
-        "openOpenClawConsole": "Open OpenClaw Console",
+        "openOpenClawConsole": "Open Control Page",
         "restart": "Restart",
         "stop": "Stop",
         "start": "Start",
@@ -6566,7 +6578,7 @@
       "installedInCount": "Installed in {{count, number}} instances",
       "installed": "Installed",
       "builtIn": "Built-In",
-      "instanceStatus": "{{type}} 路 {{host}} 路 {{status}}",
+      "instanceStatus": "{{type}} / {{host}} / {{status}}",
       "instanceAgentCount": "{{count, number}} agents installed"
     },
     "error": {
@@ -7080,6 +7092,7 @@
         "observabilityDbPath": "Observability DB"
       },
       "runtimeLifecycle": {
+        "ready": "Ready",
         "running": "Running",
         "failed": "Failed",
         "stopped": "Stopped",
@@ -7221,6 +7234,13 @@
       "selectAllAgents": "Select All",
       "clearAgentSelection": "Clear",
       "applyConfig": "Apply Config"
+    },
+    "actionSupportReasons": {
+      "runtimeUnavailable": "Local proxy runtime is not available on the active host.",
+      "runtimeStatusUnavailable": "Local proxy runtime status is temporarily unavailable.",
+      "quickApplyTargetsUnavailable": "Quick apply targets are temporarily unavailable.",
+      "quickApplyInstanceUnavailable": "No writable OpenClaw instance is available for quick apply.",
+      "quickApplyRequiresLoopback": "Quick apply requires the local proxy runtime to stay loopback-only."
     },
     "import": {
       "sources": {

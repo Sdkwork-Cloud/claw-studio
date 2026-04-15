@@ -68,6 +68,13 @@
     "clearAgentSelection": "Clear",
     "applyConfig": "Apply Config"
   },
+  "actionSupportReasons": {
+    "runtimeUnavailable": "Local proxy runtime is not available on the active host.",
+    "runtimeStatusUnavailable": "Local proxy runtime status is temporarily unavailable.",
+    "quickApplyTargetsUnavailable": "Quick apply targets are temporarily unavailable.",
+    "quickApplyInstanceUnavailable": "No writable OpenClaw instance is available for quick apply.",
+    "quickApplyRequiresLoopback": "Quick apply requires the local proxy runtime to stay loopback-only."
+  },
   "import": {
     "sources": {
       "codex": {

@@ -237,6 +237,21 @@ pub struct DesktopOpenClawProviderProjectionInfo {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DesktopOpenClawRuntimeAuthorityProbeInfo {
+    pub supports_loopback_health_probe: bool,
+    pub health_probe_timeout_ms: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopOpenClawRuntimeAuthorityInfo {
+    pub managed_config_path: String,
+    pub owned_runtime_roots: Vec<String>,
+    pub readiness_probe: DesktopOpenClawRuntimeAuthorityProbeInfo,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DesktopOpenClawRuntimeInfo {
     pub runtime_id: String,
     pub lifecycle: String,
@@ -264,6 +279,7 @@ pub struct DesktopOpenClawRuntimeInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub local_ai_proxy_base_url: Option<String>,
     pub local_ai_proxy_snapshot_path: String,
+    pub authority: DesktopOpenClawRuntimeAuthorityInfo,
     pub provider_projection: DesktopOpenClawProviderProjectionInfo,
     pub startup_chain: Vec<DesktopOpenClawRuntimeStageInfo>,
 }

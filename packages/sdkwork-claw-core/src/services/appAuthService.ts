@@ -1,5 +1,4 @@
 import type {
-  EmailLoginForm,
   LoginForm,
   LoginVO,
   OAuthAuthUrlForm,
@@ -25,7 +24,10 @@ import {
   readAppSdkSessionTokens,
   resolveAppSdkAccessToken,
 } from '../sdk/useAppSdkClient.ts';
-import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import {
+  type AppSdkEnvelope,
+  unwrapAppSdkResponse,
+} from '../sdk/appSdkResult.ts';
 
 export type AppAuthVerifyType = 'EMAIL' | 'PHONE';
 export type AppAuthScene = 'LOGIN' | 'REGISTER' | 'RESET_PASSWORD';
@@ -129,6 +131,27 @@ export interface AppAuthLoginQrCodeStatusResult {
   userInfo?: UserInfoVO;
 }
 
+interface AppAuthEmailLoginForm {
+  email: string;
+  code: string;
+  deviceId?: string;
+  deviceType?: AppAuthOAuthDeviceType;
+  deviceName?: string;
+  appVersion?: string;
+}
+
+interface AppAuthClientCompat {
+  emailLogin?: (
+    body: AppAuthEmailLoginForm,
+  ) => Promise<LoginVO | AppSdkEnvelope<LoginVO> | null | undefined>;
+  createSendSmsCode?: (
+    body: VerifyCodeSendForm,
+  ) => Promise<void | AppSdkEnvelope<void> | null | undefined>;
+  verifySmsCode?: (
+    body: VerifyCodeCheckForm,
+  ) => Promise<VerifyResultVO | AppSdkEnvelope<VerifyResultVO> | null | undefined>;
+}
+
 export interface IAppAuthService {
   login(input: AppAuthLoginInput): Promise<AppAuthSession>;
   loginWithPhone(input: AppAuthPhoneLoginInput): Promise<AppAuthSession>;
@@ -181,6 +204,12 @@ function readOptionalString(value?: string | null): string | undefined {
   return normalized || undefined;
 }
 
+function readOptionalDeviceType(
+  value?: AppAuthOAuthDeviceType | null,
+): AppAuthOAuthDeviceType | undefined {
+  return value ? value : undefined;
+}
+
 function resolveRegisterType(input: AppAuthRegisterInput): RegisterForm['type'] | undefined {
   if (input.type) {
     return input.type;
@@ -225,7 +254,10 @@ function resolveAppSdkApiUrl(pathname: string): string {
   return `${baseUrl.replace(/\/+$/, '')}${apiPath}`;
 }
 
-async function postAppSdkAuthFallback<T>(pathname: string, body: unknown): Promise<T> {
+async function postAppSdkAuthFallback<T>(
+  pathname: string,
+  body: unknown,
+): Promise<T | AppSdkEnvelope<T>> {
   const response = await fetch(resolveAppSdkApiUrl(pathname), {
     method: 'POST',
     headers: {
@@ -270,21 +302,19 @@ export const appAuthService: IAppAuthService = {
 
   async loginWithEmail(input: AppAuthEmailLoginInput): Promise<AppAuthSession> {
     const client = getAppSdkClientWithSession();
-    const authClient = client.auth as typeof client.auth & {
-      emailLogin?: (body: EmailLoginForm) => Promise<unknown>;
-    };
-    const request: EmailLoginForm = {
+    const authClient = client.auth as typeof client.auth & AppAuthClientCompat;
+    const request: AppAuthEmailLoginForm = {
       email: input.email.trim(),
       code: input.code.trim(),
       deviceId: readOptionalString(input.deviceId),
-      deviceType: readOptionalString(input.deviceType),
+      deviceType: readOptionalDeviceType(input.deviceType),
       deviceName: readOptionalString(input.deviceName),
       appVersion: readOptionalString(input.appVersion),
     };
     const loginData = unwrapAppSdkResponse<LoginVO>(
       authClient.emailLogin
         ? await authClient.emailLogin(request)
-        : await postAppSdkAuthFallback('/auth/email/login', request),
+        : await postAppSdkAuthFallback<LoginVO>('/auth/email/login', request),
       'Failed to complete email code login.',
     );
     return persistSession(mapSession(loginData));
@@ -342,16 +372,23 @@ export const appAuthService: IAppAuthService = {
 
   async sendVerifyCode(input: AppAuthSendVerifyCodeInput): Promise<void> {
     const client = getAppSdkClientWithSession();
+    const authClient = client.auth as typeof client.auth & AppAuthClientCompat;
     const request: VerifyCodeSendForm = {
       target: input.target.trim(),
       type: mapScene(input.scene),
       verifyType: mapVerifyType(input.verifyType),
     };
-    unwrapAppSdkResponse(await client.auth.sendSmsCode(request), 'Failed to send verify code.');
+    unwrapAppSdkResponse(
+      authClient.createSendSmsCode
+        ? await authClient.createSendSmsCode(request)
+        : await postAppSdkAuthFallback<void>('/auth/verify/send', request),
+      'Failed to send verify code.',
+    );
   },
 
   async verifyCode(input: AppAuthVerifyCodeInput): Promise<boolean> {
     const client = getAppSdkClientWithSession();
+    const authClient = client.auth as typeof client.auth & AppAuthClientCompat;
     const request: VerifyCodeCheckForm = {
       target: input.target.trim(),
       type: mapScene(input.scene),
@@ -359,7 +396,9 @@ export const appAuthService: IAppAuthService = {
       code: input.code.trim(),
     };
     const result = unwrapAppSdkResponse<VerifyResultVO>(
-      await client.auth.verifySmsCode(request),
+      authClient.verifySmsCode
+        ? await authClient.verifySmsCode(request)
+        : await postAppSdkAuthFallback<VerifyResultVO>('/auth/verify/check', request),
       'Failed to verify code.',
     );
     return Boolean(result?.valid);

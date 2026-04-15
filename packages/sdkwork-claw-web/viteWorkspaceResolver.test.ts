@@ -12,8 +12,19 @@ import {
 
 const packagesRoot = path.resolve(process.cwd(), 'packages');
 const currentWorkspaceRoot = path.resolve(process.cwd());
+const canonicalWorkspaceRoot = currentWorkspaceRoot.includes(`${path.sep}.worktrees${path.sep}`)
+  ? path.resolve(currentWorkspaceRoot, '..', '..')
+  : currentWorkspaceRoot;
+const expectedCorePcReactRoot = path.resolve(
+  canonicalWorkspaceRoot,
+  '../sdkwork-core/sdkwork-core-pc-react/src/index.ts',
+);
+const expectedCorePcReactAppRoot = path.resolve(
+  canonicalWorkspaceRoot,
+  '../sdkwork-core/sdkwork-core-pc-react/src/app/index.ts',
+);
 const worktreeRoot = path.resolve(
-  currentWorkspaceRoot,
+  canonicalWorkspaceRoot,
   '.worktrees/codex-openclaw-gateway-webchat',
 );
 
@@ -28,11 +39,11 @@ test('resolveWorkspacePackageEntry maps @sdkwork workspace packages into the cur
   );
   assert.equal(
     resolveWorkspacePackageEntry('@sdkwork/core-pc-react', packagesRoot),
-    path.resolve(packagesRoot, '../../sdkwork-core/sdkwork-core-pc-react/src/index.ts'),
+    expectedCorePcReactRoot,
   );
   assert.equal(
     resolveWorkspacePackageEntry('@sdkwork/core-pc-react/app', packagesRoot),
-    path.resolve(packagesRoot, '../../sdkwork-core/sdkwork-core-pc-react/src/app/index.ts'),
+    expectedCorePcReactAppRoot,
   );
   assert.equal(resolveWorkspacePackageEntry('react', packagesRoot), null);
 });
@@ -59,7 +70,7 @@ test('resolveWorkspacePackageAliases creates direct aliases for local @sdkwork/c
   assert.ok(corePcReactAppAlias);
   assert.equal(
     corePcReactAppAlias?.replacement,
-    path.resolve(packagesRoot, '../../sdkwork-core/sdkwork-core-pc-react/src/app/index.ts'),
+    expectedCorePcReactAppRoot,
   );
   assert.ok(corePcReactRootAlias);
   assert.ok(corePcReactEnvAlias);
@@ -97,6 +108,22 @@ test('remapWorktreeWorkspaceImport remaps relative imports when the importer com
   );
 });
 
+test('remapWorktreeWorkspaceImport resolves extensionless relative imports to existing source files', () => {
+  const worktreeImporter = path.resolve(
+    worktreeRoot,
+    'packages/sdkwork-claw-web/src/main.tsx',
+  );
+
+  assert.equal(
+    remapWorktreeWorkspaceImport('./App', worktreeImporter, packagesRoot),
+    path.resolve(packagesRoot, 'sdkwork-claw-web/src/App.tsx'),
+  );
+  assert.equal(
+    remapWorktreeWorkspaceImport('./application/app/AppRoot', path.resolve(worktreeRoot, 'packages/sdkwork-claw-shell/src/index.ts'), packagesRoot),
+    path.resolve(packagesRoot, 'sdkwork-claw-shell/src/application/app/AppRoot.tsx'),
+  );
+});
+
 test('remapWorktreeWorkspaceImport preserves Vite /@fs/ prefixes and query suffixes', () => {
   const worktreeSource = path.resolve(
     worktreeRoot,
@@ -122,22 +149,27 @@ test('shouldAttemptWorkspaceResolverRemap fast-rejects imports that cannot targe
     shouldAttemptWorkspaceResolverRemap(
       path.resolve(worktreeRoot, 'packages/sdkwork-claw-infrastructure/src/platform/webStudio.ts'),
       undefined,
+      packagesRoot,
     ),
     true,
   );
   assert.equal(
-    shouldAttemptWorkspaceResolverRemap('../platform/index.ts', worktreeImporter),
+    shouldAttemptWorkspaceResolverRemap('../platform/index.ts', worktreeImporter, packagesRoot),
     true,
   );
   assert.equal(
-    shouldAttemptWorkspaceResolverRemap('../platform/index.ts', path.resolve(packagesRoot, 'sdkwork-claw-web/src/App.tsx')),
+    shouldAttemptWorkspaceResolverRemap(
+      '../platform/index.ts',
+      path.resolve(packagesRoot, 'sdkwork-claw-web/src/App.tsx'),
+      packagesRoot,
+    ),
     false,
   );
 });
 
 test('shouldEnableWorktreeWorkspaceResolver only enables the worktree remap plugin when the workspace or env requires it', () => {
   assert.equal(
-    shouldEnableWorktreeWorkspaceResolver(currentWorkspaceRoot, {}),
+    shouldEnableWorktreeWorkspaceResolver(canonicalWorkspaceRoot, {}),
     false,
   );
   assert.equal(

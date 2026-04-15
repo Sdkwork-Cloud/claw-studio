@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
+import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { runServerBuild } from '../run-claw-server-build.mjs';
+import { inspectTauriTarget } from '../ensure-tauri-target-clean.mjs';
 import {
   DEFAULT_RELEASE_PROFILE_ID,
 } from './release-profiles.mjs';
@@ -16,9 +18,11 @@ import {
   packageKubernetesAssets,
   packageServerAssets,
   packageWebAssets,
+  resolveExistingDesktopBundleRoot,
 } from './package-release-assets.mjs';
 import { finalizeReleaseAssets } from './finalize-release-assets.mjs';
 import {
+  buildDesktopReleaseEnv,
   buildDesktopTargetTriple,
   normalizeDesktopArch,
   normalizeDesktopPlatform,
@@ -46,6 +50,12 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..', '..');
+const desktopSrcTauriDir = path.join(
+  rootDir,
+  'packages',
+  'sdkwork-claw-desktop',
+  'src-tauri',
+);
 const serverBuildTargetDir = path.join(
   rootDir,
   'packages',
@@ -140,6 +150,89 @@ export function ensureLocalServerBuildPrerequisite({
   return {
     binaryPath,
     built: true,
+  };
+}
+
+export function runLocalDesktopBuild({
+  profileId = DEFAULT_RELEASE_PROFILE_ID,
+  targetTriple = '',
+  spawnSyncImpl = spawnSync,
+} = {}) {
+  const args = [
+    'scripts/run-desktop-release-build.mjs',
+    '--profile',
+    String(profileId ?? '').trim() || DEFAULT_RELEASE_PROFILE_ID,
+  ];
+  const normalizedTargetTriple = String(targetTriple ?? '').trim();
+  if (normalizedTargetTriple) {
+    args.push('--target', normalizedTargetTriple);
+  }
+
+  const result = spawnSyncImpl(process.execPath, args, {
+    cwd: rootDir,
+    stdio: 'inherit',
+    shell: false,
+  });
+
+  if (result?.error) {
+    throw result.error;
+  }
+  if (result?.signal) {
+    throw new Error(`Desktop release build exited with signal ${result.signal}`);
+  }
+  if ((result?.status ?? 1) !== 0) {
+    throw new Error(
+      `Desktop release build exited with code ${result?.status ?? 'unknown'}`,
+    );
+  }
+}
+
+export function ensureLocalDesktopBuildPrerequisite({
+  context,
+  fileExists = existsSync,
+  resolveDesktopBundleRoot = resolveExistingDesktopBundleRoot,
+  inspectTauriTargetFn = inspectTauriTarget,
+  runDesktopBuildFn = runLocalDesktopBuild,
+} = {}) {
+  const normalizedMode = String(context?.mode ?? '').trim().toLowerCase();
+  if (normalizedMode !== 'package:desktop') {
+    return null;
+  }
+
+  const inspectionEnv = String(context?.target ?? '').trim()
+    ? buildDesktopReleaseEnv({
+        env: process.env,
+        targetTriple: String(context.target ?? '').trim(),
+      })
+    : process.env;
+  const bundleRoot = resolveDesktopBundleRoot({
+    targetTriple: String(context?.target ?? '').trim(),
+    env: inspectionEnv,
+  });
+  const targetInspection = inspectTauriTargetFn(desktopSrcTauriDir, {
+    env: inspectionEnv,
+  });
+  const bundleReady =
+    typeof bundleRoot === 'string' && bundleRoot.length > 0 && fileExists(bundleRoot);
+  const staleTarget = Boolean(targetInspection?.stale);
+
+  if (bundleReady && !staleTarget) {
+    return {
+      bundleRoot,
+      built: false,
+      staleTarget: false,
+    };
+  }
+
+  runDesktopBuildFn({
+    profileId: context?.profileId,
+    targetTriple: context?.target,
+  });
+
+  return {
+    bundleRoot,
+    built: true,
+    staleTarget,
   };
 }
 
@@ -497,6 +590,8 @@ export async function runLocalReleaseCommand(options = {}) {
   const packageContainerAssetsFn = options.packageContainerAssetsFn ?? packageContainerAssets;
   const packageKubernetesAssetsFn = options.packageKubernetesAssetsFn ?? packageKubernetesAssets;
   const packageWebAssetsFn = options.packageWebAssetsFn ?? packageWebAssets;
+  const ensureLocalDesktopBuildPrerequisiteFn =
+    options.ensureLocalDesktopBuildPrerequisiteFn ?? ensureLocalDesktopBuildPrerequisite;
   const smokeDesktopInstallersFn = options.smokeDesktopInstallersFn ?? smokeDesktopInstallers;
   const smokeDesktopStartupEvidenceFn =
     options.smokeDesktopStartupEvidenceFn ?? smokeDesktopStartupEvidence;
@@ -516,6 +611,9 @@ export async function runLocalReleaseCommand(options = {}) {
   }
 
   if (context.mode === 'package:desktop') {
+    ensureLocalDesktopBuildPrerequisiteFn({
+      context,
+    });
     packageDesktopAssetsFn(context);
     await smokeDesktopInstallersFn(context);
     await smokeDesktopPackagedLaunchFn(context);

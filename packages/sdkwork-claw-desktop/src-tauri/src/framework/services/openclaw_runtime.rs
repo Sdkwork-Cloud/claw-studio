@@ -1,3 +1,6 @@
+use super::local_ai_proxy::{
+    config::ensure_local_ai_proxy_client_api_key, OPENCLAW_LOCAL_PROXY_TOKEN_ENV_VAR,
+};
 use crate::{
     framework::{layout::set_active_runtime_version, paths::AppPaths, FrameworkError, Result},
     platform,
@@ -130,6 +133,18 @@ impl ActivatedOpenClawRuntime {
                 self.gateway_auth_token.clone(),
             ),
         ])
+    }
+
+    pub fn managed_env_with_local_ai_proxy(
+        &self,
+        paths: &AppPaths,
+    ) -> Result<BTreeMap<String, String>> {
+        let mut env = self.managed_env();
+        env.insert(
+            OPENCLAW_LOCAL_PROXY_TOKEN_ENV_VAR.to_string(),
+            ensure_local_ai_proxy_client_api_key(paths)?,
+        );
+        Ok(env)
     }
 }
 
@@ -1246,6 +1261,30 @@ mod tests {
     }
 
     #[test]
+    fn installs_bundled_runtime_and_exports_local_ai_proxy_token_to_managed_env() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+        let managed_env = activated
+            .managed_env_with_local_ai_proxy(&paths)
+            .expect("managed env");
+
+        assert!(managed_env
+            .get("SDKWORK_LOCAL_PROXY_TOKEN")
+            .is_some_and(|token| !token.trim().is_empty()));
+        assert_ne!(
+            managed_env.get("SDKWORK_LOCAL_PROXY_TOKEN"),
+            Some(&"sk_sdkwork_api_key".to_string())
+        );
+    }
+
+    #[test]
     fn activation_fails_when_a_blocking_non_directory_already_exists_at_the_final_install_root() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
@@ -2201,14 +2240,18 @@ mod tests {
         .expect("client bedrock package dir");
         fs::write(
             &openclaw_package_json_path,
-            r#"{
-  "name": "openclaw",
-  "version": "2026.4.2",
-  "dependencies": {
-    "@buape/carbon": "0.0.0-beta-20260327000044"
-  }
-}
-"#,
+            format!(
+                concat!(
+                    "{{\n",
+                    "  \"name\": \"openclaw\",\n",
+                    "  \"version\": \"{}\",\n",
+                    "  \"dependencies\": {{\n",
+                    "    \"@buape/carbon\": \"0.0.0-beta-20260327000044\"\n",
+                    "  }}\n",
+                    "}}\n"
+                ),
+                version
+            ),
         )
         .expect("openclaw package json");
         fs::write(

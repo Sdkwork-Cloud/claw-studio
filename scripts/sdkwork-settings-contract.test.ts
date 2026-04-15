@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { resolveCanonicalWorkspaceRootDir } from './workspace-root.mjs';
 
 const root = process.cwd();
+const canonicalWorkspaceRoot = resolveCanonicalWorkspaceRootDir(root);
 
 function read(relPath: string) {
   return fs.readFileSync(path.join(root, relPath), 'utf8');
@@ -58,11 +60,11 @@ function getLocaleValue(locale: Record<string, unknown>, key: string) {
 }
 
 function readFromRepo(...segments: string[]) {
-  return fs.readFileSync(path.resolve(root, '..', '..', ...segments), 'utf8');
+  return fs.readFileSync(path.resolve(canonicalWorkspaceRoot, '..', '..', ...segments), 'utf8');
 }
 
 function existsInRepo(...segments: string[]) {
-  return fs.existsSync(path.resolve(root, '..', '..', ...segments));
+  return fs.existsSync(path.resolve(canonicalWorkspaceRoot, '..', '..', ...segments));
 }
 
 function runTest(name: string, fn: () => void) {

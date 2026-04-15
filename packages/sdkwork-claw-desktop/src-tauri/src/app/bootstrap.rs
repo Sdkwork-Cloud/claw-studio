@@ -1355,7 +1355,7 @@ mod tests {
         );
         assert_eq!(
             openclaw_config["models"]["providers"]["sdkwork-local-proxy"]["apiKey"],
-            "sk_sdkwork_api_key"
+            "${SDKWORK_LOCAL_PROXY_TOKEN}"
         );
         assert!(
             openclaw_config["models"]["providers"]["sdkwork-local-proxy"]["baseUrl"]

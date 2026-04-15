@@ -63,8 +63,8 @@ export interface AppUpdateClientOptions {
       baseUrl: string;
       timeout: number;
     };
-    auth: {
-      accessToken: string;
+    auth?: {
+      accessToken?: string;
     };
   };
 }

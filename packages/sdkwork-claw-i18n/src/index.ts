@@ -1,8 +1,6 @@
 import { createInstance } from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { initReactI18next } from 'react-i18next';
-import en from './locales/en/index.ts';
-import zh from './locales/zh/index.ts';
 import {
   DEFAULT_LANGUAGE,
   I18N_STORAGE_KEY,
@@ -11,6 +9,8 @@ import {
   SUPPORTED_LANGUAGES,
   getIntlLocale,
   normalizeLanguage,
+  resolveTranslationBundleSourceLanguage,
+  type TranslationBundleSourceLanguage,
 } from './config.ts';
 import {
   detectBrowserLanguage,
@@ -33,28 +33,80 @@ export const languageQueryParameter = LANGUAGE_QUERY_PARAMETER;
 export const resolveRequestLanguage = detectRequestLanguage;
 export { normalizeLanguage, parseCookieValue, getLanguageFromCookieString };
 
-const englishTranslationBundle = { translation: en } as const;
-const chineseTranslationBundle = { translation: zh } as const;
+type TranslationLocale = typeof import('./locales/en/index.ts').default;
+type TranslationResourceBundle = {
+  translation: TranslationLocale;
+};
 
-export const translationResources = {
-  en: englishTranslationBundle,
-  zh: chineseTranslationBundle,
-  'zh-TW': chineseTranslationBundle,
-  fr: englishTranslationBundle,
-  de: englishTranslationBundle,
-  'pt-BR': englishTranslationBundle,
-  ja: englishTranslationBundle,
-  ko: englishTranslationBundle,
-  es: englishTranslationBundle,
-  tr: englishTranslationBundle,
-  uk: englishTranslationBundle,
-  pl: englishTranslationBundle,
-  id: englishTranslationBundle,
-} as const;
+type TranslationResourceMap = Partial<Record<SupportedLanguage, TranslationResourceBundle>>;
+
+export const translationResources: TranslationResourceMap = {};
+
+const translationBundleLoaders: Record<
+  TranslationBundleSourceLanguage,
+  () => Promise<TranslationLocale>
+> = {
+  en: async () => (await import('./locales/en/index.ts')).default,
+  zh: async () => (await import('./locales/zh/index.ts')).default,
+};
+
+const translationBundlePromises = new Map<
+  TranslationBundleSourceLanguage,
+  Promise<TranslationResourceBundle>
+>();
 
 const i18n = createInstance();
 
 let initialization: Promise<typeof i18n> | null = null;
+
+function listTranslationBundleLanguages(
+  sourceLanguage: TranslationBundleSourceLanguage,
+): SupportedLanguage[] {
+  return supportedLanguages.filter(
+    (language) => resolveTranslationBundleSourceLanguage(language) === sourceLanguage,
+  );
+}
+
+async function loadTranslationBundle(
+  sourceLanguage: TranslationBundleSourceLanguage,
+): Promise<TranslationResourceBundle> {
+  const existing = translationBundlePromises.get(sourceLanguage);
+  if (existing) {
+    return existing;
+  }
+
+  const pending = translationBundleLoaders[sourceLanguage]().then((translation) => ({
+    translation,
+  }));
+  translationBundlePromises.set(sourceLanguage, pending);
+  return pending;
+}
+
+function registerTranslationBundle(
+  language: SupportedLanguage,
+  bundle: TranslationResourceBundle,
+) {
+  translationResources[language] = bundle;
+
+  if (i18n.isInitialized && !i18n.hasResourceBundle(language, 'translation')) {
+    i18n.addResourceBundle(language, 'translation', bundle.translation, true, true);
+  }
+}
+
+async function ensureTranslationResources(language: SupportedLanguage) {
+  const requiredSourceLanguages = new Set<TranslationBundleSourceLanguage>([
+    resolveTranslationBundleSourceLanguage(defaultLanguage),
+    resolveTranslationBundleSourceLanguage(language),
+  ]);
+
+  for (const sourceLanguage of requiredSourceLanguages) {
+    const bundle = await loadTranslationBundle(sourceLanguage);
+
+    for (const bundleLanguage of listTranslationBundleLanguages(sourceLanguage)) {
+      registerTranslationBundle(bundleLanguage, bundle);
+    }
+  }
+}
 
 function getLanguageFromQuery() {
   if (typeof window === 'undefined') {
@@ -89,8 +141,12 @@ function persistLanguage(language: SupportedLanguage) {
 }
 
 export async function ensureI18n(initialLanguage = resolveInitialLanguage()) {
+  const nextLanguage = normalizeLanguage(initialLanguage);
+
   if (!initialization) {
     initialization = (async () => {
+      await ensureTranslationResources(nextLanguage);
+
       if (!i18n.isInitialized) {
         if (typeof window !== 'undefined') {
           i18n.use(LanguageDetector);
@@ -108,8 +164,8 @@ export async function ensureI18n(initialLanguage = resolveInitialLanguage()) {
           },
         };
         await i18n.init({
-          resources: translationResources,
-          lng: normalizeLanguage(initialLanguage),
+          resources: translationResources as Record<SupportedLanguage, TranslationResourceBundle>,
+          lng: nextLanguage,
           fallbackLng: defaultLanguage,
           supportedLngs: [...supportedLanguages],
           load: 'currentOnly',
@@ -134,7 +190,8 @@ export async function ensureI18n(initialLanguage = resolveInitialLanguage()) {
   }
 
   const instance = await initialization;
-  const nextLanguage = normalizeLanguage(initialLanguage);
+  await ensureTranslationResources(nextLanguage);
+
   if (normalizeLanguage(instance.resolvedLanguage ?? instance.language) !== nextLanguage) {
     await instance.changeLanguage(nextLanguage);
   }
@@ -144,8 +201,7 @@ export async function ensureI18n(initialLanguage = resolveInitialLanguage()) {
 }
 
 export async function changeAppLanguage(language: SupportedLanguage) {
-  const instance = await ensureI18n(language);
-  await instance.changeLanguage(normalizeLanguage(language));
+  await ensureI18n(language);
 }
 
 export { i18n };

@@ -78,8 +78,11 @@
       "endpoint": "Endpoint"
     },
     "runtimeStates": {
+      "inactive": "Inactive",
+      "ready": "Ready",
       "running": "Running",
       "starting": "Starting",
+      "stopping": "Stopping",
       "recovering": "Recovering",
       "degraded": "Degraded",
       "crashLoop": "Crash Loop",
@@ -130,6 +133,7 @@
       "startupEvidence": "Startup Evidence",
       "storage": "Storage",
       "provenance": "Provenance",
+      "runtimeAuthority": "Runtime Authority",
       "capabilityRollup": "Capability Rollup",
       "managedDirectories": "Managed Directories",
       "supervisorAndBundles": "Supervisor And Bundles",
@@ -207,6 +211,10 @@
       "configPath": "Config Path",
       "runtimeHome": "Runtime Home",
       "runtimeInstallDir": "Runtime Install Dir",
+      "managedConfigPath": "Managed Config Path",
+      "ownedRuntimeRoot": "Owned Runtime Root {{index}}",
+      "supportsLoopbackHealthProbe": "Supports Loopback Health Probe",
+      "healthProbeTimeoutMs": "Health Probe Timeout",
       "machineState": "Machine State",
       "machineStaging": "Machine Staging",
       "userRoot": "User Root",
@@ -290,6 +298,7 @@
       "unknown": "Unknown"
     },
     "localAiProxyLifecycle": {
+      "ready": "Ready",
       "running": "Running",
       "failed": "Failed",
       "stopped": "Stopped",

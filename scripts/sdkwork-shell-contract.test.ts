@@ -368,7 +368,7 @@ runTest('sdkwork-claw-shell keeps the dual-host provider stack', () => {
   assert.doesNotMatch(languageManagerSource, /getRuntimePlatform\(\)\.setAppLanguage\(languagePreference\)/);
   assert.match(languageManagerSource, /onLanguagePreferenceChange\?:/);
   assert.match(languageManagerSource, /onLanguagePreferenceChange\?\.\(languagePreference\)/);
-  assert.match(languageManagerSource, /i18n\.changeLanguage/);
+  assert.match(languageManagerSource, /ensureI18n\(nextLanguage\)/);
   assert.match(languageManagerSource, /document\.documentElement\.setAttribute\('lang'/);
 });
 

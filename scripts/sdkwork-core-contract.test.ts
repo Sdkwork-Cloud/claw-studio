@@ -288,8 +288,10 @@ runTest('claw hosts keep Vite import-meta typing local to the host packages inst
   assert.doesNotMatch(baseTsconfig, /vite\/client/);
   assert.match(webViteEnv, /\[key:\s*string]: string \| undefined/);
   assert.match(webViteEnv, /interface ImportMeta/);
+  assert.doesNotMatch(webViteEnv, /VITE_ACCESS_TOKEN/);
   assert.match(desktopViteEnv, /interface ImportMetaEnv/);
   assert.match(desktopViteEnv, /\[key:\s*string]: string \| undefined/);
+  assert.doesNotMatch(desktopViteEnv, /VITE_ACCESS_TOKEN/);
   assert.match(desktopViteEnv, /interface ImportMeta/);
   assert.ok(exists('packages/sdkwork-claw-web/src/vite-env.d.ts'));
 });
@@ -310,6 +312,8 @@ runTest('claw workspace defines tracked Vite env files for development, test, an
   const workspacePackageJson = read('package.json');
   const webPackageJson = read('packages/sdkwork-claw-web/package.json');
   const desktopPackageJson = read('packages/sdkwork-claw-desktop/package.json');
+  const webEnvExampleSource = read('packages/sdkwork-claw-web/.env.example');
+  const desktopEnvExampleSource = read('packages/sdkwork-claw-desktop/.env.example');
   const webViteConfig = read('packages/sdkwork-claw-web/vite.config.ts');
   const desktopViteConfig = read('packages/sdkwork-claw-desktop/vite.config.ts');
   const appSdkSource = read('packages/sdkwork-claw-core/src/sdk/useAppSdkClient.ts');
@@ -323,19 +327,22 @@ runTest('claw workspace defines tracked Vite env files for development, test, an
     envExampleSource,
     /Keep real secrets in \.env\.development\.local or another ignored local env file\./,
   );
+  assert.doesNotMatch(envExampleSource, /VITE_ACCESS_TOKEN=/);
   assert.match(envDevelopmentSource, /VITE_APP_ENV=development/);
   assert.match(envDevelopmentSource, /VITE_API_BASE_URL=https:\/\/api-dev\.sdkwork\.com/);
-  assert.match(envDevelopmentSource, /VITE_ACCESS_TOKEN=/);
+  assert.doesNotMatch(envDevelopmentSource, /VITE_ACCESS_TOKEN=/);
   assert.match(
     envDevelopmentSource,
-    /Use \.env\.development\.local for a real token when needed\./,
+    /Keep committed defaults secret-free and host-mediated\./,
   );
   assert.match(envTestSource, /VITE_APP_ENV=test/);
   assert.match(envTestSource, /VITE_API_BASE_URL=https:\/\/api-test\.sdkwork\.com/);
-  assert.match(envTestSource, /VITE_ACCESS_TOKEN=/);
+  assert.doesNotMatch(envTestSource, /VITE_ACCESS_TOKEN=/);
   assert.match(envProductionSource, /VITE_APP_ENV=production/);
   assert.match(envProductionSource, /VITE_API_BASE_URL=https:\/\/api\.sdkwork\.com/);
-  assert.match(envProductionSource, /VITE_ACCESS_TOKEN=/);
+  assert.doesNotMatch(envProductionSource, /VITE_ACCESS_TOKEN=/);
+  assert.doesNotMatch(webEnvExampleSource, /VITE_ACCESS_TOKEN=/);
+  assert.doesNotMatch(desktopEnvExampleSource, /VITE_ACCESS_TOKEN=/);
   assert.doesNotMatch(envProductionSource, /api-dev\.sdkwork\.com/);
   assert.doesNotMatch(envProductionSource, /api-test\.sdkwork\.com/);
 
@@ -349,9 +356,15 @@ runTest('claw workspace defines tracked Vite env files for development, test, an
   assert.match(workspacePackageJson, /"tauri:build:prod"\s*:\s*"pnpm --dir packages\/sdkwork-claw-desktop tauri:build:prod"/);
 
   assert.match(webPackageJson, /"dev:test"\s*:\s*"node \.\.\/\.\.\/scripts\/run-vite-host\.mjs serve --host 0\.0\.0\.0 --port 3001 --mode test"/);
-  assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production"/);
+  assert.match(
+    webPackageJson,
+    /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production && node \.\.\/\.\.\/scripts\/check-web-performance-budget\.mjs"/,
+  );
   assert.match(webPackageJson, /"build:test"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode test"/);
-  assert.match(webPackageJson, /"build:prod"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production"/);
+  assert.match(
+    webPackageJson,
+    /"build:prod"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production && node \.\.\/\.\.\/scripts\/check-web-performance-budget\.mjs"/,
+  );
 
   assert.match(desktopPackageJson, /"dev:test"\s*:\s*"node \.\.\/\.\.\/scripts\/run-vite-host\.mjs serve --mode test"/);
   assert.match(desktopPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build && node \.\.\/\.\.\/scripts\/verify-desktop-build-assets\.mjs"/);
@@ -365,6 +378,7 @@ runTest('claw workspace defines tracked Vite env files for development, test, an
     assert.match(source, /const workspaceRootDir = path\.resolve\(__dirname, '\.\.\/\.\.'\);/);
     assert.match(source, /loadEnv\(mode, workspaceRootDir, ''\)/);
     assert.match(source, /envDir:\s*workspaceRootDir/);
+    assert.doesNotMatch(source, /import\.meta\.env\.VITE_ACCESS_TOKEN/);
   }
 
   assert.doesNotMatch(appSdkSource, /DEFAULT_DEV_BASE_URL/);
@@ -394,20 +408,32 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   const nodeTypeScriptRunner = read('scripts/run-node-typescript-check.mjs');
   const prepareSharedSdkScript = read('scripts/prepare-shared-sdk-packages.mjs');
   const prepareGitSourcesScript = read('scripts/prepare-shared-sdk-git-sources.mjs');
-  const openchatImSdkPackageJson = read(
-    '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/composed/package.json',
-  );
-  const openchatImWukongimAdapterPackageJson = read(
-    '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/adapter-wukongim/package.json',
-  );
 
   assert.match(npmrc, /link-workspace-packages\s*=\s*true/);
   assert.match(workspaceManifest, /spring-ai-plus-app-api/);
   assert.match(workspaceManifest, /sdkwork-sdk-common-typescript/);
   assert.match(workspaceManifest, /sdkwork-core\/sdkwork-core-pc-react/);
+  assert.match(workspaceManifest, /craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/composed/);
+  assert.match(workspaceManifest, /craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/generated\/server-openapi/);
   assert.match(workspaceManifest, /openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/composed/);
   assert.match(workspaceManifest, /openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/adapter-wukongim/);
   assert.match(workspaceManifest, /openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/generated\/server-openapi/);
+  assert.match(workspaceManifest, /'\.\.\/\.\.\/spring-ai-plus-app-api\/sdkwork-sdk-app\/sdkwork-app-sdk-typescript'/);
+  assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/\.\.\/spring-ai-plus-app-api\/sdkwork-sdk-app\/sdkwork-app-sdk-typescript'/);
+  assert.match(workspaceManifest, /'\.\.\/\.\.\/sdk\/sdkwork-sdk-commons\/sdkwork-sdk-common-typescript'/);
+  assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/\.\.\/sdk\/sdkwork-sdk-commons\/sdkwork-sdk-common-typescript'/);
+  assert.match(workspaceManifest, /'\.\.\/sdkwork-core\/sdkwork-core-pc-react'/);
+  assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/sdkwork-core\/sdkwork-core-pc-react'/);
+  assert.match(workspaceManifest, /'\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/composed'/);
+  assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/composed'/);
+  assert.match(workspaceManifest, /'\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/generated\/server-openapi'/);
+  assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/generated\/server-openapi'/);
+  assert.match(workspaceManifest, /'\.\.\/openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/composed'/);
+  assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/composed'/);
+  assert.match(workspaceManifest, /'\.\.\/openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/adapter-wukongim'/);
+  assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/adapter-wukongim'/);
+  assert.match(workspaceManifest, /'\.\.\/openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/generated\/server-openapi'/);
+  assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/generated\/server-openapi'/);
   assert.ok(exists('config/shared-sdk-release-sources.json'));
   assert.match(sharedSdkReleaseConfig, /sdkwork-sdk-app\.git/);
   assert.match(sharedSdkReleaseConfig, /sdkwork-sdk-commons\.git/);
@@ -420,7 +446,10 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.doesNotMatch(sharedSdkReleaseConfig, /"ref"\s*:\s*"main"/);
   assert.match(workspacePackageJson, /"prepare:shared-sdk"\s*:\s*"node scripts\/prepare-shared-sdk-packages\.mjs"/);
   assert.match(workspacePackageJson, /"build"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web build"/);
-  assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production"/);
+  assert.match(
+    webPackageJson,
+    /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production && node \.\.\/\.\.\/scripts\/check-web-performance-budget\.mjs"/,
+  );
   assert.match(desktopPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build && node \.\.\/\.\.\/scripts\/verify-desktop-build-assets\.mjs"/);
   assert.match(workspacePackageJson, /"check:sdkwork-core"\s*:\s*"node scripts\/run-sdkwork-core-check\.mjs"/);
   assert.match(prepareSharedSdkScript, /SDKWORK_SHARED_SDK_MODE/);
@@ -444,18 +473,6 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-im-sdk\.git/);
   assert.doesNotMatch(prepareGitSourcesScript, /vendor\/shared-sdk/);
   assert.doesNotMatch(prepareGitSourcesScript, /materializePackageRootFromVendoredSource/);
-  assert.doesNotMatch(openchatImSdkPackageJson, /\.\.\/\.\.\/\.\.\/node_modules/);
-  assert.doesNotMatch(openchatImWukongimAdapterPackageJson, /\.\.\/\.\.\/\.\.\/node_modules/);
-  assert.match(openchatImSdkPackageJson, /"build"\s*:\s*"vite build"/);
-  assert.match(openchatImSdkPackageJson, /"typecheck"\s*:\s*"tsc -p tsconfig\.build\.json --noEmit"/);
-  assert.match(openchatImSdkPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"typescript"/);
-  assert.match(openchatImSdkPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite"/);
-  assert.match(openchatImSdkPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite-plugin-dts"/);
-  assert.match(openchatImWukongimAdapterPackageJson, /"build"\s*:\s*"vite build"/);
-  assert.match(openchatImWukongimAdapterPackageJson, /"typecheck"\s*:\s*"tsc -p tsconfig\.build\.json --noEmit"/);
-  assert.match(openchatImWukongimAdapterPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"typescript"/);
-  assert.match(openchatImWukongimAdapterPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite"/);
-  assert.match(openchatImWukongimAdapterPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite-plugin-dts"/);
   assert.match(nodeTypeScriptRunner, /--experimental-transform-types/);
   assert.match(nodeTypeScriptRunner, /--disable-warning=ExperimentalWarning/);
   assert.match(nodeTypeScriptRunner, /ts-extension-loader\.mjs/);
@@ -463,6 +480,7 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.match(coreCheckRunner, /sdkwork-core-contract\.test\.ts/);
   assert.match(coreCheckRunner, /accountService\.test\.ts/);
   assert.match(coreCheckRunner, /communityService\.test\.ts/);
+  assert.match(coreCheckRunner, /updateService\.test\.ts/);
   assert.match(coreCheckRunner, /openClawProviderRequestDraftService\.test\.ts/);
   assert.match(coreCheckRunner, /openClawAgentCatalogService\.test\.ts/);
   assert.match(coreCheckRunner, /openClawConfigService\.test\.ts/);

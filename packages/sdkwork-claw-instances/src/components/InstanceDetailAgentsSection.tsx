@@ -101,6 +101,8 @@ function formatAgentStreamingValue(value: boolean, translate: (key: string) => s
     : translate('instances.detail.instanceWorkbench.agents.skillStates.disabled');
 }
 
+const INHERITED_CONFIG_SEPARATOR = ' / ';
+
 export function InstanceDetailAgentsSection({
   workbench,
   snapshot,
@@ -233,7 +235,7 @@ export function InstanceDetailAgentsSection({
                 agentDialogDraft.inherited.fallbackModelsText) ? (
                 <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.model, t)}
-                  {' 路 '}
+                  {INHERITED_CONFIG_SEPARATOR}
                   {agentDialogDraft.inherited.primaryModel || t('common.none')}
                 </div>
               ) : null}
@@ -254,7 +256,7 @@ export function InstanceDetailAgentsSection({
               agentDialogDraft.inherited.fallbackModelsText ? (
                 <div className="mt-2 whitespace-pre-line text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.model, t)}
-                  {' 路 '}
+                  {INHERITED_CONFIG_SEPARATOR}
                   {agentDialogDraft.inherited.fallbackModelsText}
                 </div>
               ) : null}
@@ -292,7 +294,7 @@ export function InstanceDetailAgentsSection({
               agentDialogDraft.inherited.temperature ? (
                 <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.temperature, t)}
-                  {' 路 '}
+                  {INHERITED_CONFIG_SEPARATOR}
                   {agentDialogDraft.inherited.temperature}
                 </div>
               ) : null}
@@ -308,7 +310,7 @@ export function InstanceDetailAgentsSection({
               agentDialogDraft.inherited.topP ? (
                 <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.topP, t)}
-                  {' 路 '}
+                  {INHERITED_CONFIG_SEPARATOR}
                   {agentDialogDraft.inherited.topP}
                 </div>
               ) : null}
@@ -326,7 +328,7 @@ export function InstanceDetailAgentsSection({
               agentDialogDraft.inherited.maxTokens ? (
                 <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.maxTokens, t)}
-                  {' 路 '}
+                  {INHERITED_CONFIG_SEPARATOR}
                   {agentDialogDraft.inherited.maxTokens}
                 </div>
               ) : null}
@@ -344,7 +346,7 @@ export function InstanceDetailAgentsSection({
               agentDialogDraft.inherited.timeoutMs ? (
                 <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.timeoutMs, t)}
-                  {' 路 '}
+                  {INHERITED_CONFIG_SEPARATOR}
                   {agentDialogDraft.inherited.timeoutMs}
                 </div>
               ) : null}
@@ -375,7 +377,7 @@ export function InstanceDetailAgentsSection({
                 agentDialogDraft.inherited.streaming !== null ? (
                   <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                     {formatAgentConfigSource(agentDialogDraft.fieldSources.streaming, t)}
-                    {' 路 '}
+                    {INHERITED_CONFIG_SEPARATOR}
                     {formatAgentStreamingValue(agentDialogDraft.inherited.streaming, t)}
                   </div>
                 ) : null}

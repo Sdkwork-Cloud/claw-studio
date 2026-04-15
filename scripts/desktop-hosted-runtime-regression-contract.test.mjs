@@ -7,6 +7,17 @@ const packageJson = JSON.parse(
   readFileSync(path.join(rootDir, 'package.json'), 'utf8'),
 );
 const desktopCheckScript = packageJson.scripts?.['check:desktop'] ?? '';
+const tauriBridgeSource = readFileSync(
+  path.join(
+    rootDir,
+    'packages',
+    'sdkwork-claw-desktop',
+    'src',
+    'desktop',
+    'tauriBridge.ts',
+  ),
+  'utf8',
+);
 
 assert.match(
   desktopCheckScript,
@@ -30,12 +41,12 @@ assert.match(
 );
 assert.match(
   desktopCheckScript,
-  /cargo test --manifest-path packages\/sdkwork-claw-desktop\/src-tauri\/Cargo\.toml(?: [^&]+)? embedded_host_bootstrap_exposes_structured_browser_bootstrap_descriptor/,
+  /node scripts\/run-cargo\.mjs test --manifest-path packages\/sdkwork-claw-desktop\/src-tauri\/Cargo\.toml(?: [^&]+)? embedded_host_bootstrap_exposes_structured_browser_bootstrap_descriptor/,
   'check:desktop must execute the Rust embedded host bootstrap descriptor regression',
 );
 assert.match(
   desktopCheckScript,
-  /cargo test --manifest-path packages\/sdkwork-claw-desktop\/src-tauri\/Cargo\.toml(?: [^&]+)? embedded_host_bootstrap_exposes_canonical_server_route_families/,
+  /node scripts\/run-cargo\.mjs test --manifest-path packages\/sdkwork-claw-desktop\/src-tauri\/Cargo\.toml(?: [^&]+)? embedded_host_bootstrap_exposes_canonical_server_route_families/,
   'check:desktop must execute the Rust embedded host canonical route regression',
 );
 assert.doesNotMatch(
@@ -57,6 +68,11 @@ assert.doesNotMatch(
   desktopCheckScript,
   /embedded_host_bootstrap_exposes_canonical_server_route_families -- --exact/,
   'desktop embedded host canonical route regressions must not use cargo --exact filtering that skips the target test path',
+);
+assert.match(
+  tauriBridgeSource,
+  /const DESKTOP_HOSTED_RUNTIME_READINESS_RETRY_TIMEOUT_MS = (1[5-9]\d{3}|[2-9]\d{4,});/,
+  'desktop packaged runtime readiness must tolerate 9s-class bundled OpenClaw startup before surfacing a background failure',
 );
 
 console.log(

@@ -87,10 +87,11 @@ const desktopBundledManifestPath = path.join(
 const desktopBundledManifest = existsSync(desktopBundledManifestPath)
   ? JSON.parse(readFileSync(desktopBundledManifestPath, 'utf8'))
   : null;
+const openclawReleaseModule = await import('./openclaw-release.mjs');
 
 assert.equal(
   releaseConfig.stableVersion,
-  '2026.4.9',
+  '2026.4.14',
   'openclaw shared release config must pin the current stable OpenClaw version',
 );
 assert.equal(
@@ -107,6 +108,17 @@ assert.deepEqual(
   releaseConfig.runtimeSupplementalPackages,
   ['@buape/carbon@0.0.0-beta-20260327000044'],
   'openclaw shared release config must pin the bundled supplemental runtime packages',
+);
+assert.deepEqual(
+  releaseConfig.runtimeSupplementalPackageExceptions,
+  [
+    {
+      spec: '@buape/carbon@0.0.0-beta-20260327000044',
+      reason: 'Upstream has not published a stable semver release yet, but the bundled runtime still requires this supplemental package.',
+      reviewedAt: '2026-04-15',
+    },
+  ],
+  'openclaw shared release config must declare explicit prerelease exceptions for bundled supplemental runtime packages that are not yet stable',
 );
 assert.equal(
   sourceComponentRegistry.components.find((entry) => entry.id === 'openclaw')?.bundledVersion,
@@ -150,13 +162,52 @@ assert.match(
 );
 assert.match(
   clawTypesOpenClawReleaseSource,
+  /runtimeSupplementalPackageExceptions:\s*OpenClawReleaseSupplementalPackageException\[\];/,
+  '@sdkwork/claw-types shared OpenClaw release metadata must expose prerelease exception metadata for bundled supplemental packages',
+);
+assert.match(
+  clawTypesOpenClawReleaseSource,
   /runtimeSupplementalPackages:\s*(normalizeRuntimeSupplementalPackages\(\s*metadata\.runtimeSupplementalPackages\s*,?\s*\)|metadata\.runtimeSupplementalPackages|normalizedSupplementalPackages)/,
   '@sdkwork/claw-types must project bundled runtime supplemental packages from the shared release config, with optional normalization',
 );
 assert.match(
   clawTypesOpenClawReleaseSource,
+  /runtimeSupplementalPackageExceptions:\s*(normalizeRuntimeSupplementalPackageExceptions\(\s*metadata\.runtimeSupplementalPackageExceptions\s*,?\s*\)|metadata\.runtimeSupplementalPackageExceptions|normalizedSupplementalPackageExceptions)/,
+  '@sdkwork/claw-types must project prerelease exception metadata from the shared release config, with optional normalization',
+);
+assert.match(
+  clawTypesOpenClawReleaseSource,
+  /validateRuntimeSupplementalPackageExceptions\(/,
+  '@sdkwork/claw-types must validate unstable supplemental packages against explicit prerelease exceptions instead of warning unconditionally',
+);
+assert.match(
+  clawTypesOpenClawReleaseSource,
   /DEFAULT_BUNDLED_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES\s*=\s*OPENCLAW_RELEASE\.runtimeSupplementalPackages/,
   '@sdkwork/claw-types must export the bundled runtime supplemental package list for frontend/runtime consumers',
+);
+assert.match(
+  clawTypesOpenClawReleaseSource,
+  /DEFAULT_BUNDLED_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGE_EXCEPTIONS\s*=\s*OPENCLAW_RELEASE\.runtimeSupplementalPackageExceptions/,
+  '@sdkwork/claw-types must export the bundled runtime supplemental package exception list for parity consumers',
+);
+assert.match(
+  prepareRuntimeSource,
+  /DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGE_EXCEPTIONS/,
+  'prepare-openclaw-runtime must import the bundled prerelease exception list from the shared release metadata module',
+);
+const openclawReleaseScriptSource = readFileSync(
+  path.join(rootDir, 'scripts', 'openclaw-release.mjs'),
+  'utf8',
+);
+assert.match(
+  openclawReleaseScriptSource,
+  /validateRuntimeSupplementalPackageExceptions\(/,
+  'openclaw release metadata loader must validate unstable supplemental packages against explicit prerelease exceptions instead of warning unconditionally',
+);
+assert.doesNotMatch(
+  openclawReleaseScriptSource,
+  /warnUnstableSupplementalPackages\(/,
+  'openclaw release metadata loader must not emit a generic unstable supplemental package warning once the prerelease exception policy exists',
 );
 assert.match(
   webStudioSource,
@@ -206,5 +257,49 @@ for (const { fixturePath, source } of versionFixtureSources) {
     `${fixturePath} should consume the shared bundled OpenClaw version constant instead of hard-coding a fixture version`,
   );
 }
+
+assert.doesNotThrow(
+  () => openclawReleaseModule.validateRuntimeSupplementalPackageExceptions(
+    ['@buape/carbon@0.0.0-beta-20260327000044'],
+    [
+      {
+        spec: '@buape/carbon@0.0.0-beta-20260327000044',
+        reason: 'Approved prerelease dependency for the bundled runtime.',
+        reviewedAt: '2026-04-15',
+      },
+    ],
+    { releaseConfigPath },
+  ),
+  'approved prerelease supplemental packages should pass validation when an explicit exception is declared',
+);
+assert.throws(
+  () => openclawReleaseModule.validateRuntimeSupplementalPackageExceptions(
+    ['@buape/carbon@0.0.0-beta-20260327000044'],
+    [],
+    { releaseConfigPath },
+  ),
+  /require explicit exceptions/i,
+  'unapproved prerelease supplemental packages must fail validation',
+);
+assert.throws(
+  () => openclawReleaseModule.validateRuntimeSupplementalPackageExceptions(
+    ['@buape/carbon@0.0.0-beta-20260327000044'],
+    [
+      {
+        spec: '@buape/carbon@0.0.0-beta-20260327000044',
+        reason: 'Approved prerelease dependency for the bundled runtime.',
+        reviewedAt: '2026-04-15',
+      },
+      {
+        spec: '@other/unused@0.0.1-beta.1',
+        reason: 'Orphaned exception.',
+        reviewedAt: '2026-04-15',
+      },
+    ],
+    { releaseConfigPath },
+  ),
+  /do not match runtimeSupplementalPackages/i,
+  'orphaned prerelease exceptions must fail validation',
+);
 
 console.log('ok - openclaw release metadata stays centralized across scripts, frontend, and desktop runtime');

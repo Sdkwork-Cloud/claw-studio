@@ -51,10 +51,16 @@ function renderList(values: string[], emptyLabel: string) {
 
 function translateRuntimeState(t: Translate, state?: string | null) {
   switch (state) {
+    case 'inactive':
+      return t('settings.kernelCenter.runtimeStates.inactive');
+    case 'ready':
+      return t('settings.kernelCenter.runtimeStates.ready');
     case 'running':
       return t('settings.kernelCenter.runtimeStates.running');
     case 'starting':
       return t('settings.kernelCenter.runtimeStates.starting');
+    case 'stopping':
+      return t('settings.kernelCenter.runtimeStates.stopping');
     case 'recovering':
       return t('settings.kernelCenter.runtimeStates.recovering');
     case 'degraded':
@@ -158,6 +164,8 @@ function translateSupervisorLifecycle(t: Translate, lifecycle?: string | null) {
 
 function translateLocalAiProxyLifecycle(t: Translate, lifecycle?: string | null) {
   switch (lifecycle?.trim().toLowerCase()) {
+    case 'ready':
+      return t('settings.kernelCenter.localAiProxyLifecycle.ready');
     case 'running':
       return t('settings.kernelCenter.localAiProxyLifecycle.running');
     case 'failed':
@@ -357,17 +365,30 @@ export function KernelCenter() {
 
   const notAvailableLabel = t('settings.kernelCenter.values.notAvailable');
   const noneLabel = t('settings.kernelCenter.values.none');
-  const runtimeLabel = translateRuntimeState(t, dashboard?.snapshot?.runtimeState);
-  const topologyLabel = translateTopologyKind(t, dashboard?.snapshot?.topologyKind);
+  const runtimeLabel = translateRuntimeState(
+    t,
+    dashboard?.snapshot?.runtimeState ?? dashboard?.info?.openClawRuntime?.lifecycle,
+  );
+  const topologyLabel = translateTopologyKind(
+    t,
+    dashboard?.snapshot?.topologyKind ?? dashboard?.info?.host?.topology.kind,
+  );
   const serviceManagerLabel = translateServiceManager(
     t,
-    dashboard?.snapshot?.raw.host.serviceManager,
+    dashboard?.snapshot?.raw.host.serviceManager ?? dashboard?.info?.host?.host.serviceManager,
   );
-  const ownershipLabel = translateOwnership(t, dashboard?.snapshot?.raw.host.ownership);
-  const startupModeLabel = translateStartupMode(t, dashboard?.snapshot?.raw.host.startupMode);
+  const ownershipLabel = translateOwnership(
+    t,
+    dashboard?.snapshot?.raw.host.ownership ?? dashboard?.info?.host?.host.ownership,
+  );
+  const startupModeLabel = translateStartupMode(
+    t,
+    dashboard?.snapshot?.raw.host.startupMode ?? dashboard?.info?.host?.host.startupMode,
+  );
   const installSourceLabel = translateInstallSource(
     t,
-    dashboard?.snapshot?.raw.provenance.installSource,
+    dashboard?.snapshot?.raw.provenance.installSource
+      ?? dashboard?.info?.host?.provenance.installSource,
   );
   const host = dashboard?.host ?? {
     serviceManagerLabel: null,
@@ -435,6 +456,12 @@ export function KernelCenter() {
     runtimeHomeDir: null,
     runtimeInstallDir: null,
   };
+  const runtimeAuthority = dashboard?.runtimeAuthority ?? {
+    managedConfigPath: null,
+    ownedRuntimeRoots: [],
+    supportsLoopbackHealthProbe: null,
+    healthProbeTimeoutMs: null,
+  };
   const localAiProxy = dashboard?.localAiProxy ?? {
     lifecycle: 'Unavailable',
     baseUrl: null,
@@ -483,6 +510,7 @@ export function KernelCenter() {
     t,
     localAiProxy.lifecycle,
   );
+  const kernelControlAvailable = Boolean(dashboard?.snapshot || dashboard?.info?.host);
 
   const loadDashboard = async () => {
     setIsLoading(true);
@@ -611,7 +639,7 @@ export function KernelCenter() {
             <Button
               variant="secondary"
               onClick={() => void handleEnsureRunning()}
-              disabled={activeAction !== null}
+              disabled={activeAction !== null || !kernelControlAvailable}
               className="rounded-xl"
             >
               <ShieldCheck className="h-4 w-4" />
@@ -621,7 +649,7 @@ export function KernelCenter() {
             </Button>
             <Button
               onClick={() => void handleRestart()}
-              disabled={activeAction !== null}
+              disabled={activeAction !== null || !kernelControlAvailable}
               className="rounded-xl"
             >
               <RotateCcw className="h-4 w-4" />
@@ -1200,6 +1228,48 @@ export function KernelCenter() {
             />
           </div>
         </Section>
+
+        <div data-slot="kernel-center-runtime-authority">
+          <Section title={t('settings.kernelCenter.sections.runtimeAuthority')}>
+            <div className="space-y-4">
+              <ValueRow
+                label={t('settings.kernelCenter.fields.managedConfigPath')}
+                value={runtimeAuthority.managedConfigPath || null}
+                emptyLabel={notAvailableLabel}
+                mono
+              />
+              {runtimeAuthority.ownedRuntimeRoots.map((root, index) => (
+                <ValueRow
+                  key={`${root}-${index}`}
+                  label={t('settings.kernelCenter.fields.ownedRuntimeRoot', {
+                    index: index + 1,
+                  })}
+                  value={root}
+                  emptyLabel={notAvailableLabel}
+                  mono
+                />
+              ))}
+              <ValueRow
+                label={t('settings.kernelCenter.fields.supportsLoopbackHealthProbe')}
+                value={
+                  runtimeAuthority.supportsLoopbackHealthProbe === null
+                    ? null
+                    : translateBoolean(t, runtimeAuthority.supportsLoopbackHealthProbe)
+                }
+                emptyLabel={notAvailableLabel}
+              />
+              <ValueRow
+                label={t('settings.kernelCenter.fields.healthProbeTimeoutMs')}
+                value={
+                  runtimeAuthority.healthProbeTimeoutMs === null
+                    ? null
+                    : `${runtimeAuthority.healthProbeTimeoutMs} ms`
+                }
+                emptyLabel={notAvailableLabel}
+              />
+            </div>
+          </Section>
+        </div>
 
         <Section title={t('settings.kernelCenter.sections.capabilityRollup')}>
           <div className="space-y-4 text-sm text-zinc-600 dark:text-zinc-400">

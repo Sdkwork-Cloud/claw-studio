@@ -18,12 +18,11 @@ import {
   ShieldCheck,
   Star,
 } from 'lucide-react';
-import Markdown from 'react-markdown';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore, useInstanceStore, useTaskStore } from '@sdkwork/claw-core';
-import { Modal } from '@sdkwork/claw-ui';
+import { MarkdownContent, Modal } from '@sdkwork/claw-ui';
 import type { Review, Skill } from '@sdkwork/claw-types';
 import { instanceService, marketService, mySkillService, type Instance } from '../services';
 import { shouldBlockSkillDetailForLoading } from './marketHydrationPolicy.ts';
@@ -390,7 +389,7 @@ export function SkillDetail() {
           <div className="min-h-[400px]">
             {activeTab === 'readme' && (
               <div className="prose prose-zinc prose-primary max-w-none prose-headings:font-bold prose-h2:text-2xl prose-h3:text-xl prose-p:leading-relaxed prose-p:text-zinc-600 dark:prose-invert dark:prose-p:text-zinc-400">
-                <Markdown>{skill.readme || skill.description}</Markdown>
+                <MarkdownContent content={skill.readme || skill.description} />
               </div>
             )}
 
