@@ -838,6 +838,48 @@ mod tests {
     }
 
     #[test]
+    fn initializes_openclaw_authority_state_files_with_expected_defaults() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        initialize_machine_state(&paths).expect("initialize machine state");
+
+        let authority = serde_json::from_str::<KernelAuthorityState>(
+            &std::fs::read_to_string(&paths.openclaw_authority_file).expect("authority file"),
+        )
+        .expect("authority json");
+        let migrations = serde_json::from_str::<KernelMigrationState>(
+            &std::fs::read_to_string(&paths.openclaw_migrations_file).expect("migrations file"),
+        )
+        .expect("migrations json");
+        let runtime_upgrades = serde_json::from_str::<RuntimeUpgradesState>(
+            &std::fs::read_to_string(&paths.openclaw_runtime_upgrades_file)
+                .expect("runtime upgrades file"),
+        )
+        .expect("runtime upgrades json");
+
+        assert_eq!(authority.layout_version, 1);
+        assert_eq!(authority.runtime_id, "openclaw");
+        assert!(authority.active_install_key.is_none());
+        assert!(authority.managed_config_path.is_none());
+        assert!(authority.owned_runtime_roots.is_empty());
+
+        assert_eq!(migrations.layout_version, 1);
+        assert!(migrations.last_config_source_path.is_none());
+        assert!(migrations.last_data_source_path.is_none());
+        assert!(migrations.last_error.is_none());
+
+        assert!(runtime_upgrades.runtimes.contains_key("openclaw"));
+        assert_eq!(
+            runtime_upgrades
+                .runtimes
+                .get("openclaw")
+                .and_then(|entry| entry.last_applied_version.as_deref()),
+            None
+        );
+    }
+
+    #[test]
     fn sync_component_registry_state_backfills_bundle_defined_components_into_machine_state() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
