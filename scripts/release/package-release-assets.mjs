@@ -20,6 +20,9 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import {
+  resolveDesktopCargoTargetDir,
+} from '../desktop-cargo-target.mjs';
+import {
   normalizeDesktopArch,
   resolveDesktopReleaseTarget,
 } from './desktop-targets.mjs';
@@ -510,37 +513,61 @@ export function buildWebArchiveBaseName(releaseTag) {
 
 export function buildDesktopBundleRootCandidates({
   targetTriple = '',
-  targetDir = desktopTargetDir,
+  targetDir = '',
+  env = process.env,
+  hostPlatform = process.platform,
+  workspaceRootDir = rootDir,
 } = {}) {
   const normalizedTargetTriple = String(targetTriple ?? '').trim();
+  const resolvedTargetDir =
+    typeof targetDir === 'string' && targetDir.trim().length > 0
+      ? path.resolve(targetDir)
+      : resolveDesktopCargoTargetDir({
+        workspaceRootDir,
+        env,
+        platform: hostPlatform,
+        cwd: workspaceRootDir,
+      });
   const candidates = [];
 
   if (normalizedTargetTriple.length > 0) {
-    candidates.push(path.join(targetDir, normalizedTargetTriple, 'release', 'bundle'));
+    candidates.push(path.join(resolvedTargetDir, normalizedTargetTriple, 'release', 'bundle'));
   }
 
-  candidates.push(path.join(targetDir, 'release', 'bundle'));
+  candidates.push(path.join(resolvedTargetDir, 'release', 'bundle'));
 
   return [...new Set(candidates)];
 }
 
 export function resolveDesktopBundleRoot({
   targetTriple = '',
-  targetDir = desktopTargetDir,
+  targetDir = '',
+  env = process.env,
+  hostPlatform = process.platform,
+  workspaceRootDir = rootDir,
 } = {}) {
   return buildDesktopBundleRootCandidates({
     targetTriple,
     targetDir,
+    env,
+    hostPlatform,
+    workspaceRootDir,
   })[0];
 }
 
 export function resolveExistingDesktopBundleRoot({
   targetTriple = '',
-  targetDir = desktopTargetDir,
+  targetDir = '',
+  env = process.env,
+  hostPlatform = process.platform,
+  workspaceRootDir = rootDir,
 } = {}) {
   const candidates = buildDesktopBundleRootCandidates({
     targetTriple,
     targetDir,
+    env,
+    hostPlatform,
+    workspaceRootDir,
   });
 
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
@@ -807,9 +834,11 @@ export function packageDesktopAssets({
   arch,
   target,
   outputDir,
-  targetDir = desktopTargetDir,
+  targetDir = '',
   tauriConfigPath = desktopTauriConfigPath,
   workspaceRootDir = rootDir,
+  env = process.env,
+  hostPlatform = process.platform,
 }) {
   const releaseProfile = resolveReleaseProfile(profileId);
   const kernelPackageProfile = resolveEffectiveKernelPackageProfile({
@@ -836,6 +865,9 @@ export function packageDesktopAssets({
   const desktopBundleRoot = resolveExistingDesktopBundleRoot({
     targetTriple: targetSpec.targetTriple,
     targetDir,
+    env,
+    hostPlatform,
+    workspaceRootDir,
   });
 
   if (!existsSync(desktopBundleRoot)) {

@@ -30,6 +30,7 @@
       "observabilityDbPath": "\u53ef\u89c2\u6d4b\u6570\u636e\u5e93"
     },
     "runtimeLifecycle": {
+      "ready": "\u5c31\u7eea",
       "running": "\u8fd0\u884c\u4e2d",
       "failed": "\u5931\u8d25",
       "stopped": "\u5df2\u505c\u6b62",

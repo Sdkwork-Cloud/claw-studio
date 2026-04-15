@@ -1,6 +1,4 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import Markdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -15,7 +13,7 @@ import {
   Share2,
   Sparkles,
 } from 'lucide-react';
-import { Button, Textarea } from '@sdkwork/claw-ui';
+import { Button, MarkdownContent, Textarea } from '@sdkwork/claw-ui';
 import {
   buildCommunityRecommendations,
   communityService,
@@ -394,7 +392,7 @@ export function CommunityPostDetail() {
             </div>
 
             <article className="prose prose-zinc mt-6 max-w-none text-sm leading-7 dark:prose-invert">
-              <Markdown rehypePlugins={[rehypeRaw]}>{post.content}</Markdown>
+              <MarkdownContent content={post.content} />
             </article>
 
             {post.tags.length > 0 ? (

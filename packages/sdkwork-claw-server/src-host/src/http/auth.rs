@@ -10,7 +10,7 @@ use sdkwork_claw_host_core::internal::error::{InternalErrorCategory, InternalErr
 
 use crate::{bootstrap::ServerState, http::error_response::categorized_error_response};
 
-const BROWSER_SESSION_HEADER_NAME: &str = "x-claw-browser-session";
+pub const BROWSER_SESSION_HEADER_NAME: &str = "x-claw-browser-session";
 const BROWSER_SESSION_REALM: &str = "claw-browser-session";
 
 #[derive(Debug, Clone, PartialEq, Eq)]

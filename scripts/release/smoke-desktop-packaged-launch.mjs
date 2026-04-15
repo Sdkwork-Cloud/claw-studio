@@ -37,6 +37,8 @@ const rootDir = path.resolve(__dirname, '..', '..');
 const DEFAULT_RELEASE_ASSETS_DIR = path.join(rootDir, 'artifacts', 'release');
 const DEFAULT_WAIT_TIMEOUT_MS = 90000;
 const DEFAULT_WAIT_INTERVAL_MS = 250;
+const DEFAULT_CLEANUP_RETRY_COUNT = 10;
+const DEFAULT_CLEANUP_RETRY_DELAY_MS = 250;
 
 function readOptionValue(argv, index, flag) {
   const next = argv[index + 1];
@@ -53,6 +55,38 @@ function delay(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(resolve, milliseconds);
   });
+}
+
+function shouldRetryDirectoryCleanup(error) {
+  const code = String(error?.code ?? '').trim().toUpperCase();
+  return code === 'EBUSY' || code === 'EPERM';
+}
+
+export async function removeDirectoryWithRetries(directoryPath, {
+  rmSyncFn = rmSync,
+  delayFn = delay,
+  maxRetries = DEFAULT_CLEANUP_RETRY_COUNT,
+  retryDelayMs = DEFAULT_CLEANUP_RETRY_DELAY_MS,
+} = {}) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    try {
+      rmSyncFn(directoryPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!shouldRetryDirectoryCleanup(error) || attempt + 1 >= maxRetries) {
+        throw error;
+      }
+
+      await delayFn(retryDelayMs);
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
 }
 
 function normalizeArtifactRelativePath(relativePath) {
@@ -231,6 +265,44 @@ function commandExists(command, args = ['--version']) {
 function ensureDirectory(directoryPath) {
   mkdirSync(directoryPath, { recursive: true });
   return directoryPath;
+}
+
+function toPowerShellSingleQuotedLiteral(value) {
+  return `'${String(value ?? '').replaceAll("'", "''")}'`;
+}
+
+export function buildWindowsInstallerLaunchCommand({
+  artifactPath,
+  installRoot,
+} = {}) {
+  const normalizedArtifactPath = path.resolve(String(artifactPath ?? '').trim());
+  const normalizedInstallRoot = path.resolve(String(installRoot ?? '').trim());
+
+  if (!normalizedArtifactPath) {
+    throw new Error('artifactPath is required to build the Windows installer launch command.');
+  }
+  if (!normalizedInstallRoot) {
+    throw new Error('installRoot is required to build the Windows installer launch command.');
+  }
+
+  const commandScript = [
+    `$installerPath = ${toPowerShellSingleQuotedLiteral(normalizedArtifactPath)}`,
+    `$installRoot = ${toPowerShellSingleQuotedLiteral(normalizedInstallRoot)}`,
+    "$process = Start-Process -FilePath $installerPath -ArgumentList @('/S', \"/D=$installRoot\") -Wait -PassThru",
+    'exit $process.ExitCode',
+  ].join('; ');
+
+  return {
+    command: 'powershell.exe',
+    args: [
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      commandScript,
+    ],
+  };
 }
 
 function buildWindowsSmokeEnvironment(smokeRoot, baseEnv = process.env) {
@@ -545,6 +617,7 @@ export async function prepareDesktopPackagedLaunch({
   productName = 'Claw Studio',
   smokeRoot,
   env = process.env,
+  runCommandFn = runCommand,
 } = {}) {
   const platformId = normalizeDesktopPlatform(releasePlatform);
   const artifactRelativePath = normalizeArtifactRelativePath(artifact?.relativePath);
@@ -553,9 +626,12 @@ export async function prepareDesktopPackagedLaunch({
     const isolatedEnv = buildWindowsSmokeEnvironment(smokeRoot, env);
     const installRoot = path.join(smokeRoot, 'install-root');
     ensureDirectory(path.dirname(installRoot));
-    runCommand({
-      command: artifactPath,
-      args: ['/S', `/D=${installRoot}`],
+    const installerLaunch = buildWindowsInstallerLaunchCommand({
+      artifactPath,
+      installRoot,
+    });
+    runCommandFn({
+      ...installerLaunch,
       env: isolatedEnv,
       label: `Installing packaged Windows desktop artifact ${artifactRelativePath}`,
     });
@@ -875,7 +951,7 @@ export async function smokeDesktopPackagedLaunch({
         // Preserve the original failure while still attempting cleanup.
       }
     }
-    rmSync(smokeRoot, { recursive: true, force: true });
+    await removeDirectoryWithRetries(smokeRoot);
   }
 }
 

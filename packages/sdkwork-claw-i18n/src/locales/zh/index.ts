@@ -82,6 +82,7 @@ locale.commandPalette.commands.usage = {
 };
 locale.dashboard.usage = {
   page: {
+    eyebrow: '\u8fd0\u8425\u5206\u6790',
     title: '\u7f51\u5173\u7528\u91cf',
     description:
       '\u5728\u7edf\u4e00\u5de5\u4f5c\u53f0\u4e2d\u67e5\u770b OpenClaw \u7f51\u5173\u4f1a\u8bdd\u7528\u91cf\u3001\u6210\u672c\u3001\u517c\u5bb9\u56de\u9000\u72b6\u6001\u4e0e\u5355\u4f1a\u8bdd\u660e\u7ec6\u3002',

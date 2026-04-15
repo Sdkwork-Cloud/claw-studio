@@ -182,10 +182,12 @@ function resolveSignInAccount(credentials: SignInInput) {
   return account;
 }
 
-export const createAuthStoreState = (set: StoreStateSetter<AuthStoreState>) => ({
+export const createAuthStoreState = (
+  set: StoreStateSetter<AuthStoreState>,
+): AuthStoreState => ({
   isAuthenticated: false,
   user: null,
-  async signIn(credentials) {
+  async signIn(credentials: SignInInput) {
     const account = resolveSignInAccount(credentials);
     const result = await appAuthService.login({
       username: account,
@@ -200,7 +202,7 @@ export const createAuthStoreState = (set: StoreStateSetter<AuthStoreState>) => (
     set({ isAuthenticated: true, user });
     return user;
   },
-  async signInWithPhoneCode(payload) {
+  async signInWithPhoneCode(payload: PhoneCodeSignInInput) {
     const result = await appAuthService.loginWithPhone({
       phone: payload.phone,
       code: payload.code,
@@ -215,7 +217,7 @@ export const createAuthStoreState = (set: StoreStateSetter<AuthStoreState>) => (
     set({ isAuthenticated: true, user });
     return user;
   },
-  async signInWithEmailCode(payload) {
+  async signInWithEmailCode(payload: EmailCodeSignInInput) {
     const result = await appAuthService.loginWithEmail({
       email: payload.email,
       code: payload.code,
@@ -231,7 +233,7 @@ export const createAuthStoreState = (set: StoreStateSetter<AuthStoreState>) => (
     set({ isAuthenticated: true, user });
     return user;
   },
-  async register(payload) {
+  async register(payload: RegisterInput) {
     const username = (
       payload.username
       || payload.email
@@ -258,7 +260,7 @@ export const createAuthStoreState = (set: StoreStateSetter<AuthStoreState>) => (
     set({ isAuthenticated: true, user });
     return user;
   },
-  async signInWithOAuth(payload) {
+  async signInWithOAuth(payload: OAuthSignInInput) {
     const result = await appAuthService.loginWithOAuth({
       provider: payload.provider,
       code: payload.code,
@@ -270,18 +272,18 @@ export const createAuthStoreState = (set: StoreStateSetter<AuthStoreState>) => (
     set({ isAuthenticated: true, user });
     return user;
   },
-  applySession(session) {
+  applySession(session: AppAuthSession) {
     const user = buildAuthUserFromSession(session);
     set({ isAuthenticated: true, user });
     return user;
   },
-  async requestPasswordReset(payload) {
+  async requestPasswordReset(payload: PasswordResetRequestInput) {
     await appAuthService.requestPasswordReset({
       account: payload.account.trim(),
       channel: payload.channel,
     });
   },
-  async resetPassword(payload) {
+  async resetPassword(payload: PasswordResetInput) {
     await appAuthService.resetPassword({
       account: payload.account.trim(),
       code: payload.code.trim(),
@@ -289,7 +291,7 @@ export const createAuthStoreState = (set: StoreStateSetter<AuthStoreState>) => (
       confirmPassword: payload.confirmPassword,
     });
   },
-  async sendPasswordReset(email) {
+  async sendPasswordReset(email: string) {
     await appAuthService.requestPasswordReset({
       account: email,
       channel: 'EMAIL',
@@ -302,7 +304,12 @@ export const createAuthStoreState = (set: StoreStateSetter<AuthStoreState>) => (
       set({ isAuthenticated: false, user: null });
     }
   },
-  syncUserProfile(profile) {
+  syncUserProfile(profile: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    avatarUrl?: string;
+  }) {
     set((state) => ({
       user: state.isAuthenticated ? toAuthUser(profile) : state.user,
     }));
@@ -343,7 +350,7 @@ export function synchronizeAuthStoreSession(store: AuthStoreApi) {
 }
 
 export function createAuthStore(storage?: StateStorage) {
-  const store = createPersistedSimpleStore(
+  const store = createPersistedSimpleStore<AuthStoreState>(
     createAuthStoreState,
     createAuthStorePersistOptions(storage),
   );

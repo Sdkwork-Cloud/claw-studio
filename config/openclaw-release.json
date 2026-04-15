@@ -3,5 +3,7 @@
   "nodeVersion": "22.16.0",
   "packageName": "openclaw",
   "_comment_runtimeSupplementalPackages": "Keep empty unless OpenClaw requires extra runtime packages beyond its own stable dependency graph.",
-  "runtimeSupplementalPackages": []
+  "runtimeSupplementalPackages": [],
+  "_comment_runtimeSupplementalPackageExceptions": "Keep empty while runtimeSupplementalPackages is empty.",
+  "runtimeSupplementalPackageExceptions": []
 }

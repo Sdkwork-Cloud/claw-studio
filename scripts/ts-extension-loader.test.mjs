@@ -4,16 +4,32 @@ import { pathToFileURL } from 'node:url';
 
 const modulePath = path.resolve(import.meta.dirname, 'ts-extension-loader.mjs');
 const loader = await import(pathToFileURL(modulePath).href);
+const workspaceRootHelperPath = path.resolve(import.meta.dirname, 'workspace-root.mjs');
+const workspaceRootHelper = await import(pathToFileURL(workspaceRootHelperPath).href);
 
 assert.equal(typeof loader.resolveSharedSdkSourceAliasPath, 'function');
 assert.equal(typeof loader.resolveWorkspacePackageSourceAliasPath, 'function');
+assert.equal(typeof workspaceRootHelper.resolveWorkspaceRootDir, 'function');
+assert.equal(typeof workspaceRootHelper.resolveCanonicalWorkspaceRootDir, 'function');
 
-const workspaceRoot = path.resolve(import.meta.dirname, '..');
+const workspaceRoot = workspaceRootHelper.resolveWorkspaceRootDir(
+  path.resolve(import.meta.dirname, '..'),
+);
+const canonicalWorkspaceRoot = workspaceRootHelper.resolveCanonicalWorkspaceRootDir(
+  path.resolve(import.meta.dirname, '..'),
+);
+const packageDir = path.resolve(import.meta.dirname, '..', 'packages', 'sdkwork-claw-web');
+
+assert.equal(
+  workspaceRootHelper.resolveWorkspaceRootDir(packageDir),
+  path.resolve(import.meta.dirname, '..'),
+  'worktree package directories must resolve to the nearest workspace root instead of the outer checkout',
+);
 
 assert.equal(
   loader.resolveSharedSdkSourceAliasPath('@sdkwork/app-sdk', { SDKWORK_SHARED_SDK_MODE: 'source' }),
   path.resolve(
-    workspaceRoot,
+    canonicalWorkspaceRoot,
     '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/src/index.ts',
   ),
   'source mode must redirect @sdkwork/app-sdk to the sibling SDK source entry',
@@ -22,7 +38,7 @@ assert.equal(
 assert.equal(
   loader.resolveSharedSdkSourceAliasPath('@sdkwork/sdk-common/http', { SDKWORK_SHARED_SDK_MODE: 'source' }),
   path.resolve(
-    workspaceRoot,
+    canonicalWorkspaceRoot,
     '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript/src/http/index.ts',
   ),
   'source mode must redirect @sdkwork/sdk-common subpaths to sibling source entries',
@@ -61,7 +77,7 @@ assert.equal(
 assert.equal(
   loader.resolveWorkspacePackageSourceAliasPath('@sdkwork/core-pc-react'),
   path.resolve(
-    workspaceRoot,
+    canonicalWorkspaceRoot,
     '../sdkwork-core/sdkwork-core-pc-react/src/index.ts',
   ),
   'workspace package resolution must map sibling workspace package roots to their source entry',
@@ -70,7 +86,7 @@ assert.equal(
 assert.equal(
   loader.resolveWorkspacePackageSourceAliasPath('@sdkwork/core-pc-react/app'),
   path.resolve(
-    workspaceRoot,
+    canonicalWorkspaceRoot,
     '../sdkwork-core/sdkwork-core-pc-react/src/app/index.ts',
   ),
   'workspace package resolution must map sibling workspace package subpaths to their source entry',

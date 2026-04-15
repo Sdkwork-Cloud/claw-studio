@@ -129,6 +129,8 @@ export type {
 export type {
   RuntimeAppInfo,
   RuntimeConfigInfo,
+  RuntimeDesktopBundledComponentInfo,
+  RuntimeDesktopBundledComponentsInfo,
   RuntimeDesktopFilesystemInfo,
   RuntimeDesktopIntegrationInfo,
   RuntimeDesktopIntegrationAdapterInfo,

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { DEFAULT_BUNDLED_OPENCLAW_VERSION } from '@sdkwork/claw-types';
 import {
   BUILT_IN_OPENCLAW_STARTUP_REFRESH_INTERVAL_MS,
   hasPendingBuiltInOpenClawStartup,
@@ -26,7 +27,7 @@ function createInstance(overrides: Record<string, unknown> = {}) {
     type: 'OpenClaw',
     iconType: 'server',
     status: 'starting',
-    version: '2026.4.9',
+    version: DEFAULT_BUNDLED_OPENCLAW_VERSION,
     uptime: '0m',
     ip: '127.0.0.1',
     cpu: 0,

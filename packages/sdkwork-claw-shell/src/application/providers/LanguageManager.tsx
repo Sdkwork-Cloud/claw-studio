@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAppStore, type LanguagePreference } from '@sdkwork/claw-core';
-import { i18n, normalizeLanguage } from '@sdkwork/claw-i18n';
+import { ensureI18n, normalizeLanguage } from '@sdkwork/claw-i18n';
 
 interface LanguageManagerProps {
   onLanguagePreferenceChange?: (languagePreference: LanguagePreference) => void;
@@ -14,10 +14,7 @@ export function LanguageManager({ onLanguagePreferenceChange }: LanguageManagerP
     const nextLanguage = normalizeLanguage(language);
 
     document.documentElement.setAttribute('lang', nextLanguage);
-
-    if (normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) !== nextLanguage) {
-      void i18n.changeLanguage(nextLanguage);
-    }
+    void ensureI18n(nextLanguage);
   }, [language]);
 
   useEffect(() => {

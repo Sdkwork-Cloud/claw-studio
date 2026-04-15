@@ -4,6 +4,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const root = process.cwd();
+const bundledComponentsHelper = await import(
+  pathToFileURL(path.join(root, 'scripts', 'sync-bundled-components.mjs')).href,
+);
 
 function read(relPath: string) {
   return fs.readFileSync(path.join(root, relPath), 'utf8');
@@ -38,6 +41,22 @@ function extractDesktopLockImporter() {
 
 function exists(relPath: string) {
   return fs.existsSync(path.join(root, relPath));
+}
+
+function readGeneratedTauriBundleOverlay() {
+  const relativePath = 'packages/sdkwork-claw-desktop/src-tauri/generated/tauri.bundle.overlay.json';
+  if (exists(relativePath)) {
+    return read(relativePath);
+  }
+
+  return JSON.stringify(
+    bundledComponentsHelper.createTauriBundleOverlayConfig({
+      workspaceRootDir: root,
+      platform: process.platform,
+    }),
+    null,
+    2,
+  );
 }
 
 function runTest(name: string, fn: () => void) {
@@ -944,9 +963,7 @@ runTest('sdkwork-claw-desktop removes deprecated installer commands, metadata, a
   const layoutSource = read('packages/sdkwork-claw-desktop/src-tauri/src/framework/layout.rs');
   const tauriConfig = read('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json');
   const tauriMacosConfig = read('packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json');
-  const tauriBundleOverlay = read(
-    'packages/sdkwork-claw-desktop/src-tauri/generated/tauri.bundle.overlay.json',
-  );
+  const tauriBundleOverlay = readGeneratedTauriBundleOverlay();
   const componentRegistry = read(
     'packages/sdkwork-claw-desktop/src-tauri/foundation/components/component-registry.json',
   );

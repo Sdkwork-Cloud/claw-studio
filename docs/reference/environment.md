@@ -10,7 +10,6 @@ Start from the root `.env.example`. Package-level `.env.example` files add runti
 | --- | --- | --- |
 | `APP_URL` | Runtime-dependent | Host URL used by hosted deployments |
 | `VITE_API_BASE_URL` | Recommended | Shared backend API base URL |
-| `VITE_ACCESS_TOKEN` | Optional | Bearer token for backend requests and update checks |
 | `VITE_APP_ID` | Desktop updates | Backend app id used by update checks |
 | `VITE_RELEASE_CHANNEL` | Desktop updates | Release channel for update queries |
 | `VITE_DISTRIBUTION_ID` | Desktop distribution | Distribution manifest selection |
@@ -40,6 +39,7 @@ Start from the root `.env.example`. Package-level `.env.example` files add runti
 - update `.env.example` when adding a new variable
 - document new variables in the relevant package and public docs
 - keep desktop-specific values consistent with the distribution and update flow
+- browser and desktop Vite env files must not inject root access tokens; privileged credentials stay in trusted hosts
 - AI generation now depends on an active OpenClaw-compatible instance plus Provider Center configuration, not a browser-side Gemini key
 - `claw-server` now resolves configuration with the precedence order `CLI overrides -> config file -> environment variables -> defaults`
 - `claw-server service print-manifest` reuses the same resolution order and falls back to `<CLAW_SERVER_DATA_DIR>/claw-server.config.json` when no explicit config path is supplied

@@ -34,7 +34,7 @@
     "installedInCount": "Installed in {{count, number}} instances",
     "installed": "Installed",
     "builtIn": "Built-In",
-    "instanceStatus": "{{type}} 路 {{host}} 路 {{status}}",
+    "instanceStatus": "{{type}} / {{host}} / {{status}}",
     "instanceAgentCount": "{{count, number}} agents installed"
   },
   "error": {

@@ -1,13 +1,36 @@
 import releaseConfig from '../../../config/openclaw-release.json' with { type: 'json' };
 
+export interface OpenClawReleaseSupplementalPackageException {
+  spec: string;
+  reason: string;
+  reviewedAt: string;
+}
+
 export interface OpenClawReleaseMetadata {
   stableVersion: string;
   nodeVersion: string;
   packageName: string;
   runtimeSupplementalPackages: string[];
+  runtimeSupplementalPackageExceptions: OpenClawReleaseSupplementalPackageException[];
 }
 
 const metadata = releaseConfig as OpenClawReleaseMetadata;
+
+function splitPackageSpec(spec: string): { name: string; version: string } {
+  const normalized = String(spec ?? '').trim();
+  const versionSeparatorIndex = normalized.lastIndexOf('@');
+  if (versionSeparatorIndex <= 0) {
+    return {
+      name: normalized,
+      version: '',
+    };
+  }
+
+  return {
+    name: normalized.slice(0, versionSeparatorIndex),
+    version: normalized.slice(versionSeparatorIndex + 1),
+  };
+}
 
 function normalizeRuntimeSupplementalPackages(value: string[] | null | undefined): string[] {
   if (!Array.isArray(value)) {
@@ -19,33 +42,89 @@ function normalizeRuntimeSupplementalPackages(value: string[] | null | undefined
     .filter(Boolean);
 }
 
-/**
- * Warns if any supplemental package uses an unstable (0.x.x / 0.0.x) version.
- * These are pre-release dependencies that may introduce breaking changes without notice.
- * TODO: Pin to a stable semver (>=1.0.0) once upstream publishes one.
- */
-function warnUnstableSupplementalPackages(specs: string[]): void {
-  const UNSTABLE_VERSION_PATTERN = /@0\.\d+\.\d+/;
-  for (const spec of specs) {
-    if (UNSTABLE_VERSION_PATTERN.test(spec)) {
-      console.warn(
-        `[openclaw-release] WARNING: Supplemental package "${spec}" uses an unstable version (<1.0.0). `
-        + 'This dependency may break without notice. Pin to a stable version when available.',
+function normalizeRuntimeSupplementalPackageExceptions(
+  value: OpenClawReleaseSupplementalPackageException[] | null | undefined,
+): OpenClawReleaseSupplementalPackageException[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => ({
+      spec: String(entry?.spec ?? '').trim(),
+      reason: String(entry?.reason ?? '').trim(),
+      reviewedAt: String(entry?.reviewedAt ?? '').trim(),
+    }))
+    .filter((entry) => entry.spec);
+}
+
+function isRuntimeSupplementalPackageUnstable(spec: string): boolean {
+  const { version } = splitPackageSpec(spec);
+  return /^0\./.test(version) || /(?:^|[-.])(alpha|beta|rc)(?:[-.\d]|$)/i.test(version);
+}
+
+function validateRuntimeSupplementalPackageExceptions(
+  specs: string[],
+  exceptions: OpenClawReleaseSupplementalPackageException[],
+): void {
+  const configuredSpecs = new Set(specs);
+  const exceptionBySpec = new Map<string, OpenClawReleaseSupplementalPackageException>();
+
+  for (const exception of exceptions) {
+    if (!exception.reason) {
+      throw new Error(
+        `[openclaw-release] Supplemental package exception "${exception.spec}" is missing a non-empty reason in config/openclaw-release.json.`,
       );
     }
+    if (!exception.reviewedAt || !/^\d{4}-\d{2}-\d{2}$/u.test(exception.reviewedAt)) {
+      throw new Error(
+        `[openclaw-release] Supplemental package exception "${exception.spec}" must use reviewedAt in YYYY-MM-DD format in config/openclaw-release.json.`,
+      );
+    }
+    if (exceptionBySpec.has(exception.spec)) {
+      throw new Error(
+        `[openclaw-release] Supplemental package exception "${exception.spec}" is duplicated in config/openclaw-release.json.`,
+      );
+    }
+    exceptionBySpec.set(exception.spec, exception);
+  }
+
+  const unapprovedUnstableSpecs = specs.filter(
+    (spec) => isRuntimeSupplementalPackageUnstable(spec) && !exceptionBySpec.has(spec),
+  );
+  if (unapprovedUnstableSpecs.length > 0) {
+    throw new Error(
+      `[openclaw-release] Unstable supplemental package(s) require explicit exceptions in config/openclaw-release.json: ${unapprovedUnstableSpecs.join(', ')}`,
+    );
+  }
+
+  const orphanedExceptions = exceptions
+    .map((exception) => exception.spec)
+    .filter((spec) => !configuredSpecs.has(spec));
+  if (orphanedExceptions.length > 0) {
+    throw new Error(
+      `[openclaw-release] Supplemental package exception(s) do not match runtimeSupplementalPackages in config/openclaw-release.json: ${orphanedExceptions.join(', ')}`,
+    );
   }
 }
 
 const normalizedSupplementalPackages = normalizeRuntimeSupplementalPackages(
   metadata.runtimeSupplementalPackages,
 );
-warnUnstableSupplementalPackages(normalizedSupplementalPackages);
+const normalizedSupplementalPackageExceptions = normalizeRuntimeSupplementalPackageExceptions(
+  metadata.runtimeSupplementalPackageExceptions,
+);
+validateRuntimeSupplementalPackageExceptions(
+  normalizedSupplementalPackages,
+  normalizedSupplementalPackageExceptions,
+);
 
 export const OPENCLAW_RELEASE: Readonly<OpenClawReleaseMetadata> = Object.freeze({
   stableVersion: metadata.stableVersion,
   nodeVersion: metadata.nodeVersion,
   packageName: metadata.packageName,
   runtimeSupplementalPackages: normalizedSupplementalPackages,
+  runtimeSupplementalPackageExceptions: normalizedSupplementalPackageExceptions,
 });
 
 /**
@@ -60,3 +139,5 @@ export const DEFAULT_REQUIRED_OPENCLAW_NODE_VERSION = OPENCLAW_RELEASE.nodeVersi
 export const DEFAULT_BUNDLED_OPENCLAW_PACKAGE_NAME = OPENCLAW_RELEASE.packageName;
 export const DEFAULT_BUNDLED_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES =
   OPENCLAW_RELEASE.runtimeSupplementalPackages;
+export const DEFAULT_BUNDLED_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGE_EXCEPTIONS =
+  OPENCLAW_RELEASE.runtimeSupplementalPackageExceptions;

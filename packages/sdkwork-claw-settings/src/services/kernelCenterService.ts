@@ -5,6 +5,7 @@ import type {
   KernelPlatformSnapshot,
   RolloutPhaseCounts,
 } from '@sdkwork/claw-core';
+import { mapKernelPlatformSnapshot } from '@sdkwork/claw-core';
 import type {
   ManageRolloutListResult,
   ManageRolloutRecord,
@@ -115,6 +116,12 @@ export interface KernelCenterDashboard {
     rootDir: string | null;
     profileCount: number;
   };
+  runtimeAuthority: {
+    managedConfigPath: string | null;
+    ownedRuntimeRoots: string[];
+    supportsLoopbackHealthProbe: boolean | null;
+    healthProbeTimeoutMs: number | null;
+  };
   capabilities: {
     readyKeys: string[];
     plannedKeys: string[];
@@ -221,6 +228,17 @@ const EMPTY_HOST_PORT_SETTINGS_SUMMARY: HostPortSettingsSummary = {
   browserBaseUrl: null,
   rows: [],
 };
+const EMPTY_ROLLOUT_LIST_RESULT: ManageRolloutListResult = {
+  items: [],
+  total: 0,
+};
+const EMPTY_ROLLOUT_PHASE_COUNTS: RolloutPhaseCounts = {
+  active: 0,
+  failed: 0,
+  completed: 0,
+  paused: 0,
+  drafts: 0,
+};
 
 let clawCoreModulePromise: Promise<ClawCoreModule> | null = null;
 
@@ -231,10 +249,16 @@ function loadClawCoreModule(): Promise<ClawCoreModule> {
 
 function formatRuntimeState(state?: string | null) {
   switch (state) {
+    case 'inactive':
+      return 'Inactive';
+    case 'ready':
+      return 'Ready';
     case 'running':
       return 'Running';
     case 'starting':
       return 'Starting';
+    case 'stopping':
+      return 'Stopping';
     case 'recovering':
       return 'Recovering';
     case 'degraded':
@@ -286,6 +310,8 @@ function formatStartupMode(mode?: string | null) {
 
 function formatLocalAiProxyLifecycle(lifecycle?: string | null) {
   switch (lifecycle) {
+    case 'ready':
+      return 'Ready';
     case 'running':
       return 'Running';
     case 'failed':
@@ -523,6 +549,44 @@ function resolvePreferredOpenClawRuntime(
   return null;
 }
 
+function resolveSnapshotResult(
+  result: PromiseSettledResult<KernelPlatformSnapshot | null>,
+  info: RuntimeDesktopKernelInfo | null,
+  mode: 'required' | 'allowRejectedFallback',
+): KernelPlatformSnapshot | null {
+  if (result.status === 'fulfilled') {
+    if (result.value === null && mode === 'required') {
+      throw new Error('Failed to load kernel status: kernel action did not return a runtime snapshot');
+    }
+    return result.value;
+  }
+
+  if (mode === 'allowRejectedFallback' && info?.host) {
+    return mapKernelPlatformSnapshot(info.host);
+  }
+
+  throw new Error(
+    `Failed to load kernel status: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
+  );
+}
+
+function resolveRolloutResult(
+  result: PromiseSettledResult<ManageRolloutListResult>,
+): ManageRolloutListResult {
+  return result.status === 'fulfilled' ? result.value : EMPTY_ROLLOUT_LIST_RESULT;
+}
+
+function summarizeRolloutPhasesSafely(
+  result: ManageRolloutListResult,
+  summarizePhases: (result: ManageRolloutListResult) => RolloutPhaseCounts,
+): RolloutPhaseCounts {
+  try {
+    return summarizePhases(result);
+  } catch {
+    return EMPTY_ROLLOUT_PHASE_COUNTS;
+  }
+}
+
 function mapHostRuntimeContract(runtimeInfo: RuntimeInfo | null) {
   const startup = runtimeInfo?.startup ?? null;
 
@@ -555,7 +619,8 @@ function mapDashboard(
   rolloutPhaseCounts: RolloutPhaseCounts,
 ): KernelCenterDashboard {
   const activeProfile = info?.storage.profiles.find((profile) => profile.active) ?? null;
-  const controlSocket = snapshot?.raw.host.controlSocket ?? info?.host.host.controlSocket ?? null;
+  const kernelHost = snapshot?.raw ?? info?.host ?? null;
+  const controlSocket = kernelHost?.host.controlSocket ?? null;
   const openClawRuntime = resolvePreferredOpenClawRuntime(snapshot, info);
   const startupEvidence = info?.desktopStartupEvidence ?? null;
   const readyKeys =
@@ -570,10 +635,18 @@ function mapDashboard(
   return {
     snapshot,
     info,
-    statusTone: resolveStatusTone(snapshot, hostPlatformStatus),
-    statusTitle: formatRuntimeState(snapshot?.runtimeState ?? openClawRuntime?.lifecycle ?? null),
+    statusTone: resolveStatusTone(
+      snapshot ?? (kernelHost ? mapKernelPlatformSnapshot(kernelHost) : null),
+      hostPlatformStatus,
+    ),
+    statusTitle: formatRuntimeState(
+      snapshot?.runtimeState
+      ?? openClawRuntime?.lifecycle
+      ?? kernelHost?.runtime.state
+      ?? null,
+    ),
     statusSummary:
-      normalizeOptionalText(snapshot?.raw.runtime.reason)
+      normalizeOptionalText(snapshot?.raw.runtime.reason ?? kernelHost?.runtime.reason)
       ?? (startupEvidence?.errorMessage
         ? startupEvidence.errorMessage
         : startupEvidence?.phase && startupEvidence?.recordedAt
@@ -609,21 +682,23 @@ function mapDashboard(
       ), null),
     },
     host: {
-      serviceManagerLabel: formatServiceManager(snapshot?.hostManager),
-      ownershipLabel: formatOwnership(snapshot?.raw.host.ownership),
-      startupModeLabel: formatStartupMode(snapshot?.raw.host.startupMode),
+      serviceManagerLabel: formatServiceManager(
+        snapshot?.hostManager ?? kernelHost?.host.serviceManager,
+      ),
+      ownershipLabel: formatOwnership(kernelHost?.host.ownership),
+      startupModeLabel: formatStartupMode(kernelHost?.host.startupMode),
       controlSocketLabel: controlSocket
         ? `${controlSocket.socketKind} ${controlSocket.location}`
         : null,
       controlSocketAvailable: Boolean(controlSocket?.available),
-      serviceConfigPath: snapshot?.serviceConfigPath ?? null,
+      serviceConfigPath: snapshot?.serviceConfigPath ?? kernelHost?.host.serviceConfigPath ?? null,
     },
     endpoint: {
-      preferredPort: snapshot?.preferredPort ?? null,
-      activePort: snapshot?.activePort ?? null,
-      baseUrl: snapshot?.baseUrl ?? null,
-      websocketUrl: snapshot?.websocketUrl ?? null,
-      usesDynamicPort: Boolean(snapshot?.usesDynamicPort),
+      preferredPort: snapshot?.preferredPort ?? kernelHost?.endpoint.preferredPort ?? null,
+      activePort: snapshot?.activePort ?? kernelHost?.endpoint.activePort ?? null,
+      baseUrl: snapshot?.baseUrl ?? kernelHost?.endpoint.baseUrl ?? null,
+      websocketUrl: snapshot?.websocketUrl ?? kernelHost?.endpoint.websocketUrl ?? null,
+      usesDynamicPort: snapshot?.usesDynamicPort ?? Boolean(kernelHost?.endpoint.dynamicPort),
     },
     localAiProxy: {
       lifecycle: formatLocalAiProxyLifecycle(info?.localAiProxy?.lifecycle),
@@ -653,6 +728,14 @@ function mapDashboard(
       activeProfilePath: activeProfile?.path ?? null,
       rootDir: info?.storage.rootDir ?? null,
       profileCount: info?.storage.profiles.length ?? 0,
+    },
+    runtimeAuthority: {
+      managedConfigPath: openClawRuntime?.authority?.managedConfigPath ?? null,
+      ownedRuntimeRoots: openClawRuntime?.authority?.ownedRuntimeRoots ?? [],
+      supportsLoopbackHealthProbe:
+        openClawRuntime?.authority?.readinessProbe?.supportsLoopbackHealthProbe ?? null,
+      healthProbeTimeoutMs:
+        openClawRuntime?.authority?.readinessProbe?.healthProbeTimeoutMs ?? null,
     },
     capabilities: {
       readyKeys,
@@ -694,16 +777,25 @@ function mapDashboard(
       errorCause: startupEvidence?.errorCause ?? null,
     },
     provenance: {
-      installSource: snapshot?.raw.provenance.installSource ?? null,
+      installSource: kernelHost?.provenance.installSource ?? null,
       platformLabel: formatPlatformLabel(
-        openClawRuntime?.platform ?? snapshot?.raw.provenance.platform,
-        openClawRuntime?.arch ?? snapshot?.raw.provenance.arch,
+        openClawRuntime?.platform ?? kernelHost?.provenance.platform,
+        openClawRuntime?.arch ?? kernelHost?.provenance.arch,
       ),
-      runtimeVersion: openClawRuntime?.openclawVersion ?? snapshot?.runtimeVersion ?? null,
-      nodeVersion: openClawRuntime?.nodeVersion ?? snapshot?.nodeVersion ?? null,
-      configPath: openClawRuntime?.configPath ?? snapshot?.raw.provenance.configPath ?? null,
-      runtimeHomeDir: openClawRuntime?.homeDir ?? snapshot?.raw.provenance.runtimeHomeDir ?? null,
-      runtimeInstallDir: openClawRuntime?.installDir ?? snapshot?.raw.provenance.runtimeInstallDir ?? null,
+      runtimeVersion:
+        openClawRuntime?.openclawVersion
+        ?? snapshot?.runtimeVersion
+        ?? kernelHost?.provenance.runtimeVersion
+        ?? null,
+      nodeVersion:
+        openClawRuntime?.nodeVersion
+        ?? snapshot?.nodeVersion
+        ?? kernelHost?.provenance.nodeVersion
+        ?? null,
+      configPath: openClawRuntime?.configPath ?? kernelHost?.provenance.configPath ?? null,
+      runtimeHomeDir: openClawRuntime?.homeDir ?? kernelHost?.provenance.runtimeHomeDir ?? null,
+      runtimeInstallDir:
+        openClawRuntime?.installDir ?? kernelHost?.provenance.runtimeInstallDir ?? null,
     },
   };
 }
@@ -720,6 +812,7 @@ export function createKernelCenterService(
 
   const buildDashboard = async (
     snapshotPromise: Promise<KernelPlatformSnapshot | null>,
+    snapshotMode: 'required' | 'allowRejectedFallback',
   ): Promise<KernelCenterDashboard> => {
     const [
       snapshotResult,
@@ -738,12 +831,15 @@ export function createKernelCenterService(
       dependencies.runtimeApi.getRuntimeInfo(),
       dependencies.rolloutService.list(),
     ]);
-    const snapshot = unwrapSettledResult(snapshotResult, 'Failed to load kernel status');
-    const info = unwrapSettledResult(infoResult, 'Failed to load kernel details');
-    const hostPlatformStatus = unwrapSettledResult(
-      hostPlatformStatusResult,
-      'Failed to load host platform status',
-    );
+    const info =
+      infoResult.status === 'fulfilled'
+        ? infoResult.value
+        : null;
+    const snapshot = resolveSnapshotResult(snapshotResult, info, snapshotMode);
+    const hostPlatformStatus =
+      hostPlatformStatusResult.status === 'fulfilled'
+        ? hostPlatformStatusResult.value
+        : null;
     const hostRuntime =
       hostRuntimeResult.status === 'fulfilled'
         ? hostRuntimeResult.value
@@ -756,10 +852,14 @@ export function createKernelCenterService(
       runtimeInfoResult.status === 'fulfilled'
         ? runtimeInfoResult.value
         : null;
-    const rolloutResult = unwrapSettledResult(
-      rolloutResultResult,
-      'Failed to load rollout status',
-    );
+    const rolloutResult = resolveRolloutResult(rolloutResultResult);
+    const rolloutPhaseCounts =
+      rolloutResultResult.status === 'fulfilled'
+        ? summarizeRolloutPhasesSafely(
+          rolloutResult,
+          dependencies.rolloutService.summarizePhases,
+        )
+        : EMPTY_ROLLOUT_PHASE_COUNTS;
 
     return mapDashboard(
       snapshot,
@@ -769,21 +869,24 @@ export function createKernelCenterService(
       hostRuntime,
       hostEndpoints,
       rolloutResult,
-      dependencies.rolloutService.summarizePhases(rolloutResult),
+      rolloutPhaseCounts,
     );
   };
 
   return {
     async getDashboard(): Promise<KernelCenterDashboard> {
-      return buildDashboard(dependencies.kernelPlatformService.getStatus());
+      return buildDashboard(
+        dependencies.kernelPlatformService.getStatus(),
+        'allowRejectedFallback',
+      );
     },
 
     async ensureRunning(): Promise<KernelCenterDashboard> {
-      return buildDashboard(dependencies.kernelPlatformService.ensureRunning());
+      return buildDashboard(dependencies.kernelPlatformService.ensureRunning(), 'required');
     },
 
     async restart(): Promise<KernelCenterDashboard> {
-      return buildDashboard(dependencies.kernelPlatformService.restart());
+      return buildDashboard(dependencies.kernelPlatformService.restart(), 'required');
     },
   };
 }

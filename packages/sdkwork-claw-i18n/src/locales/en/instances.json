@@ -304,7 +304,7 @@
     },
     "actions": {
       "setAsActive": "Set as Active",
-      "openOpenClawConsole": "Open OpenClaw Console",
+      "openOpenClawConsole": "Open Control Page",
       "restart": "Restart",
       "stop": "Stop",
       "start": "Start",

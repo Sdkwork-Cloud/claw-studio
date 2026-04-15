@@ -130,6 +130,34 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     );
   }
 
+  if (url.endsWith('/app/v3/api/auth/verify/send')) {
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-verify-send',
+        errorName: '',
+        data: null,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  if (url.endsWith('/app/v3/api/auth/verify/check')) {
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-verify-check',
+        errorName: '',
+        data: {
+          valid: true,
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   if (url.endsWith('/app/v3/api/auth/password/reset')) {
     return new Response(
       JSON.stringify({
@@ -415,6 +443,82 @@ await runTest('appAuthService completes email verification-code login through th
   assert.equal(emailLoginRequest.init?.method, 'POST');
   assert.deepEqual(JSON.parse(String(emailLoginRequest.init?.body ?? '{}')), {
     email: 'operator@example.com',
+    code: '654321',
+  });
+});
+
+await runTest('appAuthService sends email verification codes through the generic verify endpoint', async () => {
+  const storage = createMemoryStorage();
+  installBrowserStorage(storage);
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  await appAuthService.sendVerifyCode({
+    target: 'operator@example.com',
+    verifyType: 'EMAIL',
+    scene: 'LOGIN',
+  });
+
+  const verifySendRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/verify/send'),
+  );
+
+  assert.ok(verifySendRequest);
+  assert.equal(verifySendRequest.init?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(verifySendRequest.init?.body ?? '{}')), {
+    target: 'operator@example.com',
+    type: 'LOGIN',
+    verifyType: 'EMAIL',
+  });
+});
+
+await runTest('appAuthService sends phone verification codes through the generic verify endpoint', async () => {
+  const storage = createMemoryStorage();
+  installBrowserStorage(storage);
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  await appAuthService.sendVerifyCode({
+    target: '13800138000',
+    verifyType: 'PHONE',
+    scene: 'REGISTER',
+  });
+
+  const verifySendRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/verify/send'),
+  );
+
+  assert.ok(verifySendRequest);
+  assert.equal(verifySendRequest.init?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(verifySendRequest.init?.body ?? '{}')), {
+    target: '13800138000',
+    type: 'REGISTER',
+    verifyType: 'PHONE',
+  });
+});
+
+await runTest('appAuthService verifies codes through the generic verify check endpoint', async () => {
+  const storage = createMemoryStorage();
+  installBrowserStorage(storage);
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  const valid = await appAuthService.verifyCode({
+    target: 'operator@example.com',
+    verifyType: 'EMAIL',
+    scene: 'RESET_PASSWORD',
+    code: '654321',
+  });
+
+  assert.equal(valid, true);
+
+  const verifyCheckRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/verify/check'),
+  );
+
+  assert.ok(verifyCheckRequest);
+  assert.equal(verifyCheckRequest.init?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(verifyCheckRequest.init?.body ?? '{}')), {
+    target: 'operator@example.com',
+    type: 'RESET_PASSWORD',
+    verifyType: 'EMAIL',
     code: '654321',
   });
 });

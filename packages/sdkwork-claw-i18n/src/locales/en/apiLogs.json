@@ -30,6 +30,7 @@
       "observabilityDbPath": "Observability DB"
     },
     "runtimeLifecycle": {
+      "ready": "Ready",
       "running": "Running",
       "failed": "Failed",
       "stopped": "Stopped",

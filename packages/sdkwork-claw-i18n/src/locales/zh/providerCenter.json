@@ -68,6 +68,13 @@
     "clearAgentSelection": "清空",
     "applyConfig": "应用配置"
   },
+  "actionSupportReasons": {
+    "runtimeUnavailable": "当前宿主不提供本地代理运行时。",
+    "runtimeStatusUnavailable": "本地代理运行时状态暂时不可用。",
+    "quickApplyTargetsUnavailable": "快速应用目标暂时不可用。",
+    "quickApplyInstanceUnavailable": "当前没有可写的 OpenClaw 实例可用于快速应用。",
+    "quickApplyRequiresLoopback": "快速应用只能用于仅回环监听的本地代理运行时。"
+  },
   "import": {
     "sources": {
       "codex": {
@@ -141,8 +148,8 @@
       "modelListEmptyDescription": "先添加一行模型，再在右侧选择默认、推理和向量角色。",
       "selectionTitle": "路由角色",
       "selectionDescription": "从当前模型列表中选择默认聊天、推理和向量模型。",
-      "runtimeDescription": "不用离开当前编辑器，就可以细调投影后的运行时行为。"
-      ,"requestOverridesTitle": "请求覆写",
+      "runtimeDescription": "不用离开当前编辑器，就可以细调投影后的运行时行为。",
+      "requestOverridesTitle": "请求覆写",
       "requestOverridesDescription": "使用 JSON5 直接编写 headers、auth、proxy 与 TLS 请求级配置，确保这些设置能完整穿过本地代理投影链路。",
       "requestOverrides": "覆写草稿",
       "requestOverridesPlaceholder": "{\n  headers: {\n    \"cf-aig-authorization\": \"Bearer ${CF_AIG_TOKEN}\",\n  },\n}",

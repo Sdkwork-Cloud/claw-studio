@@ -7,6 +7,7 @@ import {
   isSharedSdkSourceMode,
   resolvePnpmPackageDistEntry,
 } from '../../scripts/shared-sdk-mode.mjs';
+import { resolveCanonicalWorkspaceRootDir } from '../../scripts/workspace-root.mjs';
 import {
   CLAW_VITE_DEDUPE_PACKAGES,
   createClawManualChunks,
@@ -29,7 +30,7 @@ function workspacePackageResolver(packagesRootDir: string) {
     name: 'workspace-package-resolver',
     enforce: 'pre' as const,
     resolveId(source: string, importer?: string) {
-      if (!shouldAttemptWorkspaceResolverRemap(source, importer)) {
+      if (!shouldAttemptWorkspaceResolverRemap(source, importer, packagesRootDir)) {
         return null;
       }
 
@@ -50,8 +51,9 @@ export default defineConfig(({ mode }) => {
   const useSharedSdkSourceMode = isSharedSdkSourceMode(process.env);
   // Allow pnpm workspace-linked SDK packages that live above apps/claw-studio.
   const workspaceRootDir = path.resolve(__dirname, '../..');
+  const canonicalWorkspaceRootDir = resolveCanonicalWorkspaceRootDir(workspaceRootDir);
   const env = loadEnv(mode, workspaceRootDir, '');
-  const monorepoRoot = path.resolve(__dirname, '../../../../..');
+  const monorepoRoot = path.resolve(canonicalWorkspaceRootDir, '../..');
   const packagesRootDir = path.resolve(__dirname, '../../packages');
   const workspacePackageAliases = resolveWorkspacePackageAliases(packagesRootDir);
   const enableWorktreeWorkspaceResolver = shouldEnableWorktreeWorkspaceResolver(
@@ -59,20 +61,20 @@ export default defineConfig(({ mode }) => {
     process.env,
   );
   const sharedAppSdkSourceEntry = path.resolve(
-    __dirname,
-    '../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/src/index.ts',
+    canonicalWorkspaceRootDir,
+    '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/src/index.ts',
   );
   const sharedSdkCommonSourceEntry = path.resolve(
-    __dirname,
-    '../../../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript/src/index.ts',
+    canonicalWorkspaceRootDir,
+    '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript/src/index.ts',
   );
   const sharedAppSdkDistEntry = resolvePnpmPackageDistEntry('@sdkwork/app-sdk', workspaceRootDir) ?? path.resolve(
-    __dirname,
-    '../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/dist/index.js',
+    canonicalWorkspaceRootDir,
+    '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/dist/index.js',
   );
   const sharedSdkCommonDistEntry = resolvePnpmPackageDistEntry('@sdkwork/sdk-common', workspaceRootDir) ?? path.resolve(
-    __dirname,
-    '../../../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript/dist/index.js',
+    canonicalWorkspaceRootDir,
+    '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript/dist/index.js',
   );
   const sharedAppSdkChunkEntry = useSharedSdkSourceMode
     ? sharedAppSdkSourceEntry
@@ -87,9 +89,6 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
     ],
-    define: {
-      'import.meta.env.VITE_ACCESS_TOKEN': JSON.stringify(env.VITE_ACCESS_TOKEN || ''),
-    },
     resolve: {
       dedupe: [...CLAW_VITE_DEDUPE_PACKAGES],
       alias: [

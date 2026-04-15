@@ -218,6 +218,89 @@ test('local release helper auto-builds missing server prerequisites for local se
   });
 });
 
+test('local release helper auto-builds stale desktop prerequisites for local desktop packaging', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'release', 'local-release-command.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  assert.equal(typeof helper.ensureLocalDesktopBuildPrerequisite, 'function');
+
+  const buildCalls = [];
+  const result = helper.ensureLocalDesktopBuildPrerequisite({
+    context: {
+      mode: 'package:desktop',
+      profileId: 'claw-studio',
+      target: 'x86_64-pc-windows-msvc',
+    },
+    fileExists() {
+      return true;
+    },
+    resolveDesktopBundleRoot() {
+      return 'D:/synthetic/desktop-bundle';
+    },
+    inspectTauriTargetFn() {
+      return {
+        stale: true,
+      };
+    },
+    runDesktopBuildFn(options) {
+      buildCalls.push(options);
+    },
+  });
+
+  assert.deepEqual(buildCalls, [
+    {
+      profileId: 'claw-studio',
+      targetTriple: 'x86_64-pc-windows-msvc',
+    },
+  ]);
+  assert.deepEqual(result, {
+    bundleRoot: 'D:/synthetic/desktop-bundle',
+    built: true,
+    staleTarget: true,
+  });
+});
+
+test('local release helper runs desktop prerequisite builds through the unified desktop release runner', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'release', 'local-release-command.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  assert.equal(typeof helper.runLocalDesktopBuild, 'function');
+
+  const spawnCalls = [];
+  helper.runLocalDesktopBuild({
+    profileId: 'claw-studio',
+    targetTriple: 'x86_64-pc-windows-msvc',
+    spawnSyncImpl(command, args, options) {
+      spawnCalls.push({
+        command,
+        args,
+        options,
+      });
+      return {
+        status: 0,
+      };
+    },
+  });
+
+  assert.deepEqual(spawnCalls, [
+    {
+      command: process.execPath,
+      args: [
+        'scripts/run-desktop-release-build.mjs',
+        '--profile',
+        'claw-studio',
+        '--target',
+        'x86_64-pc-windows-msvc',
+      ],
+      options: {
+        cwd: rootDir,
+        shell: false,
+        stdio: 'inherit',
+      },
+    },
+  ]);
+});
+
 test('local release helper dispatches desktop installer and startup smoke through the dedicated smoke command', async () => {
   const helperPath = path.join(rootDir, 'scripts', 'release', 'local-release-command.mjs');
   const helper = await import(pathToFileURL(helperPath).href);
@@ -392,6 +475,17 @@ test('local release helper automatically runs desktop smoke after packaging desk
     arch: 'x64',
     packageProfileId: 'dual-kernel',
     releaseAssetsDir: 'D:/synthetic/release-assets',
+    ensureLocalDesktopBuildPrerequisiteFn({ context }) {
+      callOrder.push({
+        step: 'desktop-prereq',
+        context,
+      });
+      return {
+        bundleRoot: 'D:/synthetic/desktop-bundle',
+        built: false,
+        staleTarget: false,
+      };
+    },
     packageDesktopAssetsFn(context) {
       callOrder.push({
         step: 'package',
@@ -420,7 +514,7 @@ test('local release helper automatically runs desktop smoke after packaging desk
 
   assert.deepEqual(
     callOrder.map((entry) => entry.step),
-    ['package', 'installers', 'packaged-launch'],
+    ['desktop-prereq', 'package', 'installers', 'packaged-launch'],
   );
   assert.equal(callOrder[0].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
   assert.equal(callOrder[1].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
@@ -433,6 +527,11 @@ test('local release helper automatically runs desktop smoke after packaging desk
   assert.equal(callOrder[2].context.arch, 'x64');
   assert.equal(callOrder[2].context.target, 'x86_64-unknown-linux-gnu');
   assert.equal(callOrder[2].context.packageProfileId, 'dual-kernel');
+  assert.equal(callOrder[3].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
+  assert.equal(callOrder[3].context.platform, 'linux');
+  assert.equal(callOrder[3].context.arch, 'x64');
+  assert.equal(callOrder[3].context.target, 'x86_64-unknown-linux-gnu');
+  assert.equal(callOrder[3].context.packageProfileId, 'dual-kernel');
 });
 
 test('local release helper forwards the resolved package profile into plan generation', async () => {

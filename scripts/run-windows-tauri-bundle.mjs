@@ -6,6 +6,7 @@ import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+import { resolveDesktopCargoTargetDir } from './desktop-cargo-target.mjs';
 import { withRustToolchainPath } from './ensure-tauri-rust-toolchain.mjs';
 import { buildDesktopReleaseEnv, parseDesktopTargetTriple } from './release/desktop-targets.mjs';
 import {
@@ -494,11 +495,18 @@ function resolveWindowsNsisArchDir(targetTriple = '') {
 
 function buildReleaseRootCandidates(targetTriple = '') {
   const requestedTargetTriple = String(targetTriple ?? '').trim();
+  const desktopTargetDir = resolveDesktopCargoTargetDir({
+    workspaceRootDir: rootDir,
+    desktopPackageDir,
+    env: process.env,
+    platform: process.platform,
+    cwd: rootDir,
+  });
   const releaseRoots = [];
   if (requestedTargetTriple.length > 0) {
-    releaseRoots.push(path.join(desktopSrcTauriDir, 'target', requestedTargetTriple, 'release'));
+    releaseRoots.push(path.join(desktopTargetDir, requestedTargetTriple, 'release'));
   }
-  releaseRoots.push(path.join(desktopSrcTauriDir, 'target', 'release'));
+  releaseRoots.push(path.join(desktopTargetDir, 'release'));
   return [...new Set(releaseRoots)];
 }
 

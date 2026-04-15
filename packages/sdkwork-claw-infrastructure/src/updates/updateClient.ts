@@ -3,7 +3,7 @@ import type {
   AppUpdateCheckVO,
   PlusApiResultAppUpdateCheckVO,
 } from '@sdkwork/app-sdk';
-import { readAccessToken, type AppEnvConfig, APP_ENV } from '../config/env.ts';
+import { type AppEnvConfig, APP_ENV } from '../config/env.ts';
 import type {
   AppInstallPackage,
   AppUpdateCheckRequest,
@@ -28,7 +28,6 @@ type AppUpdateSdkClientConfig = {
   timeout: number;
 };
 type AppUpdateSdkClient = {
-  setApiKey(apiKey: string): unknown;
   app: {
     checkAppUpdate(
       request: AppUpdateCheckForm,
@@ -148,7 +147,6 @@ export async function checkAppUpdate(
   options?: AppUpdateClientRuntimeOptions,
 ): Promise<AppUpdateCheckResult> {
   const env = resolveEnv(options);
-  const accessToken = readAccessToken(env);
 
   if (!env.api.baseUrl) {
     throw new Error('App update check is unavailable because VITE_API_BASE_URL is not configured.');
@@ -159,10 +157,6 @@ export async function checkAppUpdate(
     baseUrl: env.api.baseUrl,
     timeout: env.api.timeout,
   });
-
-  if (accessToken) {
-    client.setApiKey(accessToken);
-  }
 
   const response = await client.app.checkAppUpdate(
     toGeneratedUpdateSdkRequest(request),

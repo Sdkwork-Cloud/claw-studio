@@ -6,6 +6,7 @@ runNodeTypeScriptChecks([
   'packages/sdkwork-claw-core/src/services/kernelDetailModuleRegistry.test.ts',
   'packages/sdkwork-claw-core/src/services/accountService.test.ts',
   'packages/sdkwork-claw-core/src/services/communityService.test.ts',
+  'packages/sdkwork-claw-core/src/services/updateService.test.ts',
   'packages/sdkwork-claw-core/src/services/openClawProviderRequestDraftService.test.ts',
   'packages/sdkwork-claw-core/src/services/openClawAgentCatalogService.test.ts',
   'packages/sdkwork-claw-core/src/services/openClawConfigService.test.ts',

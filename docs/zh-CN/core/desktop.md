@@ -43,13 +43,14 @@ pnpm check:desktop
 桌面端行为依赖 infrastructure 层中的强类型环境配置。常见变量包括：
 
 - `VITE_API_BASE_URL`
-- `VITE_ACCESS_TOKEN`
 - `VITE_APP_ID`
 - `VITE_RELEASE_CHANNEL`
 - `VITE_DISTRIBUTION_ID`
 - `VITE_PLATFORM`
 - `VITE_TIMEOUT`
 - `VITE_ENABLE_STARTUP_UPDATE_CHECK`
+
+桌面 Shell 不应通过 Vite env 注入 root access token；有权限的凭据应保留在可信宿主或宿主代理认证链路中。
 
 ## 桌面端架构说明
 

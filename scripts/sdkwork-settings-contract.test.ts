@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { resolveCanonicalWorkspaceRootDir } from './workspace-root.mjs';
 
 const root = process.cwd();
+const canonicalWorkspaceRoot = resolveCanonicalWorkspaceRootDir(root);
 
 function read(relPath: string) {
   return fs.readFileSync(path.join(root, relPath), 'utf8');
@@ -58,11 +60,11 @@ function getLocaleValue(locale: Record<string, unknown>, key: string) {
 }
 
 function readFromRepo(...segments: string[]) {
-  return fs.readFileSync(path.resolve(root, '..', '..', ...segments), 'utf8');
+  return fs.readFileSync(path.resolve(canonicalWorkspaceRoot, '..', '..', ...segments), 'utf8');
 }
 
 function existsInRepo(...segments: string[]) {
-  return fs.existsSync(path.resolve(root, '..', '..', ...segments));
+  return fs.existsSync(path.resolve(canonicalWorkspaceRoot, '..', '..', ...segments));
 }
 
 function runTest(name: string, fn: () => void) {
@@ -461,7 +463,18 @@ runTest('sdkwork-claw-settings consumes Kernel Center install source from shared
   const kernelCenterSource = read('packages/sdkwork-claw-settings/src/KernelCenter.tsx');
   const kernelCenterServiceSource = read('packages/sdkwork-claw-settings/src/services/kernelCenterService.ts');
 
-  assert.match(kernelCenterServiceSource, /installSource:\s*snapshot\?\.raw\.provenance\.installSource \?\? null/);
+  assert.match(
+    kernelCenterServiceSource,
+    /const kernelHost = snapshot\?\.raw \?\? info\?\.host \?\? null;/,
+  );
+  assert.match(
+    kernelCenterServiceSource,
+    /installSource:\s*kernelHost\?\.provenance\.installSource \?\? null/,
+  );
+  assert.doesNotMatch(
+    kernelCenterServiceSource,
+    /installSource:\s*snapshot\?\.raw\.provenance\.installSource \?\? null/,
+  );
   assert.doesNotMatch(kernelCenterServiceSource, /installSourceLabel:\s*string;/);
   assert.match(kernelCenterSource, /translateInstallSource\(\s*t,\s*provenance\.installSource\s*\)/);
   assert.doesNotMatch(kernelCenterSource, /dashboard\?\.snapshot\?\.raw\.provenance\.installSource/);

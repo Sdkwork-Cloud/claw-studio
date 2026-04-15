@@ -26,6 +26,7 @@ import {
   DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
   resolveKernelPackageProfile,
 } from './release/kernel-package-profiles.mjs';
+import { buildDesktopCargoTargetEnv } from './desktop-cargo-target.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -233,7 +234,13 @@ export function createDesktopReleaseBuildPlan({
         targetTriple: requestedTargetTriple,
       })
     : { ...env };
-  const rustToolchainEnv = withRustToolchainPath(resolvedEnv, { platform });
+  const cargoTargetEnv = buildDesktopCargoTargetEnv({
+    workspaceRootDir: rootDir,
+    env: resolvedEnv,
+    platform,
+    cwd: rootDir,
+  });
+  const rustToolchainEnv = withRustToolchainPath(cargoTargetEnv, { platform });
   rustToolchainEnv.SDKWORK_VITE_MODE = normalizeViteMode(
     viteMode ?? rustToolchainEnv.SDKWORK_VITE_MODE,
     'production',
@@ -283,9 +290,10 @@ export function buildDesktopReleaseBuildPreflightPlan({
       || resolveReleaseProfile(profileId).defaultPackageProfileId
       || DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
   ).profileId;
+  const normalizedPhase = String(phase ?? 'all').trim().toLowerCase() || 'all';
 
   if (!shouldRunOpenClawBundlePreflight({
-    phase,
+    phase: normalizedPhase,
     packageProfileId: resolvedPackageProfileId,
   })) {
     return null;
@@ -305,7 +313,9 @@ export function buildDesktopReleaseBuildPreflightPlan({
 
   return {
     command: process.execPath,
-    args: ['scripts/verify-desktop-openclaw-release-assets.mjs'],
+    args: normalizedPhase === 'all'
+      ? ['scripts/prepare-openclaw-runtime.mjs']
+      : ['scripts/verify-desktop-openclaw-release-assets.mjs'],
     cwd: rootDir,
     env: withSupportedWindowsCmakeGenerator(
       withRustToolchainPath(targetEnv, { platform }),

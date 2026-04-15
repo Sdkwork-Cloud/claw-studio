@@ -4,11 +4,14 @@ export interface StateStorage {
   removeItem?(name: string): void;
 }
 
-export type StoreStateUpdate<T> = T | Partial<T> | ((state: T) => T | Partial<T>);
-export type StoreListener<T> = (state: T, previousState: T) => void;
-export type StoreStateSetter<T> = (partial: StoreStateUpdate<T>, replace?: boolean) => void;
+export type StoreStateUpdate<T extends object> = T | Partial<T> | ((state: T) => T | Partial<T>);
+export type StoreListener<T extends object> = (state: T, previousState: T) => void;
+export type StoreStateSetter<T extends object> = (
+  partial: StoreStateUpdate<T>,
+  replace?: boolean,
+) => void;
 
-export interface SimpleStoreApi<T> {
+export interface SimpleStoreApi<T extends object> {
   getState(): T;
   getInitialState(): T;
   setState: StoreStateSetter<T>;
@@ -16,7 +19,8 @@ export interface SimpleStoreApi<T> {
   destroy(): void;
 }
 
-export interface PersistedSimpleStoreApi<T, P = Partial<T>> extends SimpleStoreApi<T> {
+export interface PersistedSimpleStoreApi<T extends object, P = Partial<T>>
+  extends SimpleStoreApi<T> {
   persist: {
     clearStorage(): void;
     getOptions(): SimplePersistOptions<T, P>;
@@ -24,13 +28,13 @@ export interface PersistedSimpleStoreApi<T, P = Partial<T>> extends SimpleStoreA
   };
 }
 
-export type SimpleStoreInitializer<T> = (
+export type SimpleStoreInitializer<T extends object> = (
   setState: StoreStateSetter<T>,
   getState: () => T,
   store: SimpleStoreApi<T>,
 ) => T;
 
-export interface SimplePersistOptions<T, P = Partial<T>> {
+export interface SimplePersistOptions<T extends object, P = Partial<T>> {
   name: string;
   storage?: StateStorage;
   partialize?: (state: T) => P;
@@ -55,7 +59,11 @@ function resolveDefaultStateStorage(): StateStorage | undefined {
   return storage as StateStorage;
 }
 
-function resolveNextState<T>(currentState: T, update: StoreStateUpdate<T>, replace = false): T {
+function resolveNextState<T extends object>(
+  currentState: T,
+  update: StoreStateUpdate<T>,
+  replace = false,
+): T {
   const nextState = typeof update === 'function'
     ? update(currentState)
     : update;
@@ -70,7 +78,9 @@ function resolveNextState<T>(currentState: T, update: StoreStateUpdate<T>, repla
   };
 }
 
-export function createSimpleStore<T>(createState: SimpleStoreInitializer<T>): SimpleStoreApi<T> {
+export function createSimpleStore<T extends object>(
+  createState: SimpleStoreInitializer<T>,
+): SimpleStoreApi<T> {
   const listeners = new Set<StoreListener<T>>();
   let state!: T;
   let initialState!: T;
@@ -106,7 +116,7 @@ export function createSimpleStore<T>(createState: SimpleStoreInitializer<T>): Si
   return store;
 }
 
-export function createPersistedSimpleStore<T, P = Partial<T>>(
+export function createPersistedSimpleStore<T extends object, P = Partial<T>>(
   createState: SimpleStoreInitializer<T>,
   options: SimplePersistOptions<T, P>,
 ): PersistedSimpleStoreApi<T, P> {

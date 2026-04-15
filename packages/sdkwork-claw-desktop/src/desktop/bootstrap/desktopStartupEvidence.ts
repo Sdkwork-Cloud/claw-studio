@@ -4,6 +4,7 @@ import type {
   ManageOpenClawGatewayRecord,
   ManageOpenClawRuntimeRecord,
   RuntimeAppInfo,
+  RuntimeDesktopBundledComponentInfo,
   RuntimeDesktopBundledComponentsInfo,
   RuntimeDesktopLocalAiProxyInfo,
   RuntimePathsInfo,
@@ -197,7 +198,7 @@ export function sanitizeDesktopStartupBundledComponents(
     defaultStartupComponentIds: [...bundledComponents.defaultStartupComponentIds],
     autoUpgradeEnabled: bundledComponents.autoUpgradeEnabled,
     approvalMode: bundledComponents.approvalMode,
-    components: bundledComponents.components.map((component) => ({
+    components: bundledComponents.components.map((component: RuntimeDesktopBundledComponentInfo) => ({
       ...component,
     })),
   };

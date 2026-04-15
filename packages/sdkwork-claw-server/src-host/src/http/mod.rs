@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod cors_policy;
 pub mod error_response;
 pub mod router;
 pub mod routes {

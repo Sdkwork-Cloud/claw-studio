@@ -5,6 +5,10 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import {
+  ensureTauriRustToolchain,
+  withRustToolchainPath,
+} from './ensure-tauri-rust-toolchain.mjs';
 import { parseDesktopTargetTriple } from './release/desktop-targets.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -285,12 +289,30 @@ export function createServerBuildPlan({
   });
 }
 
-export function runServerBuild(options = {}) {
-  const plan = createServerBuildPlan(options);
-  const result = spawnSync(plan.command, plan.args, {
+export function runServerBuild({
+  spawnSyncImpl = spawnSync,
+  ensureRustToolchain = ensureTauriRustToolchain,
+  withRustToolchainPathFn = withRustToolchainPath,
+  ...options
+} = {}) {
+  const runtimeEnv = options.env ?? process.env;
+  const plan = createServerBuildPlan({
+    ...options,
+    env: runtimeEnv,
+  });
+  const nativeCargoBuild = plan.command === 'cargo';
+  const baseEnv = nativeCargoBuild
+    ? withRustToolchainPathFn(runtimeEnv)
+    : runtimeEnv;
+
+  if (nativeCargoBuild) {
+    ensureRustToolchain();
+  }
+
+  const result = spawnSyncImpl(plan.command, plan.args, {
     cwd: plan.cwd,
     env: {
-      ...process.env,
+      ...baseEnv,
       ...plan.env,
     },
     stdio: 'inherit',

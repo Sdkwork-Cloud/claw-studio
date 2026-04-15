@@ -3,7 +3,6 @@ import {
   createAppEnvConfig,
   getApiUrl,
   hasDesktopUpdateConfig,
-  readAccessToken,
 } from './env.ts';
 
 function runTest(name: string, callback: () => void) {
@@ -26,12 +25,13 @@ runTest('createAppEnvConfig applies defaults and normalizes the base URL', () =>
   assert.equal(getApiUrl('/app/v3/api/update/check', env), 'http://localhost:8080/app/v3/api/update/check');
 });
 
-runTest('readAccessToken trims whitespace and removes the bearer prefix', () => {
+runTest('createAppEnvConfig ignores browser-side root access tokens', () => {
   const env = createAppEnvConfig({
     VITE_ACCESS_TOKEN: '  Bearer test-token  ',
   });
 
-  assert.equal(readAccessToken(env), 'test-token');
+  assert.equal(Object.prototype.hasOwnProperty.call(env, 'auth'), false);
+  assert.equal((env as Record<string, unknown>).auth, undefined);
 });
 
 runTest('hasDesktopUpdateConfig reports readiness only when base URL and app id exist', () => {

@@ -12,9 +12,11 @@ export interface InstanceStoreState {
 
 const STORAGE_KEY = 'claw-studio-instance-storage';
 
-export const createInstanceStoreState = (set: StoreStateSetter<InstanceStoreState>) => ({
+export const createInstanceStoreState = (
+  set: StoreStateSetter<InstanceStoreState>,
+): InstanceStoreState => ({
   activeInstanceId: null,
-  setActiveInstanceId(id) {
+  setActiveInstanceId(id: string | null) {
     set({ activeInstanceId: id });
   },
   reset() {
@@ -34,7 +36,7 @@ export function createInstanceStorePersistOptions(storage?: StateStorage) {
 }
 
 export function createInstanceStore(storage?: StateStorage) {
-  return createPersistedSimpleStore(
+  return createPersistedSimpleStore<InstanceStoreState>(
     createInstanceStoreState,
     createInstanceStorePersistOptions(storage),
   );

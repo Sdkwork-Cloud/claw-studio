@@ -6,6 +6,7 @@ export * from './DateInput';
 export * from './Dialog';
 export * from './Input';
 export * from './Label';
+export * from './MarkdownContent';
 export * from './Modal';
 export * from './RepositoryCard';
 export * from './Select';

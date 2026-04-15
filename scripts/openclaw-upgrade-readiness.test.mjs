@@ -44,6 +44,7 @@ await runTest('assessOpenClawUpgradeReadiness reports ready when local upgrade i
       nodeVersion: '22.16.0',
       packageName: 'openclaw',
       runtimeSupplementalPackages: [],
+      runtimeSupplementalPackageExceptions: [],
     });
     createJson(path.join(tempRoot, 'packages', 'sdkwork-claw-desktop', 'src-tauri', 'resources', 'openclaw', 'manifest.json'), {
       schemaVersion: 1,
@@ -102,6 +103,7 @@ await runTest('assessOpenClawUpgradeReadiness reports missing local upgrade inpu
       nodeVersion: '22.16.0',
       packageName: 'openclaw',
       runtimeSupplementalPackages: [],
+      runtimeSupplementalPackageExceptions: [],
     });
     createJson(path.join(tempRoot, 'packages', 'sdkwork-claw-desktop', 'src-tauri', 'resources', 'openclaw', 'manifest.json'), {
       schemaVersion: 1,
@@ -158,6 +160,7 @@ await runTest(
         nodeVersion: '22.16.0',
         packageName: 'openclaw',
         runtimeSupplementalPackages: [],
+        runtimeSupplementalPackageExceptions: [],
       });
       createJson(
         path.join(
@@ -279,6 +282,7 @@ await runTest(
         nodeVersion: '22.16.0',
         packageName: 'openclaw',
         runtimeSupplementalPackages: [],
+        runtimeSupplementalPackageExceptions: [],
       });
       createJson(
         path.join(

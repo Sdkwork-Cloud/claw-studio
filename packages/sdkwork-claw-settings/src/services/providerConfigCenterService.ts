@@ -2,8 +2,9 @@ import {
   inferLocalAiProxyClientProtocol,
   inferLocalAiProxyUpstreamProtocol,
   listKnownProviderRoutingChannels,
+  LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY,
   LOCAL_AI_PROXY_DEFAULT_UPSTREAM_BASE_URL,
-  OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+  OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER,
   OPENCLAW_LOCAL_PROXY_PROVIDER_ID,
   createOpenClawLocalProxyProjection,
   createDefaultOpenClawProviderRuntimeConfig,
@@ -103,6 +104,22 @@ export interface ApplyProviderConfigInput {
   agentIds?: string[];
 }
 
+export interface ProviderConfigCenterActionSupportItem {
+  available: boolean;
+  reasonKey?:
+    | 'runtimeUnavailable'
+    | 'runtimeStatusUnavailable'
+    | 'quickApplyTargetsUnavailable'
+    | 'quickApplyInstanceUnavailable'
+    | 'quickApplyRequiresLoopback';
+  reason?: string;
+}
+
+export interface ProviderConfigCenterActionSupport {
+  quickApply: ProviderConfigCenterActionSupportItem;
+  test: ProviderConfigCenterActionSupportItem;
+}
+
 type ProviderRoutingCatalogApi = Pick<
   typeof providerRoutingCatalogService,
   'listProviderRoutingRecords' | 'saveProviderRoutingRecord' | 'deleteProviderRoutingRecord'
@@ -131,6 +148,36 @@ export interface ProviderConfigCenterServiceOverrides {
   kernelPlatformService?: Partial<ProviderConfigCenterServiceDependencies['kernelPlatformService']>;
   openClawConfigService?: Partial<ProviderConfigCenterServiceDependencies['openClawConfigService']>;
   now?: () => number;
+}
+
+const LOCAL_AI_PROXY_RUNTIME_UNAVAILABLE_ERROR =
+  'The local AI proxy runtime is not available for the active platform bridge.';
+const LOCAL_AI_PROXY_RUNTIME_STATUS_UNAVAILABLE_ERROR =
+  'The local AI proxy runtime status is temporarily unavailable.';
+const OPENCLAW_QUICK_APPLY_INSTANCE_UNAVAILABLE_ERROR =
+  'No writable OpenClaw instance is available for quick apply.';
+const OPENCLAW_QUICK_APPLY_TARGETS_UNAVAILABLE_ERROR =
+  'Quick apply targets are temporarily unavailable.';
+const OPENCLAW_QUICK_APPLY_REQUIRES_LOOPBACK_ERROR =
+  'Quick apply requires a loopback-only local AI proxy runtime.';
+const LOCAL_AI_PROXY_CLIENT_PROTOCOLS: LocalAiProxyClientProtocol[] = [
+  'openai-compatible',
+  'anthropic',
+  'gemini',
+];
+
+function hasAvailableLocalAiProxyRuntime(
+  kernelInfo: Awaited<ReturnType<ProviderConfigCenterServiceDependencies['kernelPlatformService']['getInfo']>>,
+) {
+  return LOCAL_AI_PROXY_CLIENT_PROTOCOLS.some((clientProtocol) =>
+    Boolean(resolveOpenClawLocalProxyBaseUrl(kernelInfo, clientProtocol)),
+  );
+}
+
+function hasLoopbackOnlyLocalAiProxyRuntime(
+  kernelInfo: Awaited<ReturnType<ProviderConfigCenterServiceDependencies['kernelPlatformService']['getInfo']>>,
+) {
+  return kernelInfo?.localAiProxy?.loopbackOnly === true;
 }
 
 function normalizeRuntimeConfig(
@@ -286,7 +333,7 @@ function createCuratedPresets(): ProviderConfigPreset[] {
         providerId: 'sdkwork',
         upstreamProtocol: 'sdkwork',
         upstreamBaseUrl: LOCAL_AI_PROXY_DEFAULT_UPSTREAM_BASE_URL,
-        apiKey: OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+        apiKey: LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY,
         defaultModelId: 'gpt-5.4',
         reasoningModelId: 'o4-mini',
         embeddingModelId: 'text-embedding-3-large',
@@ -765,15 +812,30 @@ class ProviderConfigCenterService {
     this.dependencies = dependencies;
   }
 
+  private async resolveKernelInfo() {
+    try {
+      return {
+        info: await this.dependencies.kernelPlatformService.getInfo(),
+        readFailed: false,
+      };
+    } catch {
+      return {
+        info: null,
+        readFailed: true,
+      };
+    }
+  }
+
   listPresets() {
     return createPresets();
   }
 
   async listProviderConfigs() {
-    const [records, kernelInfo] = await Promise.all([
+    const [records, kernelInfoResult] = await Promise.all([
       this.dependencies.providerRoutingApi.listProviderRoutingRecords(),
-      this.dependencies.kernelPlatformService.getInfo(),
+      this.resolveKernelInfo(),
     ]);
+    const kernelInfo = kernelInfoResult.info;
 
     return attachRouteRuntimeState(
       records,
@@ -783,7 +845,11 @@ class ProviderConfigCenterService {
   }
 
   private async syncLocalAiProxyRuntime() {
-    await this.dependencies.kernelPlatformService.ensureRunning();
+    try {
+      await this.dependencies.kernelPlatformService.ensureRunning();
+    } catch {
+      // Route catalog persistence is authoritative; runtime sync is best-effort.
+    }
   }
 
   async saveProviderConfig(input: ProviderConfigDraft & { id?: string }) {
@@ -804,7 +870,22 @@ class ProviderConfigCenterService {
 
   async testProviderConfigRoute(routeId: string) {
     await this.dependencies.kernelPlatformService.ensureRunning();
-    return this.dependencies.kernelPlatformService.testLocalAiProxyRoute(routeId.trim());
+    const kernelInfoResult = await this.resolveKernelInfo();
+    if (kernelInfoResult.readFailed) {
+      throw new Error(LOCAL_AI_PROXY_RUNTIME_STATUS_UNAVAILABLE_ERROR);
+    }
+    if (!hasAvailableLocalAiProxyRuntime(kernelInfoResult.info)) {
+      throw new Error(LOCAL_AI_PROXY_RUNTIME_UNAVAILABLE_ERROR);
+    }
+
+    const result = await this.dependencies.kernelPlatformService.testLocalAiProxyRoute(
+      routeId.trim(),
+    );
+    if (!result) {
+      throw new Error(LOCAL_AI_PROXY_RUNTIME_UNAVAILABLE_ERROR);
+    }
+
+    return result;
   }
 
   private async resolveApplyInstance(instanceId: string) {
@@ -813,7 +894,7 @@ class ProviderConfigCenterService {
     return ensureWritableApplyDetail(detail, configPath);
   }
 
-  async listApplyInstances() {
+  private async listWritableOpenClawApplyInstances() {
     const instances = await this.dependencies.studioApi.listInstances();
     const resolved = await Promise.all(
       instances.map(async (instance) => {
@@ -826,6 +907,96 @@ class ProviderConfigCenterService {
     );
 
     return resolved.filter((instance): instance is ProviderConfigApplyInstance => Boolean(instance));
+  }
+
+  async getActionSupport(): Promise<ProviderConfigCenterActionSupport> {
+    const kernelInfoResult = await this.resolveKernelInfo();
+    if (kernelInfoResult.readFailed) {
+      return {
+        quickApply: {
+          available: false,
+          reasonKey: 'runtimeStatusUnavailable',
+          reason: LOCAL_AI_PROXY_RUNTIME_STATUS_UNAVAILABLE_ERROR,
+        },
+        test: {
+          available: false,
+          reasonKey: 'runtimeStatusUnavailable',
+          reason: LOCAL_AI_PROXY_RUNTIME_STATUS_UNAVAILABLE_ERROR,
+        },
+      };
+    }
+
+    if (!hasAvailableLocalAiProxyRuntime(kernelInfoResult.info)) {
+      return {
+        quickApply: {
+          available: false,
+          reasonKey: 'runtimeUnavailable',
+          reason: LOCAL_AI_PROXY_RUNTIME_UNAVAILABLE_ERROR,
+        },
+        test: {
+          available: false,
+          reasonKey: 'runtimeUnavailable',
+          reason: LOCAL_AI_PROXY_RUNTIME_UNAVAILABLE_ERROR,
+        },
+      };
+    }
+
+    if (!hasLoopbackOnlyLocalAiProxyRuntime(kernelInfoResult.info)) {
+      return {
+        quickApply: {
+          available: false,
+          reasonKey: 'quickApplyRequiresLoopback',
+          reason: OPENCLAW_QUICK_APPLY_REQUIRES_LOOPBACK_ERROR,
+        },
+        test: {
+          available: true,
+        },
+      };
+    }
+
+    let writableInstances: ProviderConfigApplyInstance[] = [];
+    try {
+      writableInstances = await this.listWritableOpenClawApplyInstances();
+    } catch {
+      return {
+        quickApply: {
+          available: false,
+          reasonKey: 'quickApplyTargetsUnavailable',
+          reason: OPENCLAW_QUICK_APPLY_TARGETS_UNAVAILABLE_ERROR,
+        },
+        test: {
+          available: true,
+        },
+      };
+    }
+
+    return {
+      quickApply:
+        writableInstances.length > 0
+          ? {
+              available: true,
+            }
+          : {
+              available: false,
+              reasonKey: 'quickApplyInstanceUnavailable',
+              reason: OPENCLAW_QUICK_APPLY_INSTANCE_UNAVAILABLE_ERROR,
+            },
+      test: {
+        available: true,
+      },
+    };
+  }
+
+  async listApplyInstances() {
+    const kernelInfoResult = await this.resolveKernelInfo();
+    if (kernelInfoResult.readFailed || !hasAvailableLocalAiProxyRuntime(kernelInfoResult.info)) {
+      return [];
+    }
+    if (!hasLoopbackOnlyLocalAiProxyRuntime(kernelInfoResult.info)) {
+      return [];
+    }
+
+    return this.listWritableOpenClawApplyInstances();
   }
 
   async getInstanceApplyTarget(instanceId: string): Promise<ProviderConfigApplyTarget> {
@@ -849,8 +1020,17 @@ class ProviderConfigCenterService {
     const instance = await this.resolveApplyInstance(input.instanceId);
     const record = input.config;
     await this.dependencies.kernelPlatformService.ensureRunning();
-    const kernelInfo = await this.dependencies.kernelPlatformService.getInfo();
-    const proxyBaseUrl = resolveOpenClawLocalProxyBaseUrl(kernelInfo, record.clientProtocol);
+    const kernelInfoResult = await this.resolveKernelInfo();
+    if (kernelInfoResult.readFailed) {
+      throw new Error(LOCAL_AI_PROXY_RUNTIME_STATUS_UNAVAILABLE_ERROR);
+    }
+    if (!hasLoopbackOnlyLocalAiProxyRuntime(kernelInfoResult.info)) {
+      throw new Error(OPENCLAW_QUICK_APPLY_REQUIRES_LOOPBACK_ERROR);
+    }
+    const proxyBaseUrl = resolveOpenClawLocalProxyBaseUrl(
+      kernelInfoResult.info,
+      record.clientProtocol,
+    );
     if (!proxyBaseUrl) {
       throw new Error('The local AI proxy is not available for OpenClaw apply.');
     }
@@ -859,7 +1039,7 @@ class ProviderConfigCenterService {
       routes: [record],
       preferredClientProtocol: record.clientProtocol,
       proxyBaseUrl,
-      proxyApiKey: OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+      proxyApiKey: OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER,
       runtimeConfig: record.config,
     });
 

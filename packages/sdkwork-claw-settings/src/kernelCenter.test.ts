@@ -123,3 +123,194 @@ await runTest(
     assert.equal(typeof zhSettings.kernelCenter.fields.startupEvidenceErrorCause, 'string');
   },
 );
+
+await runTest(
+  'KernelCenter renders runtime authority diagnostics and declares locale copy for the section',
+  async () => {
+    const kernelCenterSource = fs.readFileSync(
+      new URL('./KernelCenter.tsx', import.meta.url),
+      'utf8',
+    );
+    const enSettings = readJson(
+      new URL(
+        '../../sdkwork-claw-i18n/src/locales/en/settings.json',
+        import.meta.url,
+      ),
+    );
+    const zhSettings = readJson(
+      new URL(
+        '../../sdkwork-claw-i18n/src/locales/zh/settings.json',
+        import.meta.url,
+      ),
+    );
+
+    assert.match(kernelCenterSource, /data-slot="kernel-center-runtime-authority"/);
+    assert.match(kernelCenterSource, /dashboard\?\.runtimeAuthority/);
+    assert.match(kernelCenterSource, /settings\.kernelCenter\.sections\.runtimeAuthority/);
+    assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.managedConfigPath/);
+    assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.ownedRuntimeRoot/);
+    assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.supportsLoopbackHealthProbe/);
+    assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.healthProbeTimeoutMs/);
+
+    assert.equal(typeof enSettings.kernelCenter.sections.runtimeAuthority, 'string');
+    assert.equal(typeof enSettings.kernelCenter.fields.managedConfigPath, 'string');
+    assert.equal(typeof enSettings.kernelCenter.fields.ownedRuntimeRoot, 'string');
+    assert.equal(typeof enSettings.kernelCenter.fields.supportsLoopbackHealthProbe, 'string');
+    assert.equal(typeof enSettings.kernelCenter.fields.healthProbeTimeoutMs, 'string');
+
+    assert.equal(typeof zhSettings.kernelCenter.sections.runtimeAuthority, 'string');
+    assert.equal(typeof zhSettings.kernelCenter.fields.managedConfigPath, 'string');
+    assert.equal(typeof zhSettings.kernelCenter.fields.ownedRuntimeRoot, 'string');
+    assert.equal(typeof zhSettings.kernelCenter.fields.supportsLoopbackHealthProbe, 'string');
+    assert.equal(typeof zhSettings.kernelCenter.fields.healthProbeTimeoutMs, 'string');
+  },
+);
+
+await runTest(
+  'KernelCenter local AI proxy lifecycle treats ready as a first-class localized state',
+  async () => {
+    const kernelCenterSource = fs.readFileSync(
+      new URL('./KernelCenter.tsx', import.meta.url),
+      'utf8',
+    );
+    const enSettings = readJson(
+      new URL(
+        '../../sdkwork-claw-i18n/src/locales/en/settings.json',
+        import.meta.url,
+      ),
+    );
+    const zhSettings = readJson(
+      new URL(
+        '../../sdkwork-claw-i18n/src/locales/zh/settings.json',
+        import.meta.url,
+      ),
+    );
+
+    assert.match(kernelCenterSource, /case 'ready':/);
+    assert.match(
+      kernelCenterSource,
+      /settings\.kernelCenter\.localAiProxyLifecycle\.ready/,
+    );
+
+    assert.equal(typeof enSettings.kernelCenter.localAiProxyLifecycle.ready, 'string');
+    assert.equal(typeof zhSettings.kernelCenter.localAiProxyLifecycle.ready, 'string');
+  },
+);
+
+await runTest(
+  'KernelCenter runtime state treats ready OpenClaw runtime fallback as a first-class localized state',
+  async () => {
+    const kernelCenterSource = fs.readFileSync(
+      new URL('./KernelCenter.tsx', import.meta.url),
+      'utf8',
+    );
+    const enSettings = readJson(
+      new URL(
+        '../../sdkwork-claw-i18n/src/locales/en/settings.json',
+        import.meta.url,
+      ),
+    );
+    const zhSettings = readJson(
+      new URL(
+        '../../sdkwork-claw-i18n/src/locales/zh/settings.json',
+        import.meta.url,
+      ),
+    );
+
+    assert.match(kernelCenterSource, /case 'ready':/);
+    assert.match(kernelCenterSource, /settings\.kernelCenter\.runtimeStates\.ready/);
+    assert.match(
+      kernelCenterSource,
+      /dashboard\?\.snapshot\?\.runtimeState\s*\?\?\s*dashboard\?\.info\?\.openClawRuntime\?\.lifecycle/,
+    );
+
+    assert.equal(typeof enSettings.kernelCenter.runtimeStates.ready, 'string');
+    assert.equal(typeof zhSettings.kernelCenter.runtimeStates.ready, 'string');
+  },
+);
+
+await runTest(
+  'KernelCenter runtime state treats inactive and stopping OpenClaw runtime fallbacks as first-class localized states',
+  async () => {
+    const kernelCenterSource = fs.readFileSync(
+      new URL('./KernelCenter.tsx', import.meta.url),
+      'utf8',
+    );
+    const enSettings = readJson(
+      new URL(
+        '../../sdkwork-claw-i18n/src/locales/en/settings.json',
+        import.meta.url,
+      ),
+    );
+    const zhSettings = readJson(
+      new URL(
+        '../../sdkwork-claw-i18n/src/locales/zh/settings.json',
+        import.meta.url,
+      ),
+    );
+
+    assert.match(kernelCenterSource, /case 'inactive':/);
+    assert.match(kernelCenterSource, /case 'stopping':/);
+    assert.match(kernelCenterSource, /settings\.kernelCenter\.runtimeStates\.inactive/);
+    assert.match(kernelCenterSource, /settings\.kernelCenter\.runtimeStates\.stopping/);
+
+    assert.equal(typeof enSettings.kernelCenter.runtimeStates.inactive, 'string');
+    assert.equal(typeof enSettings.kernelCenter.runtimeStates.stopping, 'string');
+    assert.equal(typeof zhSettings.kernelCenter.runtimeStates.inactive, 'string');
+    assert.equal(typeof zhSettings.kernelCenter.runtimeStates.stopping, 'string');
+  },
+);
+
+await runTest(
+  'KernelCenter falls back to published kernel host details when the live status snapshot is unavailable',
+  async () => {
+    const kernelCenterSource = fs.readFileSync(
+      new URL('./KernelCenter.tsx', import.meta.url),
+      'utf8',
+    );
+
+    assert.match(
+      kernelCenterSource,
+      /dashboard\?\.snapshot\?\.topologyKind\s*\?\?\s*dashboard\?\.info\?\.host\?\.topology\.kind/,
+    );
+    assert.match(
+      kernelCenterSource,
+      /dashboard\?\.snapshot\?\.raw\.host\.serviceManager\s*\?\?\s*dashboard\?\.info\?\.host\?\.host\.serviceManager/,
+    );
+    assert.match(
+      kernelCenterSource,
+      /dashboard\?\.snapshot\?\.raw\.host\.ownership\s*\?\?\s*dashboard\?\.info\?\.host\?\.host\.ownership/,
+    );
+    assert.match(
+      kernelCenterSource,
+      /dashboard\?\.snapshot\?\.raw\.host\.startupMode\s*\?\?\s*dashboard\?\.info\?\.host\?\.host\.startupMode/,
+    );
+    assert.match(
+      kernelCenterSource,
+      /const provenance = dashboard\?\.provenance\s*\?\?\s*\{/,
+    );
+    assert.match(
+      kernelCenterSource,
+      /const installSourceLabel = translateInstallSource\(t,\s*provenance\.installSource\);/,
+    );
+  },
+);
+
+await runTest(
+  'KernelCenter disables kernel actions when no actionable kernel host snapshot is available',
+  async () => {
+    const kernelCenterSource = fs.readFileSync(
+      new URL('./KernelCenter.tsx', import.meta.url),
+      'utf8',
+    );
+
+    assert.match(
+      kernelCenterSource,
+      /const kernelControlAvailable = Boolean\(dashboard\?\.snapshot \|\| dashboard\?\.info\?\.host\);/,
+    );
+    assert.match(
+      kernelCenterSource,
+      /disabled=\{activeAction !== null \|\| !kernelControlAvailable\}/,
+    );
+  },
+);

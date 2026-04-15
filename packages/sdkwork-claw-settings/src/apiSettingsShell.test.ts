@@ -59,3 +59,14 @@ await runTest('api settings shell routes the API tab through a compact three-tab
     /<div className="text-xs text-zinc-500 dark:text-zinc-400">/,
   );
 });
+
+await runTest('api settings runtime summary treats ready local proxy lifecycle as a first-class localized state', async () => {
+  const apiSettingsSource = read('./ApiSettings.tsx');
+  const enApiLogs = JSON.parse(read('../../sdkwork-claw-i18n/src/locales/en/apiLogs.json')) as Record<string, any>;
+  const zhApiLogs = JSON.parse(read('../../sdkwork-claw-i18n/src/locales/zh/apiLogs.json')) as Record<string, any>;
+
+  assert.match(apiSettingsSource, /case 'ready':/);
+  assert.match(apiSettingsSource, /apiLogs\.logs\.runtimeLifecycle\.ready/);
+  assert.equal(typeof enApiLogs.logs.runtimeLifecycle.ready, 'string');
+  assert.equal(typeof zhApiLogs.logs.runtimeLifecycle.ready, 'string');
+});

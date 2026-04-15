@@ -70,9 +70,9 @@ export function createInstanceConfigFallback(
 export const createLLMStoreState = (
   set: StoreStateSetter<LLMState>,
   get: () => LLMState,
-) => ({
+): LLMState => ({
   instanceConfigs: {},
-  setActiveChannel: (instanceId, channelId) =>
+  setActiveChannel: (instanceId: string, channelId: string) =>
     set((state) => ({
       instanceConfigs: {
         ...state.instanceConfigs,
@@ -82,7 +82,7 @@ export const createLLMStoreState = (
         },
       },
     })),
-  setActiveModel: (instanceId, modelId) =>
+  setActiveModel: (instanceId: string, modelId: string) =>
     set((state) => ({
       instanceConfigs: {
         ...state.instanceConfigs,
@@ -92,7 +92,7 @@ export const createLLMStoreState = (
         },
       },
     })),
-  updateConfig: (instanceId, configUpdate) =>
+  updateConfig: (instanceId: string, configUpdate: Partial<LLMConfig>) =>
     set((state) => {
       const currentConfig = createInstanceConfigFallback(state.instanceConfigs[instanceId]);
 
@@ -106,7 +106,7 @@ export const createLLMStoreState = (
         },
       };
     }),
-  getInstanceConfig: (instanceId) =>
+  getInstanceConfig: (instanceId: string) =>
     createInstanceConfigFallback(get().instanceConfigs[instanceId]),
 });
 
@@ -122,7 +122,7 @@ export function createLLMStorePersistOptions(storage?: StateStorage) {
 }
 
 export function createLLMStore(storage?: StateStorage) {
-  return createPersistedSimpleStore(
+  return createPersistedSimpleStore<LLMState>(
     createLLMStoreState,
     createLLMStorePersistOptions(storage),
   );

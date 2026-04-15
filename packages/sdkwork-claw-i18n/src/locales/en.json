@@ -298,8 +298,11 @@
         "endpoint": "Endpoint"
       },
       "runtimeStates": {
+        "inactive": "Inactive",
+        "ready": "Ready",
         "running": "Running",
         "starting": "Starting",
+        "stopping": "Stopping",
         "recovering": "Recovering",
         "degraded": "Degraded",
         "crashLoop": "Crash Loop",
@@ -350,6 +353,7 @@
         "startupEvidence": "Startup Evidence",
         "storage": "Storage",
         "provenance": "Provenance",
+        "runtimeAuthority": "Runtime Authority",
         "capabilityRollup": "Capability Rollup",
         "managedDirectories": "Managed Directories",
         "supervisorAndBundles": "Supervisor And Bundles",
@@ -427,6 +431,10 @@
         "configPath": "Config Path",
         "runtimeHome": "Runtime Home",
         "runtimeInstallDir": "Runtime Install Dir",
+        "managedConfigPath": "Managed Config Path",
+        "ownedRuntimeRoot": "Owned Runtime Root {{index}}",
+        "supportsLoopbackHealthProbe": "Supports Loopback Health Probe",
+        "healthProbeTimeoutMs": "Health Probe Timeout",
         "machineState": "Machine State",
         "machineStaging": "Machine Staging",
         "userRoot": "User Root",
@@ -510,6 +518,7 @@
         "unknown": "Unknown"
       },
       "localAiProxyLifecycle": {
+        "ready": "Ready",
         "running": "Running",
         "failed": "Failed",
         "stopped": "Stopped",
@@ -3769,7 +3778,7 @@
       },
       "actions": {
         "setAsActive": "Set as Active",
-        "openOpenClawConsole": "Open OpenClaw Console",
+        "openOpenClawConsole": "Open Control Page",
         "restart": "Restart",
         "stop": "Stop",
         "start": "Start",
@@ -3802,7 +3811,7 @@
       "modules": {
         "hermes": {
           "eyebrow": "Hermes Kernel",
-          "description": "Hermes runs as an externally managed kernel. This detail module tracks transport posture, external runtime policy, data-access shape, and the machine-facing evidence required to keep Hermes support predictable across WSL2 and remote Linux deployments.",
+          "description": "Hermes runs as an externally managed kernel. This detail module tracks transport posture, external runtime policy, data-access shape, and the machine-facing evidence required to keep Hermes support predictable across supported local, WSL2, and remote Linux deployments.",
           "metrics": {
             "runtime": "Runtime",
             "deployment": "Deployment",
@@ -3828,8 +3837,8 @@
             "title": "Readiness Posture",
             "deploymentTarget": {
               "label": "Deployment target",
-              "configured": "This instance already reports a remote Linux deployment posture, which satisfies the Hermes Windows support boundary.",
-              "required": "Remote Linux is preferred. If this Hermes instance runs from a Windows host, local execution must stay inside WSL2 instead of native Windows."
+              "configured": "This instance already reports a supported Hermes deployment posture. Hermes may run as a local-external runtime on Linux, macOS, or Windows WSL2, or as a remote Linux deployment.",
+              "required": "Hermes must stay external. Use a local-external runtime on Linux, macOS, or Windows WSL2, or attach a remote Linux deployment instead of a native Windows or app-managed local target."
             },
             "endpointExposure": {
               "label": "Connectivity endpoints",
@@ -6627,7 +6636,7 @@
       "installedInCount": "Installed in {{count, number}} instances",
       "installed": "Installed",
       "builtIn": "Built-In",
-      "instanceStatus": "{{type}} 路 {{host}} 路 {{status}}",
+      "instanceStatus": "{{type}} / {{host}} / {{status}}",
       "instanceAgentCount": "{{count, number}} agents installed"
     },
     "error": {
@@ -7141,6 +7150,7 @@
         "observabilityDbPath": "Observability DB"
       },
       "runtimeLifecycle": {
+        "ready": "Ready",
         "running": "Running",
         "failed": "Failed",
         "stopped": "Stopped",
@@ -7282,6 +7292,13 @@
       "selectAllAgents": "Select All",
       "clearAgentSelection": "Clear",
       "applyConfig": "Apply Config"
+    },
+    "actionSupportReasons": {
+      "runtimeUnavailable": "Local proxy runtime is not available on the active host.",
+      "runtimeStatusUnavailable": "Local proxy runtime status is temporarily unavailable.",
+      "quickApplyTargetsUnavailable": "Quick apply targets are temporarily unavailable.",
+      "quickApplyInstanceUnavailable": "No writable OpenClaw instance is available for quick apply.",
+      "quickApplyRequiresLoopback": "Quick apply requires the local proxy runtime to stay loopback-only."
     },
     "import": {
       "sources": {

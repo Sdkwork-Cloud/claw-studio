@@ -35,14 +35,19 @@ const sampleRequest: AppUpdateCheckRequest = {
 
 function createMockSdkClientFactory() {
   let apiKey: string | null = null;
+  let setApiKeyCalls = 0;
 
   return {
     readApiKey() {
       return apiKey;
     },
+    readSetApiKeyCalls() {
+      return setApiKeyCalls;
+    },
     clientFactory() {
       return {
         setApiKey(nextApiKey: string) {
+          setApiKeyCalls += 1;
           apiKey = nextApiKey;
           return this;
         },
@@ -79,7 +84,7 @@ function createMockSdkClientFactory() {
   };
 }
 
-await runTest('checkAppUpdate posts to the backend update endpoint with bearer auth', async () => {
+await runTest('checkAppUpdate never applies browser root tokens to the generated sdk client', async () => {
   const appSdk = createMockSdkClientFactory();
   const env = createAppEnvConfig({
     VITE_API_BASE_URL: 'http://localhost:8080/',
@@ -92,7 +97,8 @@ await runTest('checkAppUpdate posts to the backend update endpoint with bearer a
     clientFactory: appSdk.clientFactory,
   });
 
-  assert.equal(appSdk.readApiKey(), 'desktop-token');
+  assert.equal(appSdk.readSetApiKeyCalls(), 0);
+  assert.equal(appSdk.readApiKey(), null);
   assert.equal(result.hasUpdate, true);
   assert.equal(result.targetVersion, '0.2.0');
   assert.equal(result.resolvedPackage?.url, 'https://downloads.sdkwork.com/claw-studio-0.2.0.exe');
@@ -110,5 +116,6 @@ await runTest('checkAppUpdate omits Authorization when no access token is config
     clientFactory: appSdk.clientFactory,
   });
 
+  assert.equal(appSdk.readSetApiKeyCalls(), 0);
   assert.equal(appSdk.readApiKey(), null);
 });

@@ -13,6 +13,22 @@ export function loadOpenClawReleaseConfig({
   return JSON.parse(readFileImpl(releaseConfigPath));
 }
 
+function splitPackageSpec(spec) {
+  const normalized = String(spec ?? '').trim();
+  const versionSeparatorIndex = normalized.lastIndexOf('@');
+  if (versionSeparatorIndex <= 0) {
+    return {
+      name: normalized,
+      version: '',
+    };
+  }
+
+  return {
+    name: normalized.slice(0, versionSeparatorIndex),
+    version: normalized.slice(versionSeparatorIndex + 1),
+  };
+}
+
 function normalizeRuntimeSupplementalPackages(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -23,20 +39,73 @@ function normalizeRuntimeSupplementalPackages(value) {
     .filter(Boolean);
 }
 
-/**
- * Warns if any supplemental package uses an unstable (0.x.x / 0.0.x) version.
- * These are pre-release dependencies that may introduce breaking changes without notice.
- * TODO: Pin to a stable semver (>=1.0.0) once upstream publishes one.
- */
-function warnUnstableSupplementalPackages(specs) {
-  const UNSTABLE_VERSION_PATTERN = /@0\.\d+\.\d+/;
-  for (const spec of specs) {
-    if (UNSTABLE_VERSION_PATTERN.test(spec)) {
-      console.warn(
-        `[openclaw-release] WARNING: Supplemental package "${spec}" uses an unstable version (<1.0.0). `
-        + 'This dependency may break without notice. Pin to a stable version when available.',
+function normalizeRuntimeSupplementalPackageExceptions(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const record = entry && typeof entry === 'object' ? entry : {};
+      return {
+        spec: String(record.spec ?? '').trim(),
+        reason: String(record.reason ?? '').trim(),
+        reviewedAt: String(record.reviewedAt ?? '').trim(),
+      };
+    })
+    .filter((entry) => entry.spec);
+}
+
+function isRuntimeSupplementalPackageUnstable(spec) {
+  const { version } = splitPackageSpec(spec);
+  return /^0\./.test(version) || /(?:^|[-.])(alpha|beta|rc)(?:[-.\d]|$)/i.test(version);
+}
+
+export function validateRuntimeSupplementalPackageExceptions(
+  specs,
+  exceptions,
+  {
+    releaseConfigPath: resolvedReleaseConfigPath = releaseConfigPath,
+  } = {},
+) {
+  const configuredSpecs = new Set(specs);
+  const exceptionBySpec = new Map();
+
+  for (const exception of exceptions) {
+    if (!exception.reason) {
+      throw new Error(
+        `[openclaw-release] Supplemental package exception "${exception.spec}" is missing a non-empty reason in ${resolvedReleaseConfigPath}.`,
       );
     }
+    if (!exception.reviewedAt || !/^\d{4}-\d{2}-\d{2}$/u.test(exception.reviewedAt)) {
+      throw new Error(
+        `[openclaw-release] Supplemental package exception "${exception.spec}" must use reviewedAt in YYYY-MM-DD format in ${resolvedReleaseConfigPath}.`,
+      );
+    }
+    if (exceptionBySpec.has(exception.spec)) {
+      throw new Error(
+        `[openclaw-release] Supplemental package exception "${exception.spec}" is duplicated in ${resolvedReleaseConfigPath}.`,
+      );
+    }
+    exceptionBySpec.set(exception.spec, exception);
+  }
+
+  const unapprovedUnstableSpecs = specs.filter(
+    (spec) => isRuntimeSupplementalPackageUnstable(spec) && !exceptionBySpec.has(spec),
+  );
+  if (unapprovedUnstableSpecs.length > 0) {
+    throw new Error(
+      `[openclaw-release] Unstable supplemental package(s) require explicit exceptions in ${resolvedReleaseConfigPath}: ${unapprovedUnstableSpecs.join(', ')}`,
+    );
+  }
+
+  const orphanedExceptions = exceptions
+    .map((exception) => exception.spec)
+    .filter((spec) => !configuredSpecs.has(spec));
+  if (orphanedExceptions.length > 0) {
+    throw new Error(
+      `[openclaw-release] Supplemental package exception(s) do not match runtimeSupplementalPackages in ${resolvedReleaseConfigPath}: ${orphanedExceptions.join(', ')}`,
+    );
   }
 }
 
@@ -44,13 +113,20 @@ const releaseConfig = loadOpenClawReleaseConfig();
 const normalizedSupplementalPackages = normalizeRuntimeSupplementalPackages(
   releaseConfig.runtimeSupplementalPackages,
 );
-warnUnstableSupplementalPackages(normalizedSupplementalPackages);
+const normalizedSupplementalPackageExceptions = normalizeRuntimeSupplementalPackageExceptions(
+  releaseConfig.runtimeSupplementalPackageExceptions,
+);
+validateRuntimeSupplementalPackageExceptions(
+  normalizedSupplementalPackages,
+  normalizedSupplementalPackageExceptions,
+);
 
 export const OPENCLAW_RELEASE = Object.freeze({
   stableVersion: String(releaseConfig.stableVersion ?? '').trim(),
   nodeVersion: String(releaseConfig.nodeVersion ?? '').trim(),
   packageName: String(releaseConfig.packageName ?? '').trim(),
   runtimeSupplementalPackages: normalizedSupplementalPackages,
+  runtimeSupplementalPackageExceptions: normalizedSupplementalPackageExceptions,
 });
 
 if (!OPENCLAW_RELEASE.stableVersion) {
@@ -71,6 +147,8 @@ export const DEFAULT_OPENCLAW_PACKAGE =
   process.env.OPENCLAW_PACKAGE_NAME ?? OPENCLAW_RELEASE.packageName;
 export const DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES =
   OPENCLAW_RELEASE.runtimeSupplementalPackages;
+export const DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGE_EXCEPTIONS =
+  OPENCLAW_RELEASE.runtimeSupplementalPackageExceptions;
 
 /**
  * Bundled aliases — aligned with packages/sdkwork-claw-types/src/openclawRelease.ts naming.
@@ -82,3 +160,5 @@ export const DEFAULT_REQUIRED_OPENCLAW_NODE_VERSION = DEFAULT_NODE_VERSION;
 export const DEFAULT_BUNDLED_OPENCLAW_PACKAGE_NAME = DEFAULT_OPENCLAW_PACKAGE;
 export const DEFAULT_BUNDLED_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES =
   DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES;
+export const DEFAULT_BUNDLED_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGE_EXCEPTIONS =
+  DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGE_EXCEPTIONS;

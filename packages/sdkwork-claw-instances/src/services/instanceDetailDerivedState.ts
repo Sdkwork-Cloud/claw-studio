@@ -120,7 +120,13 @@ export function buildInstanceDetailDerivedState({
   const managedWebFetchConfig = workbench?.managedWebFetchConfig || null;
   const managedAuthCooldownsConfig = workbench?.managedAuthCooldownsConfig || null;
   const managedDreamingConfig = workbench?.managedDreamingConfig || null;
-  const actionCapabilities = buildInstanceActionCapabilities(instance, detail);
+  const actionCapabilityInstance = instance
+    ? {
+        ...instance,
+        isBuiltIn: instance.isBuiltIn ?? detail?.instance.isBuiltIn,
+      }
+    : null;
+  const actionCapabilities = buildInstanceActionCapabilities(actionCapabilityInstance, detail);
   const isOpenClawConfigWritable =
     detail?.instance.runtimeKind === 'openclaw' &&
     Boolean(managedConfigPath) &&

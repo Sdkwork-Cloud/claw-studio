@@ -1,8 +1,8 @@
 use super::{
+    resolve_projected_openclaw_provider_api, resolve_projected_openclaw_provider_base_url,
     types::LocalAiProxyServiceHealth, LocalAiProxyRouteSnapshot, LocalAiProxySnapshot,
-    ANTHROPIC_CLIENT_PROTOCOL, GEMINI_CLIENT_PROTOCOL, OPENCLAW_LOCAL_PROXY_PROVIDER_ANTHROPIC_API,
-    OPENCLAW_LOCAL_PROXY_PROVIDER_AUTH, OPENCLAW_LOCAL_PROXY_PROVIDER_GEMINI_API,
-    OPENCLAW_LOCAL_PROXY_PROVIDER_ID, OPENCLAW_LOCAL_PROXY_PROVIDER_OPENAI_API,
+    OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER, OPENCLAW_LOCAL_PROXY_PROVIDER_AUTH,
+    OPENCLAW_LOCAL_PROXY_PROVIDER_ID,
 };
 use crate::framework::{
     paths::AppPaths, services::kernel_runtime_authority::KernelRuntimeAuthorityService,
@@ -38,13 +38,14 @@ pub(super) fn project_managed_openclaw_provider(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let projected_base_url = resolve_projected_openclaw_provider_base_url(route, health);
-    let projected_api = resolve_projected_openclaw_provider_api(route);
+    let projected_base_url =
+        resolve_projected_openclaw_provider_base_url(&route.client_protocol, &health.base_url);
+    let projected_api = resolve_projected_openclaw_provider_api(&route.client_protocol);
 
     provider_root.insert("baseUrl".to_string(), Value::String(projected_base_url));
     provider_root.insert(
         "apiKey".to_string(),
-        Value::String(snapshot.auth_token.trim().to_string()),
+        Value::String(OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER.to_string()),
     );
     provider_root.insert("api".to_string(), Value::String(projected_api.to_string()));
     clear_legacy_openclaw_provider_runtime_config(provider_root);
@@ -77,31 +78,6 @@ pub(super) fn project_managed_openclaw_provider(
     }
 
     write_openclaw_config_root(&authority_managed_openclaw_config_path(paths), &root)
-}
-
-fn resolve_projected_openclaw_provider_api(route: &LocalAiProxyRouteSnapshot) -> &'static str {
-    match route.client_protocol.trim() {
-        ANTHROPIC_CLIENT_PROTOCOL => OPENCLAW_LOCAL_PROXY_PROVIDER_ANTHROPIC_API,
-        GEMINI_CLIENT_PROTOCOL => OPENCLAW_LOCAL_PROXY_PROVIDER_GEMINI_API,
-        _ => OPENCLAW_LOCAL_PROXY_PROVIDER_OPENAI_API,
-    }
-}
-
-fn resolve_projected_openclaw_provider_base_url(
-    route: &LocalAiProxyRouteSnapshot,
-    health: &LocalAiProxyServiceHealth,
-) -> String {
-    let trimmed = health.base_url.trim();
-    if route.client_protocol.trim() != GEMINI_CLIENT_PROTOCOL {
-        return trimmed.to_string();
-    }
-
-    let root = trimmed.trim_end_matches("/v1").trim_end_matches('/');
-    if root.is_empty() {
-        trimmed.to_string()
-    } else {
-        root.to_string()
-    }
 }
 
 fn read_openclaw_config_root(path: &Path) -> Result<Value> {

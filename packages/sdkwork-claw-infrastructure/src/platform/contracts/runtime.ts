@@ -393,6 +393,17 @@ export interface RuntimeDesktopOpenClawProviderProjectionInfo {
   defaultModel?: string | null;
 }
 
+export interface RuntimeDesktopOpenClawRuntimeAuthorityProbeInfo {
+  supportsLoopbackHealthProbe: boolean;
+  healthProbeTimeoutMs: number;
+}
+
+export interface RuntimeDesktopOpenClawRuntimeAuthorityInfo {
+  managedConfigPath: string;
+  ownedRuntimeRoots: string[];
+  readinessProbe: RuntimeDesktopOpenClawRuntimeAuthorityProbeInfo;
+}
+
 export interface RuntimeDesktopOpenClawRuntimeInfo {
   runtimeId: string;
   lifecycle: string;
@@ -412,6 +423,7 @@ export interface RuntimeDesktopOpenClawRuntimeInfo {
   gatewayBaseUrl?: string | null;
   localAiProxyBaseUrl?: string | null;
   localAiProxySnapshotPath: string;
+  authority: RuntimeDesktopOpenClawRuntimeAuthorityInfo;
   providerProjection: RuntimeDesktopOpenClawProviderProjectionInfo;
   startupChain: RuntimeDesktopOpenClawRuntimeStageInfo[];
 }

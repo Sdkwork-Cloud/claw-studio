@@ -6,66 +6,43 @@ import { fileURLToPath } from 'node:url';
 
 import { ensureSharedSdkGitSources } from './prepare-shared-sdk-git-sources.mjs';
 import { resolveSharedSdkMode } from './shared-sdk-mode.mjs';
+import {
+  resolveCanonicalWorkspaceRootDir,
+  resolveWorkspaceRootDir as resolveWorkspaceRootDirImpl,
+} from './workspace-root.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const scriptWorkspaceRoot = path.resolve(__dirname, '..');
-
-export function resolveWorkspaceRootDir(currentWorkingDir = process.cwd()) {
-  let candidateDir = path.resolve(currentWorkingDir);
-
-  while (true) {
-    const packageJsonPath = path.join(candidateDir, 'package.json');
-    const workspaceManifestPath = path.join(candidateDir, 'pnpm-workspace.yaml');
-
-    if (fs.existsSync(packageJsonPath) && fs.existsSync(workspaceManifestPath)) {
-      try {
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-        if (packageJson?.name === '@sdkwork/claw-workspace') {
-          return candidateDir;
-        }
-      } catch {
-        // Ignore parse failures and continue walking upward.
-      }
-    }
-
-    const parentDir = path.dirname(candidateDir);
-    if (parentDir === candidateDir) {
-      break;
-    }
-
-    candidateDir = parentDir;
-  }
-
-  return scriptWorkspaceRoot;
-}
+export const resolveWorkspaceRootDir = resolveWorkspaceRootDirImpl;
+export { resolveCanonicalWorkspaceRootDir };
 
 export function createSharedSdkPackageContext({
   currentWorkingDir = process.cwd(),
   env = process.env,
 } = {}) {
   const workspaceRoot = resolveWorkspaceRootDir(currentWorkingDir);
+  const canonicalWorkspaceRoot = resolveCanonicalWorkspaceRootDir(currentWorkingDir);
 
   return {
     workspaceRoot,
+    canonicalWorkspaceRoot,
     sharedAppSdkRoot: path.resolve(
-      workspaceRoot,
+      canonicalWorkspaceRoot,
       '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript',
     ),
     sharedSdkCommonRoot: path.resolve(
-      workspaceRoot,
+      canonicalWorkspaceRoot,
       '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript',
     ),
     sharedImBackendSdkRoot: path.resolve(
-      workspaceRoot,
+      canonicalWorkspaceRoot,
       '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/generated/server-openapi',
     ),
     sharedOpenchatImSdkRoot: path.resolve(
-      workspaceRoot,
+      canonicalWorkspaceRoot,
       '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/composed',
     ),
     sharedOpenchatImWukongimAdapterRoot: path.resolve(
-      workspaceRoot,
+      canonicalWorkspaceRoot,
       '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/adapter-wukongim',
     ),
     mode: resolveSharedSdkMode(env),
@@ -132,6 +109,16 @@ function assertPackageRootExists(packageRoot, packageName) {
     `[prepare-shared-sdk-packages] Missing ${packageName} source at ${packageRoot}. ` +
       'Restore the local shared SDK source tree or set SDKWORK_SHARED_SDK_MODE=git to materialize the pinned release checkout.',
   );
+}
+
+function hasRequiredSharedSdkSources(context) {
+  return exists(context.sharedSdkCommonRoot) && exists(context.sharedAppSdkRoot);
+}
+
+function hasOptionalSharedImSdkSources(context) {
+  return exists(context.sharedImBackendSdkRoot)
+    && exists(context.sharedOpenchatImSdkRoot)
+    && exists(context.sharedOpenchatImWukongimAdapterRoot);
 }
 
 function readPackageManifest(packageRoot) {
@@ -292,15 +279,11 @@ export function prepareSharedSdkPackages({
 
   if (
     context.mode === 'git' ||
-    !exists(context.sharedSdkCommonRoot) ||
-    !exists(context.sharedAppSdkRoot) ||
-    !exists(context.sharedImBackendSdkRoot) ||
-    !exists(context.sharedOpenchatImSdkRoot) ||
-    !exists(context.sharedOpenchatImWukongimAdapterRoot)
+    !hasRequiredSharedSdkSources(context)
   ) {
     console.log('[prepare-shared-sdk-packages] Ensuring shared SDK sources are available.');
     ensureSharedSdkGitSources({
-      workspaceRootDir: context.workspaceRoot,
+      workspaceRootDir: context.canonicalWorkspaceRoot,
       env,
       syncExistingRepos,
     });
@@ -308,9 +291,6 @@ export function prepareSharedSdkPackages({
 
   assertPackageRootExists(context.sharedSdkCommonRoot, '@sdkwork/sdk-common');
   assertPackageRootExists(context.sharedAppSdkRoot, '@sdkwork/app-sdk');
-  assertPackageRootExists(context.sharedImBackendSdkRoot, '@sdkwork/im-backend-sdk');
-  assertPackageRootExists(context.sharedOpenchatImWukongimAdapterRoot, '@openchat/sdkwork-im-wukongim-adapter');
-  assertPackageRootExists(context.sharedOpenchatImSdkRoot, '@openchat/sdkwork-im-sdk');
 
   const needsSharedSdkCommonBuild = shouldBuildPackage(context.sharedSdkCommonRoot);
   ensurePackageDependencyLinks(context.sharedSdkCommonRoot, context.workspaceRoot, {
@@ -327,6 +307,17 @@ export function prepareSharedSdkPackages({
     },
   });
   ensurePackageBuilt('@sdkwork/app-sdk', context.sharedAppSdkRoot, context.workspaceRoot);
+
+  if (!hasOptionalSharedImSdkSources(context)) {
+    console.log(
+      '[prepare-shared-sdk-packages] Skipping optional openchat shared IM SDK preparation because the source roots are absent in this workspace.',
+    );
+    return context;
+  }
+
+  assertPackageRootExists(context.sharedImBackendSdkRoot, '@sdkwork/im-backend-sdk');
+  assertPackageRootExists(context.sharedOpenchatImWukongimAdapterRoot, '@openchat/sdkwork-im-wukongim-adapter');
+  assertPackageRootExists(context.sharedOpenchatImSdkRoot, '@openchat/sdkwork-im-sdk');
 
   const needsSharedImBackendSdkBuild = shouldBuildPackage(context.sharedImBackendSdkRoot);
   ensurePackageDependencyLinks(context.sharedImBackendSdkRoot, context.workspaceRoot, {

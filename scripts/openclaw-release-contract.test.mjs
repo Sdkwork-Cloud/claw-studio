@@ -109,6 +109,11 @@ assert.deepEqual(
   'openclaw shared release config must pin the prepared supplemental runtime packages',
 );
 assert.deepEqual(
+  releaseConfig.runtimeSupplementalPackageExceptions,
+  [],
+  'openclaw shared release config must keep prerelease exception metadata empty while no supplemental runtime packages are bundled',
+);
+assert.deepEqual(
   sourceComponentRegistry.components,
   [],
   'desktop source component registry must remain a generic support-component catalog and must not carry kernel-specific OpenClaw version metadata',

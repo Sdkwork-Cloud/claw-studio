@@ -24,6 +24,7 @@ import { resolveDesktopReleaseTarget } from './release/desktop-targets.mjs';
 import {
   DEFAULT_NODE_VERSION,
   DEFAULT_OPENCLAW_PACKAGE,
+  DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGE_EXCEPTIONS,
   DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
   DEFAULT_OPENCLAW_VERSION,
 } from './openclaw-release.mjs';
@@ -31,6 +32,7 @@ import { cleanupLegacyOpenClawSourceRuntimeResidue } from './cleanup-legacy-open
 export {
   DEFAULT_NODE_VERSION,
   DEFAULT_OPENCLAW_PACKAGE,
+  DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGE_EXCEPTIONS,
   DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
   DEFAULT_OPENCLAW_VERSION,
 } from './openclaw-release.mjs';

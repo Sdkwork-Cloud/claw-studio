@@ -28,6 +28,8 @@ function runTest(name: string, callback: () => void | Promise<void>) {
     });
 }
 
+const SDKWORK_LOCAL_PROXY_TOKEN_PLACEHOLDER = '${SDKWORK_LOCAL_PROXY_TOKEN}';
+
 function createRuntimeConfig(
   overrides: Partial<ProviderRuntimeConfig> = {},
 ): ProviderRuntimeConfig {
@@ -219,6 +221,32 @@ function createOpenClawDetail(
   };
 }
 
+function createKernelInfoWithLocalAiProxy(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    localAiProxy: {
+      lifecycle: 'running',
+      baseUrl: 'http://localhost:18791/v1',
+      rootBaseUrl: 'http://localhost:18791',
+      openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
+      anthropicBaseUrl: 'http://localhost:18791/v1',
+      geminiBaseUrl: 'http://localhost:18791',
+      activePort: 18791,
+      loopbackOnly: true,
+      defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
+      defaultRouteName: 'SDKWork Default',
+      upstreamBaseUrl: 'https://ai.sdkwork.com',
+      modelCount: 2,
+      configPath: 'D:/state/local-ai-proxy.json',
+      snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
+      logPath: 'D:/logs/local-ai-proxy.log',
+      lastError: null,
+      ...overrides,
+    },
+  } as any;
+}
+
 await runTest('providerConfigCenterService delegates route catalog CRUD to the shared provider routing control plane', async () => {
   const routedRecord = createRecord({
     id: 'provider-config-openai-prod',
@@ -275,6 +303,91 @@ await runTest('providerConfigCenterService delegates route catalog CRUD to the s
   assert.deepEqual(deleteCalls, ['provider-config-openai-prod']);
   assert.equal(deleted, true);
 });
+
+await runTest(
+  'providerConfigCenterService still lists provider configs when kernel info is temporarily unavailable',
+  async () => {
+    const record = createRecord({
+      id: 'provider-config-openai-prod',
+      updatedAt: 2,
+      isDefault: true,
+    });
+    const service = createProviderConfigCenterService({
+      providerRoutingApi: {
+        listProviderRoutingRecords: async () => [record],
+      },
+      kernelPlatformService: {
+        getInfo: async () => {
+          throw new Error('kernel info unavailable');
+        },
+      } as any,
+    });
+
+    const listed = await service.listProviderConfigs();
+
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0]?.id, 'provider-config-openai-prod');
+    assert.equal(listed[0]?.runtimeMetrics, undefined);
+    assert.equal(listed[0]?.latestTest, null);
+  },
+);
+
+await runTest(
+  'providerConfigCenterService keeps saved provider configs when local AI proxy sync fails after persistence',
+  async () => {
+    const record = createRecord({
+      id: 'provider-config-openai-prod',
+      updatedAt: 2,
+      isDefault: true,
+    });
+    const calls: string[] = [];
+    const service = createProviderConfigCenterService({
+      providerRoutingApi: {
+        saveProviderRoutingRecord: async (input) => {
+          calls.push(`save:${input.name}`);
+          return record;
+        },
+      },
+      kernelPlatformService: {
+        ensureRunning: async () => {
+          calls.push('ensureRunning');
+          throw new Error('kernel sync unavailable');
+        },
+      } as any,
+    });
+
+    const saved = await service.saveProviderConfig(createDraft({ isDefault: true }));
+
+    assert.equal(saved.id, 'provider-config-openai-prod');
+    assert.deepEqual(calls, ['save:OpenAI Production', 'ensureRunning']);
+  },
+);
+
+await runTest(
+  'providerConfigCenterService keeps deletions applied when local AI proxy sync fails after delete',
+  async () => {
+    const calls: string[] = [];
+    const service = createProviderConfigCenterService({
+      providerRoutingApi: {
+        deleteProviderRoutingRecord: async (id) => {
+          calls.push(`delete:${id}`);
+          return true;
+        },
+      },
+      kernelPlatformService: {
+        ensureRunning: async () => {
+          calls.push('ensureRunning');
+          throw new Error('kernel sync unavailable');
+        },
+      } as any,
+    });
+
+    const deleted = await service.deleteProviderConfig('provider-config-openai-prod');
+
+    assert.equal(deleted, true);
+    assert.deepEqual(calls, ['delete:provider-config-openai-prod', 'ensureRunning']);
+  },
+);
 
 await runTest('providerConfigCenterService persists proxy route records in the sqlite storage namespace and reads them back', async () => {
   const store = new Map<string, string>();
@@ -665,6 +778,7 @@ await runTest(
     const service = createProviderConfigCenterService();
     const presets = service.listPresets();
     const cloudflarePreset = presets.find((preset) => preset.id === 'cloudflare-ai-gateway');
+    const sdkworkPreset = presets.find((preset) => preset.id === 'sdkwork');
     const groqPreset = presets.find((preset) => preset.id === 'groq');
     const ollamaPreset = presets.find((preset) => preset.id === 'ollama');
     const sglangPreset = presets.find((preset) => preset.id === 'sglang');
@@ -674,6 +788,10 @@ await runTest(
     const kiloPreset = presets.find((preset) => preset.id === 'kilocode');
     const vllmPreset = presets.find((preset) => preset.id === 'vllm');
     const venicePreset = presets.find((preset) => preset.id === 'venice');
+
+    assert.ok(sdkworkPreset);
+    assert.equal(sdkworkPreset?.draft.providerId, 'sdkwork');
+    assert.equal(sdkworkPreset?.draft.apiKey, 'sk_sdkwork_api_key');
 
     assert.ok(cloudflarePreset);
     assert.equal(cloudflarePreset?.draft.providerId, 'cloudflare-ai-gateway');
@@ -933,6 +1051,29 @@ await runTest('providerConfigCenterService exposes writable config-backed instan
             })
           : createOpenClawDetail(),
     },
+    kernelPlatformService: {
+      getInfo: async () =>
+        ({
+          localAiProxy: {
+            lifecycle: 'running',
+            baseUrl: 'http://localhost:18791/v1',
+            rootBaseUrl: 'http://localhost:18791',
+            openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
+            anthropicBaseUrl: 'http://localhost:18791/v1',
+            geminiBaseUrl: 'http://localhost:18791',
+            activePort: 18791,
+            loopbackOnly: true,
+            defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
+            defaultRouteName: 'SDKWork Default',
+            upstreamBaseUrl: 'https://ai.sdkwork.com',
+            modelCount: 2,
+            configPath: 'D:/state/local-ai-proxy.json',
+            snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
+            logPath: 'D:/logs/local-ai-proxy.log',
+            lastError: null,
+          },
+        }) as any,
+    } as any,
     openClawConfigService: {
       resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
       readConfigSnapshot: async () =>
@@ -986,6 +1127,166 @@ await runTest('providerConfigCenterService exposes writable config-backed instan
   );
   assert.equal(target.agents[0]?.isDefault, true);
 });
+
+await runTest(
+  'providerConfigCenterService hides quick-apply instances when the local AI proxy runtime is unavailable',
+  async () => {
+    const service = createProviderConfigCenterService({
+      storageApi: {
+        getStorageInfo: async () => null,
+        getText: async () => ({
+          profileId: 'default-sqlite',
+          namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
+          key: 'unused',
+          value: null,
+        }),
+        putText: async () => ({
+          profileId: 'default-sqlite',
+          namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
+          key: 'unused',
+        }),
+        delete: async () => ({
+          profileId: 'default-sqlite',
+          namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
+          key: 'unused',
+          existed: false,
+        }),
+        listKeys: async () => ({
+          profileId: 'default-sqlite',
+          namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
+          keys: [],
+        }),
+      },
+      studioApi: {
+        listInstances: async () => [createOpenClawInstance()],
+        getInstanceDetail: async () => createOpenClawDetail(),
+      },
+      kernelPlatformService: {
+        getInfo: async () => null,
+      } as any,
+      openClawConfigService: {
+        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      } as any,
+    });
+
+    const instances = await service.listApplyInstances();
+
+    assert.deepEqual(instances, []);
+  },
+);
+
+await runTest(
+  'providerConfigCenterService degrades action support when kernel info is temporarily unavailable',
+  async () => {
+    const service = createProviderConfigCenterService({
+      kernelPlatformService: {
+        getInfo: async () => {
+          throw new Error('kernel info unavailable');
+        },
+      } as any,
+    });
+
+    const support = await service.getActionSupport();
+
+    assert.equal(support.quickApply.available, false);
+    assert.equal(support.test.available, false);
+    assert.equal(support.quickApply.reasonKey, 'runtimeStatusUnavailable');
+    assert.equal(support.test.reasonKey, 'runtimeStatusUnavailable');
+    assert.ok(support.quickApply.reason);
+    assert.ok(support.test.reason);
+  },
+);
+
+await runTest(
+  'providerConfigCenterService keeps route testing available when quick-apply target discovery is temporarily unavailable',
+  async () => {
+    const service = createProviderConfigCenterService({
+      kernelPlatformService: {
+        getInfo: async () => createKernelInfoWithLocalAiProxy(),
+      } as any,
+      studioApi: {
+        listInstances: async () => {
+          throw new Error('instances unavailable');
+        },
+      } as any,
+    });
+
+    const support = await service.getActionSupport();
+
+    assert.equal(support.quickApply.available, false);
+    assert.equal(support.quickApply.reasonKey, 'quickApplyTargetsUnavailable');
+    assert.ok(support.quickApply.reason);
+    assert.equal(support.test.available, true);
+    assert.equal(support.test.reasonKey, undefined);
+    assert.equal(support.test.reason, undefined);
+  },
+);
+
+await runTest(
+  'providerConfigCenterService disables quick apply when the local AI proxy runtime is not loopback-only',
+  async () => {
+    const service = createProviderConfigCenterService({
+      kernelPlatformService: {
+        getInfo: async () =>
+          createKernelInfoWithLocalAiProxy({
+            loopbackOnly: false,
+          }),
+      } as any,
+    });
+
+    const support = await service.getActionSupport();
+
+    assert.equal(support.quickApply.available, false);
+    assert.equal(support.quickApply.reasonKey, 'quickApplyRequiresLoopback');
+    assert.ok(support.quickApply.reason);
+    assert.equal(support.test.available, true);
+    assert.equal(support.test.reasonKey, undefined);
+  },
+);
+
+await runTest(
+  'providerConfigCenterService hides quick-apply instances when the local AI proxy runtime is network-exposed',
+  async () => {
+    const service = createProviderConfigCenterService({
+      kernelPlatformService: {
+        getInfo: async () =>
+          createKernelInfoWithLocalAiProxy({
+            loopbackOnly: false,
+          }),
+      } as any,
+      studioApi: {
+        listInstances: async () => {
+          throw new Error('listInstances should not be called when quick apply is unsupported');
+        },
+      } as any,
+    });
+
+    const instances = await service.listApplyInstances();
+
+    assert.deepEqual(instances, []);
+  },
+);
+
+await runTest(
+  'providerConfigCenterService reports a dedicated quick-apply reason when no writable OpenClaw instance is available',
+  async () => {
+    const service = createProviderConfigCenterService({
+      kernelPlatformService: {
+        getInfo: async () => createKernelInfoWithLocalAiProxy(),
+      } as any,
+      studioApi: {
+        listInstances: async () => [],
+      } as any,
+    });
+
+    const support = await service.getActionSupport();
+
+    assert.equal(support.quickApply.available, false);
+    assert.equal(support.quickApply.reasonKey, 'quickApplyInstanceUnavailable');
+    assert.ok(support.quickApply.reason);
+    assert.equal(support.test.available, true);
+  },
+);
 
 await runTest('providerConfigCenterService applies a saved provider config through the managed local proxy projection and updates selected agents', async () => {
   const projectionCalls: Array<unknown> = [];
@@ -1114,7 +1415,7 @@ await runTest('providerConfigCenterService applies a saved provider config throu
           id: 'sdkwork-local-proxy',
           channelId: 'openai-compatible',
           name: 'SDKWork Local Proxy',
-          apiKey: 'sk_sdkwork_api_key',
+          apiKey: SDKWORK_LOCAL_PROXY_TOKEN_PLACEHOLDER,
           baseUrl: 'http://localhost:18791/v1',
           models: [
             { id: 'gpt-5.4', name: 'GPT-5.4' },
@@ -1292,7 +1593,7 @@ await runTest('providerConfigCenterService applies provider configs through the 
           id: 'sdkwork-local-proxy',
           channelId: 'openai-compatible',
           name: 'SDKWork Local Proxy',
-          apiKey: 'sk_sdkwork_api_key',
+          apiKey: SDKWORK_LOCAL_PROXY_TOKEN_PLACEHOLDER,
           baseUrl: 'http://localhost:18791/v1',
           models: [
             { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
@@ -1454,7 +1755,7 @@ await runTest('providerConfigCenterService applies native gemini client routes t
           id: 'sdkwork-local-proxy',
           channelId: 'gemini',
           name: 'SDKWork Local Proxy',
-          apiKey: 'sk_sdkwork_api_key',
+          apiKey: SDKWORK_LOCAL_PROXY_TOKEN_PLACEHOLDER,
           baseUrl: 'http://localhost:18791',
           models: [
             { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
@@ -1490,6 +1791,52 @@ await runTest('providerConfigCenterService applies native gemini client routes t
     },
   ]);
 });
+
+await runTest(
+  'providerConfigCenterService rejects quick apply when the local AI proxy runtime is not loopback-only',
+  async () => {
+    const calls: string[] = [];
+    const projectionCalls: Array<unknown> = [];
+    const service = createProviderConfigCenterService({
+      studioApi: {
+        getInstanceDetail: async () => createOpenClawDetail(),
+      },
+      kernelPlatformService: {
+        ensureRunning: async () => {
+          calls.push('ensureRunning');
+          return null;
+        },
+        getInfo: async () => {
+          calls.push('getInfo');
+          return createKernelInfoWithLocalAiProxy({
+            loopbackOnly: false,
+          });
+        },
+      } as any,
+      openClawConfigService: {
+        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+        saveManagedLocalProxyProjection: async (input) => {
+          projectionCalls.push(input);
+          return null;
+        },
+      } as any,
+    });
+
+    await assert.rejects(
+      () =>
+        service.applyProviderConfig({
+          instanceId: 'local-built-in',
+          config: createRecord({
+            id: 'provider-config-openai-prod',
+          }),
+          agentIds: ['main'],
+        }),
+      /loopback-only local AI proxy runtime/i,
+    );
+    assert.deepEqual(calls, ['ensureRunning', 'getInfo']);
+    assert.deepEqual(projectionCalls, []);
+  },
+);
 
 await runTest('providerConfigCenterService merges local proxy runtime summaries into listed route records', async () => {
   const record = createRecord({
@@ -1627,7 +1974,29 @@ await runTest('providerConfigCenterService delegates route tests through the ker
       }),
     },
     kernelPlatformService: {
-      getInfo: async () => null,
+      getInfo: async () => {
+        calls.push('getInfo');
+        return {
+          localAiProxy: {
+            lifecycle: 'running',
+            baseUrl: 'http://localhost:18791/v1',
+            rootBaseUrl: 'http://localhost:18791',
+            openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
+            anthropicBaseUrl: 'http://localhost:18791/v1',
+            geminiBaseUrl: 'http://localhost:18791',
+            activePort: 18791,
+            loopbackOnly: true,
+            defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
+            defaultRouteName: 'SDKWork Default',
+            upstreamBaseUrl: 'https://ai.sdkwork.com',
+            modelCount: 2,
+            configPath: 'D:/state/local-ai-proxy.json',
+            snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
+            logPath: 'D:/logs/local-ai-proxy.log',
+            lastError: null,
+          },
+        } as any;
+      },
       ensureRunning: async () => {
         calls.push('ensureRunning');
         return null;
@@ -1649,7 +2018,7 @@ await runTest('providerConfigCenterService delegates route tests through the ker
 
   const result = await (service as any).testProviderConfigRoute('provider-config-openai-prod');
 
-  assert.deepEqual(calls, ['ensureRunning', 'test:provider-config-openai-prod']);
+  assert.deepEqual(calls, ['ensureRunning', 'getInfo', 'test:provider-config-openai-prod']);
   assert.deepEqual(result, {
     routeId: 'provider-config-openai-prod',
     status: 'passed',
@@ -1660,3 +2029,134 @@ await runTest('providerConfigCenterService delegates route tests through the ker
     error: null,
   });
 });
+
+await runTest(
+  'providerConfigCenterService rejects route tests when the local AI proxy runtime is unavailable',
+  async () => {
+    const calls: string[] = [];
+    const service = createProviderConfigCenterService({
+      storageApi: {
+        getStorageInfo: async () => null,
+        getText: async () => ({
+          profileId: 'default-sqlite',
+          namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
+          key: 'unused',
+          value: null,
+        }),
+        putText: async () => ({
+          profileId: 'default-sqlite',
+          namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
+          key: 'unused',
+        }),
+        delete: async () => ({
+          profileId: 'default-sqlite',
+          namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
+          key: 'unused',
+          existed: false,
+        }),
+        listKeys: async () => ({
+          profileId: 'default-sqlite',
+          namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
+          keys: [],
+        }),
+      },
+      kernelPlatformService: {
+        ensureRunning: async () => {
+          calls.push('ensureRunning');
+          return null;
+        },
+        getInfo: async () => {
+          calls.push('getInfo');
+          return null;
+        },
+        testLocalAiProxyRoute: async (routeId: string) => {
+          calls.push(`test:${routeId}`);
+          return {
+            routeId,
+            status: 'passed',
+            testedAt: 1_743_510_100_000,
+            latencyMs: 433,
+            checkedCapability: 'chat',
+            modelId: 'gpt-5.4',
+            error: null,
+          } as any;
+        },
+      } as any,
+    });
+
+    await assert.rejects(
+      () => (service as any).testProviderConfigRoute('provider-config-openai-prod'),
+      /local AI proxy runtime is not available/i,
+    );
+    assert.deepEqual(calls, ['ensureRunning', 'getInfo']);
+  },
+);
+
+await runTest(
+  'providerConfigCenterService reports temporary runtime status errors when route test kernel info reads fail',
+  async () => {
+    const calls: string[] = [];
+    const service = createProviderConfigCenterService({
+      kernelPlatformService: {
+        ensureRunning: async () => {
+          calls.push('ensureRunning');
+          return null;
+        },
+        getInfo: async () => {
+          calls.push('getInfo');
+          throw new Error('kernel info unavailable');
+        },
+      } as any,
+    });
+
+    await assert.rejects(
+      () => (service as any).testProviderConfigRoute('provider-config-openai-prod'),
+      /runtime status is temporarily unavailable/i,
+    );
+    assert.deepEqual(calls, ['ensureRunning', 'getInfo']);
+  },
+);
+
+await runTest(
+  'providerConfigCenterService reports temporary runtime status errors when apply kernel info reads fail',
+  async () => {
+    const calls: string[] = [];
+    const projectionCalls: Array<unknown> = [];
+    const service = createProviderConfigCenterService({
+      studioApi: {
+        getInstanceDetail: async () => createOpenClawDetail(),
+      },
+      kernelPlatformService: {
+        ensureRunning: async () => {
+          calls.push('ensureRunning');
+          return null;
+        },
+        getInfo: async () => {
+          calls.push('getInfo');
+          throw new Error('kernel info unavailable');
+        },
+      } as any,
+      openClawConfigService: {
+        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+        saveManagedLocalProxyProjection: async (input) => {
+          projectionCalls.push(input);
+          return null;
+        },
+      } as any,
+    });
+
+    await assert.rejects(
+      () =>
+        service.applyProviderConfig({
+          instanceId: 'local-built-in',
+          config: createRecord({
+            id: 'provider-config-openai-prod',
+          }),
+          agentIds: ['main'],
+        }),
+      /runtime status is temporarily unavailable/i,
+    );
+    assert.deepEqual(calls, ['ensureRunning', 'getInfo']);
+    assert.deepEqual(projectionCalls, []);
+  },
+);

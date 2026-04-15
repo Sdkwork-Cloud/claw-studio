@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import en from './locales/en/index.ts';
@@ -77,7 +77,16 @@ function collectStrings(value: unknown, results: string[] = []): string[] {
 function collectWorkspaceFiles(directory: string, results: string[] = []) {
   for (const entry of readdirSync(directory)) {
     const nextPath = join(directory, entry);
-    const stats = statSync(nextPath);
+    let stats;
+    try {
+      stats = lstatSync(nextPath);
+    } catch {
+      continue;
+    }
+
+    if (stats.isSymbolicLink()) {
+      continue;
+    }
 
     if (stats.isDirectory()) {
       if (entry === 'node_modules' || entry === 'dist') {

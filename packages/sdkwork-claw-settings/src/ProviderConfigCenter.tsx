@@ -35,6 +35,8 @@ import {
   listProviderConfigKnownProviderOptions,
   providerConfigCenterService,
   providerConfigImportService,
+  type ProviderConfigCenterActionSupport,
+  type ProviderConfigCenterActionSupportItem,
   type ProviderConfigImportSource,
   type ProviderConfigRecord,
   type ProviderConfigFormState,
@@ -62,6 +64,14 @@ const IMPORT_SOURCE_ORDER: ProviderConfigImportSource[] = [
   'claude-code',
   'opencode',
 ];
+const DEFAULT_ACTION_SUPPORT: ProviderConfigCenterActionSupport = {
+  quickApply: {
+    available: false,
+  },
+  test: {
+    available: false,
+  },
+};
 
 function formatCompactNumber(value?: number | null) {
   if (!Number.isFinite(value ?? NaN)) {
@@ -94,6 +104,26 @@ function buildRouteModelSummary(record: ProviderConfigRecord, t: (key: string) =
   ].filter((value): value is string => Boolean(value));
 }
 
+function resolveActionSupportReasonLabel(
+  t: (key: string) => string,
+  support: ProviderConfigCenterActionSupportItem,
+) {
+  switch (support.reasonKey) {
+    case 'runtimeUnavailable':
+      return t('providerCenter.actionSupportReasons.runtimeUnavailable');
+    case 'runtimeStatusUnavailable':
+      return t('providerCenter.actionSupportReasons.runtimeStatusUnavailable');
+    case 'quickApplyRequiresLoopback':
+      return t('providerCenter.actionSupportReasons.quickApplyRequiresLoopback');
+    case 'quickApplyTargetsUnavailable':
+      return t('providerCenter.actionSupportReasons.quickApplyTargetsUnavailable');
+    case 'quickApplyInstanceUnavailable':
+      return t('providerCenter.actionSupportReasons.quickApplyInstanceUnavailable');
+    default:
+      return support.reason || '';
+  }
+}
+
 export function ProviderConfigCenter() {
   const { t } = useTranslation();
   const presets = providerConfigCenterService.listPresets();
@@ -112,6 +142,8 @@ export function ProviderConfigCenter() {
   const [detailTarget, setDetailTarget] = useState<ProviderConfigRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [applyTarget, setApplyTarget] = useState<ProviderConfigRecord | null>(null);
+  const [actionSupport, setActionSupport] =
+    useState<ProviderConfigCenterActionSupport>(DEFAULT_ACTION_SUPPORT);
   const [applyInstances, setApplyInstances] = useState<Awaited<ReturnType<typeof providerConfigCenterService.listApplyInstances>>>([]);
   const [selectedInstanceId, setSelectedInstanceId] = useState('');
   const [instanceTarget, setInstanceTarget] = useState<Awaited<ReturnType<typeof providerConfigCenterService.getInstanceApplyTarget>> | null>(null);
@@ -168,8 +200,14 @@ export function ProviderConfigCenter() {
       setIsLoading(true);
     }
     try {
-      setRecords(await providerConfigCenterService.listProviderConfigs());
+      const [nextRecords, nextActionSupport] = await Promise.all([
+        providerConfigCenterService.listProviderConfigs(),
+        providerConfigCenterService.getActionSupport(),
+      ]);
+      setRecords(nextRecords);
+      setActionSupport(nextActionSupport);
     } catch (error: any) {
+      setActionSupport(DEFAULT_ACTION_SUPPORT);
       toast.error(error?.message || t('providerCenter.toasts.loadFailed'));
     } finally {
       if (options?.background) {
@@ -824,7 +862,9 @@ export function ProviderConfigCenter() {
                                       key={`${record.id}-quick-apply`}
                                       size="sm"
                                       variant="outline"
+                                      disabled={!actionSupport.quickApply.available}
                                       onClick={() => setApplyTarget(record)}
+                                      title={resolveActionSupportReasonLabel(t, actionSupport.quickApply) || undefined}
                                     >
                                       <Rocket className="h-4 w-4" />
                                       {t('providerCenter.actions.quickApply')}
@@ -861,7 +901,8 @@ export function ProviderConfigCenter() {
                                       size="sm"
                                       variant="outline"
                                       onClick={() => void handleTestRoute(record.id)}
-                                      disabled={Boolean(testingRouteId)}
+                                      disabled={!actionSupport.test.available || Boolean(testingRouteId)}
+                                      title={actionSupport.test.available ? undefined : resolveActionSupportReasonLabel(t, actionSupport.test) || undefined}
                                     >
                                       <Check className="h-4 w-4" />
                                       {isTestingRoute

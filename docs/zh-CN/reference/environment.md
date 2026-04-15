@@ -10,7 +10,6 @@
 | --- | --- | --- |
 | `APP_URL` | 取决于部署方式 | 托管环境中的应用访问地址 |
 | `VITE_API_BASE_URL` | 推荐 | 共享后端 API 地址 |
-| `VITE_ACCESS_TOKEN` | 可选 | 后端请求和更新检查使用的访问令牌 |
 | `VITE_APP_ID` | 桌面更新场景 | 更新接口使用的应用 id |
 | `VITE_RELEASE_CHANNEL` | 桌面更新场景 | 更新查询使用的发布通道 |
 | `VITE_DISTRIBUTION_ID` | 桌面分发场景 | 分发清单选择 |
@@ -40,6 +39,7 @@
 - 新增变量时同步更新 `.env.example`。
 - 在对应包文档和公开文档中记录新变量。
 - 桌面端变量应与分发和更新流程保持一致。
+- 浏览器和桌面 Vite env 文件不得注入 root access token；高权限凭据必须保留在可信宿主或宿主代理链路中。
 - AI 能力现在依赖有效的 OpenClaw 兼容实例与 Provider Center 配置，而不是浏览器侧的 Gemini key。
 - `claw-server` 当前的配置优先级是 `CLI 覆盖 -> 配置文件 -> 环境变量 -> 默认值`。
 - `claw-server service print-manifest` 会复用同一套解析优先级；如果没有显式配置文件路径，则会默认落到 `<CLAW_SERVER_DATA_DIR>/claw-server.config.json`。
