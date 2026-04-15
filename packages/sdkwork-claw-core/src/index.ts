@@ -10,6 +10,7 @@ export * from './services/index.ts';
 export * from './stores/useAuthStore.ts';
 export * from './stores/useAppStore.ts';
 export * from './stores/useInstanceStore.ts';
+export * from './stores/simpleStore.ts';
 export * from './stores/useRolloutStore.ts';
 export { useTaskStore } from './stores/useTaskStore.ts';
 export type {

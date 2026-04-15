@@ -1,9 +1,7 @@
 {
   "bundle": {
     "windows": {
-      "nsis": {
-        "installerHooks": "./installer-hooks.nsh"
-      }
+      "nsis": {}
     },
     "targets": [
       "nsis"

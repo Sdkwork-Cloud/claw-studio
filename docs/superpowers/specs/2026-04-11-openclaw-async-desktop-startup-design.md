@@ -1,5 +1,7 @@
 # OpenClaw Async Desktop Startup Design
 
+> **Supersession Note (2026-04-13):** This design is preserved for historical implementation context. Its non-blocking desktop-entry intent remains relevant, but the current source of truth is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`. References below to bundled OpenClaw runtime activation reflect pre-hard-cut terminology and must now be interpreted through the built-in packaged OpenClaw plus external runtime model.
+
 ## Goal
 
 Make the Tauri desktop host enter reliably even when bundled OpenClaw needs extra time to start, fails transiently, or never becomes ready, while still exposing truthful OpenClaw state and recovery actions inside the app.

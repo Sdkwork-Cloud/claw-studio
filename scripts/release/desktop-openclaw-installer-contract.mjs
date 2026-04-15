@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,7 +11,6 @@ const rootDir = path.resolve(__dirname, '..', '..');
 
 const WINDOWS_TAURI_CONFIG_PATH = 'packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json';
 const WINDOWS_INSTALLER_HOOKS_PATH = 'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh';
-const WINDOWS_MAIN_BINARY_NAME = 'sdkwork-claw-desktop.exe';
 const LINUX_TAURI_CONFIG_PATH = 'packages/sdkwork-claw-desktop/src-tauri/tauri.linux.conf.json';
 const LINUX_POSTINSTALL_PATH = 'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh';
 const MACOS_TAURI_CONFIG_PATH = 'packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json';
@@ -20,14 +19,6 @@ function readJson(workspaceRootDir, relativePath) {
   return JSON.parse(
     readFileSync(path.join(workspaceRootDir, relativePath), 'utf8'),
   );
-}
-
-function readText(workspaceRootDir, relativePath) {
-  return readFileSync(path.join(workspaceRootDir, relativePath), 'utf8');
-}
-
-function assertIncludes(source, pattern, message) {
-  assert.equal(source.includes(pattern), true, message);
 }
 
 function normalizeStringArray(values) {
@@ -58,135 +49,70 @@ function normalizeDesktopOpenClawInstallerContract(contract) {
       normalizedContract.installRootOverrides,
     );
   }
+  if ('requiredExternalRuntimes' in normalizedContract) {
+    normalizedContract.requiredExternalRuntimes = normalizeStringArray(
+      normalizedContract.requiredExternalRuntimes,
+    );
+  }
 
   return normalizedContract;
 }
 
 function readWindowsInstallerContract(workspaceRootDir) {
   const tauriConfig = readJson(workspaceRootDir, WINDOWS_TAURI_CONFIG_PATH);
-  const installerHooksSource = readText(workspaceRootDir, WINDOWS_INSTALLER_HOOKS_PATH);
 
   assert.equal(
-    tauriConfig?.bundle?.windows?.nsis?.installerHooks,
-    './installer-hooks.nsh',
-    'Desktop Windows Tauri config must wire installer-hooks.nsh for bundled OpenClaw postinstall prewarm.',
-  );
-  assertIncludes(
-    installerHooksSource,
-    '--prepare-bundled-openclaw-runtime',
-    'Desktop Windows installer hooks must prewarm bundled OpenClaw during install.',
-  );
-  assertIncludes(
-    installerHooksSource,
-    '--prepare-bundled-openclaw-runtime --install-root "$INSTDIR"',
-    'Desktop Windows installer hooks must forward $INSTDIR into the embedded OpenClaw prewarm CLI.',
-  );
-  assertIncludes(
-    installerHooksSource,
-    `"$INSTDIR\\${WINDOWS_MAIN_BINARY_NAME}" --prepare-bundled-openclaw-runtime`,
-    'Desktop Windows installer hooks must invoke the actual packaged desktop binary for bundled OpenClaw prewarm.',
-  );
-  assertIncludes(
-    installerHooksSource,
-    'Abort "Embedded OpenClaw runtime prewarm failed during install',
-    'Desktop Windows installer hooks must abort install when bundled OpenClaw prewarm fails.',
-  );
-  assertIncludes(
-    installerHooksSource,
-    '--register-openclaw-cli',
-    'Desktop Windows installer hooks must register the bundled OpenClaw CLI during install.',
-  );
-  assertIncludes(
-    installerHooksSource,
-    '--register-openclaw-cli --install-root "$INSTDIR"',
-    'Desktop Windows installer hooks must forward $INSTDIR into the embedded OpenClaw CLI registration flow.',
-  );
-  assertIncludes(
-    installerHooksSource,
-    `"$INSTDIR\\${WINDOWS_MAIN_BINARY_NAME}" --register-openclaw-cli`,
-    'Desktop Windows installer hooks must invoke the actual packaged desktop binary for bundled OpenClaw CLI registration.',
+    typeof tauriConfig?.bundle?.windows?.nsis?.installerHooks,
+    'undefined',
+    'Desktop Windows Tauri config must not wire NSIS installer hooks for OpenClaw install-time actions.',
   );
   assert.equal(
-    installerHooksSource.indexOf('--prepare-bundled-openclaw-runtime')
-      < installerHooksSource.indexOf('--register-openclaw-cli'),
-    true,
-    'Desktop Windows installer hooks must prewarm bundled OpenClaw before CLI registration.',
+    existsSync(path.join(workspaceRootDir, WINDOWS_INSTALLER_HOOKS_PATH)),
+    false,
+    'Legacy Windows OpenClaw installer hooks must be removed after the external-runtime hard cut.',
   );
 
-  return {
-    version: 1,
+  return normalizeDesktopOpenClawInstallerContract({
+    version: 2,
     platform: 'windows',
     delivery: 'archive-only-resources',
-    installMode: 'postinstall-prewarm',
+    installMode: 'first-launch-archive-extract',
     bundledResourceRoot: 'resources/openclaw/',
     runtimeArchive: 'resources/openclaw/runtime.zip',
     sourceConfigPath: WINDOWS_TAURI_CONFIG_PATH,
-    installerHookPath: WINDOWS_INSTALLER_HOOKS_PATH,
-    prepareCommand: '--prepare-bundled-openclaw-runtime',
-    prepareFailureMode: 'abort-install',
-    cliRegistrationCommand: '--register-openclaw-cli',
-    cliRegistrationFailureMode: 'best-effort',
-  };
+    requiredExternalRuntimes: ['nodejs'],
+  });
 }
 
 function readLinuxInstallerContract(workspaceRootDir) {
   const tauriConfig = readJson(workspaceRootDir, LINUX_TAURI_CONFIG_PATH);
-  const postInstallSource = readText(workspaceRootDir, LINUX_POSTINSTALL_PATH);
 
   assert.equal(
-    tauriConfig?.bundle?.linux?.deb?.postInstallScript,
-    './linux-postinstall-openclaw.sh',
-    'Desktop Linux deb packaging must wire the bundled OpenClaw postinstall hook.',
+    typeof tauriConfig?.bundle?.linux?.deb?.postInstallScript,
+    'undefined',
+    'Desktop Linux deb packaging must not wire an OpenClaw postinstall script after the external-runtime hard cut.',
   );
   assert.equal(
-    tauriConfig?.bundle?.linux?.rpm?.postInstallScript,
-    './linux-postinstall-openclaw.sh',
-    'Desktop Linux rpm packaging must wire the bundled OpenClaw postinstall hook.',
-  );
-  assertIncludes(
-    postInstallSource,
-    '--prepare-bundled-openclaw-runtime',
-    'Desktop Linux postinstall hook must prewarm bundled OpenClaw during package install.',
-  );
-  assertIncludes(
-    postInstallSource,
-    '--prepare-bundled-openclaw-runtime --install-root "$install_root"',
-    'Desktop Linux postinstall hook must forward the resolved install root into the embedded OpenClaw prewarm CLI.',
+    typeof tauriConfig?.bundle?.linux?.rpm?.postInstallScript,
+    'undefined',
+    'Desktop Linux rpm packaging must not wire an OpenClaw postinstall script after the external-runtime hard cut.',
   );
   assert.equal(
-    postInstallSource.includes('--prepare-bundled-openclaw-runtime || true'),
+    existsSync(path.join(workspaceRootDir, LINUX_POSTINSTALL_PATH)),
     false,
-    'Desktop Linux postinstall hook must fail package install when bundled OpenClaw prewarm fails.',
-  );
-  assertIncludes(
-    postInstallSource,
-    'SDKWORK_CLAW_INSTALL_ROOT',
-    'Desktop Linux postinstall hook must support explicit install-root overrides.',
-  );
-  assertIncludes(
-    postInstallSource,
-    'RPM_INSTALL_PREFIX',
-    'Desktop Linux postinstall hook must honor RPM relocatable install prefixes.',
-  );
-  assertIncludes(
-    postInstallSource,
-    '--install-root',
-    'Desktop Linux postinstall hook must support manual install-root overrides.',
+    'Legacy Linux OpenClaw postinstall script must be removed after the external-runtime hard cut.',
   );
 
   return normalizeDesktopOpenClawInstallerContract({
-    version: 1,
+    version: 2,
     platform: 'linux',
     delivery: 'archive-only-resources',
-    installMode: 'postinstall-prewarm',
+    installMode: 'first-launch-archive-extract',
     bundledResourceRoot: 'resources/openclaw/',
     runtimeArchive: 'resources/openclaw/runtime.zip',
     sourceConfigPath: LINUX_TAURI_CONFIG_PATH,
-    postInstallScriptPath: LINUX_POSTINSTALL_PATH,
+    requiredExternalRuntimes: ['nodejs'],
     packageFormats: ['deb', 'rpm'],
-    prepareCommand: '--prepare-bundled-openclaw-runtime',
-    prepareFailureMode: 'abort-install',
-    installRootOverrides: ['SDKWORK_CLAW_INSTALL_ROOT', 'RPM_INSTALL_PREFIX', '--install-root'],
   });
 }
 
@@ -199,8 +125,8 @@ function readMacosInstallerContract(workspaceRootDir) {
     'Desktop macOS packaging must project the preexpanded OpenClaw managed runtime layout into Contents/MacOS/.',
   );
 
-  return {
-    version: 1,
+  return normalizeDesktopOpenClawInstallerContract({
+    version: 2,
     platform: 'macos',
     delivery: 'archive-only-resources',
     installMode: 'preexpanded-managed-layout',
@@ -209,7 +135,8 @@ function readMacosInstallerContract(workspaceRootDir) {
     sourceConfigPath: MACOS_TAURI_CONFIG_PATH,
     stagedInstallRootSource: 'generated/release/macos-install-root/',
     stagedInstallRootTarget: 'MacOS/',
-  };
+    requiredExternalRuntimes: ['nodejs'],
+  });
 }
 
 export function readDesktopOpenClawInstallerContract({

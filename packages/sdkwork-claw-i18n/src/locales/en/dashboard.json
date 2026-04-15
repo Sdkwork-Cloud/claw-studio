@@ -282,11 +282,12 @@
   },
   "usage": {
     "page": {
+      "eyebrow": "Usage Workspace",
       "title": "Gateway Usage",
-      "description": "Review OpenClaw gateway session usage, costs, compatibility fallback state, and per-session detail from one shared workspace.",
+      "description": "Review gateway session usage, costs, compatibility fallback state, and per-session detail from one shared workspace.",
       "loading": "Loading usage workspace",
-      "emptyTitle": "No OpenClaw gateway is available",
-      "emptyDescription": "Add or start an OpenClaw-backed instance before reviewing usage and cost evidence.",
+      "emptyTitle": "No compatible gateway is available",
+      "emptyDescription": "Add or start a gateway-backed instance before reviewing usage and cost evidence.",
       "noSnapshot": "Usage snapshot unavailable"
     },
     "actions": {
@@ -341,7 +342,7 @@
       "sessionTimeline": "Session timeline",
       "sessionTimelineDescription": "Review token and cost movement across the selected session timeline.",
       "sessionLogs": "Session logs",
-      "sessionLogsDescription": "Inspect the raw session usage log stream returned by the OpenClaw gateway."
+      "sessionLogsDescription": "Inspect the raw session usage log stream returned by the selected gateway."
     },
     "metrics": {
       "totalTokens": "Total tokens",

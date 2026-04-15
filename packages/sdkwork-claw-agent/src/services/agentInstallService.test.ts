@@ -348,7 +348,7 @@ await runTest(
     const builtInInstance = createInstanceRecord({
       id: 'local-built-in',
       name: 'Local Built-In',
-      description: 'Bundled local OpenClaw runtime managed by Claw Studio.',
+      description: 'Packaged local OpenClaw kernel managed by Claw Studio.',
       isBuiltIn: true,
       typeLabel: 'Built-In OpenClaw',
     });
@@ -440,7 +440,7 @@ await runTest(
     const builtInInstance = createInstanceRecord({
       id: 'local-built-in',
       name: 'Local Built-In',
-      description: 'Bundled local OpenClaw runtime managed by Claw Studio.',
+      description: 'Packaged local OpenClaw kernel managed by Claw Studio.',
       isBuiltIn: true,
       typeLabel: 'Built-In OpenClaw',
     });

@@ -1,5 +1,9 @@
 use crate::{
-    framework::{layout::set_active_runtime_version, paths::AppPaths, FrameworkError, Result},
+    framework::{
+        paths::AppPaths,
+        services::kernel_runtime_authority::KernelRuntimeAuthorityService,
+        FrameworkError, Result,
+    },
     platform,
 };
 use sdkwork_claw_host_core::port_allocator::{
@@ -9,12 +13,12 @@ use serde_json::{Map, Number, Value};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
+    env,
     fs,
     io::{self, Read},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use uuid::Uuid;
 use zip::ZipArchive;
 
@@ -24,6 +28,7 @@ const NESTED_BUNDLED_RESOURCE_DIR: &str = "resources/openclaw";
 const BUNDLED_RUNTIME_ARCHIVE_FILE_NAME: &str = "runtime.zip";
 const PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME: &str = ".sdkwork-openclaw-runtime.json";
 const DEFAULT_GATEWAY_PORT: u16 = 18_789;
+const OPENCLAW_NODE_PATH_OVERRIDE_ENV: &str = "SDKWORK_OPENCLAW_NODE_PATH";
 const TAURI_CONTROL_UI_ALLOWED_ORIGINS: [&str; 3] = [
     "http://tauri.localhost",
     "https://tauri.localhost",
@@ -38,10 +43,10 @@ pub struct BundledOpenClawManifest {
     pub schema_version: u32,
     pub runtime_id: String,
     pub openclaw_version: String,
-    pub node_version: String,
+    pub required_external_runtimes: Vec<String>,
+    pub required_external_runtime_versions: BTreeMap<String, String>,
     pub platform: String,
     pub arch: String,
-    pub node_relative_path: String,
     pub cli_relative_path: String,
 }
 
@@ -108,6 +113,19 @@ impl BundledOpenClawManifest {
     pub fn install_key(&self) -> String {
         format!("{}-{}-{}", self.openclaw_version, self.platform, self.arch)
     }
+
+    pub fn external_node_version(&self) -> Option<&str> {
+        self.required_external_runtime_versions
+            .get("nodejs")
+            .map(String::as_str)
+    }
+
+    fn requires_external_node_runtime(&self) -> bool {
+        self.required_external_runtimes
+            .iter()
+            .any(|runtime| runtime == "nodejs")
+            && self.external_node_version().is_some_and(|version| !version.trim().is_empty())
+    }
 }
 
 impl ActivatedOpenClawRuntime {
@@ -149,7 +167,7 @@ impl OpenClawRuntimeService {
 
         if manifest.runtime_id != OPENCLAW_RUNTIME_ID {
             return Err(FrameworkError::ValidationFailed(format!(
-                "unsupported bundled runtime id {}",
+                "unsupported packaged OpenClaw runtime id {}",
                 manifest.runtime_id
             )));
         }
@@ -158,7 +176,7 @@ impl OpenClawRuntimeService {
         let bundled_runtime_archive_path = resource_root.join(BUNDLED_RUNTIME_ARCHIVE_FILE_NAME);
         if !bundled_runtime_dir.exists() && !bundled_runtime_archive_path.exists() {
             return Err(FrameworkError::NotFound(format!(
-                "bundled runtime payload not found under {} (expected {} or {})",
+                "packaged OpenClaw runtime payload not found under {} (expected {} or {})",
                 resource_root.display(),
                 bundled_runtime_dir.display(),
                 bundled_runtime_archive_path.display()
@@ -190,23 +208,24 @@ impl OpenClawRuntimeService {
         let install_dir =
             resolve_launch_runtime_install_dir(&install_dir, &manifest)?.ok_or_else(|| {
                 FrameworkError::NotFound(format!(
-                    "bundled openclaw runtime is incomplete under {}",
+                    "packaged OpenClaw runtime is incomplete under {}",
                     install_dir.display()
                 ))
             })?;
         let runtime_dir = install_dir.join("runtime");
-        let node_path = install_dir.join(&manifest.node_relative_path);
+        let node_path = resolve_external_node_path()?;
         let cli_path = install_dir.join(&manifest.cli_relative_path);
-        if !node_path.exists() || !cli_path.exists() {
+        if !cli_path.exists() {
             return Err(FrameworkError::NotFound(format!(
-                "bundled openclaw runtime is incomplete under {}",
+                "packaged OpenClaw runtime is missing the CLI entrypoint under {}",
                 install_dir.display()
             )));
         }
 
         let managed_state =
             ensure_managed_openclaw_state(paths, Some(manifest.openclaw_version.as_str()))?;
-        set_active_runtime_version(paths, OPENCLAW_RUNTIME_ID, &install_key)?;
+        KernelRuntimeAuthorityService::new()
+            .record_openclaw_activation_result(paths, &install_key, None)?;
 
         Ok(ActivatedOpenClawRuntime {
             install_key,
@@ -286,7 +305,7 @@ fn resolve_bundled_resource_root_with_manifest_dir(
         .join(", ");
 
     Err(FrameworkError::NotFound(format!(
-        "bundled openclaw runtime resources not found under any of: {candidate_paths}"
+        "packaged OpenClaw runtime resources not found under any of: {candidate_paths}"
     )))
 }
 
@@ -312,7 +331,7 @@ fn ensure_runtime_installation_from_directory(
     validate_materialized_runtime_installation(
         &staging_dir,
         manifest,
-        "bundled runtime directory payload",
+        "packaged OpenClaw runtime directory payload",
     )?;
 
     if let Some(parent) = install_dir.parent() {
@@ -322,7 +341,7 @@ fn ensure_runtime_installation_from_directory(
     if install_dir.exists() {
         fs::remove_dir_all(install_dir).map_err(|error| {
             FrameworkError::Internal(format!(
-                "failed to replace existing bundled runtime install root {}: {error}",
+                "failed to replace existing packaged OpenClaw install root {}: {error}",
                 install_dir.display()
             ))
         })?;
@@ -332,7 +351,7 @@ fn ensure_runtime_installation_from_directory(
 
     if !runtime_dir.exists() {
         return Err(FrameworkError::Internal(format!(
-            "failed to finalize bundled runtime installation at {}",
+            "failed to finalize packaged OpenClaw runtime installation at {}",
             install_dir.display()
         )));
     }
@@ -360,7 +379,7 @@ fn ensure_runtime_installation_from_archive(
     extract_bundled_runtime_archive(bundled_runtime_archive_path, &staging_dir)?;
     if !staging_dir.join("runtime").exists() {
         return Err(FrameworkError::ValidationFailed(format!(
-            "bundled runtime archive did not materialize a runtime directory under {}",
+            "packaged OpenClaw runtime archive did not materialize a runtime directory under {}",
             staging_dir.display()
         )));
     }
@@ -368,7 +387,7 @@ fn ensure_runtime_installation_from_archive(
     validate_materialized_runtime_installation(
         &staging_dir,
         manifest,
-        "bundled runtime archive payload",
+        "packaged OpenClaw runtime archive payload",
     )?;
 
     if let Some(parent) = install_dir.parent() {
@@ -378,7 +397,7 @@ fn ensure_runtime_installation_from_archive(
     if install_dir.exists() {
         fs::remove_dir_all(install_dir).map_err(|error| {
             FrameworkError::Internal(format!(
-                "failed to replace existing bundled runtime install root {}: {error}",
+                "failed to replace existing packaged OpenClaw install root {}: {error}",
                 install_dir.display()
             ))
         })?;
@@ -388,7 +407,7 @@ fn ensure_runtime_installation_from_archive(
 
     if !runtime_dir.exists() {
         return Err(FrameworkError::Internal(format!(
-            "failed to finalize bundled runtime installation at {}",
+            "failed to finalize packaged OpenClaw runtime installation at {}",
             install_dir.display()
         )));
     }
@@ -402,12 +421,11 @@ fn runtime_install_root_is_complete(
 ) -> bool {
     let manifest_path = install_dir.join("manifest.json");
     let runtime_dir = install_dir.join("runtime");
-    let node_path = install_dir.join(&manifest.node_relative_path);
     let cli_path = install_dir.join(&manifest.cli_relative_path);
     install_dir.exists()
         && manifest_path.exists()
-        && node_path.exists()
         && cli_path.exists()
+        && resolve_external_node_path().is_ok()
         && manifest_file_matches(&manifest_path, manifest)
         && matches!(
             runtime_sidecar_manifest_validation(&runtime_dir, manifest),
@@ -475,7 +493,7 @@ fn resolve_launch_runtime_install_dir(
 
     if install_dir.exists() {
         return Err(FrameworkError::Internal(format!(
-            "failed to finalize bundled runtime install root {} because a blocking path still exists; staged runtime candidate remains at {}",
+            "failed to finalize packaged OpenClaw install root {} because a blocking path still exists; staged runtime candidate remains at {}",
             install_dir.display(),
             candidate.display()
         )));
@@ -486,7 +504,7 @@ fn resolve_launch_runtime_install_dir(
     })
     .map_err(|error| {
         FrameworkError::Internal(format!(
-            "failed to finalize bundled runtime install root {} from staged candidate {}: {error}",
+            "failed to finalize packaged OpenClaw install root {} from staged candidate {}: {error}",
             install_dir.display(),
             candidate.display()
         ))
@@ -497,7 +515,7 @@ fn resolve_launch_runtime_install_dir(
     }
 
     Err(FrameworkError::Internal(format!(
-        "bundled runtime staged candidate {} did not materialize a complete install root at {}",
+        "packaged OpenClaw runtime staged candidate {} did not materialize a complete install root at {}",
         candidate.display(),
         install_dir.display()
     )))
@@ -510,7 +528,6 @@ fn validate_materialized_runtime_installation(
 ) -> Result<()> {
     let runtime_dir = install_root.join("runtime");
     let manifest_path = install_root.join("manifest.json");
-    let node_path = install_root.join(&manifest.node_relative_path);
     let cli_path = install_root.join(&manifest.cli_relative_path);
 
     if !runtime_dir.exists() {
@@ -522,17 +539,23 @@ fn validate_materialized_runtime_installation(
 
     if !manifest_path.exists() || !manifest_file_matches(&manifest_path, manifest) {
         return Err(FrameworkError::ValidationFailed(format!(
-            "{context_label} did not materialize a matching bundled manifest under {}",
+            "{context_label} did not materialize a matching packaged OpenClaw manifest under {}",
             install_root.display()
         )));
     }
 
-    if !node_path.exists() || !cli_path.exists() {
+    if !cli_path.exists() {
         return Err(FrameworkError::ValidationFailed(format!(
-            "{context_label} is missing the bundled Node or CLI entrypoint under {}",
+            "{context_label} is missing the packaged OpenClaw CLI entrypoint under {}",
             install_root.display()
         )));
     }
+
+    resolve_external_node_path().map_err(|error| {
+        FrameworkError::ValidationFailed(format!(
+            "{context_label} could not resolve an external Node.js runtime: {error}"
+        ))
+    })?;
 
     match runtime_sidecar_manifest_validation(&runtime_dir, manifest) {
         RuntimeSidecarValidation::Match => Ok(()),
@@ -547,13 +570,44 @@ fn validate_materialized_runtime_installation(
     }
 }
 
+pub(crate) fn validate_installed_openclaw_runtime(
+    paths: &AppPaths,
+    install_key: &str,
+) -> Result<BundledOpenClawManifest> {
+    let install_root = paths.openclaw_runtime_dir.join(install_key);
+    let manifest = load_manifest(&install_root.join("manifest.json"))?;
+    validate_manifest_target(&manifest)?;
+
+    if manifest.runtime_id != OPENCLAW_RUNTIME_ID {
+        return Err(FrameworkError::ValidationFailed(format!(
+            "unsupported managed OpenClaw runtime id {} for install key {}",
+            manifest.runtime_id, install_key
+        )));
+    }
+
+    if manifest.install_key() != install_key {
+        return Err(FrameworkError::ValidationFailed(format!(
+            "managed OpenClaw runtime install key {} does not match manifest key {}",
+            install_key,
+            manifest.install_key()
+        )));
+    }
+
+    validate_materialized_runtime_installation(
+        &install_root,
+        &manifest,
+        "managed OpenClaw runtime install",
+    )?;
+    Ok(manifest)
+}
+
 fn rename_directory_with_retry(source_dir: &Path, target_dir: &Path) -> Result<()> {
     rename_directory_with_retry_using(source_dir, target_dir, |source_dir, target_dir| {
         fs::rename(source_dir, target_dir)
     })
     .map_err(|error| {
         FrameworkError::Internal(format!(
-            "failed to finalize bundled runtime install root {} from {}: {error}",
+            "failed to finalize packaged OpenClaw install root {} from {}: {error}",
             target_dir.display(),
             source_dir.display()
         ))
@@ -632,6 +686,7 @@ fn runtime_sidecar_manifest_validation(
             if sidecar_manifest.manifest == *expected
                 && runtime_integrity_manifest_matches(
                     runtime_dir,
+                    expected,
                     sidecar_manifest.runtime_integrity.as_ref(),
                 )
             {
@@ -644,6 +699,7 @@ fn runtime_sidecar_manifest_validation(
 
 fn runtime_integrity_manifest_matches(
     runtime_dir: &Path,
+    _manifest: &BundledOpenClawManifest,
     runtime_integrity: Option<&PreparedOpenClawRuntimeIntegrityManifest>,
 ) -> bool {
     let Some(runtime_integrity) = runtime_integrity else {
@@ -653,11 +709,16 @@ fn runtime_integrity_manifest_matches(
     if runtime_integrity.schema_version != 1 || runtime_integrity.files.is_empty() {
         return false;
     }
+    let mut matched_entries = 0usize;
 
-    runtime_integrity
-        .files
-        .iter()
-        .all(|entry| runtime_integrity_file_matches(runtime_dir, entry))
+    for entry in runtime_integrity.files.iter() {
+        if !runtime_integrity_file_matches(runtime_dir, entry) {
+            return false;
+        }
+        matched_entries += 1;
+    }
+
+    matched_entries > 0
 }
 
 fn runtime_integrity_file_matches(
@@ -719,7 +780,7 @@ fn extract_bundled_runtime_archive(archive_path: &Path, destination_dir: &Path) 
         let mut entry = archive.by_index(index).map_err(map_zip_error)?;
         let relative_path = entry.enclosed_name().map(Path::to_path_buf).ok_or_else(|| {
             FrameworkError::ValidationFailed(format!(
-                "bundled runtime archive contains an unsafe entry at index {index}"
+                "packaged OpenClaw runtime archive contains an unsafe entry at index {index}"
             ))
         })?;
         let destination_path = destination_dir.join(&relative_path);
@@ -727,7 +788,7 @@ fn extract_bundled_runtime_archive(archive_path: &Path, destination_dir: &Path) 
         if entry.is_dir() {
             fs::create_dir_all(&destination_path).map_err(|error| {
                 FrameworkError::Internal(format!(
-                    "failed to create bundled runtime archive directory {} from entry {}: {error}",
+                    "failed to create packaged OpenClaw runtime archive directory {} from entry {}: {error}",
                     destination_path.display(),
                     relative_path.display()
                 ))
@@ -738,7 +799,7 @@ fn extract_bundled_runtime_archive(archive_path: &Path, destination_dir: &Path) 
         if let Some(parent) = destination_path.parent() {
             fs::create_dir_all(parent).map_err(|error| {
                 FrameworkError::Internal(format!(
-                    "failed to create bundled runtime archive parent {} for entry {}: {error}",
+                    "failed to create packaged OpenClaw runtime archive parent {} for entry {}: {error}",
                     parent.display(),
                     relative_path.display()
                 ))
@@ -747,21 +808,21 @@ fn extract_bundled_runtime_archive(archive_path: &Path, destination_dir: &Path) 
 
         let mut output_file = fs::File::create(&destination_path).map_err(|error| {
             FrameworkError::Internal(format!(
-                "failed to create bundled runtime archive file {} from entry {}: {error}",
+                "failed to create packaged OpenClaw runtime archive file {} from entry {}: {error}",
                 destination_path.display(),
                 relative_path.display()
             ))
         })?;
         io::copy(&mut entry, &mut output_file).map_err(|error| {
             FrameworkError::Internal(format!(
-                "failed to extract bundled runtime archive entry {} to {}: {error}",
+                "failed to extract packaged OpenClaw runtime archive entry {} to {}: {error}",
                 relative_path.display(),
                 destination_path.display()
             ))
         })?;
         apply_zip_entry_permissions(&destination_path, entry.unix_mode()).map_err(|error| {
             FrameworkError::Internal(format!(
-                "failed to apply bundled runtime archive permissions to {} from entry {}: {error}",
+                "failed to apply packaged OpenClaw runtime archive permissions to {} from entry {}: {error}",
                 destination_path.display(),
                 relative_path.display()
             ))
@@ -772,7 +833,7 @@ fn extract_bundled_runtime_archive(archive_path: &Path, destination_dir: &Path) 
 }
 
 fn map_zip_error(error: zip::result::ZipError) -> FrameworkError {
-    FrameworkError::Internal(format!("bundled runtime archive error: {error}"))
+    FrameworkError::Internal(format!("packaged OpenClaw runtime archive error: {error}"))
 }
 
 #[cfg(unix)]
@@ -796,13 +857,17 @@ fn apply_zip_entry_permissions(_destination_path: &Path, _unix_mode: Option<u32>
 
 fn ensure_managed_openclaw_state(
     paths: &AppPaths,
-    bundled_openclaw_version: Option<&str>,
+    _bundled_openclaw_version: Option<&str>,
 ) -> Result<ManagedOpenClawState> {
     fs::create_dir_all(&paths.openclaw_home_dir)?;
     fs::create_dir_all(&paths.openclaw_state_dir)?;
     fs::create_dir_all(&paths.openclaw_workspace_dir)?;
+    let authority = KernelRuntimeAuthorityService::new();
+    let managed_config_path = authority.active_openclaw_config_path(paths)?;
+    let imported_config =
+        authority.import_or_default_openclaw_config(paths, &managed_config_path)?;
 
-    let mut config = read_managed_config(&paths.openclaw_config_file)?;
+    let mut config = imported_config.root;
     sanitize_legacy_provider_runtime_config(&mut config);
     set_nested_string(&mut config, &["gateway", "mode"], "local");
     set_nested_string(&mut config, &["gateway", "bind"], "loopback");
@@ -825,48 +890,61 @@ fn ensure_managed_openclaw_state(
         &["agents", "defaults", "workspace"],
         &paths.openclaw_workspace_dir.to_string_lossy(),
     );
-    if let Some(version) = bundled_openclaw_version {
-        set_nested_string(&mut config, &["meta", "lastTouchedVersion"], version);
-        set_nested_string(
-            &mut config,
-            &["meta", "lastTouchedAt"],
-            &current_rfc3339_timestamp()?,
-        );
-    }
+    remove_nested_key(&mut config, &["meta", "lastTouchedVersion"]);
+    remove_nested_key(&mut config, &["meta", "lastTouchedAt"]);
 
     fs::write(
-        &paths.openclaw_config_file,
+        &managed_config_path,
         format!("{}\n", serde_json::to_string_pretty(&config)?),
+    )?;
+    authority.record_openclaw_config_migration(
+        paths,
+        imported_config.source_path.as_deref(),
+        &managed_config_path,
     )?;
 
     Ok(ManagedOpenClawState {
         home_dir: paths.openclaw_home_dir.clone(),
         state_dir: paths.openclaw_state_dir.clone(),
         workspace_dir: paths.openclaw_workspace_dir.clone(),
-        config_path: paths.openclaw_config_file.clone(),
+        config_path: managed_config_path,
         gateway_port,
         gateway_auth_token,
     })
 }
 
-fn read_managed_config(path: &Path) -> Result<Value> {
-    if !path.exists() {
-        return Ok(Value::Object(Map::new()));
+fn resolve_external_node_path() -> Result<PathBuf> {
+    if let Some(override_value) = env::var_os(OPENCLAW_NODE_PATH_OVERRIDE_ENV) {
+        let override_path = PathBuf::from(&override_value);
+        if override_path.as_os_str().is_empty() {
+            return Err(FrameworkError::ValidationFailed(format!(
+                "{OPENCLAW_NODE_PATH_OVERRIDE_ENV} must not be empty"
+            )));
+        }
+        if override_path.exists() {
+            return Ok(override_path);
+        }
+        return Err(FrameworkError::NotFound(format!(
+            "external Node.js executable configured via {OPENCLAW_NODE_PATH_OVERRIDE_ENV} was not found at {}",
+            override_path.display()
+        )));
     }
 
-    let content = fs::read_to_string(path)?;
-    let parsed = json5::from_str::<Value>(&content).map_err(|error| {
-        FrameworkError::ValidationFailed(format!("invalid managed openclaw config: {error}"))
+    let executable_name = if cfg!(windows) { "node.exe" } else { "node" };
+    let path_entries = env::var_os("PATH").ok_or_else(|| {
+        FrameworkError::NotFound(format!(
+            "external Node.js executable not found; install Node.js and expose it on PATH or set {OPENCLAW_NODE_PATH_OVERRIDE_ENV}"
+        ))
     })?;
 
-    if parsed.is_object() {
-        return Ok(parsed);
-    }
-
-    Err(FrameworkError::ValidationFailed(format!(
-        "managed openclaw config must be a JSON object: {}",
-        path.display()
-    )))
+    env::split_paths(&path_entries)
+        .map(|entry| entry.join(executable_name))
+        .find(|candidate| candidate.exists())
+        .ok_or_else(|| {
+            FrameworkError::NotFound(format!(
+                "external Node.js executable not found on PATH; install Node.js or set {OPENCLAW_NODE_PATH_OVERRIDE_ENV}"
+            ))
+        })
 }
 
 fn sanitize_legacy_provider_runtime_config(config: &mut Value) {
@@ -912,9 +990,16 @@ fn validate_manifest_target(manifest: &BundledOpenClawManifest) -> Result<()> {
 
     if manifest.platform != expected_platform || manifest.arch != expected_arch {
         return Err(FrameworkError::ValidationFailed(format!(
-            "bundled openclaw runtime target mismatch: expected {expected_platform}-{expected_arch}, received {}-{}",
+            "packaged OpenClaw runtime target mismatch: expected {expected_platform}-{expected_arch}, received {}-{}",
             manifest.platform, manifest.arch
         )));
+    }
+
+    if !manifest.requires_external_node_runtime() {
+        return Err(FrameworkError::ValidationFailed(
+            "packaged OpenClaw runtime manifest must require an external Node.js runtime"
+                .to_string(),
+        ));
     }
 
     Ok(())
@@ -1018,6 +1103,27 @@ fn set_nested_value(value: &mut Value, path: &[&str], next: Value) {
         .insert(path[path.len() - 1].to_string(), next);
 }
 
+fn remove_nested_key(value: &mut Value, path: &[&str]) {
+    if path.is_empty() {
+        return;
+    }
+
+    let Some(root) = value.as_object_mut() else {
+        return;
+    };
+
+    if path.len() == 1 {
+        root.remove(path[0]);
+        return;
+    }
+
+    let Some(next) = root.get_mut(path[0]) else {
+        return;
+    };
+
+    remove_nested_key(next, &path[1..]);
+}
+
 fn get_nested_u16(value: &Value, path: &[&str]) -> Option<u16> {
     let mut current = value;
     for segment in path {
@@ -1039,14 +1145,6 @@ fn get_nested_string(value: &Value, path: &[&str]) -> Option<String> {
 
 fn generate_gateway_auth_token() -> String {
     Uuid::new_v4().simple().to_string()
-}
-
-fn current_rfc3339_timestamp() -> Result<String> {
-    OffsetDateTime::now_utc().format(&Rfc3339).map_err(|error| {
-        FrameworkError::Internal(format!(
-            "failed to format managed openclaw metadata timestamp: {error}"
-        ))
-    })
 }
 
 fn unix_timestamp_ms() -> Result<u128> {
@@ -1086,30 +1184,79 @@ mod tests {
         BUNDLED_RUNTIME_ARCHIVE_FILE_NAME, DEFAULT_GATEWAY_PORT, OPENCLAW_RUNTIME_ID,
         PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME, TAURI_CONTROL_UI_ALLOWED_ORIGINS,
     };
-    use crate::framework::{layout::ActiveState, paths::resolve_paths_for_root};
+    use crate::framework::{
+        layout::{ActiveState, KernelAuthorityState, KernelMigrationState},
+        paths::resolve_paths_for_root,
+    };
     use serde_json::Value;
     use std::{
         env,
         ffi::OsString,
         fs,
         io::Write,
+        sync::MutexGuard,
     };
     use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
     const TEST_BUNDLED_OPENCLAW_VERSION: &str = env!("SDKWORK_BUNDLED_OPENCLAW_VERSION");
 
     struct ScopedPathGuard {
+        _env_lock: MutexGuard<'static, ()>,
         original_path: Option<OsString>,
     }
 
     impl ScopedPathGuard {
         fn clear() -> Self {
+            let env_lock = crate::framework::services::test_support::lock_process_env();
             let original_path = env::var_os("PATH");
             unsafe {
                 env::set_var("PATH", "");
             }
-            Self { original_path }
+            Self {
+                _env_lock: env_lock,
+                original_path,
+            }
         }
+    }
+
+    struct ScopedEnvVarGuard {
+        key: &'static str,
+        original_value: Option<OsString>,
+    }
+
+    impl ScopedEnvVarGuard {
+        fn set(key: &'static str, value: &std::path::Path) -> Self {
+            let original_value = env::var_os(key);
+            unsafe {
+                env::set_var(key, value);
+            }
+            Self {
+                key,
+                original_value,
+            }
+        }
+    }
+
+    impl Drop for ScopedEnvVarGuard {
+        fn drop(&mut self) {
+            unsafe {
+                if let Some(original_value) = &self.original_value {
+                    env::set_var(self.key, original_value);
+                } else {
+                    env::remove_var(self.key);
+                }
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    fn resolve_test_node_executable() -> std::path::PathBuf {
+        crate::framework::services::test_support::resolve_test_node_executable("runtime tests")
+    }
+
+    #[cfg(not(windows))]
+    fn resolve_test_node_executable() -> std::path::PathBuf {
+        crate::framework::services::test_support::resolve_test_node_executable("runtime tests")
     }
 
     impl Drop for ScopedPathGuard {
@@ -1161,7 +1308,7 @@ mod tests {
         assert_eq!(activated.home_dir, paths.openclaw_home_dir);
         assert_eq!(activated.state_dir, paths.openclaw_state_dir);
         assert_eq!(activated.workspace_dir, paths.openclaw_workspace_dir);
-        assert_eq!(activated.config_path, paths.openclaw_config_file);
+        assert_eq!(activated.config_path, paths.openclaw_managed_config_file);
         assert!(activated.gateway_port >= DEFAULT_GATEWAY_PORT);
         assert!(paths
             .openclaw_runtime_dir
@@ -1170,7 +1317,7 @@ mod tests {
             .exists());
 
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+            &fs::read_to_string(&paths.openclaw_managed_config_file).expect("config file"),
         )
         .expect("config json");
         assert_eq!(
@@ -1221,16 +1368,8 @@ mod tests {
                 .and_then(Value::as_str),
             Some(paths.openclaw_workspace_dir.to_string_lossy().as_ref())
         );
-        assert_eq!(
-            config
-                .pointer("/meta/lastTouchedVersion")
-                .and_then(Value::as_str),
-            Some(TEST_BUNDLED_OPENCLAW_VERSION)
-        );
-        assert!(config
-            .pointer("/meta/lastTouchedAt")
-            .and_then(Value::as_str)
-            .is_some_and(|value| !value.trim().is_empty()));
+        assert!(config.pointer("/meta/lastTouchedVersion").is_none());
+        assert!(config.pointer("/meta/lastTouchedAt").is_none());
 
         let active = serde_json::from_str::<ActiveState>(
             &fs::read_to_string(&paths.active_file).expect("active file"),
@@ -1246,13 +1385,132 @@ mod tests {
     }
 
     #[test]
+    fn activation_migrates_legacy_managed_config_into_authority_path_and_quarantines_legacy_copy()
+    {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+
+        fs::write(
+            &paths.openclaw_config_file,
+            r#"{
+  meta: {
+    lastTouchedVersion: "2026.4.9",
+    lastTouchedAt: "2026-04-09T12:00:00Z",
+  },
+  gateway: {
+    port: 18878,
+  },
+  agents: {
+    defaults: {
+      workspace: "legacy-workspace",
+    },
+  },
+}
+"#,
+        )
+        .expect("seed legacy managed config");
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+
+        assert_eq!(activated.config_path, paths.openclaw_managed_config_file);
+        assert!(
+            !paths.openclaw_config_file.exists(),
+            "legacy managed config should be removed from the old shared path after migration"
+        );
+
+        let quarantined_paths = fs::read_dir(&paths.openclaw_quarantine_dir)
+            .expect("quarantine dir")
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .collect::<Vec<_>>();
+        assert_eq!(quarantined_paths.len(), 1);
+
+        let migrated = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_managed_config_file).expect("migrated config"),
+        )
+        .expect("migrated config json");
+        assert!(migrated.pointer("/meta/lastTouchedVersion").is_none());
+        assert!(migrated.pointer("/meta/lastTouchedAt").is_none());
+        assert_eq!(
+            migrated
+                .pointer("/agents/defaults/workspace")
+                .and_then(Value::as_str),
+            Some(paths.openclaw_workspace_dir.to_string_lossy().as_ref())
+        );
+
+        let authority = serde_json::from_str::<KernelAuthorityState>(
+            &fs::read_to_string(&paths.openclaw_authority_file).expect("authority state"),
+        )
+        .expect("authority state json");
+        assert_eq!(
+            authority.managed_config_path.as_deref(),
+            Some(paths.openclaw_managed_config_file.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            authority.active_install_key.as_deref(),
+            Some(activated.install_key.as_str())
+        );
+        assert_eq!(
+            authority.quarantined_paths,
+            quarantined_paths
+                .iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+        );
+
+        let migration = serde_json::from_str::<KernelMigrationState>(
+            &fs::read_to_string(&paths.openclaw_migrations_file).expect("migration state"),
+        )
+        .expect("migration state json");
+        assert_eq!(
+            migration.last_config_source_path.as_deref(),
+            Some(paths.openclaw_config_file.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            migration.last_config_target_path.as_deref(),
+            Some(paths.openclaw_managed_config_file.to_string_lossy().as_ref())
+        );
+        assert!(migration
+            .last_config_migrated_at
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty()));
+    }
+
+    #[test]
+    fn load_manifest_reads_external_node_runtime_requirement_contract() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+
+        let manifest =
+            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
+
+        assert_eq!(
+            manifest.required_external_runtimes,
+            vec!["nodejs".to_string()]
+        );
+        assert_eq!(
+            manifest
+                .required_external_runtime_versions
+                .get("nodejs")
+                .map(String::as_str),
+            Some("22.16.0")
+        );
+    }
+
+    #[test]
     fn activation_fails_when_a_blocking_non_directory_already_exists_at_the_final_install_root() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("bundled manifest");
+            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
         let install_dir = paths
             .openclaw_runtime_dir
             .join(bundled_manifest.install_key());
@@ -1286,6 +1544,34 @@ mod tests {
                 .runtimes
                 .get(OPENCLAW_RUNTIME_ID)
                 .and_then(|entry| entry.active_version.as_deref()),
+            None
+        );
+    }
+
+    #[test]
+    fn activation_failure_does_not_leave_half_switched_active_state() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        fs::remove_file(&paths.openclaw_authority_file).expect("remove authority file");
+        fs::create_dir(&paths.openclaw_authority_file).expect("block authority file path");
+        let service = OpenClawRuntimeService::new();
+
+        let error = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect_err("activation should fail when authority state cannot be written");
+        assert!(!error.to_string().trim().is_empty());
+
+        let active = serde_json::from_str::<ActiveState>(
+            &fs::read_to_string(&paths.active_file).expect("active file"),
+        )
+        .expect("active json");
+        assert_eq!(
+            active
+                .runtimes
+                .get(OPENCLAW_RUNTIME_ID)
+                .and_then(|entry| entry.active_runtime_install_key()),
             None
         );
     }
@@ -1332,7 +1618,7 @@ mod tests {
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
         let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("bundled manifest");
+            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
         let install_key = bundled_manifest.install_key();
         let install_dir = paths.openclaw_runtime_dir.join(&install_key);
         let staged_dir = staged_runtime_install_dir(&install_dir, 123);
@@ -1373,7 +1659,7 @@ mod tests {
         fs::write(&sentinel, "keep").expect("sentinel");
 
         let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("bundled manifest");
+            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
         write_runtime_sidecar_manifest(&first.runtime_dir, &bundled_manifest);
 
         fs::remove_file(
@@ -1410,7 +1696,7 @@ mod tests {
         fs::write(&sentinel, "stale").expect("sentinel");
 
         let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("bundled manifest");
+            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
         write_runtime_sidecar_manifest(&first.runtime_dir, &bundled_manifest);
 
         fs::write(
@@ -1456,7 +1742,7 @@ mod tests {
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("bundled manifest");
+            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
         write_runtime_sidecar_manifest(&resource_root.join("runtime"), &bundled_manifest);
 
         let service = OpenClawRuntimeService::new();
@@ -1486,7 +1772,7 @@ mod tests {
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("bundled manifest");
+            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
         write_runtime_sidecar_manifest(&resource_root.join("runtime"), &bundled_manifest);
         create_test_runtime_archive(&resource_root);
         fs::remove_dir_all(resource_root.join("runtime")).expect("remove source runtime dir");
@@ -1611,7 +1897,7 @@ mod tests {
         assert!(activated.cli_path.exists());
         assert!(
             activated.install_dir.join("manifest.json").exists(),
-            "archived bundled runtime install should restore manifest.json",
+            "archived packaged OpenClaw runtime install should restore manifest.json",
         );
     }
 
@@ -1622,14 +1908,34 @@ mod tests {
         let resource_root =
             create_archived_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
+        let external_node_path = resolve_test_node_executable();
         let _path_guard = ScopedPathGuard::clear();
+        let _node_override_guard =
+            ScopedEnvVarGuard::set("SDKWORK_OPENCLAW_NODE_PATH", &external_node_path);
 
         let activated = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect("activate archived runtime without shell tools on PATH");
 
-        assert!(activated.node_path.exists());
+        assert_eq!(activated.node_path, external_node_path);
         assert!(activated.cli_path.exists());
+    }
+
+    #[test]
+    fn activation_uses_external_node_when_runtime_manifest_has_no_bundled_node_entrypoint() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activate runtime with external node-only manifest");
+
+        assert_eq!(activated.node_path, resolve_test_node_executable());
+        assert!(activated.cli_path.exists());
+        assert!(activated.runtime_dir.exists());
     }
 
     #[cfg(windows)]
@@ -1661,7 +1967,7 @@ mod tests {
 
         assert!(
             activated.install_dir.join(deep_runtime_relative_path).exists(),
-            "archived bundled runtime install should preserve long nested file paths",
+            "archived packaged OpenClaw runtime install should preserve long nested file paths",
         );
     }
 
@@ -1724,12 +2030,12 @@ mod tests {
                 .join("runtime")
                 .join(PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME),
         )
-        .expect("remove bundled runtime sidecar");
+        .expect("remove packaged OpenClaw runtime sidecar");
         let service = OpenClawRuntimeService::new();
 
         let error = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
-            .expect_err("missing bundled runtime sidecar should fail");
+            .expect_err("missing packaged OpenClaw runtime sidecar should fail");
 
         assert!(error.to_string().contains("runtime sidecar"));
     }
@@ -1745,7 +2051,7 @@ mod tests {
                 .join("runtime")
                 .join(PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME),
         )
-        .expect("remove bundled runtime sidecar");
+        .expect("remove packaged OpenClaw runtime sidecar");
         create_test_runtime_archive(&resource_root);
         fs::remove_dir_all(resource_root.join("runtime")).expect("remove source runtime dir");
         let service = OpenClawRuntimeService::new();
@@ -1804,7 +2110,7 @@ mod tests {
         assert_ne!(activated.gateway_port, busy_port);
 
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+            &fs::read_to_string(&activated.config_path).expect("config file"),
         )
         .expect("config json");
         assert_eq!(
@@ -1841,7 +2147,7 @@ mod tests {
         );
 
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+            &fs::read_to_string(&activated.config_path).expect("config file"),
         )
         .expect("config json");
         assert_eq!(
@@ -1857,13 +2163,14 @@ mod tests {
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
-        let configured_port = 28_789;
+        let (configured_port, occupied_ports) = reserve_contiguous_port_window(1);
+        drop(occupied_ports);
         let activated = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect("activated runtime");
 
         fs::write(
-            &paths.openclaw_config_file,
+            &activated.config_path,
             format!("{{\n  \"gateway\": {{\n    \"port\": {configured_port}\n  }}\n}}\n"),
         )
         .expect("seed config file");
@@ -1907,7 +2214,7 @@ mod tests {
             .expect("activated runtime");
 
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+            &fs::read_to_string(&paths.openclaw_managed_config_file).expect("config file"),
         )
         .expect("config json");
         assert_eq!(
@@ -1964,7 +2271,7 @@ mod tests {
             .expect("activated runtime");
 
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+            &fs::read_to_string(&paths.openclaw_managed_config_file).expect("config file"),
         )
         .expect("config json");
         assert_eq!(
@@ -2017,7 +2324,7 @@ mod tests {
             .expect("activated runtime");
 
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+            &fs::read_to_string(&paths.openclaw_managed_config_file).expect("config file"),
         )
         .expect("config json");
         let provider = config
@@ -2045,7 +2352,7 @@ mod tests {
         let (busy_port, occupied_ports) = reserve_contiguous_port_window(1);
 
         fs::write(
-            &paths.openclaw_config_file,
+            &activated.config_path,
             format!("{{\n  \"gateway\": {{\n    \"port\": {busy_port}\n  }}\n}}\n"),
         )
         .expect("seed config file");
@@ -2058,7 +2365,7 @@ mod tests {
 
         assert_ne!(refreshed.gateway_port, busy_port);
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+            &fs::read_to_string(&refreshed.config_path).expect("config file"),
         )
         .expect("config json");
         assert_eq!(
@@ -2133,18 +2440,10 @@ mod tests {
     ) -> std::path::PathBuf {
         let resource_root = root.join(format!("bundled-openclaw-{platform}-{arch}"));
         let runtime_root = resource_root.join("runtime");
-        let node_relative_path = if platform == "windows" {
-            "runtime/node/node.exe"
-        } else {
-            "runtime/node/bin/node"
-        };
         let cli_relative_path = "runtime/package/node_modules/openclaw/openclaw.mjs";
-        let node_path = resource_root.join(node_relative_path);
         let cli_path = resource_root.join(cli_relative_path);
 
-        fs::create_dir_all(node_path.parent().expect("node parent")).expect("node dir");
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
-        fs::write(&node_path, "node").expect("node file");
         fs::write(&cli_path, "console.log('openclaw');").expect("cli file");
         let openclaw_package_json_path = resource_root
             .join("runtime")
@@ -2201,14 +2500,16 @@ mod tests {
         .expect("client bedrock package dir");
         fs::write(
             &openclaw_package_json_path,
-            r#"{
+            format!(
+                r#"{{
   "name": "openclaw",
-  "version": "2026.4.2",
-  "dependencies": {
-    "@buape/carbon": "0.0.0-beta-20260327000044"
-  }
-}
-"#,
+  "version": "{version}",
+  "dependencies": {{
+    "@buape/carbon": "0.14.0"
+  }}
+}}
+"#
+            ),
         )
         .expect("openclaw package json");
         fs::write(
@@ -2227,7 +2528,7 @@ mod tests {
             &carbon_package_json_path,
             r#"{
   "name": "@buape/carbon",
-  "version": "0.0.0-beta-20260327000044"
+  "version": "0.14.0"
 }
 "#,
         )
@@ -2244,13 +2545,16 @@ mod tests {
         assert!(runtime_root.exists());
 
         let manifest = BundledOpenClawManifest {
-            schema_version: 1,
+            schema_version: 2,
             runtime_id: OPENCLAW_RUNTIME_ID.to_string(),
             openclaw_version: version.to_string(),
-            node_version: "22.16.0".to_string(),
+            required_external_runtimes: vec!["nodejs".to_string()],
+            required_external_runtime_versions: std::collections::BTreeMap::from([(
+                "nodejs".to_string(),
+                "22.16.0".to_string(),
+            )]),
             platform: platform.to_string(),
             arch: arch.to_string(),
-            node_relative_path: node_relative_path.to_string(),
             cli_relative_path: cli_relative_path.to_string(),
         };
 
@@ -2333,10 +2637,6 @@ mod tests {
         manifest: &BundledOpenClawManifest,
     ) {
         let integrity_files = [
-            manifest
-                .node_relative_path
-                .trim_start_matches("runtime/")
-                .to_string(),
             manifest
                 .cli_relative_path
                 .trim_start_matches("runtime/")

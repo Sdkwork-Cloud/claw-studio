@@ -1,10 +1,12 @@
 import type { StartupAppearanceSnapshot } from './startupPresentation.ts';
+import type { BackgroundRuntimeReadinessRecoveryMode } from './desktopBackgroundRuntimeReadinessRecovery.ts';
 
 export const BACKGROUND_RUNTIME_READINESS_TOAST_ID = 'desktop-background-runtime-readiness';
 
 export interface BackgroundRuntimeReadinessNotification {
   runId: number;
   message: string;
+  recoveryMode?: BackgroundRuntimeReadinessRecoveryMode;
 }
 
 export interface BackgroundRuntimeReadinessToastPlan {
@@ -37,8 +39,31 @@ interface ResolveBackgroundRuntimeReadinessToastPlanArgs {
 export function resolveBackgroundRuntimeReadinessToastCopy(
   message: string,
   language: StartupAppearanceSnapshot['language'],
+  recoveryMode: BackgroundRuntimeReadinessRecoveryMode = 'managed-openclaw',
 ) {
   const normalizedMessage = message.trim();
+  if (recoveryMode === 'generic-hosted-runtime') {
+    if (language === 'zh') {
+      return {
+        title: '\u684c\u9762\u8fd0\u884c\u65f6\u5c1a\u672a\u5c31\u7eea',
+        description: normalizedMessage
+          ? `Claw Studio \u5df2\u6253\u5f00\uff0c\u4f46\u684c\u9762\u8fd0\u884c\u65f6\u7684\u540e\u53f0\u5c31\u7eea\u68c0\u67e5\u672a\u80fd\u5b8c\u6210\u3002\u53ef\u4ee5\u7acb\u5373\u91cd\u8bd5\u68c0\u67e5\uff0c\u6216\u6253\u5f00\u5b9e\u4f8b\u5217\u8868\u68c0\u67e5\u5f53\u524d\u72b6\u6001\u3002\n\n${normalizedMessage}`
+          : 'Claw Studio \u5df2\u6253\u5f00\uff0c\u4f46\u684c\u9762\u8fd0\u884c\u65f6\u7684\u540e\u53f0\u5c31\u7eea\u68c0\u67e5\u672a\u80fd\u5b8c\u6210\u3002\u53ef\u4ee5\u7acb\u5373\u91cd\u8bd5\u68c0\u67e5\uff0c\u6216\u6253\u5f00\u5b9e\u4f8b\u5217\u8868\u68c0\u67e5\u5f53\u524d\u72b6\u6001\u3002',
+        retryActionLabel: '\u91cd\u8bd5\u68c0\u67e5',
+        detailsActionLabel: '\u67e5\u770b\u5b9e\u4f8b',
+      };
+    }
+
+    return {
+      title: 'Desktop runtime is not ready yet',
+      description: normalizedMessage
+        ? `Claw Studio opened, but desktop runtime readiness did not converge in the background. Retry the check now or open the instances list to inspect the current state.\n\n${normalizedMessage}`
+        : 'Claw Studio opened, but desktop runtime readiness did not converge in the background. Retry the check now or open the instances list to inspect the current state.',
+      retryActionLabel: 'Retry check',
+      detailsActionLabel: 'View instances',
+    };
+  }
+
   if (language === 'zh') {
     return {
       title: '\u5185\u7f6e OpenClaw \u5c1a\u672a\u5c31\u7eea',
@@ -53,8 +78,8 @@ export function resolveBackgroundRuntimeReadinessToastCopy(
   return {
     title: 'Built-in OpenClaw is not ready yet',
     description: normalizedMessage
-      ? `Claw Studio opened, but the bundled OpenClaw runtime did not become ready in the background. Retry it now or open the instance details to inspect logs.\n\n${normalizedMessage}`
-      : 'Claw Studio opened, but the bundled OpenClaw runtime did not become ready in the background. Retry it now or open the instance details to inspect logs.',
+      ? `Claw Studio opened, but the built-in OpenClaw runtime did not become ready in the background. Retry it now or open the instance details to inspect logs.\n\n${normalizedMessage}`
+      : 'Claw Studio opened, but the built-in OpenClaw runtime did not become ready in the background. Retry it now or open the instance details to inspect logs.',
     retryActionLabel: 'Retry now',
     detailsActionLabel: 'View details',
   };
@@ -85,7 +110,11 @@ export function resolveBackgroundRuntimeReadinessToastPlan({
   return {
     signature,
     toastId: BACKGROUND_RUNTIME_READINESS_TOAST_ID,
-    ...resolveBackgroundRuntimeReadinessToastCopy(notification.message, language),
+    ...resolveBackgroundRuntimeReadinessToastCopy(
+      notification.message,
+      language,
+      notification.recoveryMode,
+    ),
   };
 }
 

@@ -1,8 +1,6 @@
 #[cfg(not(windows))]
 use crate::framework::FrameworkError;
-use crate::framework::{
-    paths::AppPaths, services::openclaw_runtime::ActivatedOpenClawRuntime, Result,
-};
+use crate::framework::{paths::AppPaths, Result};
 use crate::internal_cli::RUN_OPENCLAW_CLI_FLAG;
 use std::{
     env, fs,
@@ -24,7 +22,6 @@ impl PathRegistrationService {
     pub fn install_openclaw_shims(
         &self,
         paths: &AppPaths,
-        _runtime: &ActivatedOpenClawRuntime,
     ) -> Result<()> {
         fs::create_dir_all(&paths.user_bin_dir)?;
         let launcher_path = resolve_launcher_executable_path()?;
@@ -288,22 +285,17 @@ fn resolve_launcher_executable_path() -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::PathRegistrationService;
-    use crate::framework::{
-        paths::resolve_paths_for_root, services::openclaw_runtime::ActivatedOpenClawRuntime,
-    };
+    use crate::framework::paths::resolve_paths_for_root;
     use std::{fs, path::PathBuf};
-
-    const TEST_BUNDLED_OPENCLAW_VERSION: &str = env!("SDKWORK_BUNDLED_OPENCLAW_VERSION");
 
     #[test]
     fn writes_openclaw_cli_shims_for_windows_shells() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let runtime = test_runtime(&paths);
         let service = PathRegistrationService::new();
 
         service
-            .install_openclaw_shims(&paths, &runtime)
+            .install_openclaw_shims(&paths)
             .expect("install shims");
 
         let cmd = fs::read_to_string(paths.user_bin_dir.join("openclaw.cmd")).expect("cmd shim");
@@ -312,13 +304,10 @@ mod tests {
 
         assert!(cmd.contains("--run-openclaw-cli"));
         assert!(!cmd.contains("OPENCLAW_GATEWAY_TOKEN"));
-        assert!(!cmd.contains(runtime.gateway_auth_token.as_str()));
         assert!(ps1.contains("--run-openclaw-cli"));
         assert!(!ps1.contains("OPENCLAW_GATEWAY_TOKEN"));
-        assert!(!ps1.contains(runtime.gateway_auth_token.as_str()));
         assert!(unix.contains("--run-openclaw-cli"));
         assert!(!unix.contains("OPENCLAW_GATEWAY_TOKEN"));
-        assert!(!unix.contains(runtime.gateway_auth_token.as_str()));
     }
 
     #[test]
@@ -369,36 +358,5 @@ mod tests {
             1,
             "the embedded openclaw bin dir should not be duplicated on PATH"
         );
-    }
-
-    fn test_runtime(paths: &crate::framework::paths::AppPaths) -> ActivatedOpenClawRuntime {
-        let install_key = format!("{TEST_BUNDLED_OPENCLAW_VERSION}-windows-x64");
-        let install_dir = paths.openclaw_runtime_dir.join(&install_key);
-        let runtime_dir = install_dir.join("runtime");
-        let node_path = runtime_dir.join("node").join("node.exe");
-        let cli_path = runtime_dir
-            .join("package")
-            .join("node_modules")
-            .join("openclaw")
-            .join("openclaw.mjs");
-
-        fs::create_dir_all(node_path.parent().expect("node parent")).expect("node dir");
-        fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
-        fs::write(&node_path, "node").expect("node file");
-        fs::write(&cli_path, "console.log('openclaw');").expect("cli file");
-
-        ActivatedOpenClawRuntime {
-            install_key,
-            install_dir,
-            runtime_dir,
-            node_path,
-            cli_path,
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
-            workspace_dir: paths.openclaw_workspace_dir.clone(),
-            config_path: paths.openclaw_config_file.clone(),
-            gateway_port: 18_789,
-            gateway_auth_token: "test-token".to_string(),
-        }
     }
 }

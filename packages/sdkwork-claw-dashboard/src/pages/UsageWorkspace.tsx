@@ -614,7 +614,7 @@ export function UsageWorkspacePage() {
         <div className="space-y-6 xl:space-y-8">
           <section className={surfaceClass}>
             <SectionHeader
-              eyebrow="OpenClaw Usage"
+              eyebrow={t('dashboard.usage.page.eyebrow')}
               title={t('dashboard.usage.page.title')}
               description={t('dashboard.usage.page.description')}
               action={(

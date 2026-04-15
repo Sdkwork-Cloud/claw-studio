@@ -155,9 +155,9 @@ export interface KernelCenterDashboard {
     errorCause: string | null;
   };
   provenance: {
-    installSourceLabel: string;
+    installSource: string | null;
     platformLabel: string;
-    openclawVersion: string | null;
+    runtimeVersion: string | null;
     nodeVersion: string | null;
     configPath: string | null;
     runtimeHomeDir: string | null;
@@ -282,19 +282,6 @@ function formatOwnership(ownership?: string | null) {
 
 function formatStartupMode(mode?: string | null) {
   return mode === 'auto' ? 'Auto Start' : 'Manual Start';
-}
-
-function formatInstallSource(source?: string | null) {
-  switch (source) {
-    case 'bundled':
-      return 'Bundled';
-    case 'external':
-      return 'External';
-    case 'remote':
-      return 'Remote';
-    default:
-      return 'Unknown';
-  }
 }
 
 function formatLocalAiProxyLifecycle(lifecycle?: string | null) {
@@ -519,6 +506,23 @@ function unwrapSettledResult<T>(
   throw new Error(`${label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
 }
 
+function resolvePreferredOpenClawRuntime(
+  snapshot: KernelPlatformSnapshot | null,
+  info: RuntimeDesktopKernelInfo | null,
+) {
+  const openClawRuntime = info?.openClawRuntime ?? null;
+
+  if (snapshot?.runtimeId === 'openclaw') {
+    return openClawRuntime;
+  }
+
+  if (!snapshot && openClawRuntime?.runtimeId === 'openclaw') {
+    return openClawRuntime;
+  }
+
+  return null;
+}
+
 function mapHostRuntimeContract(runtimeInfo: RuntimeInfo | null) {
   const startup = runtimeInfo?.startup ?? null;
 
@@ -552,7 +556,7 @@ function mapDashboard(
 ): KernelCenterDashboard {
   const activeProfile = info?.storage.profiles.find((profile) => profile.active) ?? null;
   const controlSocket = snapshot?.raw.host.controlSocket ?? info?.host.host.controlSocket ?? null;
-  const openClawRuntime = info?.openClawRuntime ?? null;
+  const openClawRuntime = resolvePreferredOpenClawRuntime(snapshot, info);
   const startupEvidence = info?.desktopStartupEvidence ?? null;
   const readyKeys =
     info?.capabilities
@@ -690,12 +694,12 @@ function mapDashboard(
       errorCause: startupEvidence?.errorCause ?? null,
     },
     provenance: {
-      installSourceLabel: formatInstallSource(snapshot?.raw.provenance.installSource),
+      installSource: snapshot?.raw.provenance.installSource ?? null,
       platformLabel: formatPlatformLabel(
         openClawRuntime?.platform ?? snapshot?.raw.provenance.platform,
         openClawRuntime?.arch ?? snapshot?.raw.provenance.arch,
       ),
-      openclawVersion: openClawRuntime?.openclawVersion ?? snapshot?.openclawVersion ?? null,
+      runtimeVersion: openClawRuntime?.openclawVersion ?? snapshot?.runtimeVersion ?? null,
       nodeVersion: openClawRuntime?.nodeVersion ?? snapshot?.nodeVersion ?? null,
       configPath: openClawRuntime?.configPath ?? snapshot?.raw.provenance.configPath ?? null,
       runtimeHomeDir: openClawRuntime?.homeDir ?? snapshot?.raw.provenance.runtimeHomeDir ?? null,

@@ -2,7 +2,7 @@
   "page": {
     "eyebrow": "Local Proxy Route Center",
     "title": "Provider Center",
-    "description": "Manage local proxy routes, upstream protocols, model defaults, and credentials before they are projected into bundled runtime consumers.",
+    "description": "Manage local proxy routes, upstream protocols, model defaults, and credentials before they are projected into managed runtime consumers.",
     "storageHint": "Route records are persisted to a writable SQLite storage profile when one is available."
   },
   "summary": {

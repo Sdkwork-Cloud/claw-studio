@@ -31,7 +31,7 @@ assert.match(
 assert.match(
   foundationCheckSource,
   /'generated\/bundled\/'/,
-  'desktop platform foundation check must validate the generated bundled resource directory root',
+  'desktop platform foundation check must validate the generated desktop resource directory root',
 );
 assert.match(
   foundationCheckSource,
@@ -60,43 +60,38 @@ assert.match(
 );
 assert.match(
   foundationCheckSource,
-  /SDKWORK_CLAW_INSTALL_ROOT/,
-  'desktop platform foundation check must require explicit Linux install-root override support for postinstall prewarm',
+  /installerHooks/,
+  'desktop platform foundation check must validate that Windows installer hooks are not wired after the external-runtime hard cut',
 );
 assert.match(
   foundationCheckSource,
-  /RPM_INSTALL_PREFIX/,
-  'desktop platform foundation check must require RPM relocatable install-root override support for postinstall prewarm',
+  /postInstallScript/,
+  'desktop platform foundation check must validate that Linux postinstall hooks are not wired after the external-runtime hard cut',
 );
 assert.match(
   foundationCheckSource,
-  /install-root forwarding into the embedded OpenClaw prewarm CLI/,
-  'desktop platform foundation check must require Linux install-root forwarding into the embedded OpenClaw prewarm CLI',
+  /Legacy Windows OpenClaw installer hooks must be removed after the external-runtime hard cut\./,
+  'desktop platform foundation check must reject legacy Windows installer hook assets after the external-runtime hard cut',
 );
 assert.match(
   foundationCheckSource,
-  /usr\/lib64\/\*\/resources\/openclaw\/manifest\.json/,
-  'desktop platform foundation check must require Linux lib64 OpenClaw manifest discovery coverage',
+  /Legacy Linux OpenClaw postinstall hook must be removed after the external-runtime hard cut\./,
+  'desktop platform foundation check must reject legacy Linux postinstall hook assets after the external-runtime hard cut',
 );
 assert.match(
   foundationCheckSource,
-  /Linux postinstall prewarm soft-failure fallback/,
-  'desktop platform foundation check must reject Linux postinstall soft-failure prewarm fallbacks',
+  /Desktop Linux deb packaging must not wire a legacy OpenClaw postinstall script\./,
+  'desktop platform foundation check must reject legacy Linux deb postinstall script wiring',
 );
 assert.match(
   foundationCheckSource,
-  /Windows NSIS prewarm failure abort/,
-  'desktop platform foundation check must require Windows NSIS installer abort semantics for OpenClaw prewarm failures',
+  /Desktop Linux rpm packaging must not wire a legacy OpenClaw postinstall script\./,
+  'desktop platform foundation check must reject legacy Linux rpm postinstall script wiring',
 );
 assert.match(
   foundationCheckSource,
-  /Windows NSIS explicit install-root forwarding into the embedded OpenClaw prewarm CLI/,
-  'desktop platform foundation check must require Windows NSIS install-root forwarding for OpenClaw prewarm',
-);
-assert.match(
-  foundationCheckSource,
-  /Windows NSIS explicit install-root forwarding into the embedded OpenClaw CLI registration flow/,
-  'desktop platform foundation check must require Windows NSIS install-root forwarding for OpenClaw CLI registration',
+  /Desktop Windows Tauri config must not wire legacy OpenClaw installer hooks\./,
+  'desktop platform foundation check must reject legacy Windows NSIS installer-hook wiring',
 );
 assert.match(
   foundationCheckSource,

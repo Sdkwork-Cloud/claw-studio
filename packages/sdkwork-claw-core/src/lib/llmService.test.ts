@@ -28,7 +28,7 @@ await runTest('llmService requires an active instance instead of direct Gemini c
         llmService.generateContent({
           prompt: 'hello',
         }),
-      /Select or start an OpenClaw-compatible instance/,
+      /Select or start an AI-compatible instance/,
     );
   } finally {
     instanceStore.setState(initialState, true);

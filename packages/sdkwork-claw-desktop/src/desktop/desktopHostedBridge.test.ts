@@ -449,6 +449,68 @@ await runTest('desktop hosted bridge readiness probe rejects when the managed Op
   assert.deepEqual(webSocketProbe.urls, ['ws://127.0.0.1:18871']);
 });
 
+await runTest('desktop hosted bridge readiness evidence resolves the managed OpenClaw instance even when it does not use the legacy local-built-in id', () => {
+  const evidence = buildDesktopHostedRuntimeReadinessEvidence(
+    desktopHostedRuntime,
+    {
+      mode: 'desktopCombined',
+      lifecycle: 'ready',
+      hostId: 'desktop-local',
+      displayName: 'Desktop Combined Host',
+      version: 'desktop@test',
+      desiredStateProjectionVersion: 'phase2',
+      rolloutEngineVersion: 'phase2',
+      manageBasePath: '/claw/manage/v1',
+      internalBasePath: '/claw/internal/v1',
+      stateStoreDriver: 'sqlite',
+      stateStore: {
+        activeProfileId: 'default-sqlite',
+        providers: [],
+        profiles: [],
+      },
+      capabilityKeys: [],
+      updatedAt: 1,
+    } as any,
+    [
+      {
+        endpointId: 'claw-manage-http',
+        baseUrl: 'http://127.0.0.1:18797',
+      },
+    ] as any,
+    {
+      lifecycle: 'ready',
+      endpointId: 'openclaw-gateway',
+      activePort: 18871,
+      baseUrl: 'http://127.0.0.1:18871',
+      websocketUrl: 'ws://127.0.0.1:18871',
+    } as any,
+    {
+      lifecycle: 'ready',
+      endpointId: 'openclaw-gateway',
+      activePort: 18871,
+      baseUrl: 'http://127.0.0.1:18871',
+      websocketUrl: 'ws://127.0.0.1:18871',
+    } as any,
+    [
+      {
+        id: 'managed-openclaw-primary',
+        name: 'Managed OpenClaw Primary',
+        runtimeKind: 'openclaw',
+        deploymentMode: 'local-managed',
+        transportKind: 'openclawGatewayWs',
+        status: 'online',
+        baseUrl: 'http://127.0.0.1:18871',
+        websocketUrl: 'ws://127.0.0.1:18871',
+        isBuiltIn: true,
+        isDefault: true,
+      },
+    ] as any,
+  );
+
+  assert.equal(evidence.builtInInstanceId, 'managed-openclaw-primary');
+  assert.equal(evidence.builtInInstanceReady, true);
+});
+
 await runTest('desktop hosted bridge readiness probe requires gateway invoke capability before declaring managed OpenClaw ready', async () => {
   const fetchImpl = async (input: string) => {
     if (input === 'http://127.0.0.1:18797/claw/internal/v1/host-platform') {
@@ -754,6 +816,110 @@ await runTest('desktop hosted bridge readiness probe rejects a hosted runtime th
     () => probeDesktopHostedRuntimeReadiness(desktopHostedRuntime, fetchImpl),
     /desktop hosted runtime is not ready/i,
   );
+});
+
+await runTest('desktop hosted bridge readiness probe accepts non-openclaw package profiles when the hosted shell is ready without managed OpenClaw surfaces', async () => {
+  const fetchImpl = async (input: string) => {
+    if (input === 'http://127.0.0.1:18797/claw/internal/v1/host-platform') {
+      return createJsonResponse({
+        mode: 'desktopCombined',
+        lifecycle: 'ready',
+        hostId: 'desktop-local',
+        displayName: 'Desktop Combined Host',
+        version: 'desktop@test',
+        desiredStateProjectionVersion: 'phase2',
+        rolloutEngineVersion: 'phase2',
+        manageBasePath: '/claw/manage/v1',
+        internalBasePath: '/claw/internal/v1',
+        stateStoreDriver: 'sqlite',
+        stateStore: {
+          activeProfileId: 'default-sqlite',
+          providers: [],
+          profiles: [],
+        },
+        capabilityKeys: [],
+        updatedAt: 1,
+      });
+    }
+
+    if (input === 'http://127.0.0.1:18797/claw/manage/v1/host-endpoints') {
+      return createJsonResponse([
+        {
+          endpointId: 'claw-manage-http',
+          bindHost: '127.0.0.1',
+          requestedPort: 18797,
+          activePort: 18797,
+          scheme: 'http',
+          baseUrl: 'http://127.0.0.1:18797',
+          websocketUrl: null,
+          loopbackOnly: true,
+          dynamicPort: false,
+        },
+      ]);
+    }
+
+    if (input === 'http://127.0.0.1:18797/claw/manage/v1/openclaw/runtime') {
+      return createJsonResponse({
+        runtimeKind: 'openclaw',
+        lifecycle: 'inactive',
+        endpointId: null,
+        requestedPort: null,
+        activePort: null,
+        baseUrl: null,
+        websocketUrl: null,
+        managedBy: 'desktopCombined',
+        updatedAt: 1,
+      });
+    }
+
+    if (input === 'http://127.0.0.1:18797/claw/manage/v1/openclaw/gateway') {
+      return createJsonResponse({
+        gatewayKind: 'openclawGateway',
+        lifecycle: 'inactive',
+        endpointId: null,
+        requestedPort: null,
+        activePort: null,
+        baseUrl: null,
+        websocketUrl: null,
+        managedBy: 'desktopCombined',
+        updatedAt: 1,
+      });
+    }
+
+    if (input === 'http://127.0.0.1:18797/claw/api/v1/studio/instances') {
+      return createJsonResponse([
+        {
+          id: 'hermes-remote',
+          name: 'Hermes Remote',
+          runtimeKind: 'hermes',
+          deploymentMode: 'remote',
+          transportKind: 'customHttp',
+          status: 'online',
+          baseUrl: 'https://hermes.example.com',
+          websocketUrl: null,
+          isBuiltIn: false,
+          isDefault: true,
+        },
+      ]);
+    }
+
+    throw new Error(`unexpected request: ${input}`);
+  };
+
+  const result = await probeDesktopHostedRuntimeReadiness(
+    desktopHostedRuntime,
+    fetchImpl,
+    {
+      requiresManagedOpenClawEvidence: false,
+    } as any,
+  );
+
+  assert.equal(result.evidence.hostLifecycleReady, true);
+  assert.equal(result.evidence.manageEndpointPublished, true);
+  assert.equal(result.evidence.openClawRuntimeReady, false);
+  assert.equal(result.evidence.openClawGatewayReady, false);
+  assert.equal(result.evidence.builtInInstanceReady, false);
+  assert.equal(result.evidence.ready, true);
 });
 
 await runTest('desktop hosted bridge readiness evidence marks built-in instance as not ready when the gateway websocket drifts from the built-in projection', async () => {

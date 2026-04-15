@@ -1,4 +1,5 @@
 use super::{
+    kernel_runtime_authority::KernelRuntimeAuthorityService,
     local_ai_proxy::{LocalAiProxyLifecycle, LocalAiProxyService, LocalAiProxyServiceHealth},
     local_ai_proxy_snapshot::{
         resolve_provider_center_profile_id, restore_provider_center_catalog,
@@ -1087,7 +1088,7 @@ fn build_post_restore_verification(
     gateway_running_after_import: bool,
     checked_at: &str,
 ) -> OpenClawMirrorImportVerification {
-    let config_text = fs::read_to_string(&paths.openclaw_config_file).ok();
+    let config_text = fs::read_to_string(&readable_managed_openclaw_config_path(paths)).ok();
     let config_root = config_text
         .as_deref()
         .and_then(|content| serde_json::from_str::<Value>(content).ok());
@@ -1131,7 +1132,7 @@ fn verify_managed_config(
     paths: &AppPaths,
     config_root: Option<&Value>,
 ) -> OpenClawMirrorImportVerificationCheck {
-    let config_path = normalize_path(&paths.openclaw_config_file);
+    let config_path = normalize_path(&authority_managed_openclaw_config_path(paths));
     if config_root.is_some() {
         verification_check(
             "managed-config",
@@ -1147,6 +1148,21 @@ fn verify_managed_config(
             format!("Managed OpenClaw config is missing or invalid after import at {config_path}."),
         )
     }
+}
+
+fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    let authority_path = authority_managed_openclaw_config_path(paths);
+    if authority_path.exists() || !paths.openclaw_config_file.exists() {
+        authority_path
+    } else {
+        paths.openclaw_config_file.clone()
+    }
+}
+
+fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    KernelRuntimeAuthorityService::new()
+        .active_openclaw_config_path(paths)
+        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
 }
 
 fn verify_managed_state(paths: &AppPaths) -> OpenClawMirrorImportVerificationCheck {
@@ -2447,7 +2463,7 @@ fn list_windows_archive_entries(source_path: &Path) -> Result<Vec<String>> {
          try {{ $zip.Entries | ForEach-Object {{ $_.FullName }} }} finally {{ $zip.Dispose() }}",
         normalize_native_path(source_path)
     );
-    let output = Command::new("powershell")
+    let output = Command::new(windows_powershell_executable())
         .args(["-NoProfile", "-Command", &command])
         .output()?;
 
@@ -2544,7 +2560,7 @@ fn extract_windows_archive(archive_path: &Path, destination_dir: &Path) -> Resul
         normalize_native_path(archive_path),
         normalize_native_path(destination_dir)
     );
-    let output = Command::new("powershell")
+    let output = Command::new(windows_powershell_executable())
         .args(["-NoProfile", "-Command", &command])
         .output()?;
 
@@ -2578,6 +2594,23 @@ fn extract_unix_archive(archive_path: &Path, destination_dir: &Path) -> Result<(
     }
 
     Ok(())
+}
+
+#[cfg(windows)]
+fn windows_powershell_executable() -> PathBuf {
+    let candidate = std::env::var_os("SystemRoot")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+        .join("System32")
+        .join("WindowsPowerShell")
+        .join("v1.0")
+        .join("powershell.exe");
+
+    if candidate.exists() {
+        candidate
+    } else {
+        PathBuf::from("powershell.exe")
+    }
 }
 
 fn create_temp_staging_dir(prefix: &str) -> Result<PathBuf> {
@@ -2709,6 +2742,12 @@ mod tests {
         process::Command,
     };
 
+    fn managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+        crate::framework::services::kernel_runtime_authority::KernelRuntimeAuthorityService::new()
+            .active_openclaw_config_path(paths)
+            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+    }
+
     fn create_archive_runtime(paths: &AppPaths) -> ActivatedOpenClawRuntime {
         ActivatedOpenClawRuntime {
             install_key: "0.4.0-windows-x64".to_string(),
@@ -2730,7 +2769,7 @@ mod tests {
             home_dir: paths.openclaw_home_dir.clone(),
             state_dir: paths.openclaw_state_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
-            config_path: paths.openclaw_config_file.clone(),
+            config_path: managed_openclaw_config_path(paths),
             gateway_port: 18_789,
             gateway_auth_token: "mirror-import-test-token".to_string(),
         }
@@ -2741,7 +2780,7 @@ mod tests {
             .expect("agents dir");
         fs::create_dir_all(&paths.openclaw_workspace_dir).expect("workspace dir");
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(paths),
             format!("{{ \"label\": \"{label}\", \"agents\": {{}} }}"),
         )
         .expect("config");
@@ -2863,7 +2902,7 @@ mod tests {
         let storage = StorageService::new();
         seed_managed_openclaw_tree(&paths, label);
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -2974,7 +3013,7 @@ mod tests {
         )
         .expect("external skill file");
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -3058,7 +3097,7 @@ mod tests {
         )
         .expect("external plugin file");
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -3190,7 +3229,7 @@ mod tests {
         )
         .expect("external plugin file");
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -3273,7 +3312,7 @@ mod tests {
             .join("workspace-voice-call");
         seed_managed_openclaw_tree(&paths, label);
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -3360,7 +3399,7 @@ mod tests {
         )
         .expect("workspace plugin file");
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -3441,7 +3480,7 @@ mod tests {
         )
         .expect("managed plugin file");
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -3507,7 +3546,7 @@ mod tests {
             let command = format!(
                 "$ErrorActionPreference = 'Stop'; if (Test-Path -LiteralPath '{destination}') {{ Remove-Item -LiteralPath '{destination}' -Force }}; Compress-Archive -Path '{archive_glob}' -DestinationPath '{destination}' -Force"
             );
-            let output = Command::new("powershell")
+            let output = Command::new(super::windows_powershell_executable())
                 .args(["-NoProfile", "-Command", &command])
                 .output()
                 .expect("create windows test archive");
@@ -4055,7 +4094,7 @@ mod tests {
                try {{ $writer.Write('{traversal_content}') }} finally {{ $writer.Dispose() }}; \
              }} finally {{ $zip.Dispose() }}"
         );
-        let output = Command::new("powershell")
+        let output = Command::new(super::windows_powershell_executable())
             .args(["-NoProfile", "-Command", &command])
             .output()
             .expect("create traversal archive");
@@ -4092,7 +4131,7 @@ mod tests {
                try {{ $writer.Write('{duplicate_content}') }} finally {{ $writer.Dispose() }}; \
              }} finally {{ $zip.Dispose() }}"
         );
-        let output = Command::new("powershell")
+        let output = Command::new(super::windows_powershell_executable())
             .args(["-NoProfile", "-Command", &command])
             .output()
             .expect("create duplicate entry archive");
@@ -4155,7 +4194,7 @@ mod tests {
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(paths),
             format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
         )
         .expect("config file");
@@ -4170,7 +4209,7 @@ mod tests {
             home_dir: paths.openclaw_home_dir.clone(),
             state_dir: paths.openclaw_state_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
-            config_path: paths.openclaw_config_file.clone(),
+            config_path: managed_openclaw_config_path(paths),
             gateway_port,
             gateway_auth_token: "test-token".to_string(),
         }
@@ -4189,7 +4228,7 @@ mod tests {
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(paths),
             format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
         )
         .expect("config file");
@@ -4204,7 +4243,7 @@ mod tests {
             home_dir: paths.openclaw_home_dir.clone(),
             state_dir: paths.openclaw_state_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
-            config_path: paths.openclaw_config_file.clone(),
+            config_path: managed_openclaw_config_path(paths),
             gateway_port,
             gateway_auth_token: "test-token".to_string(),
         }
@@ -4212,22 +4251,16 @@ mod tests {
 
     #[cfg(windows)]
     fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
-            .map(|entry| entry.join("node.exe"))
-            .find(|candidate| candidate.exists())
-            .expect("node.exe should be available on PATH for OpenClaw mirror import tests")
+        crate::framework::services::test_support::resolve_test_node_executable(
+            "OpenClaw mirror import tests",
+        )
     }
 
     #[cfg(not(windows))]
     fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
-            .map(|entry| entry.join("node"))
-            .find(|candidate| candidate.exists())
-            .expect("node should be available on PATH for OpenClaw mirror import tests")
+        crate::framework::services::test_support::resolve_test_node_executable(
+            "OpenClaw mirror import tests",
+        )
     }
 
     fn reserve_test_loopback_port() -> u16 {
@@ -4839,8 +4872,8 @@ mod tests {
         )
         .expect("import mirror");
 
-        let config_text =
-            fs::read_to_string(&paths.openclaw_config_file).expect("restored config text");
+        let config_text = fs::read_to_string(&managed_openclaw_config_path(&paths))
+            .expect("restored config text");
         let state_text = fs::read_to_string(
             paths
                 .openclaw_state_dir
@@ -5124,7 +5157,7 @@ mod tests {
         seed_managed_openclaw_tree(&paths, "managed-asset-entries-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let original_config =
-            fs::read_to_string(&paths.openclaw_config_file).expect("original config");
+            fs::read_to_string(&managed_openclaw_config_path(&paths)).expect("original config");
         let original_workspace = fs::read_to_string(paths.openclaw_workspace_dir.join("AGENTS.md"))
             .expect("original workspace");
         let original_profile = fs::read_to_string(
@@ -5163,7 +5196,8 @@ mod tests {
             "unexpected error: {error_text}"
         );
         assert_eq!(
-            fs::read_to_string(&paths.openclaw_config_file).expect("config after failure"),
+            fs::read_to_string(&managed_openclaw_config_path(&paths))
+                .expect("config after failure"),
             original_config
         );
         assert_eq!(
@@ -5204,7 +5238,7 @@ mod tests {
         seed_managed_openclaw_tree(&paths, "component-digest-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let original_config =
-            fs::read_to_string(&paths.openclaw_config_file).expect("original config");
+            fs::read_to_string(&managed_openclaw_config_path(&paths)).expect("original config");
         let original_workspace = fs::read_to_string(paths.openclaw_workspace_dir.join("AGENTS.md"))
             .expect("original workspace");
         let original_profile = fs::read_to_string(
@@ -5242,7 +5276,8 @@ mod tests {
             "unexpected error: {error_text}"
         );
         assert_eq!(
-            fs::read_to_string(&paths.openclaw_config_file).expect("config after failure"),
+            fs::read_to_string(&managed_openclaw_config_path(&paths))
+                .expect("config after failure"),
             original_config
         );
         assert_eq!(
@@ -5297,7 +5332,8 @@ mod tests {
         .expect("import mirror");
 
         let restored_openclaw_config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("restored config text"),
+            &fs::read_to_string(&managed_openclaw_config_path(&paths))
+                .expect("restored config text"),
         )
         .expect("restored config json");
         let agents_list = restored_openclaw_config["agents"]["list"]
@@ -5387,7 +5423,8 @@ mod tests {
         .expect("import mirror");
 
         let restored_openclaw_config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("restored config text"),
+            &fs::read_to_string(&managed_openclaw_config_path(&paths))
+                .expect("restored config text"),
         )
         .expect("restored config json");
         let extra_dirs = restored_openclaw_config["skills"]["load"]["extraDirs"]
@@ -5436,7 +5473,8 @@ mod tests {
         .expect("import mirror");
 
         let restored_openclaw_config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("restored config text"),
+            &fs::read_to_string(&managed_openclaw_config_path(&paths))
+                .expect("restored config text"),
         )
         .expect("restored config json");
         let plugin_paths = restored_openclaw_config["plugins"]["load"]["paths"]
@@ -5516,7 +5554,8 @@ mod tests {
         .expect("import legacy mirror");
 
         let restored_openclaw_config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("restored config text"),
+            &fs::read_to_string(&managed_openclaw_config_path(&paths))
+                .expect("restored config text"),
         )
         .expect("restored config json");
         let extra_dirs = restored_openclaw_config["skills"]["load"]["extraDirs"]

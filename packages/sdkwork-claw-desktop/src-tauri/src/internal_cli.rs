@@ -86,7 +86,7 @@ pub fn maybe_handle_internal_cli_action() -> bool {
             if let Err(error) =
                 prepare_bundled_openclaw_runtime_for_current_install(install_root.as_deref())
             {
-                eprintln!("failed to prepare bundled openclaw runtime: {error}");
+                eprintln!("failed to prepare packaged OpenClaw runtime: {error}");
                 std::process::exit(1);
             }
             true
@@ -251,13 +251,9 @@ fn register_openclaw_cli_for_current_install(install_root: Option<&OsStr>) -> Re
         machine_root_override,
         user_root_override,
     )?;
-    let install_root =
-        requested_install_root.unwrap_or_else(|| resolve_install_root_from_paths(&paths));
-    let runtime =
-        prepare_bundled_openclaw_runtime_for_paths_and_install_root(&paths, &install_root)?;
 
     let path_registration = PathRegistrationService::new();
-    path_registration.install_openclaw_shims(&paths, &runtime)?;
+    path_registration.install_openclaw_shims(&paths)?;
     if has_install_root_override {
         path_registration.ensure_install_local_user_bin_on_path(&paths)?;
     } else {
@@ -279,12 +275,10 @@ pub(crate) fn prepare_bundled_openclaw_runtime_for_paths_and_install_root(
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn register_openclaw_cli_for_paths_and_install_root(
     paths: &AppPaths,
-    install_root: &Path,
+    _install_root: &Path,
 ) -> Result<()> {
-    let runtime = prepare_bundled_openclaw_runtime_for_paths_and_install_root(paths, install_root)?;
-
     let path_registration = PathRegistrationService::new();
-    path_registration.install_openclaw_shims(paths, &runtime)?;
+    path_registration.install_openclaw_shims(paths)?;
     path_registration.ensure_user_bin_on_path(paths)?;
 
     Ok(())
@@ -351,7 +345,7 @@ fn resolve_current_bundled_resource_root() -> Result<PathBuf> {
         tauri::utils::platform::resource_dir(context.package_info(), &tauri::utils::Env::default())
             .map_err(|error| {
                 crate::framework::FrameworkError::Internal(format!(
-                    "failed to resolve current bundled resource directory: {error}"
+                    "failed to resolve current packaged resource directory: {error}"
                 ))
             })?;
 
@@ -597,7 +591,11 @@ mod tests {
         PREPARE_BUNDLED_OPENCLAW_RUNTIME_FLAG, RUN_OPENCLAW_CLI_FLAG,
     };
     use crate::framework::{
-        paths::resolve_paths_for_root, services::openclaw_runtime::BundledOpenClawManifest,
+        paths::resolve_paths_for_root,
+        services::{
+            kernel_runtime_authority::KernelRuntimeAuthorityService,
+            openclaw_runtime::BundledOpenClawManifest,
+        },
     };
     use sha2::{Digest, Sha256};
     use std::{env, ffi::{OsStr, OsString}, fs};
@@ -633,6 +631,12 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn managed_openclaw_config_path(paths: &crate::framework::paths::AppPaths) -> std::path::PathBuf {
+        KernelRuntimeAuthorityService::new()
+            .active_openclaw_config_path(paths)
+            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
     }
 
     #[test]
@@ -729,10 +733,9 @@ mod tests {
     }
 
     #[test]
-    fn internal_registration_prepares_runtime_and_user_shell_shims() {
+    fn internal_registration_writes_user_shell_shims_without_preparing_runtime() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        create_bundled_runtime_fixture(&paths.install_root, None);
 
         register_openclaw_cli_for_paths_and_install_root(&paths, &paths.install_root)
             .expect("register openclaw cli");
@@ -760,7 +763,11 @@ mod tests {
             paths.user_bin_dir.to_string_lossy()
         );
         assert!(profile.contains(export_line.as_str()));
-        assert!(paths.openclaw_config_file.exists());
+        let managed_runtime_entries = fs::read_dir(&paths.openclaw_runtime_dir)
+            .map(|entries| entries.filter_map(|entry| entry.ok()).count())
+            .unwrap_or(0);
+        assert_eq!(managed_runtime_entries, 0);
+        assert!(!managed_openclaw_config_path(&paths).exists());
     }
 
     #[test]
@@ -773,7 +780,7 @@ mod tests {
             &paths,
             &paths.install_root,
         )
-        .expect("prepare bundled openclaw runtime");
+        .expect("prepare packaged OpenClaw runtime");
 
         assert!(runtime.install_dir.join("manifest.json").exists());
         assert!(runtime.runtime_dir.exists());
@@ -797,7 +804,7 @@ mod tests {
         let _user_profile_guard = ScopedEnvVarGuard::set("USERPROFILE", invalid_user_profile.as_os_str());
 
         prepare_bundled_openclaw_runtime_for_current_install(Some(install_root.as_os_str()))
-            .expect("prepare bundled openclaw runtime with install-root override");
+            .expect("prepare packaged OpenClaw runtime with install-root override");
 
         let prepared_runtime_root = install_root.join("runtimes").join("openclaw");
         let prepared_runtime_entries = fs::read_dir(&prepared_runtime_root)
@@ -810,7 +817,7 @@ mod tests {
             prepared_runtime_entries
                 .iter()
                 .any(|entry| entry.join("manifest.json").exists()),
-            "install-root override should still materialize a bundled OpenClaw runtime install",
+            "install-root override should still materialize a packaged OpenClaw runtime install",
         );
         assert!(
             install_root
@@ -853,18 +860,40 @@ mod tests {
     }
 
     #[test]
-    fn bundled_runtime_fixture_materializes_relative_node_payload_and_sidecar() {
+    fn internal_run_openclaw_cli_uses_external_node_when_runtime_manifest_has_no_bundled_node_entrypoint(
+    ) {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let capture_path = paths.user_root.join("openclaw-cli-external-node-capture.json");
+        create_bundled_runtime_fixture(&paths.install_root, Some(&capture_path));
+
+        let exit_code = run_openclaw_cli_for_paths_and_install_root(
+            &paths,
+            &paths.install_root,
+            &[OsString::from("doctor"), OsString::from("--json")],
+        )
+        .expect("run openclaw cli with external node-only manifest");
+
+        assert_eq!(exit_code, 0);
+        let capture = fs::read_to_string(&capture_path).expect("capture file");
+        assert!(capture.contains("\"doctor\""));
+        assert!(capture.contains("\"--json\""));
+    }
+
+    #[test]
+    fn bundled_runtime_fixture_materializes_node_less_manifest_and_sidecar() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         create_bundled_runtime_fixture(&paths.install_root, None);
 
         let resource_root = paths.install_root.join("openclaw");
-        let manifest = serde_json::from_str::<BundledOpenClawManifest>(
+        let manifest = serde_json::from_str::<serde_json::Value>(
             &fs::read_to_string(resource_root.join("manifest.json")).expect("manifest json"),
         )
-        .expect("bundled runtime manifest");
+        .expect("packaged OpenClaw manifest value");
 
-        assert!(manifest.node_relative_path.starts_with("runtime/"));
+        assert!(manifest.get("nodeRelativePath").is_none());
+        assert!(!resource_root.join("runtime").join("node").exists());
         assert!(resource_root
             .join("runtime")
             .join(PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME)
@@ -877,12 +906,6 @@ mod tests {
     ) {
         let resource_root = install_root.join("openclaw");
         let runtime_root = resource_root.join("runtime");
-        let node_relative_path = if cfg!(windows) {
-            "runtime/node/node.exe"
-        } else {
-            "runtime/node/bin/node"
-        };
-        let node_path = resource_root.join(node_relative_path);
         let cli_path = runtime_root
             .join("package")
             .join("node_modules")
@@ -906,7 +929,6 @@ mod tests {
             .join("client-bedrock")
             .join("package.json");
 
-        fs::create_dir_all(node_path.parent().expect("node parent")).expect("node dir");
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::create_dir_all(
             openclaw_package_json_path
@@ -926,7 +948,6 @@ mod tests {
                 .expect("client-bedrock package json parent"),
         )
         .expect("client-bedrock package json dir");
-        fs::copy(resolve_test_node_executable(), &node_path).expect("copy test node executable");
         let cli_source = match capture_path {
             Some(capture_path) => format!(
                 "import fs from 'node:fs';\nconst payload = {{ args: process.argv.slice(2), token: process.env.OPENCLAW_GATEWAY_TOKEN ?? null }};\nfs.writeFileSync({}, `${{JSON.stringify(payload)}}\\n`);\n",
@@ -982,13 +1003,16 @@ mod tests {
         };
 
         let manifest = BundledOpenClawManifest {
-            schema_version: 1,
+            schema_version: 2,
             runtime_id: "openclaw".to_string(),
             openclaw_version: TEST_BUNDLED_OPENCLAW_VERSION.to_string(),
-            node_version: "22.16.0".to_string(),
+            required_external_runtimes: vec!["nodejs".to_string()],
+            required_external_runtime_versions: std::collections::BTreeMap::from([(
+                "nodejs".to_string(),
+                "22.16.0".to_string(),
+            )]),
             platform: platform.to_string(),
             arch: arch.to_string(),
-            node_relative_path: node_relative_path.to_string(),
             cli_relative_path: "runtime/package/node_modules/openclaw/openclaw.mjs".to_string(),
         };
 
@@ -1008,10 +1032,6 @@ mod tests {
         manifest: &BundledOpenClawManifest,
     ) {
         let integrity_files = [
-            manifest
-                .node_relative_path
-                .trim_start_matches("runtime/")
-                .to_string(),
             manifest
                 .cli_relative_path
                 .trim_start_matches("runtime/")
@@ -1036,10 +1056,10 @@ mod tests {
             "schemaVersion": manifest.schema_version,
             "runtimeId": manifest.runtime_id,
             "openclawVersion": manifest.openclaw_version,
-            "nodeVersion": manifest.node_version,
+            "requiredExternalRuntimes": manifest.required_external_runtimes,
+            "requiredExternalRuntimeVersions": manifest.required_external_runtime_versions,
             "platform": manifest.platform,
             "arch": manifest.arch,
-            "nodeRelativePath": manifest.node_relative_path,
             "cliRelativePath": manifest.cli_relative_path,
             "runtimeIntegrity": {
                 "schemaVersion": 1,
@@ -1077,23 +1097,4 @@ mod tests {
         hex
     }
 
-    #[cfg(windows)]
-    fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node.exe"))
-            .find(|candidate| candidate.exists())
-            .expect("node.exe should be available on PATH for internal cli tests")
-    }
-
-    #[cfg(not(windows))]
-    fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node"))
-            .find(|candidate| candidate.exists())
-            .expect("node should be available on PATH for internal cli tests")
-    }
 }

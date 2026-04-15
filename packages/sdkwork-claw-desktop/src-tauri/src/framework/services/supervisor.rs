@@ -6,6 +6,7 @@ use crate::framework::services::openclaw_runtime::{
 use crate::framework::{
     kernel::{DesktopSupervisorInfo, DesktopSupervisorServiceInfo},
     paths::AppPaths,
+    services::kernel_runtime_authority::KernelRuntimeAuthorityService,
     FrameworkError, Result,
 };
 #[cfg(unix)]
@@ -1188,7 +1189,11 @@ fn reap_stale_openclaw_gateway_processes(paths: &AppPaths) -> Result<()> {
 }
 
 fn configured_managed_openclaw_gateway_port(paths: &AppPaths) -> Option<u16> {
-    let config = fs::read_to_string(&paths.openclaw_config_file).ok()?;
+    let config_path = readable_managed_openclaw_config_path(paths);
+    if !config_path.exists() {
+        return None;
+    }
+    let config = fs::read_to_string(config_path).ok()?;
     let parsed = json5::from_str::<serde_json::Value>(&config).ok()?;
     parsed
         .get("gateway")
@@ -1198,13 +1203,24 @@ fn configured_managed_openclaw_gateway_port(paths: &AppPaths) -> Option<u16> {
         .filter(|port| *port > 0)
 }
 
+fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    let authority_path = KernelRuntimeAuthorityService::new()
+        .active_openclaw_config_path(paths)
+        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone());
+    if authority_path.exists() || !paths.openclaw_config_file.exists() {
+        authority_path
+    } else {
+        paths.openclaw_config_file.clone()
+    }
+}
+
 fn is_loopback_port_accepting(port: u16) -> bool {
     let loopback = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port));
     TcpStream::connect_timeout(&loopback, Duration::from_millis(200)).is_ok()
 }
 
 fn describe_stale_openclaw_gateway_processes(paths: &AppPaths) -> Vec<String> {
-    let managed_runtime_root = normalize_process_match_path(&paths.openclaw_runtime_dir);
+    let owned_runtime_roots = openclaw_owned_runtime_roots(paths);
     let current_process_id = std::process::id();
     let mut system = System::new_all();
     system.refresh_processes(ProcessesToUpdate::All, true);
@@ -1218,18 +1234,7 @@ fn describe_stale_openclaw_gateway_processes(paths: &AppPaths) -> Vec<String> {
                 return None;
             }
 
-            if !process.cmd().iter().any(|segment| {
-                let segment = normalize_command_segment(segment);
-                segment.starts_with(&managed_runtime_root) && segment.ends_with("openclaw.mjs")
-            }) {
-                return None;
-            }
-
-            if !process
-                .cmd()
-                .iter()
-                .any(|segment| normalize_command_segment(segment) == "gateway")
-            {
+            if !command_matches_managed_openclaw_gateway(process.cmd(), &owned_runtime_roots) {
                 return None;
             }
 
@@ -1248,7 +1253,7 @@ fn describe_stale_openclaw_gateway_processes(paths: &AppPaths) -> Vec<String> {
 }
 
 fn find_stale_openclaw_gateway_process_ids(paths: &AppPaths) -> Result<Vec<u32>> {
-    let managed_runtime_root = normalize_process_match_path(&paths.openclaw_runtime_dir);
+    let owned_runtime_roots = openclaw_owned_runtime_roots(paths);
     let current_process_id = std::process::id();
     let mut system = System::new_all();
     system.refresh_processes(ProcessesToUpdate::All, true);
@@ -1269,24 +1274,45 @@ fn find_stale_openclaw_gateway_process_ids(paths: &AppPaths) -> Result<Vec<u32>>
                 return None;
             }
 
-            if !process.cmd().iter().any(|segment| {
-                let segment = normalize_command_segment(segment);
-                segment.starts_with(&managed_runtime_root) && segment.ends_with("openclaw.mjs")
-            }) {
-                return None;
-            }
-
-            if !process
-                .cmd()
-                .iter()
-                .any(|segment| normalize_command_segment(segment) == "gateway")
-            {
+            if !command_matches_managed_openclaw_gateway(process.cmd(), &owned_runtime_roots) {
                 return None;
             }
 
             Some(pid)
         })
         .collect())
+}
+
+fn openclaw_owned_runtime_roots(paths: &AppPaths) -> Vec<PathBuf> {
+    KernelRuntimeAuthorityService::new()
+        .openclaw_contract(paths)
+        .map(|contract| contract.owned_runtime_roots)
+        .unwrap_or_else(|_| vec![paths.openclaw_runtime_dir.clone()])
+}
+
+fn command_matches_managed_openclaw_gateway<S>(
+    command: &[S],
+    owned_runtime_roots: &[PathBuf],
+) -> bool
+where
+    S: AsRef<OsStr>,
+{
+    let normalized_roots = owned_runtime_roots
+        .iter()
+        .map(|path| normalize_process_match_path(path))
+        .collect::<Vec<_>>();
+
+    let matches_runtime = command.iter().any(|segment| {
+        let segment = normalize_command_segment(segment.as_ref());
+        normalized_roots
+            .iter()
+            .any(|root| segment.starts_with(root) && segment.ends_with("openclaw.mjs"))
+    });
+    let matches_gateway = command
+        .iter()
+        .any(|segment| normalize_command_segment(segment.as_ref()) == "gateway");
+
+    matches_runtime && matches_gateway
 }
 
 fn normalize_process_match_path(path: &Path) -> String {
@@ -1459,7 +1485,11 @@ fn force_process_shutdown(child: &mut Child) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::force_process_shutdown;
+    use super::{
+        command_matches_managed_openclaw_gateway,
+        configured_managed_openclaw_gateway_port,
+        force_process_shutdown,
+    };
     use super::{
         configure_command_for_managed_process, terminate_process_id, wait_for_gateway_ready,
         ManagedServiceLifecycle, SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY,
@@ -1467,7 +1497,11 @@ mod tests {
     #[cfg(windows)]
     use super::{managed_process_creation_flags, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW};
     use crate::framework::{
-        paths::resolve_paths_for_root, services::openclaw_runtime::ActivatedOpenClawRuntime,
+        paths::resolve_paths_for_root,
+        services::{
+            kernel_runtime_authority::KernelRuntimeAuthorityService,
+            openclaw_runtime::ActivatedOpenClawRuntime,
+        },
     };
     use std::{
         fs,
@@ -1681,13 +1715,13 @@ mod tests {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let runtime = fake_gateway_runtime(&paths);
-        let configured_port = 28_789;
+        let configured_port = reserve_test_loopback_port();
 
         service
             .configure_openclaw_gateway(&runtime)
             .expect("configure runtime");
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(&paths),
             format!("{{\n  \"gateway\": {{\n    \"port\": {configured_port}\n  }}\n}}\n"),
         )
         .expect("seed updated config");
@@ -1908,7 +1942,7 @@ mod tests {
         let gateway_port = reserve_test_loopback_port();
         runtime.gateway_port = gateway_port;
         fs::write(
-            &paths.openclaw_config_file,
+            &managed_openclaw_config_path(&paths),
             format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
         )
         .expect("config file");
@@ -2026,10 +2060,11 @@ mod tests {
             .join("openclaw")
             .join("openclaw.mjs");
         let gateway_port = reserve_test_loopback_port();
+        let config_path = managed_openclaw_config_path(paths);
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(
-            &paths.openclaw_config_file,
+            &config_path,
             format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
         )
         .expect("config file");
@@ -2044,30 +2079,32 @@ mod tests {
             home_dir: paths.openclaw_home_dir.clone(),
             state_dir: paths.openclaw_state_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
-            config_path: paths.openclaw_config_file.clone(),
+            config_path,
             gateway_port,
             gateway_auth_token: "test-token".to_string(),
         }
     }
 
+    fn managed_openclaw_config_path(
+        paths: &crate::framework::paths::AppPaths,
+    ) -> std::path::PathBuf {
+        KernelRuntimeAuthorityService::new()
+            .active_openclaw_config_path(paths)
+            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+    }
+
     #[cfg(windows)]
     fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node.exe"))
-            .find(|candidate| candidate.exists())
-            .expect("node.exe should be available on PATH for OpenClaw supervisor tests")
+        crate::framework::services::test_support::resolve_test_node_executable(
+            "OpenClaw supervisor tests",
+        )
     }
 
     #[cfg(not(windows))]
     fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node"))
-            .find(|candidate| candidate.exists())
-            .expect("node should be available on PATH for OpenClaw supervisor tests")
+        crate::framework::services::test_support::resolve_test_node_executable(
+            "OpenClaw supervisor tests",
+        )
     }
 
     fn reserve_test_loopback_port() -> u16 {
@@ -2076,5 +2113,109 @@ mod tests {
         let port = listener.local_addr().expect("listener addr").port();
         drop(listener);
         port
+    }
+
+    #[test]
+    fn configured_gateway_port_prefers_managed_config_over_legacy_config_when_authority_state_is_missing(
+    ) {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let managed_port = 28_901;
+        let legacy_port = 18_901;
+        let managed_config_path = managed_openclaw_config_path(&paths);
+
+        fs::remove_file(&paths.openclaw_authority_file).expect("remove authority state");
+
+        fs::create_dir_all(
+            managed_config_path
+                .parent()
+                .expect("managed config parent directory"),
+        )
+        .expect("managed config dir");
+        fs::write(
+            &managed_config_path,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {managed_port}\n  }}\n}}\n"),
+        )
+        .expect("managed config");
+        fs::write(
+            &paths.openclaw_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {legacy_port}\n  }}\n}}\n"),
+        )
+        .expect("legacy config");
+
+        assert_eq!(
+            configured_managed_openclaw_gateway_port(&paths),
+            Some(managed_port)
+        );
+    }
+
+    #[test]
+    fn configured_gateway_port_falls_back_to_legacy_config_before_managed_config_exists() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let legacy_port = 18_902;
+
+        fs::remove_file(&paths.openclaw_authority_file).expect("remove authority state");
+
+        fs::write(
+            &paths.openclaw_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {legacy_port}\n  }}\n}}\n"),
+        )
+        .expect("legacy config");
+
+        assert_eq!(
+            configured_managed_openclaw_gateway_port(&paths),
+            Some(legacy_port)
+        );
+    }
+
+    #[test]
+    fn stale_gateway_command_matching_accepts_legacy_runtime_roots() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let command = vec![
+            "C:\\Program Files\\nodejs\\node.exe".to_string(),
+            paths
+                .machine_runtime_dir
+                .join("runtimes")
+                .join("openclaw")
+                .join("2026.3.28-windows-x64")
+                .join("runtime")
+                .join("package")
+                .join("node_modules")
+                .join("openclaw")
+                .join("openclaw.mjs")
+                .to_string_lossy()
+                .into_owned(),
+            "gateway".to_string(),
+        ];
+
+        assert!(command_matches_managed_openclaw_gateway(
+            &command,
+            &KernelRuntimeAuthorityService::new()
+                .openclaw_contract(&paths)
+                .expect("contract")
+                .owned_runtime_roots,
+        ));
+    }
+
+    #[test]
+    fn stale_gateway_command_matching_rejects_external_runtime_roots() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let command = vec![
+            "C:\\Program Files\\nodejs\\node.exe".to_string(),
+            "D:\\external\\openclaw\\runtime\\package\\node_modules\\openclaw\\openclaw.mjs"
+                .to_string(),
+            "gateway".to_string(),
+        ];
+
+        assert!(!command_matches_managed_openclaw_gateway(
+            &command,
+            &KernelRuntimeAuthorityService::new()
+                .openclaw_contract(&paths)
+                .expect("contract")
+                .owned_runtime_roots,
+        ));
     }
 }

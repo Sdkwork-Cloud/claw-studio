@@ -207,8 +207,8 @@ export function main() {
   );
   assert.match(
     releaseDoc,
-    /openClawInstallerContract/,
-    'release and deployment docs must describe desktop OpenClaw installer contract metadata',
+    /kernelInstallContracts/,
+    'release and deployment docs must describe desktop kernel install contract metadata',
   );
   assert.match(
     releaseDoc,
@@ -237,8 +237,28 @@ export function main() {
   );
   assert.match(
     releaseDoc,
+    /kernelInstallReadiness/,
+    'release and deployment docs must describe per-kernel install readiness metadata',
+  );
+  assert.match(
+    releaseDoc,
+    /externalRuntimePolicy/,
+    'release and deployment docs must describe per-kernel external runtime policy evidence inside install readiness metadata',
+  );
+  assert.match(
+    releaseDoc,
     /installReadyLayout/,
     'release and deployment docs must describe install-ready desktop layout evidence',
+  );
+  assert.match(
+    releaseDoc,
+    /archive-extract-ready/,
+    'release and deployment docs must document the current Windows and Linux installReadyLayout.mode contract',
+  );
+  assert.match(
+    releaseDoc,
+    /staged-layout/,
+    'release and deployment docs must document the current macOS installReadyLayout.mode contract',
   );
   assert.match(
     releaseDoc,
@@ -259,6 +279,16 @@ export function main() {
     releaseDoc,
     /deployment bootstrap smoke report/i,
     'release and deployment docs must describe the persisted deployment bootstrap smoke report',
+  );
+  assert.match(
+    releaseDoc,
+    /--package-profile/,
+    'release and deployment docs must describe local package-profile selection for desktop packaging and smoke verification',
+  );
+  assert.match(
+    releaseDoc,
+    /SDKWORK_RELEASE_PACKAGE_PROFILE/,
+    'release and deployment docs must describe the package-profile environment override',
   );
   assert.match(
     releaseDoc,

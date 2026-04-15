@@ -74,11 +74,11 @@ export const DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES =
 
 /**
  * Bundled aliases — aligned with packages/sdkwork-claw-types/src/openclawRelease.ts naming.
- * These include the BUNDLED_ prefix to match the packages-layer convention.
- * The originals (without BUNDLED_) remain for backward compatibility within scripts/.
+ * OpenClaw payload constants keep the `BUNDLED_` prefix in script-facing aliases.
+ * Node.js uses `DEFAULT_REQUIRED_OPENCLAW_NODE_VERSION` because it is external-only.
  */
 export const DEFAULT_BUNDLED_OPENCLAW_VERSION = DEFAULT_OPENCLAW_VERSION;
-export const DEFAULT_BUNDLED_NODE_VERSION = DEFAULT_NODE_VERSION;
+export const DEFAULT_REQUIRED_OPENCLAW_NODE_VERSION = DEFAULT_NODE_VERSION;
 export const DEFAULT_BUNDLED_OPENCLAW_PACKAGE_NAME = DEFAULT_OPENCLAW_PACKAGE;
 export const DEFAULT_BUNDLED_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES =
   DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES;

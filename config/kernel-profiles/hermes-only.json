@@ -1,0 +1,7 @@
+{
+  "order": 200,
+  "profileId": "hermes-only",
+  "displayName": "Hermes Only",
+  "includedKernelIds": ["hermes"],
+  "defaultEnabledKernelIds": ["hermes"]
+}

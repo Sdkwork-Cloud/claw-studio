@@ -6,6 +6,7 @@ use crate::{
         },
         paths::AppPaths,
         services::{
+            kernel_runtime_authority::KernelRuntimeAuthorityService,
             local_ai_proxy::{
                 LocalAiProxyLifecycle, LocalAiProxyService, LocalAiProxyServiceStatus,
             },
@@ -20,7 +21,10 @@ use crate::{
     platform,
 };
 use serde_json::{Map, Value};
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 const MANAGED_PROVIDER_ID: &str = "sdkwork-local-proxy";
 
@@ -56,7 +60,8 @@ impl OpenClawRuntimeSnapshotService {
             .iter()
             .find(|service| service.id == SERVICE_ID_OPENCLAW_GATEWAY);
         let local_ai_proxy_status = local_ai_proxy.status()?;
-        let (config_root, config_error) = load_openclaw_config_root(&paths.openclaw_config_file);
+        let (config_root, config_error) =
+            load_openclaw_config_root(&readable_managed_openclaw_config_path(paths));
         let provider_projection = build_provider_projection(
             &config_root,
             config_error.as_deref(),
@@ -89,7 +94,7 @@ impl OpenClawRuntimeSnapshotService {
                 .map(|manifest| manifest.openclaw_version.clone()),
             node_version: manifest
                 .as_ref()
-                .map(|manifest| manifest.node_version.clone()),
+                .and_then(|manifest| manifest.external_node_version().map(str::to_string)),
             platform: manifest
                 .as_ref()
                 .map(|manifest| manifest.platform.clone())
@@ -107,7 +112,7 @@ impl OpenClawRuntimeSnapshotService {
             home_dir: path_string(&paths.openclaw_home_dir),
             state_dir: path_string(&paths.openclaw_state_dir),
             workspace_dir: path_string(&paths.openclaw_workspace_dir),
-            config_path: path_string(&paths.openclaw_config_file),
+            config_path: path_string(&authority_managed_openclaw_config_path(paths)),
             gateway_port: configured_runtime
                 .as_ref()
                 .map(|runtime| runtime.gateway_port),
@@ -181,7 +186,7 @@ fn build_startup_chain(
         DesktopOpenClawRuntimeStageInfo {
             id: "configureOpenClawGateway".to_string(),
             status: "pending".to_string(),
-            detail: "No bundled OpenClaw runtime is configured in the desktop supervisor yet."
+            detail: "No built-in OpenClaw runtime is configured in the desktop supervisor yet."
                 .to_string(),
         }
     };
@@ -206,7 +211,7 @@ fn build_startup_chain(
                 .clone()
                 .unwrap_or_else(|| "Local AI proxy failed to initialize.".to_string()),
             _ => {
-                "Local AI proxy has not been started for the bundled OpenClaw runtime.".to_string()
+                "Local AI proxy has not been started for the built-in OpenClaw runtime.".to_string()
             }
         },
     };
@@ -370,6 +375,21 @@ fn load_openclaw_config_root(path: &Path) -> (Value, Option<String>) {
             Some(format!("failed to read {}: {error}", path.display())),
         ),
     }
+}
+
+fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    let authority_path = authority_managed_openclaw_config_path(paths);
+    if authority_path.exists() || !paths.openclaw_config_file.exists() {
+        authority_path
+    } else {
+        paths.openclaw_config_file.clone()
+    }
+}
+
+fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    KernelRuntimeAuthorityService::new()
+        .active_openclaw_config_path(paths)
+        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
 }
 
 fn path_string(path: &Path) -> String {

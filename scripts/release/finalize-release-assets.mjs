@@ -18,11 +18,15 @@ import {
   resolveReleaseProfile,
 } from './release-profiles.mjs';
 import {
+  resolveKernelDefinition,
+} from './kernel-definitions.mjs';
+import {
   DESKTOP_INSTALLER_SMOKE_REPORT_FILENAME,
   resolveInstallableArtifactRelativePaths,
 } from './smoke-desktop-installers.mjs';
 import {
   DESKTOP_STARTUP_SMOKE_REPORT_FILENAME,
+  normalizeDesktopStartupSmokePackageContext,
   normalizeDesktopStartupSmokeLocalAiProxyRuntime,
   normalizeDesktopStartupSmokeChecks,
 } from './desktop-startup-smoke-contract.mjs';
@@ -38,6 +42,20 @@ import {
 import {
   normalizeDesktopInstallReadyLayout as normalizeInstallReadyLayout,
 } from './desktop-install-ready-layout.mjs';
+import {
+  manifestIncludesKernel,
+  normalizeKernelInstallContracts,
+  readKernelInstallContract,
+  writeKernelInstallContract,
+} from './kernel-install-contracts.mjs';
+import {
+  normalizeKernelExternalRuntimePolicy,
+  normalizeKernelInstallReadiness,
+  readKernelExternalRuntimePolicy,
+  readKernelInstallReadyLayout,
+  writeKernelExternalRuntimePolicy,
+  writeKernelInstallReadiness,
+} from './kernel-install-readiness.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -140,6 +158,71 @@ function normalizeStringArray(values) {
     : [];
 }
 
+function cloneManifestKernelPlatformSupport(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalizedEntries = Object.entries(value)
+    .map(([kernelId, platformSupport]) => {
+      const normalizedKernelId = String(kernelId ?? '').trim();
+      if (!normalizedKernelId || !platformSupport || typeof platformSupport !== 'object' || Array.isArray(platformSupport)) {
+        return null;
+      }
+
+      const windows = String(platformSupport.windows ?? '').trim();
+      const macos = String(platformSupport.macos ?? '').trim();
+      const linux = String(platformSupport.linux ?? '').trim();
+      if (!windows || !macos || !linux) {
+        return null;
+      }
+
+      return [
+        normalizedKernelId,
+        {
+          windows,
+          macos,
+          linux,
+        },
+      ];
+    })
+    .filter(Boolean);
+
+  return normalizedEntries.length > 0
+    ? Object.fromEntries(normalizedEntries)
+    : undefined;
+}
+
+function buildPackageProfileArtifactMetadata(manifest) {
+  const packageProfileId = String(manifest?.packageProfileId ?? '').trim();
+  const includedKernelIds = Array.isArray(manifest?.includedKernelIds)
+    ? manifest.includedKernelIds.map((value) => String(value ?? '').trim()).filter(Boolean)
+    : [];
+  const defaultEnabledKernelIds = Array.isArray(manifest?.defaultEnabledKernelIds)
+    ? manifest.defaultEnabledKernelIds.map((value) => String(value ?? '').trim()).filter(Boolean)
+    : [];
+  const requiredExternalRuntimes = Array.isArray(manifest?.requiredExternalRuntimes)
+    ? manifest.requiredExternalRuntimes.map((value) => String(value ?? '').trim()).filter(Boolean)
+    : [];
+  const optionalExternalRuntimes = Array.isArray(manifest?.optionalExternalRuntimes)
+    ? manifest.optionalExternalRuntimes.map((value) => String(value ?? '').trim()).filter(Boolean)
+    : [];
+  const launcherKinds = Array.isArray(manifest?.launcherKinds)
+    ? manifest.launcherKinds.map((value) => String(value ?? '').trim()).filter(Boolean)
+    : [];
+  const kernelPlatformSupport = cloneManifestKernelPlatformSupport(manifest?.kernelPlatformSupport);
+
+  return {
+    ...(packageProfileId ? { packageProfileId } : {}),
+    ...(includedKernelIds.length > 0 ? { includedKernelIds } : {}),
+    ...(defaultEnabledKernelIds.length > 0 ? { defaultEnabledKernelIds } : {}),
+    ...(requiredExternalRuntimes.length > 0 ? { requiredExternalRuntimes } : {}),
+    ...(Array.isArray(manifest?.optionalExternalRuntimes) ? { optionalExternalRuntimes } : {}),
+    ...(launcherKinds.length > 0 ? { launcherKinds } : {}),
+    ...(kernelPlatformSupport ? { kernelPlatformSupport } : {}),
+  };
+}
+
 function normalizeInstallPlanSummaries(values) {
   return Array.isArray(values)
     ? values
@@ -159,8 +242,8 @@ function resolveExpectedInstallReadyLayoutModeFromInstallerContract(installerCon
   if (installMode === 'preexpanded-managed-layout') {
     return 'staged-layout';
   }
-  if (installMode === 'postinstall-prewarm') {
-    return 'simulated-prewarm';
+  if (installMode === 'first-launch-archive-extract') {
+    return 'archive-extract-ready';
   }
   return '';
 }
@@ -182,11 +265,22 @@ function buildDesktopInstallerSmokeMetadata({
     requiredCompanionArtifactRelativePaths: normalizeStringArray(
       smokeReport?.requiredCompanionArtifactRelativePaths,
     ),
-    ...(normalizeInstallReadyLayout(smokeReport?.installReadyLayout)
-      ? { installReadyLayout: normalizeInstallReadyLayout(smokeReport?.installReadyLayout) }
+    ...(normalizeKernelInstallReadiness(smokeReport?.kernelInstallReadiness)
+      ? { kernelInstallReadiness: normalizeKernelInstallReadiness(smokeReport?.kernelInstallReadiness) }
       : {}),
     installPlanSummaries: normalizeInstallPlanSummaries(smokeReport?.installPlanSummaries),
   };
+}
+
+function buildKernelExternalRuntimePolicy(kernelId) {
+  const definition = resolveKernelDefinition(kernelId);
+  return normalizeKernelExternalRuntimePolicy({
+    packagingPolicy: definition.sourceMetadata.packagingPolicy,
+    launcherKinds: definition.launcherKinds,
+    platformSupport: definition.platformSupport,
+    runtimeRequirements: definition.runtimeRequirements,
+    optionalRuntimeRequirements: definition.optionalRuntimeRequirements,
+  });
 }
 
 function buildDesktopStartupSmokeMetadata({
@@ -195,6 +289,8 @@ function buildDesktopStartupSmokeMetadata({
   smokeReportPath,
   smokeReport,
 }) {
+  const packageContext = normalizeDesktopStartupSmokePackageContext(smokeReport);
+
   return {
     reportRelativePath: path.relative(releaseAssetsDir, smokeReportPath).replaceAll('\\', '/'),
     manifestRelativePath: path.relative(releaseAssetsDir, manifestPath).replaceAll('\\', '/'),
@@ -205,6 +301,7 @@ function buildDesktopStartupSmokeMetadata({
     target: String(smokeReport?.target ?? '').trim(),
     status: String(smokeReport?.status ?? '').trim(),
     phase: String(smokeReport?.phase ?? '').trim(),
+    ...(packageContext ?? {}),
     descriptorBrowserBaseUrl: String(
       smokeReport?.descriptorBrowserBaseUrl ?? '',
     ).trim(),
@@ -319,18 +416,22 @@ function requireDesktopInstallerSmokeReports({
       manifestDir,
       DESKTOP_INSTALLER_SMOKE_REPORT_FILENAME,
     );
-    const expectedInstallerContract = assertDesktopOpenClawInstallerContract({
-      actualContract: manifest?.openClawInstallerContract,
-      workspaceRootDir,
-      platform: expectedPlatform,
-      contextLabel: `Desktop release asset manifest OpenClaw installer contract at ${record.file.absolutePath}`,
-    });
+    const includesOpenClaw = manifestIncludesKernel(manifest, 'openclaw');
+    const expectedInstallerContract = includesOpenClaw
+      ? assertDesktopOpenClawInstallerContract({
+          actualContract: readKernelInstallContract(manifest?.kernelInstallContracts, 'openclaw'),
+          workspaceRootDir,
+          platform: expectedPlatform,
+          contextLabel: `Desktop release asset manifest OpenClaw installer contract at ${record.file.absolutePath}`,
+        })
+      : null;
 
     if (!existsSync(smokeReportPath)) {
       throw new Error(`Missing desktop installer smoke report: ${smokeReportPath}`);
     }
 
     const smokeReport = JSON.parse(readFileSync(smokeReportPath, 'utf8'));
+    let propagatedKernelInstallReadiness = null;
     if (String(smokeReport?.platform ?? '').trim() !== expectedPlatform) {
       throw new Error(
         `Desktop installer smoke report platform mismatch at ${smokeReportPath}: expected ${expectedPlatform}, received ${smokeReport?.platform ?? 'unknown'}`,
@@ -361,36 +462,84 @@ function requireDesktopInstallerSmokeReports({
       );
     }
 
-    if (
-      JSON.stringify(normalizeDesktopOpenClawInstallerContract(smokeReport?.openClawInstallerContract))
-      !== JSON.stringify(expectedInstallerContract)
-    ) {
-      throw new Error(
-        `Desktop installer smoke report OpenClaw installer contract mismatch at ${smokeReportPath}`,
+    if (expectedInstallerContract) {
+      if (
+        JSON.stringify(
+          normalizeDesktopOpenClawInstallerContract(
+            readKernelInstallContract(smokeReport?.kernelInstallContracts, 'openclaw'),
+          ),
+        )
+        !== JSON.stringify(expectedInstallerContract)
+      ) {
+        throw new Error(
+          `Desktop installer smoke report OpenClaw installer contract mismatch at ${smokeReportPath}`,
+        );
+      }
+      const openClawInstallReadyLayout = normalizeInstallReadyLayout(
+        readKernelInstallReadyLayout(smokeReport?.kernelInstallReadiness, 'openclaw'),
+      );
+      if (!openClawInstallReadyLayout) {
+        throw new Error(
+          `Desktop installer smoke report is missing install-ready layout evidence at ${smokeReportPath}`,
+        );
+      }
+      const expectedInstallReadyLayoutMode = resolveExpectedInstallReadyLayoutModeFromInstallerContract(
+        expectedInstallerContract,
+      );
+      if (
+        expectedInstallReadyLayoutMode
+        && openClawInstallReadyLayout.mode !== expectedInstallReadyLayoutMode
+      ) {
+        throw new Error(
+          `Desktop installer smoke report installReadyLayout.mode mismatch at ${smokeReportPath}: expected ${expectedInstallReadyLayoutMode}, received ${openClawInstallReadyLayout.mode}`,
+        );
+      }
+      propagatedKernelInstallReadiness = writeKernelInstallReadiness(
+        propagatedKernelInstallReadiness,
+        'openclaw',
+        { installReadyLayout: openClawInstallReadyLayout },
       );
     }
-    const installReadyLayout = normalizeInstallReadyLayout(smokeReport?.installReadyLayout);
-    if (!installReadyLayout) {
-      throw new Error(
-        `Desktop installer smoke report is missing install-ready layout evidence at ${smokeReportPath}`,
+
+    for (const kernelId of normalizeStringArray(manifest?.includedKernelIds)) {
+      const expectedExternalRuntimePolicy = buildKernelExternalRuntimePolicy(kernelId);
+      const reportedExternalRuntimePolicy = readKernelExternalRuntimePolicy(
+        smokeReport?.kernelInstallReadiness,
+        kernelId,
       );
-    }
-    const expectedInstallReadyLayoutMode = resolveExpectedInstallReadyLayoutModeFromInstallerContract(
-      expectedInstallerContract,
-    );
-    if (
-      expectedInstallReadyLayoutMode
-      && installReadyLayout.mode !== expectedInstallReadyLayoutMode
-    ) {
-      throw new Error(
-        `Desktop installer smoke report installReadyLayout.mode mismatch at ${smokeReportPath}: expected ${expectedInstallReadyLayoutMode}, received ${installReadyLayout.mode}`,
+
+      if (
+        JSON.stringify(reportedExternalRuntimePolicy)
+        !== JSON.stringify(expectedExternalRuntimePolicy)
+      ) {
+        const kernelLabel = resolveKernelDefinition(kernelId).displayName;
+        throw new Error(
+          `Desktop installer smoke report is missing ${kernelLabel} external-runtime readiness evidence at ${smokeReportPath}`,
+        );
+      }
+
+      propagatedKernelInstallReadiness = writeKernelExternalRuntimePolicy(
+        propagatedKernelInstallReadiness,
+        kernelId,
+        expectedExternalRuntimePolicy,
       );
     }
 
     desktopInstallerMetadataByManifestPath.set(
       record.file.absolutePath,
       {
-        openClawInstallerContract: expectedInstallerContract,
+        ...(expectedInstallerContract
+          ? {
+              kernelInstallContracts: writeKernelInstallContract(
+                null,
+                'openclaw',
+                expectedInstallerContract,
+              ),
+            }
+          : {}),
+        ...(propagatedKernelInstallReadiness
+          ? { kernelInstallReadiness: propagatedKernelInstallReadiness }
+          : {}),
         desktopInstallerSmoke: buildDesktopInstallerSmokeMetadata({
           releaseAssetsDir,
           manifestPath: record.file.absolutePath,
@@ -475,6 +624,45 @@ function requireDesktopStartupSmokeReports({
     ) {
       throw new Error(
         `Desktop startup smoke report manifest path mismatch at ${smokeReportPath}`,
+      );
+    }
+
+    const expectedPackageContext = normalizeDesktopStartupSmokePackageContext({
+      packageProfileId: manifest?.packageProfileId,
+      includedKernelIds: manifest?.includedKernelIds,
+      defaultEnabledKernelIds: manifest?.defaultEnabledKernelIds,
+    });
+    if (!expectedPackageContext) {
+      throw new Error(
+        `Desktop release asset manifest is missing packaged kernel context metadata: ${record.file.absolutePath}`,
+      );
+    }
+
+    const reportedPackageContext = normalizeDesktopStartupSmokePackageContext(smokeReport);
+    if (!reportedPackageContext) {
+      throw new Error(
+        `Desktop startup smoke report is missing packaged kernel context metadata: ${smokeReportPath}`,
+      );
+    }
+    if (reportedPackageContext.packageProfileId !== expectedPackageContext.packageProfileId) {
+      throw new Error(
+        `Desktop startup smoke report package profile mismatch at ${smokeReportPath}`,
+      );
+    }
+    if (
+      JSON.stringify(reportedPackageContext.includedKernelIds)
+      !== JSON.stringify(expectedPackageContext.includedKernelIds)
+    ) {
+      throw new Error(
+        `Desktop startup smoke report included kernels mismatch at ${smokeReportPath}`,
+      );
+    }
+    if (
+      JSON.stringify(reportedPackageContext.defaultEnabledKernelIds)
+      !== JSON.stringify(expectedPackageContext.defaultEnabledKernelIds)
+    ) {
+      throw new Error(
+        `Desktop startup smoke report default enabled kernels mismatch at ${smokeReportPath}`,
       );
     }
 
@@ -925,11 +1113,13 @@ function buildArtifactIndex(
       }
 
       const assetStat = statSync(assetFile.absolutePath);
+      const packageProfileArtifactMetadata = buildPackageProfileArtifactMetadata(partialManifest);
       const artifactMetadata = artifactMetadataByManifestPath.get(
         partialManifestRecord.file.absolutePath,
       );
       artifacts.push(normalizeArtifactRecord({
         ...artifact,
+        ...packageProfileArtifactMetadata,
         ...(artifactMetadata ?? {}),
         sha256: computeSha256(assetFile.absolutePath),
         size: assetStat.size,

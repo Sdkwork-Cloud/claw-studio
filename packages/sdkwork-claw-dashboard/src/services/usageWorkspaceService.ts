@@ -433,7 +433,7 @@ export function createUsageWorkspaceService(
 
   async function listUsageInstances(): Promise<UsageWorkspaceInstancesResult> {
     const instances = (await dependencies.studioApi.listInstances())
-      .filter((instance) => instance.runtimeKind === 'openclaw')
+      .filter((instance) => instance.transportKind === 'openclawGatewayWs')
       .sort(sortInstances)
       .map((instance) => ({
         id: instance.id,

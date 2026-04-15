@@ -7,6 +7,7 @@ import {
   type OpenClawTaskFlowRecord,
 } from '@sdkwork/claw-infrastructure';
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
+import { supportsRuntimeTaskSurface } from './taskSurfaceSupport.ts';
 
 export interface TaskRuntimeCollectionState<T> {
   supported: boolean;
@@ -15,7 +16,7 @@ export interface TaskRuntimeCollectionState<T> {
 }
 
 export interface TaskRuntimeOverview {
-  openClawRuntime: boolean;
+  runtimeTaskSurface: boolean;
   taskBoard: TaskRuntimeCollectionState<OpenClawRuntimeTaskRecord>;
   taskFlows: TaskRuntimeCollectionState<OpenClawTaskFlowRecord>;
 }
@@ -54,10 +55,6 @@ function createUnsupportedCollection<T>(message: string | null = null): TaskRunt
     message,
     items: [],
   };
-}
-
-function isOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
-  return detail?.instance.runtimeKind === 'openclaw';
 }
 
 function createDependencies(
@@ -99,9 +96,9 @@ export function createTaskRuntimeService(
 
   async function getOverview(instanceId: string): Promise<TaskRuntimeOverview> {
     const detail = await dependencies.getInstanceDetail(instanceId);
-    if (!isOpenClawDetail(detail)) {
+    if (!supportsRuntimeTaskSurface(detail)) {
       return {
-        openClawRuntime: false,
+        runtimeTaskSurface: false,
         taskBoard: createUnsupportedCollection(),
         taskFlows: createUnsupportedCollection(),
       };
@@ -113,7 +110,7 @@ export function createTaskRuntimeService(
     ]);
 
     return {
-      openClawRuntime: true,
+      runtimeTaskSurface: true,
       taskBoard,
       taskFlows,
     };
@@ -124,7 +121,7 @@ export function createTaskRuntimeService(
     lookup: string,
   ): Promise<OpenClawTaskFlowDetailRecord | null> {
     const detail = await dependencies.getInstanceDetail(instanceId);
-    if (!isOpenClawDetail(detail)) {
+    if (!supportsRuntimeTaskSurface(detail)) {
       return null;
     }
 
@@ -136,7 +133,7 @@ export function createTaskRuntimeService(
     lookup: string,
   ): Promise<OpenClawRuntimeTaskDetailRecord | null> {
     const detail = await dependencies.getInstanceDetail(instanceId);
-    if (!isOpenClawDetail(detail)) {
+    if (!supportsRuntimeTaskSurface(detail)) {
       return null;
     }
 

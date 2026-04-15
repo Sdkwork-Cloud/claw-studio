@@ -7,7 +7,10 @@ use super::{
     StudioWorkbenchSnapshot, StudioWorkbenchTaskExecutionRecord, StudioWorkbenchTaskRecord,
     StudioWorkbenchTaskScheduleConfig, StudioWorkbenchToolRecord, DEFAULT_INSTANCE_ID,
 };
-use crate::framework::{paths::AppPaths, FrameworkError, Result};
+use crate::framework::{
+    paths::AppPaths, services::kernel_runtime_authority::KernelRuntimeAuthorityService,
+    FrameworkError, Result,
+};
 use serde_json::{Map, Value};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -42,14 +45,15 @@ pub(super) fn build_openclaw_workbench_snapshot(
         return Ok(None);
     }
 
-    let config = read_json5_object(&paths.openclaw_config_file)?;
+    let config_path = readable_managed_openclaw_config_path(paths);
+    let config = read_json5_object(&config_path)?;
     let channels = build_openclaw_channels(&config);
     let channel_name_map = channels
         .iter()
         .map(|channel| (channel.id.clone(), channel.name.clone()))
         .collect::<BTreeMap<_, _>>();
     let cron_tasks = build_openclaw_cron_tasks_snapshot(paths, &channel_name_map)?;
-    let llm_providers = build_openclaw_llm_providers(&config, &paths.openclaw_config_file);
+    let llm_providers = build_openclaw_llm_providers(&config, &config_path);
     let agent_contexts = collect_openclaw_agent_contexts(paths, &config);
     let agents = build_openclaw_agents(&agent_contexts);
     let skills = build_openclaw_skills(paths, &config, &agent_contexts)?;
@@ -464,7 +468,7 @@ fn build_openclaw_files(
         paths,
         &writable_roots,
         &mut files,
-        &paths.openclaw_config_file,
+        &authority_managed_openclaw_config_path(paths),
         "config",
         "synced",
         "Managed OpenClaw configuration file.",
@@ -1060,7 +1064,7 @@ fn build_openclaw_channel(id: &str, value: &Value) -> StudioWorkbenchChannelReco
         id: id.to_string(),
         name: title_case_identifier(id),
         description: format!(
-            "{} integration managed by the bundled OpenClaw configuration.",
+            "{} integration managed by the built-in OpenClaw configuration.",
             title_case_identifier(id)
         ),
         status: status.to_string(),
@@ -1868,7 +1872,7 @@ fn is_openclaw_workbench_file_writable(
     writable_roots: &BTreeSet<PathBuf>,
     path: &Path,
 ) -> bool {
-    if path == paths.openclaw_config_file {
+    if path == authority_managed_openclaw_config_path(paths) {
         return true;
     }
 
@@ -1877,6 +1881,21 @@ fn is_openclaw_workbench_file_writable(
     }
 
     writable_roots.iter().any(|root| path.starts_with(root))
+}
+
+fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    let authority_path = authority_managed_openclaw_config_path(paths);
+    if authority_path.exists() || !paths.openclaw_config_file.exists() {
+        authority_path
+    } else {
+        paths.openclaw_config_file.clone()
+    }
+}
+
+fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    KernelRuntimeAuthorityService::new()
+        .active_openclaw_config_path(paths)
+        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
 }
 
 fn extract_frontmatter_value(content: &str, key: &str) -> Option<String> {

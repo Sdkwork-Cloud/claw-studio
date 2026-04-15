@@ -140,6 +140,7 @@ runTest('sdkwork-claw-settings routes the api tab to the dedicated API workspace
   const settingsSource = read('packages/sdkwork-claw-settings/src/Settings.tsx');
   const apiSettingsSource = read('packages/sdkwork-claw-settings/src/ApiSettings.tsx');
   const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+  const providerCenterServiceSource = read('packages/sdkwork-claw-settings/src/services/providerConfigCenterService.ts');
   const servicesIndexSource = read('packages/sdkwork-claw-settings/src/services/index.ts');
 
   assert.match(settingsSource, /ApiSettings/);
@@ -165,6 +166,7 @@ runTest('sdkwork-claw-settings routes the api tab to the dedicated API workspace
   assert.match(apiSettingsSource, /apiLogs\.logs\.runtimeFields\.observabilityDbPath/);
   assert.match(providerCenterSource, /providerConfigCenterService/);
   assert.match(providerCenterSource, /quickApply/);
+  assert.doesNotMatch(providerCenterServiceSource, /instance\.runtimeKind === 'openclaw'/);
   assert.doesNotMatch(providerCenterSource, /studioMockService/);
 });
 
@@ -394,6 +396,12 @@ runTest('sdkwork-claw-settings exports Kernel Center through package and service
   const hostRuntimeSettingsSource = read('packages/sdkwork-claw-settings/src/HostRuntimeSettings.tsx');
   const enLocale = readLocale('en');
   const zhLocale = readLocale('zh');
+  const enSettingsLocale = readJson<Record<string, unknown>>(
+    'packages/sdkwork-claw-i18n/src/locales/en/settings.json',
+  );
+  const zhSettingsLocale = readJson<Record<string, unknown>>(
+    'packages/sdkwork-claw-i18n/src/locales/zh/settings.json',
+  );
   const directKeys = [
     ...kernelCenterSource.matchAll(/\bt\('([^']+)'\)/g),
     ...hostRuntimeSettingsSource.matchAll(/\bt\('([^']+)'\)/g),
@@ -428,9 +436,35 @@ runTest('sdkwork-claw-settings exports Kernel Center through package and service
   assert.match(kernelCenterSource, /settings\.kernelCenter\.bundles\.supervisor/);
   assert.match(hostRuntimeSettingsSource, /settings\.kernelCenter\.hostRuntime\.cards\.hostMode/);
   assert.match(hostRuntimeSettingsSource, /settings\.kernelCenter\.hostRuntime\.cards\.runtimeDataDir/);
+  assert.equal(
+    getLocaleValue(enLocale, 'settings.kernelCenter.description'),
+    'This surface shows kernel authority ownership, active endpoints, storage profile, and runtime provenance without hiding fallback behavior.',
+  );
+  assert.equal(
+    getLocaleValue(zhLocale, 'settings.kernelCenter.description'),
+    '这里会如实展示当前内核治理归属、活动端点、存储配置与运行来源，不会掩盖任何回退行为。',
+  );
+  assert.equal(
+    getLocaleValue(enSettingsLocale, 'kernelCenter.description'),
+    getLocaleValue(enLocale, 'settings.kernelCenter.description'),
+  );
+  assert.equal(
+    getLocaleValue(zhSettingsLocale, 'kernelCenter.description'),
+    getLocaleValue(zhLocale, 'settings.kernelCenter.description'),
+  );
   assert.doesNotMatch(kernelCenterSource, /The built-in OpenClaw kernel is treated as mandatory product/);
   assert.doesNotMatch(kernelCenterSource, /Failed to load kernel status\./);
   assert.deepEqual(missingKeys, []);
+});
+
+runTest('sdkwork-claw-settings consumes Kernel Center install source from shared provenance instead of raw snapshot internals', () => {
+  const kernelCenterSource = read('packages/sdkwork-claw-settings/src/KernelCenter.tsx');
+  const kernelCenterServiceSource = read('packages/sdkwork-claw-settings/src/services/kernelCenterService.ts');
+
+  assert.match(kernelCenterServiceSource, /installSource:\s*snapshot\?\.raw\.provenance\.installSource \?\? null/);
+  assert.doesNotMatch(kernelCenterServiceSource, /installSourceLabel:\s*string;/);
+  assert.match(kernelCenterSource, /translateInstallSource\(\s*t,\s*provenance\.installSource\s*\)/);
+  assert.doesNotMatch(kernelCenterSource, /dashboard\?\.snapshot\?\.raw\.provenance\.installSource/);
 });
 
 runTest('feedback SDK contract exposes feedback center resources needed by settings', () => {

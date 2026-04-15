@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -233,7 +233,7 @@ export function InstanceDetailAgentsSection({
                 agentDialogDraft.inherited.fallbackModelsText) ? (
                 <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.model, t)}
-                  {' 路 '}
+                  {' -> '}
                   {agentDialogDraft.inherited.primaryModel || t('common.none')}
                 </div>
               ) : null}
@@ -254,7 +254,7 @@ export function InstanceDetailAgentsSection({
               agentDialogDraft.inherited.fallbackModelsText ? (
                 <div className="mt-2 whitespace-pre-line text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.model, t)}
-                  {' 路 '}
+                  {' -> '}
                   {agentDialogDraft.inherited.fallbackModelsText}
                 </div>
               ) : null}
@@ -292,7 +292,7 @@ export function InstanceDetailAgentsSection({
               agentDialogDraft.inherited.temperature ? (
                 <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.temperature, t)}
-                  {' 路 '}
+                  {' -> '}
                   {agentDialogDraft.inherited.temperature}
                 </div>
               ) : null}
@@ -308,7 +308,7 @@ export function InstanceDetailAgentsSection({
               agentDialogDraft.inherited.topP ? (
                 <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.topP, t)}
-                  {' 路 '}
+                  {' -> '}
                   {agentDialogDraft.inherited.topP}
                 </div>
               ) : null}
@@ -326,7 +326,7 @@ export function InstanceDetailAgentsSection({
               agentDialogDraft.inherited.maxTokens ? (
                 <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.maxTokens, t)}
-                  {' 路 '}
+                  {' -> '}
                   {agentDialogDraft.inherited.maxTokens}
                 </div>
               ) : null}
@@ -344,7 +344,7 @@ export function InstanceDetailAgentsSection({
               agentDialogDraft.inherited.timeoutMs ? (
                 <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {formatAgentConfigSource(agentDialogDraft.fieldSources.timeoutMs, t)}
-                  {' 路 '}
+                  {' -> '}
                   {agentDialogDraft.inherited.timeoutMs}
                 </div>
               ) : null}
@@ -375,7 +375,7 @@ export function InstanceDetailAgentsSection({
                 agentDialogDraft.inherited.streaming !== null ? (
                   <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                     {formatAgentConfigSource(agentDialogDraft.fieldSources.streaming, t)}
-                    {' 路 '}
+                    {' -> '}
                     {formatAgentStreamingValue(agentDialogDraft.inherited.streaming, t)}
                   </div>
                 ) : null}
@@ -447,3 +447,4 @@ export function InstanceDetailAgentsSection({
     </div>
   );
 }
+

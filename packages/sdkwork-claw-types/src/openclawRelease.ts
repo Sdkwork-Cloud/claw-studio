@@ -49,14 +49,14 @@ export const OPENCLAW_RELEASE: Readonly<OpenClawReleaseMetadata> = Object.freeze
 });
 
 /**
- * Bundled OpenClaw version constants — pinned to the release config.
- * These represent the version shipped with the built-in (bundled) runtime.
+ * Shared OpenClaw release constants pinned to the central release config.
  *
- * Naming convention: DEFAULT_BUNDLED_OPENCLAW_<FIELD>
- * - PACKAGE_NAME (not just PACKAGE) to distinguish the string name from an npm package object.
+ * OpenClaw payload constants keep the `DEFAULT_BUNDLED_OPENCLAW_*` naming because
+ * the application still ships OpenClaw code assets. Node.js is external-only, so
+ * its shared constant must use `DEFAULT_REQUIRED_OPENCLAW_NODE_VERSION`.
  */
 export const DEFAULT_BUNDLED_OPENCLAW_VERSION = OPENCLAW_RELEASE.stableVersion;
-export const DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION = OPENCLAW_RELEASE.nodeVersion;
+export const DEFAULT_REQUIRED_OPENCLAW_NODE_VERSION = OPENCLAW_RELEASE.nodeVersion;
 export const DEFAULT_BUNDLED_OPENCLAW_PACKAGE_NAME = OPENCLAW_RELEASE.packageName;
 export const DEFAULT_BUNDLED_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES =
   OPENCLAW_RELEASE.runtimeSupplementalPackages;

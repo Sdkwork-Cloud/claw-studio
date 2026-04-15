@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync, readlinkSync, symlinkSync } from 'node:fs';
+import { existsSync, readFileSync, readlinkSync, symlinkSync } from 'node:fs';
 import { cp, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -33,7 +33,7 @@ import {
   refreshCachedOpenClawRuntimeArtifacts,
   resolveOpenClawRuntimeInstallSpecs,
   resolveNodeArchiveExtractionCommand,
-  resolveBundledNpmCommand,
+  resolveNodeRuntimeNpmCommand,
   resolveBundledResourceMirrorRoot,
   resolveDefaultOpenClawPrepareCacheDir,
   resolveOpenClawPrepareCachePaths,
@@ -59,6 +59,7 @@ const prepareScriptPath = path.join(rootDir, 'scripts', 'prepare-openclaw-runtim
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'prepare-openclaw-runtime-test-'));
 const actualNodeVersion = process.version.replace(/^v/i, '');
 const expectedOpenClawVersion = DEFAULT_OPENCLAW_VERSION;
+const customRuntimeSupplementalPackages = ['@buape/carbon@0.14.0'];
 const cachedNodeRuntimeSidecarManifestRelativePath = '.sdkwork-node-runtime.json';
 const runtimeSidecarManifestRelativePath = path.join('runtime', '.sdkwork-openclaw-runtime.json');
 const trackedResourcePlaceholder = 'packages/sdkwork-claw-desktop/src-tauri/resources/openclaw/.gitkeep';
@@ -163,9 +164,9 @@ try {
   }
   if (
     !Array.isArray(DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES)
-    || DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES.length === 0
+    || DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES.length !== 0
   ) {
-    throw new Error('Expected bundled OpenClaw runtime supplemental package list to be defined');
+    throw new Error('Expected prepared OpenClaw runtime supplemental package list to default to an empty array');
   }
   if (typeof syncWindowsPackagedOpenClawAliasRoot !== 'function') {
     throw new Error('Expected prepare-openclaw-runtime to export syncWindowsPackagedOpenClawAliasRoot');
@@ -306,7 +307,6 @@ try {
     nodeVersion: '22.16.0',
     target,
   });
-  const nodePath = path.join(sourceRuntimeDir, manifest.nodeRelativePath.replace(/^runtime[\\/]/, ''));
   const cliPath = path.join(sourceRuntimeDir, manifest.cliRelativePath.replace(/^runtime[\\/]/, ''));
   const openclawPackageJsonPath = path.join(
     sourceRuntimeDir,
@@ -324,13 +324,11 @@ try {
     'package.json',
   );
 
-  await mkdir(path.dirname(nodePath), { recursive: true });
   await mkdir(path.dirname(cliPath), { recursive: true });
   await mkdir(path.dirname(openclawPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(carbonPackageJsonPath), { recursive: true });
   await mkdir(resourceDir, { recursive: true });
   await writeFile(path.join(resourceDir, '.gitkeep'), '');
-  await writeFile(nodePath, fakeNodeExecutableContent);
   await writeFile(cliPath, 'console.log("openclaw");');
   await writeFile(
     openclawPackageJsonPath,
@@ -338,7 +336,7 @@ try {
   );
   await writeFile(
     carbonPackageJsonPath,
-    `${JSON.stringify({ name: '@buape/carbon', version: '0.0.0-beta-20260327000044' }, null, 2)}\n`,
+    `${JSON.stringify({ name: '@buape/carbon', version: '0.14.0' }, null, 2)}\n`,
   );
 
   const result = await prepareOpenClawRuntimeFromSource({
@@ -365,14 +363,38 @@ try {
   if (copiedManifest.openclawVersion !== expectedOpenClawVersion) {
     throw new Error(`Expected openclawVersion=${expectedOpenClawVersion}, received ${copiedManifest.openclawVersion}`);
   }
+  if (Object.hasOwn(copiedManifest, 'nodeVersion')) {
+    throw new Error('Expected prepared runtime manifest to stop exposing a top-level nodeVersion field');
+  }
+  if (JSON.stringify(copiedManifest.requiredExternalRuntimes) !== JSON.stringify(['nodejs'])) {
+    throw new Error(
+      `Expected prepared runtime manifest requiredExternalRuntimes=[\"nodejs\"], received ${JSON.stringify(copiedManifest.requiredExternalRuntimes)}`,
+    );
+  }
+  if (copiedManifest.requiredExternalRuntimeVersions?.nodejs !== '22.16.0') {
+    throw new Error(
+      `Expected prepared runtime manifest requiredExternalRuntimeVersions.nodejs=22.16.0, received ${copiedManifest.requiredExternalRuntimeVersions?.nodejs}`,
+    );
+  }
   if (copiedRuntimeSidecarManifest.openclawVersion !== expectedOpenClawVersion) {
     throw new Error(
       `Expected runtime sidecar openclawVersion=${expectedOpenClawVersion}, received ${copiedRuntimeSidecarManifest.openclawVersion}`,
     );
   }
-  if (copiedRuntimeSidecarManifest.nodeVersion !== '22.16.0') {
+  if (Object.hasOwn(copiedRuntimeSidecarManifest, 'nodeVersion')) {
+    throw new Error('Expected prepared runtime sidecar manifest to stop exposing a top-level nodeVersion field');
+  }
+  if (
+    JSON.stringify(copiedRuntimeSidecarManifest.requiredExternalRuntimes)
+    !== JSON.stringify(['nodejs'])
+  ) {
     throw new Error(
-      `Expected runtime sidecar nodeVersion=22.16.0, received ${copiedRuntimeSidecarManifest.nodeVersion}`,
+      `Expected runtime sidecar requiredExternalRuntimes=[\"nodejs\"], received ${JSON.stringify(copiedRuntimeSidecarManifest.requiredExternalRuntimes)}`,
+    );
+  }
+  if (copiedRuntimeSidecarManifest.requiredExternalRuntimeVersions?.nodejs !== '22.16.0') {
+    throw new Error(
+      `Expected runtime sidecar requiredExternalRuntimeVersions.nodejs=22.16.0, received ${copiedRuntimeSidecarManifest.requiredExternalRuntimeVersions?.nodejs}`,
     );
   }
   if (
@@ -386,10 +408,8 @@ try {
     copiedRuntimeSidecarManifest.runtimeIntegrity.files.map((entry) => entry.relativePath),
   );
   for (const expectedRelativePath of [
-    manifest.nodeRelativePath.replace(/^runtime[\\/]/, '').replaceAll('\\', '/'),
     manifest.cliRelativePath.replace(/^runtime[\\/]/, '').replaceAll('\\', '/'),
     'package/node_modules/openclaw/package.json',
-    'package/node_modules/@buape/carbon/package.json',
   ]) {
     if (!runtimeIntegrityRelativePaths.has(expectedRelativePath)) {
       throw new Error(
@@ -476,10 +496,6 @@ try {
     nodeVersion: '22.16.0',
     target: macosTarget,
   });
-  const macosNodePath = path.join(
-    macosSourceRuntimeDir,
-    macosManifest.nodeRelativePath.replace(/^runtime[\\/]/, ''),
-  );
   const macosCliPath = path.join(
     macosSourceRuntimeDir,
     macosManifest.cliRelativePath.replace(/^runtime[\\/]/, ''),
@@ -500,13 +516,11 @@ try {
     'package.json',
   );
 
-  await mkdir(path.dirname(macosNodePath), { recursive: true });
   await mkdir(path.dirname(macosCliPath), { recursive: true });
   await mkdir(path.dirname(macosOpenClawPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(macosCarbonPackageJsonPath), { recursive: true });
   await mkdir(macosResourceDir, { recursive: true });
   await writeFile(path.join(macosResourceDir, '.gitkeep'), '');
-  await writeFile(macosNodePath, fakeNodeExecutableContent);
   await writeFile(macosCliPath, 'console.log("openclaw-macos");');
   await writeFile(
     macosOpenClawPackageJsonPath,
@@ -514,7 +528,7 @@ try {
   );
   await writeFile(
     macosCarbonPackageJsonPath,
-    `${JSON.stringify({ name: '@buape/carbon', version: '0.0.0-beta-20260327000044' }, null, 2)}\n`,
+    `${JSON.stringify({ name: '@buape/carbon', version: '0.14.0' }, null, 2)}\n`,
   );
   await prepareOpenClawRuntimeFromSource({
     sourceRuntimeDir: macosSourceRuntimeDir,
@@ -797,7 +811,7 @@ try {
 
   await rm(mirroredResourceRoot, { recursive: true, force: true });
 
-  const windowsNpm = resolveBundledNpmCommand('C:\\runtime\\node', 'win32');
+  const windowsNpm = resolveNodeRuntimeNpmCommand('C:\\runtime\\node', 'win32');
   if (!windowsNpm.command.toLowerCase().endsWith('cmd.exe')) {
     throw new Error(`Expected Windows command processor path, received ${windowsNpm.command}`);
   }
@@ -808,12 +822,12 @@ try {
     windowsNpm.args[2] !== '/c' ||
     windowsNpm.args[3].toLowerCase() !== 'c:\\runtime\\node\\npm.cmd'
   ) {
-    throw new Error(`Expected bundled Windows npm.cmd invocation, received ${windowsNpm.args.join(' ')}`);
+    throw new Error(`Expected runtime Windows npm.cmd invocation, received ${windowsNpm.args.join(' ')}`);
   }
 
-  const linuxNpm = resolveBundledNpmCommand('/runtime/node', 'linux');
+  const linuxNpm = resolveNodeRuntimeNpmCommand('/runtime/node', 'linux');
   if (linuxNpm.command.replaceAll('\\', '/') !== '/runtime/node/bin/npm') {
-    throw new Error(`Expected bundled Unix npm path, received ${linuxNpm.command}`);
+    throw new Error(`Expected runtime Unix npm path, received ${linuxNpm.command}`);
   }
   if (linuxNpm.args.length !== 0) {
     throw new Error(`Expected no extra Unix npm arguments, received ${linuxNpm.args.join(' ')}`);
@@ -825,11 +839,24 @@ try {
     runtimeSupplementalPackages: DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
   });
   if (
-    installSpecs[0] !== `openclaw@${expectedOpenClawVersion}`
-    || !installSpecs.some((entry) => entry.startsWith('@buape/carbon@'))
+    installSpecs.length !== 1
+    || installSpecs[0] !== `openclaw@${expectedOpenClawVersion}`
   ) {
     throw new Error(
-      `Expected install specs to include OpenClaw and @buape/carbon, received ${installSpecs.join(', ')}`,
+      `Expected default install specs to include only OpenClaw, received ${installSpecs.join(', ')}`,
+    );
+  }
+  const customInstallSpecs = resolveOpenClawRuntimeInstallSpecs({
+    openclawPackage: 'openclaw',
+    openclawVersion: expectedOpenClawVersion,
+    runtimeSupplementalPackages: customRuntimeSupplementalPackages,
+  });
+  if (
+    customInstallSpecs[0] !== `openclaw@${expectedOpenClawVersion}`
+    || !customInstallSpecs.includes('@buape/carbon@0.14.0')
+  ) {
+    throw new Error(
+      `Expected custom install specs to include OpenClaw and @buape/carbon@0.14.0, received ${customInstallSpecs.join(', ')}`,
     );
   }
   const missingBundledPluginRuntimeInstallSpecsRoot = path.join(
@@ -902,7 +929,7 @@ try {
       },
     });
   if (!bundledPluginRuntimeHydrationTarget) {
-    throw new Error('Expected Baileys bundled runtime dependency hydration target to be resolved');
+    throw new Error('Expected Baileys prepared runtime dependency hydration target to be resolved');
   }
   if (bundledPluginRuntimeHydrationTarget.packageName !== '@whiskeysockets/baileys') {
     throw new Error(
@@ -944,7 +971,7 @@ try {
       },
     });
   if (unsupportedBundledPluginRuntimeHydrationTarget !== null) {
-    throw new Error('Expected unknown git-backed bundled runtime dependencies to avoid custom hydration');
+    throw new Error('Expected unknown git-backed prepared runtime dependencies to avoid custom hydration');
   }
   const matrixNapiBinaryInstallSpec = resolveNapiPackageBinaryInstallSpec({
     packageJson: {
@@ -1334,7 +1361,7 @@ try {
     || !directHydrationInstallCall.installSpecs.includes('protobufjs@^7.2.4')
   ) {
     throw new Error(
-      `Expected bundled runtime hydration to install direct registry dependencies inside the staged package dir, received ${JSON.stringify(hydratedBundledPluginRuntimeInstallCalls)}`,
+      `Expected prepared runtime hydration to install direct registry dependencies inside the staged package dir, received ${JSON.stringify(hydratedBundledPluginRuntimeInstallCalls)}`,
     );
   }
   const gitHydrationInstallCall = hydratedBundledPluginRuntimeInstallCalls.find(
@@ -1346,7 +1373,7 @@ try {
     || !gitHydrationInstallCall.installSpecs.includes('protobufjs@6.8.8')
   ) {
     throw new Error(
-      `Expected bundled runtime hydration to install cloned git dependency registry dependencies inside the staged git dir, received ${JSON.stringify(hydratedBundledPluginRuntimeInstallCalls)}`,
+      `Expected prepared runtime hydration to install cloned git dependency registry dependencies inside the staged git dir, received ${JSON.stringify(hydratedBundledPluginRuntimeInstallCalls)}`,
     );
   }
 
@@ -1404,7 +1431,7 @@ try {
   }
   if (!/['"]--ignore-scripts['"]/u.test(prepareScriptSource)) {
     throw new Error(
-      'Expected prepare-openclaw-runtime to install bundled OpenClaw packages with --ignore-scripts so runtime preparation stays deterministic and sandbox-safe',
+      'Expected prepare-openclaw-runtime to install packaged OpenClaw packages with --ignore-scripts so runtime preparation stays deterministic and sandbox-safe',
     );
   }
 
@@ -1529,7 +1556,7 @@ try {
         nodeVersion: '22.16.0',
         platform: 'windows',
         arch: 'x64',
-        nodeRelativePath: 'runtime/node/node.exe',
+        nodeBinaryRelativePath: 'runtime/node/node.exe',
       },
       null,
       2,
@@ -1551,11 +1578,33 @@ try {
     );
   }
 
-  const missingDependencySourceRuntimeDir = path.join(tempRoot, 'source-runtime-missing-carbon');
-  const missingDependencyNodePath = path.join(
-    missingDependencySourceRuntimeDir,
-    manifest.nodeRelativePath.replace(/^runtime[\\/]/, ''),
+  await writeFile(
+    cachedNodeSidecarManifestPath,
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        nodeVersion: '22.16.0',
+        platform: 'windows',
+        arch: 'x64',
+        nodeRelativePath: 'runtime/node/node.exe',
+      },
+      null,
+      2,
+    )}\n`,
   );
+
+  const legacyCachedNodeInspection = await inspectCachedNodeRuntimeDir({
+    nodeSourceDir: cachedNodeRuntimeDir,
+    target,
+    nodeVersion: '22.16.0',
+  });
+  if (legacyCachedNodeInspection.reusable || legacyCachedNodeInspection.reason !== 'invalid') {
+    throw new Error(
+      `Expected legacy cached node runtime sidecar metadata to be rejected after the hard cut, received ${JSON.stringify(legacyCachedNodeInspection)}`,
+    );
+  }
+
+  const missingDependencySourceRuntimeDir = path.join(tempRoot, 'source-runtime-missing-carbon');
   const missingDependencyCliPath = path.join(
     missingDependencySourceRuntimeDir,
     manifest.cliRelativePath.replace(/^runtime[\\/]/, ''),
@@ -1568,10 +1617,8 @@ try {
     'package.json',
   );
 
-  await mkdir(path.dirname(missingDependencyNodePath), { recursive: true });
   await mkdir(path.dirname(missingDependencyCliPath), { recursive: true });
   await mkdir(path.dirname(missingDependencyOpenclawPackageJsonPath), { recursive: true });
-  await writeFile(missingDependencyNodePath, fakeNodeExecutableContent);
   await writeFile(missingDependencyCliPath, 'console.log("openclaw");');
   await writeFile(
     missingDependencyOpenclawPackageJsonPath,
@@ -1594,7 +1641,7 @@ try {
       resourceDir: path.join(tempRoot, 'invalid-resource-runtime-missing-carbon'),
       openclawVersion: expectedOpenClawVersion,
       nodeVersion: '22.16.0',
-      runtimeSupplementalPackages: DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
+      runtimeSupplementalPackages: customRuntimeSupplementalPackages,
       target,
     });
   } catch (error) {
@@ -1602,14 +1649,10 @@ try {
       /@buape[\\/]+carbon/u.test(String(error));
   }
   if (!missingSupplementalDependencyRejected) {
-    throw new Error('Expected prepared runtime validation to reject missing @buape/carbon supplemental dependency');
+    throw new Error('Expected prepared runtime validation to reject missing configured @buape/carbon supplemental dependency');
   }
 
   const mismatchedVersionSourceRuntimeDir = path.join(tempRoot, 'source-runtime-mismatched-openclaw-version');
-  const mismatchedVersionNodePath = path.join(
-    mismatchedVersionSourceRuntimeDir,
-    manifest.nodeRelativePath.replace(/^runtime[\\/]/, ''),
-  );
   const mismatchedVersionCliPath = path.join(
     mismatchedVersionSourceRuntimeDir,
     manifest.cliRelativePath.replace(/^runtime[\\/]/, ''),
@@ -1630,11 +1673,9 @@ try {
     'package.json',
   );
 
-  await mkdir(path.dirname(mismatchedVersionNodePath), { recursive: true });
   await mkdir(path.dirname(mismatchedVersionCliPath), { recursive: true });
   await mkdir(path.dirname(mismatchedVersionOpenclawPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(mismatchedVersionCarbonPackageJsonPath), { recursive: true });
-  await writeFile(mismatchedVersionNodePath, fakeNodeExecutableContent);
   await writeFile(mismatchedVersionCliPath, 'console.log("openclaw");');
   await writeFile(
     mismatchedVersionOpenclawPackageJsonPath,
@@ -1642,7 +1683,7 @@ try {
   );
   await writeFile(
     mismatchedVersionCarbonPackageJsonPath,
-    `${JSON.stringify({ name: '@buape/carbon', version: '0.0.0-beta-20260327000044' }, null, 2)}\n`,
+    `${JSON.stringify({ name: '@buape/carbon', version: '0.14.0' }, null, 2)}\n`,
   );
 
   let mismatchedVersionRejected = false;
@@ -1668,10 +1709,6 @@ try {
   const missingBundledPluginRuntimeDepSourceRuntimeDir = path.join(
     tempRoot,
     'source-runtime-missing-bundled-plugin-runtime-dep',
-  );
-  const missingBundledPluginRuntimeDepNodePath = path.join(
-    missingBundledPluginRuntimeDepSourceRuntimeDir,
-    manifest.nodeRelativePath.replace(/^runtime[\\/]/, ''),
   );
   const missingBundledPluginRuntimeDepCliPath = path.join(
     missingBundledPluginRuntimeDepSourceRuntimeDir,
@@ -1711,13 +1748,11 @@ try {
     'package.json',
   );
 
-  await mkdir(path.dirname(missingBundledPluginRuntimeDepNodePath), { recursive: true });
   await mkdir(path.dirname(missingBundledPluginRuntimeDepCliPath), { recursive: true });
   await mkdir(path.dirname(missingBundledPluginRuntimeDepOpenclawPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(missingBundledPluginRuntimeDepCarbonPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(missingBundledPluginRuntimeDepScriptPath), { recursive: true });
   await mkdir(path.dirname(missingBundledPluginRuntimeDepPluginPackageJsonPath), { recursive: true });
-  await writeFile(missingBundledPluginRuntimeDepNodePath, fakeNodeExecutableContent);
   await writeFile(missingBundledPluginRuntimeDepCliPath, 'console.log("openclaw");');
   await writeFile(
     missingBundledPluginRuntimeDepOpenclawPackageJsonPath,
@@ -1725,7 +1760,7 @@ try {
   );
   await writeFile(
     missingBundledPluginRuntimeDepCarbonPackageJsonPath,
-    `${JSON.stringify({ name: '@buape/carbon', version: '0.0.0-beta-20260327000044' }, null, 2)}\n`,
+    `${JSON.stringify({ name: '@buape/carbon', version: '0.14.0' }, null, 2)}\n`,
   );
   await writeFile(
     missingBundledPluginRuntimeDepPluginPackageJsonPath,
@@ -1782,10 +1817,6 @@ try {
     tempRoot,
     'source-runtime-failing-native-smoke',
   );
-  const failingNativeSmokeNodePath = path.join(
-    failingNativeSmokeSourceRuntimeDir,
-    manifest.nodeRelativePath.replace(/^runtime[\\/]/, ''),
-  );
   const failingNativeSmokeCliPath = path.join(
     failingNativeSmokeSourceRuntimeDir,
     manifest.cliRelativePath.replace(/^runtime[\\/]/, ''),
@@ -1820,12 +1851,10 @@ try {
     'index.js',
   );
 
-  await mkdir(path.dirname(failingNativeSmokeNodePath), { recursive: true });
   await mkdir(path.dirname(failingNativeSmokeCliPath), { recursive: true });
   await mkdir(path.dirname(failingNativeSmokeOpenclawPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(failingNativeSmokeCarbonPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(failingNativeSmokeKoffiPackageJsonPath), { recursive: true });
-  await writeFile(failingNativeSmokeNodePath, fakeNodeExecutableContent);
   await writeFile(failingNativeSmokeCliPath, 'console.log("openclaw");');
   await writeFile(
     failingNativeSmokeOpenclawPackageJsonPath,
@@ -1843,7 +1872,7 @@ try {
   );
   await writeFile(
     failingNativeSmokeCarbonPackageJsonPath,
-    `${JSON.stringify({ name: '@buape/carbon', version: '0.0.0-beta-20260327000044' }, null, 2)}\n`,
+    `${JSON.stringify({ name: '@buape/carbon', version: '0.14.0' }, null, 2)}\n`,
   );
   await writeFile(
     failingNativeSmokeKoffiPackageJsonPath,
@@ -1875,10 +1904,6 @@ try {
   const cliOnlyBuiltDependencySourceRuntimeDir = path.join(
     tempRoot,
     'source-runtime-cli-only-built-dependency',
-  );
-  const cliOnlyBuiltDependencyNodePath = path.join(
-    cliOnlyBuiltDependencySourceRuntimeDir,
-    manifest.nodeRelativePath.replace(/^runtime[\\/]/, ''),
   );
   const cliOnlyBuiltDependencyCliPath = path.join(
     cliOnlyBuiltDependencySourceRuntimeDir,
@@ -1917,13 +1942,11 @@ try {
     'tlon.js',
   );
 
-  await mkdir(path.dirname(cliOnlyBuiltDependencyNodePath), { recursive: true });
   await mkdir(path.dirname(cliOnlyBuiltDependencyCliPath), { recursive: true });
   await mkdir(path.dirname(cliOnlyBuiltDependencyOpenclawPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(cliOnlyBuiltDependencyCarbonPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(cliOnlyBuiltDependencyPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(cliOnlyBuiltDependencyBinPath), { recursive: true });
-  await writeFile(cliOnlyBuiltDependencyNodePath, fakeNodeExecutableContent);
   await writeFile(cliOnlyBuiltDependencyCliPath, 'console.log("openclaw");');
   await writeFile(
     cliOnlyBuiltDependencyOpenclawPackageJsonPath,
@@ -1941,7 +1964,7 @@ try {
   );
   await writeFile(
     cliOnlyBuiltDependencyCarbonPackageJsonPath,
-    `${JSON.stringify({ name: '@buape/carbon', version: '0.0.0-beta-20260327000044' }, null, 2)}\n`,
+    `${JSON.stringify({ name: '@buape/carbon', version: '0.14.0' }, null, 2)}\n`,
   );
   await writeFile(
     cliOnlyBuiltDependencyPackageJsonPath,
@@ -1969,9 +1992,7 @@ try {
     target,
   });
 
-  const stagedNodeDir = path.join(tempRoot, 'staged-node');
   const stagedPackageDir = path.join(tempRoot, 'staged-package');
-  const stagedNodePath = path.join(stagedNodeDir, 'node.exe');
   const stagedCliPath = path.join(stagedPackageDir, 'node_modules', 'openclaw', 'openclaw.mjs');
   const stagedOpenclawPackageJsonPath = path.join(
     stagedPackageDir,
@@ -1988,11 +2009,9 @@ try {
   );
   const stagedResourceDir = path.join(tempRoot, 'staged-resource-runtime');
 
-  await mkdir(path.dirname(stagedNodePath), { recursive: true });
   await mkdir(path.dirname(stagedCliPath), { recursive: true });
   await mkdir(path.dirname(stagedOpenclawPackageJsonPath), { recursive: true });
   await mkdir(path.dirname(stagedCarbonPackageJsonPath), { recursive: true });
-  await writeFile(stagedNodePath, 'node');
   await writeFile(stagedCliPath, 'console.log(\"openclaw\");');
   await writeFile(
     stagedOpenclawPackageJsonPath,
@@ -2000,11 +2019,11 @@ try {
   );
   await writeFile(
     stagedCarbonPackageJsonPath,
-    `${JSON.stringify({ name: '@buape/carbon', version: '0.0.0-beta-20260327000044' }, null, 2)}\n`,
+    `${JSON.stringify({ name: '@buape/carbon', version: '0.14.0' }, null, 2)}\n`,
   );
 
   await prepareOpenClawRuntimeFromStagedDirs({
-    nodeSourceDir: stagedNodeDir,
+    nodeSourceDir: path.join(tempRoot, 'unused-staged-node'),
     packageSourceDir: stagedPackageDir,
     resourceDir: stagedResourceDir,
     openclawVersion: expectedOpenClawVersion,
@@ -2012,7 +2031,9 @@ try {
     target,
   });
 
-  await stat(path.join(stagedResourceDir, 'runtime', 'node', 'node.exe'));
+  if (existsSync(path.join(stagedResourceDir, 'runtime', 'node'))) {
+    throw new Error('Expected staged prepared runtime output to exclude bundled Node payloads');
+  }
   await stat(path.join(stagedResourceDir, 'runtime', 'package', 'node_modules', 'openclaw', 'openclaw.mjs'));
   await stat(path.join(stagedResourceDir, runtimeSidecarManifestRelativePath));
 
@@ -2046,7 +2067,7 @@ try {
     nodeVersion: '22.16.0',
     openclawPackage: 'openclaw',
     fetchImpl: async () => {
-      throw new Error('prepareOpenClawRuntime should have reused the existing runtime instead of downloading Node');
+      throw new Error('prepareOpenClawRuntime should have reused the existing runtime instead of re-preparing runtime assets');
     },
     target,
   });
@@ -2076,7 +2097,7 @@ try {
     nodeVersion: actualNodeVersion,
     openclawPackage: 'openclaw',
     fetchImpl: async () => {
-      throw new Error('prepareOpenClawRuntime should have repaired the missing manifest instead of downloading Node');
+      throw new Error('prepareOpenClawRuntime should have repaired the missing manifest instead of re-preparing runtime assets');
     },
     target,
   });
@@ -2094,6 +2115,37 @@ try {
     );
   }
 
+  const nodeResidueResourceDir = path.join(tempRoot, 'node-residue-resource-runtime');
+  await prepareOpenClawRuntimeFromSource({
+    sourceRuntimeDir,
+    resourceDir: nodeResidueResourceDir,
+    openclawVersion: expectedOpenClawVersion,
+    nodeVersion: '22.16.0',
+    target,
+  });
+  await mkdir(path.join(nodeResidueResourceDir, 'runtime', 'node'), { recursive: true });
+  await writeFile(
+    path.join(nodeResidueResourceDir, 'runtime', 'node', 'node.exe'),
+    fakeNodeExecutableContent,
+  );
+
+  const nodeResidueInspection = await inspectPreparedOpenClawRuntime({
+    resourceDir: nodeResidueResourceDir,
+    manifest: buildOpenClawManifest({
+      openclawVersion: expectedOpenClawVersion,
+      nodeVersion: '22.16.0',
+      target,
+    }),
+  });
+  if (nodeResidueInspection.reusable) {
+    throw new Error('Expected prepared runtime inspection to reject bundled Node residue in the resource runtime');
+  }
+  if (!String(nodeResidueInspection.error ?? '').includes('bundled Node payload')) {
+    throw new Error(
+      `Expected bundled Node residue rejection reason, received ${JSON.stringify(nodeResidueInspection)}`,
+    );
+  }
+
   const cacheDir = path.join(tempRoot, 'persistent-cache');
   const cachePaths = resolveOpenClawPrepareCachePaths({
     cacheDir,
@@ -2103,7 +2155,6 @@ try {
   });
   await mkdir(path.dirname(cachePaths.cachedArchivePath), { recursive: true });
   await writeFile(cachePaths.cachedArchivePath, 'cached-archive');
-  await cp(path.join(sourceRuntimeDir, 'node'), cachePaths.nodeCacheDir, { recursive: true });
   await cp(path.join(sourceRuntimeDir, 'package'), cachePaths.packageCacheDir, { recursive: true });
 
   const cachePreparedResourceDir = path.join(tempRoot, 'cache-prepared-resource-runtime');
@@ -2114,7 +2165,7 @@ try {
     nodeVersion: '22.16.0',
     openclawPackage: 'openclaw',
     fetchImpl: async () => {
-      throw new Error('prepareOpenClawRuntime should have reused cached artifacts instead of downloading Node');
+      throw new Error('prepareOpenClawRuntime should have reused cached artifacts instead of re-preparing runtime assets');
     },
     target,
   });
@@ -2123,7 +2174,9 @@ try {
     throw new Error(`Expected a prepared-cache strategy, received ${cached.strategy}`);
   }
 
-  await stat(path.join(cachePreparedResourceDir, 'runtime', 'node', 'node.exe'));
+  if (existsSync(path.join(cachePreparedResourceDir, 'runtime', 'node'))) {
+    throw new Error('Expected cached prepared runtime output to exclude bundled Node payloads');
+  }
   await stat(
     path.join(
       cachePreparedResourceDir,
@@ -2285,7 +2338,7 @@ try {
 
   await stat(path.join(symlinkTargetDir, 'bin', copiedSymlinkTarget));
 
-  console.log('ok - bundled OpenClaw runtime preparation copies runtime files and writes manifest');
+  console.log('ok - packaged OpenClaw runtime preparation copies runtime files and writes manifest');
 } finally {
   await rm(tempRoot, { recursive: true, force: true });
 }

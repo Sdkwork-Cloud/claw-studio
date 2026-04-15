@@ -96,22 +96,22 @@ assert.equal(
 assert.equal(
   releaseConfig.packageName,
   'openclaw',
-  'openclaw shared release config must pin the bundled npm package name',
+  'openclaw shared release config must pin the packaged OpenClaw npm package name',
 );
 assert.equal(
   releaseConfig.nodeVersion,
   '22.16.0',
-  'openclaw shared release config must pin the bundled Node.js version',
+  'openclaw shared release config must pin the external Node.js requirement version',
 );
 assert.deepEqual(
   releaseConfig.runtimeSupplementalPackages,
-  ['@buape/carbon@0.0.0-beta-20260327000044'],
-  'openclaw shared release config must pin the bundled supplemental runtime packages',
+  [],
+  'openclaw shared release config must pin the prepared supplemental runtime packages',
 );
-assert.equal(
-  sourceComponentRegistry.components.find((entry) => entry.id === 'openclaw')?.bundledVersion,
-  releaseConfig.stableVersion,
-  'desktop source component registry must carry the shared stable OpenClaw version for openclaw instead of a drifting placeholder',
+assert.deepEqual(
+  sourceComponentRegistry.components,
+  [],
+  'desktop source component registry must remain a generic support-component catalog and must not carry kernel-specific OpenClaw version metadata',
 );
 assert.match(
   prepareRuntimeSource,
@@ -126,12 +126,17 @@ assert.match(
 assert.match(
   desktopBuildScriptSource,
   /SDKWORK_BUNDLED_OPENCLAW_VERSION/,
-  'desktop build script must export the bundled OpenClaw version from shared release metadata',
+  'desktop build script must export the legacy-named built-in OpenClaw version from shared release metadata',
 );
 assert.match(
   syncBundledSource,
   /from '\.\/openclaw-release\.mjs'/,
   'sync-bundled-components must read OpenClaw release metadata from the shared release module',
+);
+assert.doesNotMatch(
+  syncBundledSource,
+  /normalized source component registry openclaw version/,
+  'sync-bundled-components must not normalize OpenClaw version metadata inside the generic desktop component registry after the multi-kernel hard cut',
 );
 assert.doesNotMatch(
   prepareRuntimeSource,
@@ -146,17 +151,17 @@ assert.match(
 assert.match(
   clawTypesOpenClawReleaseSource,
   /runtimeSupplementalPackages:\s*string\[\];/,
-  '@sdkwork/claw-types shared OpenClaw release metadata must expose bundled runtime supplemental packages',
+  '@sdkwork/claw-types shared OpenClaw release metadata must expose prepared runtime supplemental packages',
 );
 assert.match(
   clawTypesOpenClawReleaseSource,
   /runtimeSupplementalPackages:\s*(normalizeRuntimeSupplementalPackages\(\s*metadata\.runtimeSupplementalPackages\s*,?\s*\)|metadata\.runtimeSupplementalPackages|normalizedSupplementalPackages)/,
-  '@sdkwork/claw-types must project bundled runtime supplemental packages from the shared release config, with optional normalization',
+  '@sdkwork/claw-types must project prepared runtime supplemental packages from the shared release config, with optional normalization',
 );
 assert.match(
   clawTypesOpenClawReleaseSource,
   /DEFAULT_BUNDLED_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES\s*=\s*OPENCLAW_RELEASE\.runtimeSupplementalPackages/,
-  '@sdkwork/claw-types must export the bundled runtime supplemental package list for frontend/runtime consumers',
+  '@sdkwork/claw-types must export the legacy-named prepared runtime supplemental package list for frontend/runtime consumers',
 );
 assert.match(
   webStudioSource,
@@ -166,32 +171,63 @@ assert.match(
 assert.doesNotMatch(
   webStudioSource,
   /const DEFAULT_BUNDLED_OPENCLAW_VERSION = '2026\.4\.1';/,
-  'webStudio must not keep a private hard-coded bundled OpenClaw version after release centralization',
+  'webStudio must not keep a private hard-coded legacy built-in OpenClaw version after release centralization',
 );
 assert.match(
   desktopStudioSource,
   /openclaw_release::bundled_openclaw_version|bundled_openclaw_version\(\)/,
-  'desktop Rust services must resolve the bundled OpenClaw version through the shared release metadata bridge',
+  'desktop Rust services must resolve the legacy-named built-in OpenClaw version through the shared release metadata bridge',
 );
 if (desktopBundledManifest) {
   assert.equal(
     desktopBundledManifest.openclawVersion,
     releaseConfig.stableVersion,
-    'desktop bundled runtime manifest must carry the shared stable OpenClaw version when prepared runtime resources exist',
+    'desktop packaged runtime manifest must carry the shared stable OpenClaw version when prepared runtime resources exist',
+  );
+  assert.deepEqual(
+    desktopBundledManifest.requiredExternalRuntimes,
+    ['nodejs'],
+    'desktop packaged runtime manifest must declare external Node.js as a required runtime when prepared runtime resources exist',
   );
   assert.equal(
-    desktopBundledManifest.nodeVersion,
+    desktopBundledManifest.requiredExternalRuntimeVersions?.nodejs,
     releaseConfig.nodeVersion,
-    'desktop bundled runtime manifest must carry the shared bundled Node.js version when prepared runtime resources exist',
+    'desktop packaged runtime manifest must carry the shared external Node.js requirement version in requiredExternalRuntimeVersions.nodejs when prepared runtime resources exist',
+  );
+  assert.equal(
+    Object.hasOwn(desktopBundledManifest, 'nodeVersion'),
+    false,
+    'desktop packaged runtime manifest must not expose a legacy top-level nodeVersion field after the external Node hard cut',
+  );
+  assert.equal(
+    Object.hasOwn(desktopBundledManifest, 'nodeRelativePath'),
+    false,
+    'desktop packaged runtime manifest must not expose a packaged Node entrypoint after the external Node hard cut',
   );
 }
+assert.equal(
+  existsSync(
+    path.join(
+      rootDir,
+      'packages',
+      'sdkwork-claw-desktop',
+      'src-tauri',
+      'resources',
+      'openclaw',
+      'runtime',
+      'node',
+    ),
+  ),
+  false,
+  'desktop source resources must not retain a packaged Node payload after the external Node hard cut',
+);
 assert.deepEqual(
   readdirSync(rootDir).filter(
     (entry) =>
       /^openclaw-.*\.tgz$/u.test(entry) && entry !== `openclaw-${releaseConfig.stableVersion}.tgz`,
   ),
   [],
-  'repository root must not retain stale OpenClaw tarballs after upgrading the bundled runtime baseline',
+  'repository root must not retain stale OpenClaw tarballs after upgrading the packaged runtime baseline',
 );
 
 for (const { fixturePath, source } of versionFixtureSources) {
@@ -203,7 +239,7 @@ for (const { fixturePath, source } of versionFixtureSources) {
   assert.match(
     source,
     /DEFAULT_BUNDLED_OPENCLAW_VERSION/,
-    `${fixturePath} should consume the shared bundled OpenClaw version constant instead of hard-coding a fixture version`,
+    `${fixturePath} should consume the shared legacy-named built-in OpenClaw version constant instead of hard-coding a fixture version`,
   );
 }
 

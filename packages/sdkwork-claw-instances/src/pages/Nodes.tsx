@@ -539,7 +539,9 @@ export function Nodes() {
                       className="rounded-xl"
                     >
                       <Waypoints className="h-4 w-4" />
-                      {t('instances.nodes.actions.openKernelCenter')}
+                      {node.detailPath === '/kernel'
+                        ? t('instances.nodes.actions.openKernelCenter')
+                        : t('instances.nodes.actions.openDetails')}
                     </Button>
                   </>
                 ) : (

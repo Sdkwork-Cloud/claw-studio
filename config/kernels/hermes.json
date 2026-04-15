@@ -1,0 +1,22 @@
+{
+  "order": 200,
+  "kernelId": "hermes",
+  "displayName": "Hermes Agent",
+  "vendor": "Nous Research",
+  "launcherKinds": ["externalWslOrRemote"],
+  "platformSupport": {
+    "windows": "wsl2OrRemoteOnly",
+    "macos": "native",
+    "linux": "native"
+  },
+  "runtimeRequirements": ["python", "uv"],
+  "optionalRuntimeRequirements": ["nodejs"],
+  "installStrategy": "externalSourceCheckout",
+  "managementTransport": "customHttp",
+  "capabilityMatrix": ["chat", "health", "files", "memory", "tools", "models"],
+  "sourceMetadata": {
+    "repositoryUrl": "https://github.com/nousresearch/hermes-agent",
+    "docsUrl": "https://hermes-agent.nousresearch.com/docs/getting-started/installation/",
+    "packagingPolicy": "external-runtime-only"
+  }
+}

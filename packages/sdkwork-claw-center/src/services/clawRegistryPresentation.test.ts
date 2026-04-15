@@ -243,11 +243,30 @@ await runTest('resolveRegistryQuickConnectAction sends gateway-ready openclaw in
   });
 });
 
-await runTest('resolveRegistryQuickConnectAction falls back to instance detail when openclaw exists but is not gateway ready', () => {
+await runTest('resolveRegistryQuickConnectAction sends any gateway-ready instance to chat even when runtimeKind is custom', () => {
   const action = resolveRegistryQuickConnectAction([
     {
-      id: 'instance-openclaw',
-      runtimeKind: 'openclaw',
+      id: 'instance-custom-gateway',
+      runtimeKind: 'custom',
+      status: 'online',
+      transportKind: 'openclawGatewayWs',
+      baseUrl: 'http://127.0.0.1:28789',
+      websocketUrl: 'ws://127.0.0.1:28789',
+    },
+  ]);
+
+  assert.deepEqual(action, {
+    kind: 'chat',
+    to: '/chat',
+    instanceId: 'instance-custom-gateway',
+  });
+});
+
+await runTest('resolveRegistryQuickConnectAction falls back to instance detail when a gateway-capable instance exists but is not gateway ready', () => {
+  const action = resolveRegistryQuickConnectAction([
+    {
+      id: 'instance-custom-gateway',
+      runtimeKind: 'custom',
       status: 'offline',
       transportKind: 'openclawGatewayWs',
       baseUrl: null,
@@ -257,8 +276,8 @@ await runTest('resolveRegistryQuickConnectAction falls back to instance detail w
 
   assert.deepEqual(action, {
     kind: 'instance',
-    to: '/instances/instance-openclaw',
-    instanceId: 'instance-openclaw',
+    to: '/instances/instance-custom-gateway',
+    instanceId: 'instance-custom-gateway',
   });
 });
 

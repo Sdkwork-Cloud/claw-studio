@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Supersession Note (2026-04-13):** This plan is preserved for historical implementation context. Current implementation work should follow `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md` and `docs/superpowers/plans/2026-04-13-openclaw-external-node-hard-cut-implementation-plan.md`. Any references below to bundled OpenClaw runtime semantics are historical unless they have already been converged to the current built-in packaged OpenClaw plus external runtime model.
+
 **Goal:** Stabilize bundled OpenClaw startup by introducing a single runtime authority that owns legacy cleanup, config/data migration, runtime upgrade bookkeeping, and a reusable kernel adapter contract for future kernels.
 
 **Architecture:** First, add authority-owned paths and state so bundled OpenClaw no longer relies on the legacy shared config/runtime layout. Next, route supervisor startup, migration, and studio projections through the authority. Finally, extract the authority-facing OpenClaw logic behind a generic kernel adapter boundary that preserves Windows, macOS, and Linux behavior through platform-specific primitives.

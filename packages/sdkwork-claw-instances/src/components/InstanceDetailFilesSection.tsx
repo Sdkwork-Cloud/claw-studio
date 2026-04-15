@@ -60,14 +60,15 @@ export function InstanceDetailFilesSection({
         mode="instance"
         instanceId={instanceId}
         files={workbench?.files || []}
-        agents={workbench?.agents || []}
-        selectedAgentId={selectedAgentId}
-        onSelectedAgentIdChange={onSelectedAgentIdChange}
-        runtimeKind={detail?.instance.runtimeKind}
-        isBuiltIn={detail?.instance.isBuiltIn}
-        isLoading={isLoading}
-        onReload={onReload}
-      />
+      agents={workbench?.agents || []}
+      selectedAgentId={selectedAgentId}
+      onSelectedAgentIdChange={onSelectedAgentIdChange}
+      runtimeKind={detail?.instance.runtimeKind}
+      transportKind={detail?.instance.transportKind}
+      isBuiltIn={detail?.instance.isBuiltIn}
+      isLoading={isLoading}
+      onReload={onReload}
+    />
     </div>
   );
 }

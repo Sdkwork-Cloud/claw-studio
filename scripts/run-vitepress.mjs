@@ -30,27 +30,53 @@ function findExistingPath(candidates) {
   return candidates.find((candidate) => isUsableVitepressPackageDir(candidate)) ?? null;
 }
 
+function collectVitepressCandidatesFromPnpmStore(pnpmStoreDir) {
+  if (!fs.existsSync(pnpmStoreDir)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(pnpmStoreDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('vitepress@'))
+    .map((entry) =>
+      path.join(pnpmStoreDir, entry.name, 'node_modules', 'vitepress'),
+    );
+}
+
+function collectWorkspaceFallbackVitepressCandidates(rootDir) {
+  const worktreesDir = path.join(rootDir, '.worktrees');
+  if (!fs.existsSync(worktreesDir)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(worktreesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => {
+      const worktreeRootDir = path.join(worktreesDir, entry.name);
+      return [
+        path.join(worktreeRootDir, 'node_modules', 'vitepress'),
+        ...collectVitepressCandidatesFromPnpmStore(
+          path.join(worktreeRootDir, 'node_modules', '.pnpm'),
+        ),
+      ];
+    });
+}
+
 export function resolveVitepressPackageDir(rootDir = process.cwd()) {
   const directPackageDir = path.join(rootDir, 'node_modules', 'vitepress');
   if (isUsableVitepressPackageDir(directPackageDir)) {
     return directPackageDir;
   }
 
-  const pnpmStoreDir = path.join(rootDir, 'node_modules', '.pnpm');
-  if (!fs.existsSync(pnpmStoreDir)) {
-    throw new Error('Unable to resolve VitePress CLI: node_modules/.pnpm is missing.');
-  }
-
-  const vitepressEntries = fs
-    .readdirSync(pnpmStoreDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith('vitepress@'))
-    .map((entry) =>
-      path.join(pnpmStoreDir, entry.name, 'node_modules', 'vitepress'),
-    );
-
-  const resolvedPackageDir = findExistingPath(vitepressEntries);
+  const resolvedPackageDir = findExistingPath([
+    ...collectVitepressCandidatesFromPnpmStore(
+      path.join(rootDir, 'node_modules', '.pnpm'),
+    ),
+    ...collectWorkspaceFallbackVitepressCandidates(rootDir),
+  ]);
   if (!resolvedPackageDir) {
-    throw new Error('Unable to resolve VitePress package from pnpm store entries.');
+    throw new Error('Unable to resolve VitePress package from workspace or fallback store entries.');
   }
 
   return resolvedPackageDir;

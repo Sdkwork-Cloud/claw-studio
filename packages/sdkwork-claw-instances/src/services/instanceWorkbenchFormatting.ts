@@ -1,5 +1,6 @@
 const knownWorkbenchLabels: Record<string, string> = {
   openclaw: 'OpenClaw',
+  hermes: 'Hermes',
   zeroclaw: 'ZeroClaw',
   ironclaw: 'IronClaw',
   appManaged: 'App Managed',

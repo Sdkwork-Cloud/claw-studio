@@ -1,4 +1,4 @@
-import { createStore } from 'zustand/vanilla';
+import { createSimpleStore } from '@sdkwork/claw-core';
 import type { StudioConversationAttachment } from '@sdkwork/claw-types';
 import {
   buildOpenClawThreadSessionKey,
@@ -251,7 +251,7 @@ function applyOpenClawSnapshot(
   } satisfies Partial<ChatState>;
 }
 
-export const chatStore = createStore<ChatState>()((set, get) => ({
+export const chatStore = createSimpleStore<ChatState>((set, get) => ({
   sessions: [],
   activeSessionIdByInstance: {},
   syncStateByInstance: {},

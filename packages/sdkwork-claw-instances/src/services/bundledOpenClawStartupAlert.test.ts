@@ -74,10 +74,12 @@ function createDetail(
       owner: 'appManaged',
       startStopSupported: true,
       configWritable: true,
-      lastActivationStage: 'gatewayConfigured',
+      lastActivationStage: 'prepareConfig',
       lastError:
         'timeout: openclaw gateway did not become ready on 127.0.0.1:18871 within 30000ms',
-      notes: [],
+      notes: [
+        'Last built-in OpenClaw activation detail stage: Gateway Configured',
+      ],
       ...(overrides.lifecycle || {}),
     },
     storage: {
@@ -168,6 +170,23 @@ await runTest(
         },
       ],
     });
+  },
+);
+
+await runTest(
+  'buildBundledOpenClawStartupAlert falls back to the shared activation stage label when no OpenClaw-specific detail note is present',
+  () => {
+    const alert = buildBundledOpenClawStartupAlert(
+      createDetail({
+        lifecycle: {
+          ...createDetail().lifecycle,
+          lastActivationStage: 'verifyEndpoint',
+          notes: [],
+        },
+      }),
+    );
+
+    assert.equal(alert?.diagnostics[0]?.value, 'Verify Endpoint');
   },
 );
 

@@ -109,7 +109,7 @@ export async function buildOpenClawUpgradeRollbackEvidence({
 
   const baselineAlignmentChecks = [
     ['release config stableVersion', normalizeVersion(releaseConfig?.stableVersion)],
-    ['bundled runtime manifest', normalizeVersion(bundledManifest?.openclawVersion)],
+    ['packaged OpenClaw manifest', normalizeVersion(bundledManifest?.openclawVersion)],
     ['packaged release manifest', normalizeVersion(packagedManifest?.openclawVersion)],
   ];
 
@@ -163,13 +163,13 @@ export async function buildOpenClawUpgradeRollbackEvidence({
   if (!bundledManifest) {
     pushRollbackBlocker(
       blockers.rollback,
-      `Missing bundled OpenClaw manifest at ${paths.bundledManifestPath}.`,
+      `Missing packaged OpenClaw manifest at ${paths.bundledManifestPath}.`,
     );
     phases.push(
       createPhase(
         'prepared-runtime',
         'failed',
-        'bundled runtime manifest is unavailable, so prepared runtime rollback evidence cannot be inspected',
+        'packaged OpenClaw manifest is unavailable, so prepared runtime rollback evidence cannot be inspected',
       ),
     );
   } else {

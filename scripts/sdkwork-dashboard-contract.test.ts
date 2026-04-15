@@ -51,28 +51,88 @@ runTest('sdkwork-claw-dashboard is implemented as a dedicated local feature pack
   assert.match(indexSource, /\.\/services\/usageWorkspaceService/);
 });
 
-runTest('sdkwork-claw-dashboard keeps the OpenClaw usage workspace in the shared dashboard package', () => {
+runTest('sdkwork-claw-dashboard keeps the gateway-backed usage workspace in the shared dashboard package', () => {
   const usageExportSource = read('packages/sdkwork-claw-dashboard/src/Usage.tsx');
   const usagePageSource = read('packages/sdkwork-claw-dashboard/src/pages/UsageWorkspace.tsx');
   const usageServiceSource = read('packages/sdkwork-claw-dashboard/src/services/usageWorkspaceService.ts');
+  const enLocale = readJson<any>('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const zhLocale = readJson<any>('packages/sdkwork-claw-i18n/src/locales/zh.json');
+  const enDashboardLocale = readJson<any>('packages/sdkwork-claw-i18n/src/locales/en/dashboard.json');
+  const zhDashboardLocale = readJson<any>('packages/sdkwork-claw-i18n/src/locales/zh/dashboard.json');
 
   assert.match(usageExportSource, /UsageWorkspace/);
   assert.match(usagePageSource, /usageWorkspaceService/);
+  assert.match(usagePageSource, /dashboard\.usage\.page\.eyebrow/);
   assert.match(usagePageSource, /dashboard\.usage\.page\.title/);
   assert.match(usagePageSource, /dashboard\.usage\.sections\.sessionTimeline/);
   assert.match(usagePageSource, /dashboard\.usage\.sections\.sessionLogs/);
   assert.match(usagePageSource, /dashboard\.usage\.metrics\.totalTokens/);
   assert.match(usagePageSource, /dashboard\.usage\.metrics\.totalCost/);
+  assert.doesNotMatch(usagePageSource, /OpenClaw Usage/);
   assert.match(usagePageSource, /loadUsageSnapshot/);
   assert.match(usagePageSource, /loadSessionDetail/);
   assert.match(
     usagePageSource,
     /setSelectedSessionKeys\(\(current\) =>\s*\(current\.length === 0 \? current : \[\]\)\)/,
   );
+  assert.equal(typeof enLocale.dashboard?.usage?.page?.eyebrow, 'string');
+  assert.equal(typeof zhLocale.dashboard?.usage?.page?.eyebrow, 'string');
+  assert.doesNotMatch(enLocale.dashboard.usage.page.eyebrow, /OpenClaw/i);
+  assert.doesNotMatch(enLocale.dashboard.usage.page.description, /OpenClaw/i);
+  assert.doesNotMatch(enLocale.dashboard.usage.page.emptyTitle, /OpenClaw/i);
+  assert.doesNotMatch(enLocale.dashboard.usage.page.emptyDescription, /OpenClaw/i);
+  assert.doesNotMatch(enLocale.dashboard.usage.sections.sessionLogsDescription, /OpenClaw/i);
+  assert.match(zhLocale.dashboard.usage.page.eyebrow, /[\p{Script=Han}]/u);
+  assert.match(zhLocale.dashboard.usage.page.description, /[\p{Script=Han}]/u);
+  assert.match(zhLocale.dashboard.usage.page.emptyTitle, /[\p{Script=Han}]/u);
+  assert.match(zhLocale.dashboard.usage.page.emptyDescription, /[\p{Script=Han}]/u);
+  assert.match(zhLocale.dashboard.usage.sections.sessionLogsDescription, /[\p{Script=Han}]/u);
+  assert.equal(
+    enDashboardLocale.usage.page.eyebrow,
+    enLocale.dashboard.usage.page.eyebrow,
+  );
+  assert.equal(
+    enDashboardLocale.usage.page.description,
+    enLocale.dashboard.usage.page.description,
+  );
+  assert.equal(
+    enDashboardLocale.usage.page.emptyTitle,
+    enLocale.dashboard.usage.page.emptyTitle,
+  );
+  assert.equal(
+    enDashboardLocale.usage.page.emptyDescription,
+    enLocale.dashboard.usage.page.emptyDescription,
+  );
+  assert.equal(
+    enDashboardLocale.usage.sections.sessionLogsDescription,
+    enLocale.dashboard.usage.sections.sessionLogsDescription,
+  );
+  assert.equal(
+    zhDashboardLocale.usage.page.eyebrow,
+    zhLocale.dashboard.usage.page.eyebrow,
+  );
+  assert.equal(
+    zhDashboardLocale.usage.page.description,
+    zhLocale.dashboard.usage.page.description,
+  );
+  assert.equal(
+    zhDashboardLocale.usage.page.emptyTitle,
+    zhLocale.dashboard.usage.page.emptyTitle,
+  );
+  assert.equal(
+    zhDashboardLocale.usage.page.emptyDescription,
+    zhLocale.dashboard.usage.page.emptyDescription,
+  );
+  assert.equal(
+    zhDashboardLocale.usage.sections.sessionLogsDescription,
+    zhLocale.dashboard.usage.sections.sessionLogsDescription,
+  );
   assert.match(usageServiceSource, /getGatewaySessionUsage/);
   assert.match(usageServiceSource, /getUsageCost/);
   assert.match(usageServiceSource, /getGatewaySessionUsageTimeseries/);
   assert.match(usageServiceSource, /getGatewaySessionUsageLogs/);
+  assert.match(usageServiceSource, /transportKind === 'openclawGatewayWs'/);
+  assert.doesNotMatch(usageServiceSource, /runtimeKind === 'openclaw'/);
   assert.doesNotMatch(usagePageSource, /@sdkwork\/claw-shell/);
   assert.doesNotMatch(usagePageSource, /@sdkwork\/claw-web/);
   assert.doesNotMatch(usagePageSource, /@sdkwork\/claw-desktop/);

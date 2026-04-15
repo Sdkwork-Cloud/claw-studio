@@ -365,10 +365,6 @@ export function KernelCenter() {
   );
   const ownershipLabel = translateOwnership(t, dashboard?.snapshot?.raw.host.ownership);
   const startupModeLabel = translateStartupMode(t, dashboard?.snapshot?.raw.host.startupMode);
-  const installSourceLabel = translateInstallSource(
-    t,
-    dashboard?.snapshot?.raw.provenance.installSource,
-  );
   const host = dashboard?.host ?? {
     serviceManagerLabel: null,
     ownershipLabel: null,
@@ -427,14 +423,15 @@ export function KernelCenter() {
     errorCause: null,
   };
   const provenance = dashboard?.provenance ?? {
-    installSourceLabel: null,
+    installSource: null,
     platformLabel: null,
-    openclawVersion: null,
+    runtimeVersion: null,
     nodeVersion: null,
     configPath: null,
     runtimeHomeDir: null,
     runtimeInstallDir: null,
   };
+  const installSourceLabel = translateInstallSource(t, provenance.installSource);
   const localAiProxy = dashboard?.localAiProxy ?? {
     lifecycle: 'Unavailable',
     baseUrl: null,
@@ -912,8 +909,8 @@ export function KernelCenter() {
               emptyLabel={notAvailableLabel}
             />
             <ValueRow
-              label={t('settings.kernelCenter.fields.openclawVersion')}
-              value={provenance.openclawVersion || null}
+              label={t('settings.kernelCenter.fields.runtimeVersion')}
+              value={provenance.runtimeVersion || null}
               emptyLabel={notAvailableLabel}
             />
             <ValueRow

@@ -42,6 +42,10 @@ export { WebManagePlatform, DEFAULT_MANAGE_BASE_PATH } from './platform/webManag
 export { WebPlatform } from './platform/web.ts';
 export { WebHostedStudioPlatform, DEFAULT_STUDIO_API_BASE_PATH } from './platform/webHostedStudio.ts';
 export { WebStoragePlatform } from './platform/webStorage.ts';
+export {
+  assertValidStudioCreateInstanceKernelPolicy,
+  getStudioCreateInstanceKernelPolicyError,
+} from './platform/contracts/studioKernelPolicy.ts';
 export * from './config/env.ts';
 export * from './auth/authSession.ts';
 export * from './services/fileDialogService.ts';

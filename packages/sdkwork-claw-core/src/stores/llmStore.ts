@@ -1,5 +1,8 @@
-import { createStore, type StateCreator } from 'zustand/vanilla';
-import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
+import {
+  createPersistedSimpleStore,
+  type StateStorage,
+  type StoreStateSetter,
+} from './simpleStore.ts';
 
 export interface LLMModel {
   id: string;
@@ -64,7 +67,10 @@ export function createInstanceConfigFallback(
   };
 }
 
-export const createLLMStoreState: StateCreator<LLMState, [], [], LLMState> = (set, get) => ({
+export const createLLMStoreState = (
+  set: StoreStateSetter<LLMState>,
+  get: () => LLMState,
+) => ({
   instanceConfigs: {},
   setActiveChannel: (instanceId, channelId) =>
     set((state) => ({
@@ -108,7 +114,7 @@ export function createLLMStorePersistOptions(storage?: StateStorage) {
   return storage
     ? {
         name: STORAGE_KEY,
-        storage: createJSONStorage(() => storage),
+        storage,
       }
     : {
         name: STORAGE_KEY,
@@ -116,8 +122,9 @@ export function createLLMStorePersistOptions(storage?: StateStorage) {
 }
 
 export function createLLMStore(storage?: StateStorage) {
-  return createStore<LLMState>()(
-    persist(createLLMStoreState, createLLMStorePersistOptions(storage)),
+  return createPersistedSimpleStore(
+    createLLMStoreState,
+    createLLMStorePersistOptions(storage),
   );
 }
 

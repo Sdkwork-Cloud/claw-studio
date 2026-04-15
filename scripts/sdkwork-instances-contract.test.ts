@@ -22,6 +22,18 @@ function readSources(relPaths: string[]) {
   return relPaths.map((relPath) => read(relPath)).join('\n');
 }
 
+const instanceDetailRouteRelPath = 'packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx';
+const openClawInstanceDetailPageRelPath =
+  'packages/sdkwork-claw-instances/src/pages/OpenClawInstanceDetailPage.tsx';
+
+function readInstanceDetailRouteSource() {
+  return read(instanceDetailRouteRelPath);
+}
+
+function readInstanceDetailPageSources() {
+  return readSources([instanceDetailRouteRelPath, openClawInstanceDetailPageRelPath]);
+}
+
 function getLocaleValue(locale: Record<string, unknown>, key: string) {
   return key.split('.').reduce<unknown>((current, segment) => {
     if (!current || typeof current !== 'object' || !(segment in current)) {
@@ -64,6 +76,7 @@ runTest('sdkwork-claw-instances is implemented locally instead of re-exporting c
 
   assert.ok(exists('packages/sdkwork-claw-instances/src/pages/Instances.tsx'));
   assert.ok(exists('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-instances/src/pages/OpenClawInstanceDetailPage.tsx'));
   assert.ok(exists('packages/sdkwork-claw-instances/src/components/AgentWorkbenchPanel.tsx'));
   assert.ok(exists('packages/sdkwork-claw-instances/src/components/InstanceFileExplorer.tsx'));
   assert.ok(exists('packages/sdkwork-claw-instances/src/components/InstanceFilesWorkspace.tsx'));
@@ -94,6 +107,12 @@ runTest('sdkwork-claw-instances exports the Nodes surface through package and se
   const nodesSource = read('packages/sdkwork-claw-instances/src/pages/Nodes.tsx');
   const enLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/en.json');
   const zhLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/zh.json');
+  const enInstancesLocale = readJson<Record<string, unknown>>(
+    'packages/sdkwork-claw-i18n/src/locales/en/instances.json',
+  );
+  const zhInstancesLocale = readJson<Record<string, unknown>>(
+    'packages/sdkwork-claw-i18n/src/locales/zh/instances.json',
+  );
   const directKeys = [...nodesSource.matchAll(/\bt\('([^']+)'\)/g)].map((match) => match[1]);
   const uniqueKeys = [...new Set(directKeys)].sort();
 
@@ -116,20 +135,121 @@ runTest('sdkwork-claw-instances exports the Nodes surface through package and se
   assert.match(nodesSource, /instances\.nodes\.fields\.topology/);
   assert.match(nodesSource, /instances\.nodes\.kinds\.localPrimary/);
   assert.match(nodesSource, /instances\.nodes\.health\.ok/);
+  assert.equal(
+    getLocaleValue(enLocale, 'instances.nodes.description'),
+    'Cluster governance starts here. Local primary kernels are listed beside attached or managed nodes so rollout, diagnostics, and topology drift can converge on one product model.',
+  );
+  assert.equal(
+    getLocaleValue(zhLocale, 'instances.nodes.description'),
+    '集群治理从这里开始。本地主节点内核会与已接入或已托管的节点一同展示，让发布、诊断与拓扑漂移可以收敛到同一套产品模型。',
+  );
+  assert.equal(
+    getLocaleValue(enInstancesLocale, 'nodes.description'),
+    getLocaleValue(enLocale, 'instances.nodes.description'),
+  );
+  assert.equal(
+    getLocaleValue(zhInstancesLocale, 'nodes.description'),
+    getLocaleValue(zhLocale, 'instances.nodes.description'),
+  );
   assert.deepEqual(missingKeys, []);
 });
 
 runTest('sdkwork-claw-instances removes the legacy token chrome from instance detail', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
 
   assert.doesNotMatch(detailSource, /instances\.detail\.fields\.apiToken/);
   assert.doesNotMatch(detailSource, /sk-local-123456789/);
 });
 
 runTest(
+  'sdkwork-claw-instances resolves instance detail modules through a kernel-aware registry while preserving the OpenClaw detail implementation',
+  () => {
+    const routeSource = readInstanceDetailRouteSource();
+    const detailSource = readInstanceDetailPageSources();
+    const detailModuleCatalogSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceDetailModuleCatalog.ts',
+    );
+    const detailSourceContractSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceDetailSource.ts',
+    );
+    const detailModuleTypesSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceDetailModules/types.ts',
+    );
+    const openClawDetailModuleSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceDetailModules/openClawInstanceDetailModule.ts',
+    );
+    const hermesDetailModuleSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceDetailModules/hermesInstanceDetailModule.ts',
+    );
+
+    assert.ok(exists('packages/sdkwork-claw-instances/src/pages/HermesInstanceDetailPage.tsx'));
+    assert.ok(exists('packages/sdkwork-claw-instances/src/pages/UnsupportedInstanceDetailPage.tsx'));
+    assert.ok(exists(openClawInstanceDetailPageRelPath));
+    assert.ok(exists('packages/sdkwork-claw-instances/src/services/instanceDetailSource.ts'));
+    assert.ok(
+      exists('packages/sdkwork-claw-instances/src/services/instanceDetailModules/openClawInstanceDetailModule.ts'),
+    );
+    assert.ok(
+      exists('packages/sdkwork-claw-instances/src/services/instanceDetailModules/hermesInstanceDetailModule.ts'),
+    );
+    assert.match(routeSource, /resolveSupportedInstanceDetailModule/);
+    assert.match(routeSource, /createInstanceDetailSource/);
+    assert.match(routeSource, /detailModule\.DetailPage/);
+    assert.match(routeSource, /<DetailPage source=\{detailSource\} \/>/);
+    assert.match(routeSource, /loadBaseDetail:\s*(?:async\s*)?\(instanceId\)\s*=>/);
+    assert.match(routeSource, /loadModulePayload:\s*(?:async\s*)?\(instanceId\)\s*=>/);
+    assert.doesNotMatch(routeSource, /extensions:\s*\{/);
+    assert.match(routeSource, /detailModule\.loadModulePayload\(instanceId,\s*\{/);
+    assert.match(routeSource, /loadBaseDetail:\s*\(\)\s*=>\s*loadBaseDetail\(instanceId\)/);
+    assert.doesNotMatch(routeSource, /function OpenClawInstanceDetailPage\(/);
+    assert.match(detailSource, /function OpenClawInstanceDetailPage\(/);
+    assert.match(detailSource, /source\??:\s*InstanceDetailSource/);
+    assert.match(detailSource, /source\s*\.\s*loadModulePayload\(\)/);
+    assert.match(detailSource, /getOpenClawWorkbenchFromModulePayload/);
+    assert.match(detailSource, /instanceWorkbenchService\.getInstanceWorkbench\(targetInstanceId\)/);
+    assert.match(detailSource, /source\s*\.\s*loadModulePayload\(\)/);
+    assert.doesNotMatch(detailSource, /source\.loadWorkbench\(\)/);
+    assert.doesNotMatch(detailSource, /getOpenClawInstanceDetailSourceExtension/);
+    assert.doesNotMatch(detailSource, /buildHermesRuntimePolicies\(/);
+    assert.match(detailSource, /UnsupportedInstanceDetailPage/);
+    assert.match(detailModuleCatalogSource, /createKernelDetailModuleRegistry/);
+    assert.match(detailModuleCatalogSource, /instanceDetailModuleRegistrations/);
+    assert.doesNotMatch(detailModuleCatalogSource, /type SupportedInstanceDetailModuleId =/);
+    assert.match(detailSourceContractSource, /export interface InstanceDetailSource/);
+    assert.match(
+      detailSourceContractSource,
+      /export interface InstanceDetailSource \{[\s\S]*?loadBaseDetail: \(\) => Promise<InstanceBaseDetail \| null>;[\s\S]*?loadModulePayload: \(\) => Promise<InstanceDetailModulePayload \| null>;[\s\S]*?\}/,
+    );
+    assert.match(detailSourceContractSource, /loadBaseDetail: \(\) => Promise<InstanceBaseDetail \| null>/);
+    assert.match(detailSourceContractSource, /loadModulePayload: \(\) => Promise<InstanceDetailModulePayload \| null>/);
+    assert.doesNotMatch(detailSourceContractSource, /OpenClawInstanceDetailSourceExtension/);
+    assert.doesNotMatch(detailSourceContractSource, /extensions\?: TExtensions/);
+    assert.doesNotMatch(detailSourceContractSource, /getOpenClawInstanceDetailSourceExtension/);
+    assert.match(detailModuleTypesSource, /DetailPage: ComponentType<\{ source: InstanceDetailSource \}>/);
+    assert.match(detailModuleTypesSource, /export interface InstanceDetailModulePayloadLoadContext/);
+    assert.match(detailModuleTypesSource, /loadBaseDetail: \(\) => Promise<InstanceBaseDetail \| null>/);
+    assert.match(
+      detailModuleTypesSource,
+      /loadModulePayload:\s*\(\s*instanceId: string,\s*context: InstanceDetailModulePayloadLoadContext,\s*\)\s*=>\s*Promise<InstanceDetailModulePayload \| null>/,
+    );
+    assert.match(openClawDetailModuleSource, /chrome: 'sharedWorkbench'/);
+    assert.match(openClawDetailModuleSource, /loadModulePayload:/);
+    assert.doesNotMatch(openClawDetailModuleSource, /moduleId:/);
+    assert.match(openClawDetailModuleSource, /OpenClawInstanceDetailPage\.tsx/);
+    assert.match(hermesDetailModuleSource, /chrome: 'kernelOwned'/);
+    assert.match(hermesDetailModuleSource, /loadModulePayload:/);
+    assert.match(hermesDetailModuleSource, /context\.loadBaseDetail\(\)/);
+    assert.doesNotMatch(hermesDetailModuleSource, /moduleId:/);
+    assert.match(hermesDetailModuleSource, /HermesInstanceDetailPage\.tsx/);
+    assert.ok(exists('packages/sdkwork-claw-instances/src/services/instanceBaseDetail.ts'));
+    assert.ok(exists('packages/sdkwork-claw-instances/src/services/instanceDetailModulePayload.ts'));
+  },
+);
+
+runTest(
   'sdkwork-claw-instances routes Instance Detail section metadata and presentation helpers through a dedicated module',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const presentationSource = read(
       'packages/sdkwork-claw-instances/src/components/instanceDetailWorkbenchPresentation.ts',
     );
@@ -163,7 +283,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes Instance Detail section chrome through shared workbench primitives',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const sectionContentSource = read(
       'packages/sdkwork-claw-instances/src/components/InstanceDetailSectionContent.tsx',
     );
@@ -186,7 +306,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes managed config draft types and form-state factories through a shared helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const derivedStateSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
@@ -599,7 +719,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes managed config save handler construction through a shared helper while keeping write authority in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const managedConfigMutationSupportSource = read(
       'packages/sdkwork-claw-instances/src/services/openClawManagedConfigMutationSupport.ts',
@@ -770,7 +890,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes instance detail navigation and shared status label mapping through a dedicated helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const navigationSupportSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailNavigationSupport.ts',
@@ -820,7 +940,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes the page-owned section availability renderer through a dedicated helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const availabilitySupportSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailSectionAvailabilitySupport.ts',
@@ -877,7 +997,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes current-instance silent reload callbacks through a dedicated helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const detailSectionModelsSource = read(
       'packages/sdkwork-claw-instances/src/components/instanceDetailSectionModels.ts',
     );
@@ -936,7 +1056,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes page-owned workbench reload adapters through the reload support helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const reloadSupportSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailReloadSupport.ts',
     );
@@ -1009,7 +1129,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes page-owned toast reporters through a dedicated helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const toastSupportSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailToastSupport.ts',
@@ -1044,7 +1164,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes page-owned console error reporters through a dedicated helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const consoleErrorSupportSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailConsoleErrorSupport.ts',
@@ -1089,7 +1209,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes OpenClaw agent mutation orchestration through a shared helper while keeping write authority in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const agentMutationSupportSource = read(
       'packages/sdkwork-claw-instances/src/services/openClawAgentMutationSupport.ts',
@@ -1230,7 +1350,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes OpenClaw agent dialog draft selection through shared presentation helpers while keeping dialog visibility in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const agentPresentationSource = read(
       'packages/sdkwork-claw-instances/src/services/openClawAgentPresentation.ts',
     );
@@ -1270,7 +1390,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes OpenClaw agent model option projection through a shared presentation helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const derivedStateSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
     );
@@ -1306,7 +1426,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes OpenClaw agent reset baselines through a shared presentation helper while keeping setter ownership in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const instanceDetailResetSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailResetState.ts',
     );
@@ -1374,7 +1494,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes workbench hydration reset baselines through a shared helper while keeping setter ownership in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const instanceDetailResetSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailResetState.ts',
     );
@@ -1416,7 +1536,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes workbench lazy-load orchestration through a shared hydration helper while keeping load authority in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const hydrationSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceWorkbenchHydration.ts',
     );
@@ -1497,7 +1617,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes agent workbench selection and loading orchestration through a shared helper while keeping load authority in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const agentWorkbenchStateSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailAgentWorkbenchState.ts',
     );
@@ -1570,7 +1690,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes OpenClaw agent skill mutation orchestration through a shared helper while keeping write authority in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const agentSkillMutationSupportSource = read(
       'packages/sdkwork-claw-instances/src/services/openClawAgentSkillMutationSupport.ts',
@@ -1668,7 +1788,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes OpenClaw provider dialog launch callbacks through section models while keeping page-owned reset authority',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const providerPresentationSource = read(
       'packages/sdkwork-claw-instances/src/services/openClawProviderPresentation.ts',
@@ -1780,7 +1900,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes instance lifecycle action orchestration through a shared helper while keeping write authority in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const lifecycleSupportSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceLifecycleActionSupport.ts',
@@ -1995,7 +2115,7 @@ runTest('sdkwork-claw-instances upgrades the detail page into a sidebar workbenc
 });
 
 runTest('sdkwork-claw-instances uses a wider detail canvas and row-based operational list shells', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const primitivesSource = read(
     'packages/sdkwork-claw-instances/src/components/InstanceWorkbenchPrimitives.tsx',
   );
@@ -2007,7 +2127,7 @@ runTest('sdkwork-claw-instances uses a wider detail canvas and row-based operati
 });
 
 runTest('sdkwork-claw-instances routes shared cron task manager embedding through section models for task operations', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const sectionModelsSource = read(
     'packages/sdkwork-claw-instances/src/components/instanceDetailSectionModels.ts',
   );
@@ -2023,7 +2143,7 @@ runTest('sdkwork-claw-instances routes shared cron task manager embedding throug
 });
 
 runTest('sdkwork-claw-instances opens channel official setup links through the host external browser bridge', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const channelsSource = read(
     'packages/sdkwork-claw-instances/src/components/InstanceDetailChannelsSection.tsx',
   );
@@ -2043,7 +2163,7 @@ runTest('sdkwork-claw-instances opens channel official setup links through the h
 runTest(
   'sdkwork-claw-instances routes managed-channel page handlers through shared helpers while keeping write authority in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const managedChannelPresentationSource = read(
       'packages/sdkwork-claw-instances/src/services/openClawManagedChannelPresentation.ts',
@@ -2201,7 +2321,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes managed-channel selection and draft derivation through a shared presentation helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const derivedStateSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
     );
@@ -2242,7 +2362,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes managed-channel workspace projection through a shared presentation helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const derivedStateSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
     );
@@ -2279,7 +2399,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes managed-channel toggle target lookup through the shared mutation helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const managedChannelMutationSupportSource = read(
       'packages/sdkwork-claw-instances/src/services/openClawManagedChannelMutationSupport.ts',
     );
@@ -2304,7 +2424,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes readonly channel workspace projection through a shared presentation helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const derivedStateSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
     );
@@ -2328,7 +2448,7 @@ runTest(
 );
 
 runTest('sdkwork-claw-instances keeps agents and skills visible in the top summary card deck', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const presentationSource = read(
     'packages/sdkwork-claw-instances/src/components/instanceDetailWorkbenchPresentation.ts',
   );
@@ -2366,7 +2486,7 @@ runTest('sdkwork-claw-instances turns files into an IDE-style explorer and edito
 });
 
 runTest('sdkwork-claw-instances keeps instance-level destructive actions in the header and out of files/tools sections', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const headerSource = read(
     'packages/sdkwork-claw-instances/src/components/InstanceDetailHeader.tsx',
   );
@@ -2389,7 +2509,7 @@ runTest('sdkwork-claw-instances keeps instance-level destructive actions in the 
 runTest(
   'sdkwork-claw-instances routes agent and llm provider section models through a dedicated helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const helperSource = read(
       'packages/sdkwork-claw-instances/src/components/instanceDetailSectionModels.ts',
     );
@@ -2417,7 +2537,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes memory and tools section composition through the dedicated managed section components',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const sectionModelsSource = read(
       'packages/sdkwork-claw-instances/src/components/instanceDetailSectionModels.ts',
     );
@@ -2464,7 +2584,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes memory and tools section prop composition through section models',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const sectionModelsSource = read(
       'packages/sdkwork-claw-instances/src/components/instanceDetailSectionModels.ts',
     );
@@ -2490,7 +2610,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes agent, llm provider, and task section content composition through section models',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const sectionModelsSource = read(
       'packages/sdkwork-claw-instances/src/components/instanceDetailSectionModels.ts',
     );
@@ -2517,7 +2637,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes instance detail section switching through a dedicated section-content component',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const sectionContentSource = read(
       'packages/sdkwork-claw-instances/src/components/InstanceDetailSectionContent.tsx',
     );
@@ -2582,7 +2702,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes Instance Detail page derived presentation state through a shared helper',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const helperSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
     );
@@ -2663,7 +2783,7 @@ runTest('sdkwork-claw-instances runtime service wrappers forward openClawConfigS
 });
 
 runTest('sdkwork-claw-instances gates instance detail lifecycle actions with backend lifecycle capability', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const derivedStateSource = read(
     'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
   );
@@ -2714,7 +2834,7 @@ runTest('sdkwork-claw-instances preloads lifecycle support for instance list act
 });
 
 runTest('sdkwork-claw-instances adds an instance-native LLM provider workspace with editable config chrome', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const providersSource = read(
     'packages/sdkwork-claw-instances/src/components/InstanceDetailLlmProvidersSection.tsx',
   );
@@ -2785,7 +2905,7 @@ runTest('sdkwork-claw-instances renders a backend-authored runtime overview sect
 });
 
 runTest('sdkwork-claw-instances promotes instance management metadata into the overview workbench surface', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const derivedStateSource = read(
     'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
   );
@@ -2825,6 +2945,20 @@ runTest('sdkwork-claw-instances renders backend-authored data access and artifac
   assert.match(serviceSource, /artifacts/);
 });
 
+runTest(
+  'sdkwork-claw-instances keeps shared startup refresh support keyed to platform startup facts instead of the OpenClaw kernel id',
+  () => {
+    const startupRefreshSupportSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceStartupRefreshSupport.ts',
+    );
+
+    assert.match(startupRefreshSupportSource, /instance\.isBuiltIn === true/);
+    assert.match(startupRefreshSupportSource, /instance\.deploymentMode === 'local-managed'/);
+    assert.match(startupRefreshSupportSource, /instance\.status === 'starting'/);
+    assert.doesNotMatch(startupRefreshSupportSource, /instance\.runtimeKind === 'openclaw'/);
+  },
+);
+
 runTest('sdkwork-claw-instances keeps metadata badge keys unique when different fields share the same value', () => {
   const badges = buildInstanceDetailBadgeDescriptors('config', [
     { slot: 'scope', value: 'config' },
@@ -2856,7 +2990,7 @@ runTest('sdkwork-claw-instances prefers backend-authored openclaw workbench sect
 });
 
 runTest('sdkwork-claw-instances reuses the shared cron manager and keeps OpenClaw cron CRUD fully editable', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const derivedStateSource = read(
     'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
   );
@@ -2902,7 +3036,7 @@ runTest('sdkwork-claw-instances reuses the shared cron manager and keeps OpenCla
 });
 
 runTest('sdkwork-claw-instances keeps local-external OpenClaw config-backed while routing provider changes through Provider Center', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const derivedStateSource = read(
     'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
   );
@@ -2986,7 +3120,7 @@ runTest('sdkwork-claw-instances keeps local-external OpenClaw config-backed whil
 });
 
 runTest('sdkwork-claw-instances keeps OpenClaw agent CRUD real while provider routes stay discoverable in instance detail', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const agentsSectionSource = read(
     'packages/sdkwork-claw-instances/src/components/InstanceDetailAgentsSection.tsx',
   );
@@ -3041,7 +3175,7 @@ runTest('sdkwork-claw-instances keeps the OpenClaw workbench file explorer align
 });
 
 runTest('sdkwork-claw-instances links the agents workbench to the agent marketplace for the current instance', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const presentationSource = read(
     'packages/sdkwork-claw-instances/src/components/instanceDetailWorkbenchPresentation.ts',
   );
@@ -3058,7 +3192,7 @@ runTest('sdkwork-claw-instances links the agents workbench to the agent marketpl
 });
 
 runTest('sdkwork-claw-instances turns agents into a master-detail workbench backed by an agent-scoped service', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const agentsSectionSource = read(
     'packages/sdkwork-claw-instances/src/components/InstanceDetailAgentsSection.tsx',
   );
@@ -3174,7 +3308,7 @@ runTest('sdkwork-claw-instances routes OpenClaw file path derivation through a s
 runTest(
   'sdkwork-claw-instances routes provider workspace sync-state shaping through a shared helper while keeping setter ownership in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const providerWorkspacePresentationSource = read(
       'packages/sdkwork-claw-instances/src/services/openClawProviderWorkspacePresentation.ts',
     );
@@ -3222,7 +3356,7 @@ runTest(
 runTest(
   'sdkwork-claw-instances routes managed channel workspace sync-state shaping through a shared helper while keeping setter ownership in the page',
   () => {
-    const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+    const detailSource = readInstanceDetailPageSources();
     const managedChannelPresentationSource = read(
       'packages/sdkwork-claw-instances/src/services/openClawManagedChannelPresentation.ts',
     );
@@ -3274,7 +3408,7 @@ runTest(
 );
 
 runTest('sdkwork-claw-instances routes provider catalog mutation construction and execution through a shared helper while keeping write-path authority in the page', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
   const derivedStateSource = read(
     'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
@@ -3998,11 +4132,27 @@ runTest('sdkwork-claw-instances routes OpenClaw file workbench shaping through a
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function buildOpenClawMemories\(/);
 });
 
+runTest(
+  'sdkwork-claw-instances keys shared workbench file-content loading off gateway transport facts instead of the OpenClaw kernel id',
+  () => {
+    const fileWorkbenchSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceFileWorkbench.ts',
+    );
+
+    assert.match(fileWorkbenchSource, /input\.transportKind === 'openclawGatewayWs'/);
+    assert.match(fileWorkbenchSource, /!input\.isBuiltIn/);
+    assert.doesNotMatch(fileWorkbenchSource, /input\.runtimeKind === 'openclaw'/);
+  },
+);
+
 runTest('sdkwork-claw-instances routes registry-backed detail projection through a shared helper', () => {
   const instanceWorkbenchServiceCoreSource = read(
     'packages/sdkwork-claw-instances/src/services/instanceWorkbenchServiceCore.ts',
   );
   const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
+  const registryWorkbenchSupportSource = read(
+    'packages/sdkwork-claw-instances/src/services/instanceRegistryWorkbenchSupport.ts',
+  );
 
   assert.ok(
     exists('packages/sdkwork-claw-instances/src/services/instanceRegistryWorkbenchSupport.ts'),
@@ -4023,6 +4173,10 @@ runTest('sdkwork-claw-instances routes registry-backed detail projection through
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function defaultCapabilitiesForRuntime\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function buildRegistryConnectivityEndpoints\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function isLoopbackHost\(/);
+  assert.match(registryWorkbenchSupportSource, /function inferRuntimeKindFromType\(/);
+  assert.match(registryWorkbenchSupportSource, /compactType\.match\(\/\(\[a-z0-9\]\+claw\|hermes\)\//);
+  assert.match(registryWorkbenchSupportSource, /if \(hasWebsocketUrl && !hasBaseUrl\) \{/);
+  assert.match(registryWorkbenchSupportSource, /return 'customWs';/);
 });
 
 runTest('sdkwork-claw-instances routes workbench snapshot assembly through a shared helper', () => {
@@ -4054,7 +4208,7 @@ runTest('sdkwork-claw-instances routes workbench snapshot assembly through a sha
 });
 
 runTest('sdkwork-claw-instances keeps direct InstanceDetail i18n keys mapped in both locale bundles', () => {
-  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSource = readInstanceDetailPageSources();
   const enLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/en.json');
   const zhLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/zh.json');
   const directKeys = [...detailSource.matchAll(/\bt\('([^']+)'\)/g)].map((match) => match[1]);

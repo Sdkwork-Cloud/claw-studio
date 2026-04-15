@@ -367,6 +367,9 @@ export interface RuntimeDesktopBundledComponentInfo {
 }
 
 export interface RuntimeDesktopBundledComponentsInfo {
+  packageProfileId: string;
+  includedKernelIds: string[];
+  defaultEnabledKernelIds: string[];
   componentCount: number;
   defaultStartupComponentIds: string[];
   autoUpgradeEnabled: boolean;

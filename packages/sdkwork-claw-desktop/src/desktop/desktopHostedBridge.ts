@@ -10,6 +10,7 @@ import {
   type ManageOpenClawRuntimeRecord,
   type StudioInstanceRecord,
 } from '@sdkwork/claw-infrastructure';
+import { resolveBuiltInOpenClawInstance } from './builtInOpenClawInstanceSelection.ts';
 
 export interface DesktopHostedRuntimeDescriptor {
   mode: 'desktopCombined';
@@ -287,10 +288,12 @@ export async function probeDesktopHostedRuntimeReadiness(
   descriptor: DesktopHostedRuntimeDescriptor,
   fetchImpl?: DesktopHostedFetch,
   options?: {
+    requiresManagedOpenClawEvidence?: boolean;
     webSocketFactory?: DesktopHostedWebSocketFactory;
     webSocketConnectTimeoutMs?: number;
   },
 ): Promise<DesktopHostedRuntimeReadinessSnapshot> {
+  const { requiresManagedOpenClawEvidence = true } = options ?? {};
   const normalizedDescriptor = requireDesktopHostedRuntimeDescriptor(descriptor);
   const internal = createDesktopHostedInternalPlatform(normalizedDescriptor, fetchImpl);
   const manage = createDesktopHostedManagePlatform(normalizedDescriptor, fetchImpl);
@@ -310,12 +313,20 @@ export async function probeDesktopHostedRuntimeReadiness(
     openClawRuntime,
     openClawGateway,
     instances,
+    {
+      requiresManagedOpenClawEvidence,
+    },
   );
   const webSocketFactory = resolveDesktopHostedWebSocketFactory(
     options?.webSocketFactory,
   );
-  evidence.gatewayWebsocketProbeSupported = Boolean(webSocketFactory);
-  if (webSocketFactory && evidence.openClawGatewayWebsocketUrl) {
+  evidence.gatewayWebsocketProbeSupported =
+    requiresManagedOpenClawEvidence && Boolean(webSocketFactory);
+  if (
+    requiresManagedOpenClawEvidence
+    && webSocketFactory
+    && evidence.openClawGatewayWebsocketUrl
+  ) {
     evidence.gatewayWebsocketDialable =
       await probeDesktopHostedGatewayWebSocketDialability(
         evidence.openClawGatewayWebsocketUrl,
@@ -337,7 +348,9 @@ export async function probeDesktopHostedRuntimeReadiness(
   };
 
   try {
-    assertDesktopHostedRuntimeReady(evidence);
+    assertDesktopHostedRuntimeReady(evidence, {
+      requiresManagedOpenClawEvidence,
+    });
   } catch (error) {
     throw new DesktopHostedRuntimeReadinessError(
       error instanceof Error && error.message.trim()
@@ -502,7 +515,11 @@ export function buildDesktopHostedRuntimeReadinessEvidence(
   openClawRuntime: ManageOpenClawRuntimeRecord,
   openClawGateway: ManageOpenClawGatewayRecord,
   instances: StudioInstanceRecord[],
-) : DesktopHostedRuntimeReadinessEvidence {
+  options?: {
+    requiresManagedOpenClawEvidence?: boolean;
+  },
+): DesktopHostedRuntimeReadinessEvidence {
+  const { requiresManagedOpenClawEvidence = true } = options ?? {};
   const manageHostEndpoint = resolveDesktopHostedManageEndpoint(descriptor, hostEndpoints);
   const manageBaseUrl = normalizeRequiredString(manageHostEndpoint?.baseUrl);
   const manageEndpointId = normalizeRequiredString(manageHostEndpoint?.endpointId);
@@ -521,8 +538,10 @@ export function buildDesktopHostedRuntimeReadinessEvidence(
   const openClawGatewayEndpointId = normalizeRequiredString(openClawGateway.endpointId);
   const openClawRuntimeActivePort = normalizeOptionalNumber(openClawRuntime.activePort);
   const openClawGatewayActivePort = normalizeOptionalNumber(openClawGateway.activePort);
-  const builtInInstance =
-    instances.find((instance) => normalizeRequiredString(instance.id) === 'local-built-in') ?? null;
+  const builtInInstance = resolveBuiltInOpenClawInstance(instances, {
+    gatewayBaseUrl: openClawGatewayBaseUrl,
+    gatewayWebsocketUrl: openClawGatewayWebsocketUrl,
+  });
   const builtInInstanceId = normalizeRequiredString(builtInInstance?.id);
   const builtInInstanceRuntimeKind = builtInInstance?.runtimeKind ?? null;
   const builtInInstanceDeploymentMode = builtInInstance?.deploymentMode ?? null;
@@ -658,41 +677,39 @@ export function buildDesktopHostedRuntimeReadinessEvidence(
     builtInInstanceReady,
     ready:
       hostLifecycleReady
-      && gatewayInvokeCapabilityAvailable
       && Boolean(manageBaseUrl)
       && manageEndpointMatchesDescriptor
       && manageEndpointIdMatchesDescriptor
       && manageEndpointActivePortMatchesDescriptor
-      && openClawRuntimeReady
-      && openClawGatewayReady
-      && openClawRuntimeUrlsPublished
-      && openClawGatewayUrlsPublished
-      && runtimeAndGatewayBaseUrlMatch
-      && runtimeAndGatewayWebsocketUrlMatch
-      && runtimeAndGatewayEndpointIdMatch
-      && runtimeAndGatewayActivePortMatch
-      && builtInInstanceReady,
+      && (
+        !requiresManagedOpenClawEvidence
+        || (
+          gatewayInvokeCapabilityAvailable
+          && openClawRuntimeReady
+          && openClawGatewayReady
+          && openClawRuntimeUrlsPublished
+          && openClawGatewayUrlsPublished
+          && runtimeAndGatewayBaseUrlMatch
+          && runtimeAndGatewayWebsocketUrlMatch
+          && runtimeAndGatewayEndpointIdMatch
+          && runtimeAndGatewayActivePortMatch
+          && builtInInstanceReady
+        )
+      ),
   };
 }
 
 function assertDesktopHostedRuntimeReady(
   evidence: DesktopHostedRuntimeReadinessEvidence,
+  options?: {
+    requiresManagedOpenClawEvidence?: boolean;
+  },
 ) {
+  const { requiresManagedOpenClawEvidence = true } = options ?? {};
+
   if (!evidence.hostLifecycleReady) {
     throw new Error(
       `Desktop hosted runtime is not ready: expected lifecycle "ready" but received "${evidence.hostLifecycle}".`,
-    );
-  }
-
-  if (!evidence.gatewayInvokeCapabilitySupported) {
-    throw new Error(
-      'Desktop hosted runtime did not advertise the managed OpenClaw gateway invoke capability.',
-    );
-  }
-
-  if (!evidence.gatewayInvokeCapabilityAvailable) {
-    throw new Error(
-      'Desktop hosted runtime did not expose the managed OpenClaw gateway invoke capability yet.',
     );
   }
 
@@ -727,6 +744,27 @@ function assertDesktopHostedRuntimeReady(
   if (!evidence.manageEndpointActivePortMatchesDescriptor) {
     throw new Error(
       'Desktop hosted runtime descriptor activePort does not match the published manage host endpoint.',
+    );
+  }
+
+  if (!requiresManagedOpenClawEvidence) {
+    if (!evidence.ready) {
+      throw new Error(
+        'Desktop hosted runtime readiness evidence remained not ready after invariant checks.',
+      );
+    }
+    return;
+  }
+
+  if (!evidence.gatewayInvokeCapabilitySupported) {
+    throw new Error(
+      'Desktop hosted runtime did not advertise the managed OpenClaw gateway invoke capability.',
+    );
+  }
+
+  if (!evidence.gatewayInvokeCapabilityAvailable) {
+    throw new Error(
+      'Desktop hosted runtime did not expose the managed OpenClaw gateway invoke capability yet.',
     );
   }
 

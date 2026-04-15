@@ -1,5 +1,7 @@
 # OpenClaw Built-In Port Selection Design
 
+> **Supersession Note (2026-04-13):** This document is preserved for historical OpenClaw port-behavior context. The current source of truth is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`, with active OpenClaw runtime packaging and activation aligned to `docs/superpowers/plans/2026-04-13-openclaw-external-node-hard-cut-implementation-plan.md`. The preferred-port behavior below can still inform the OpenClaw adapter, but references to built-in or bundled runtime assumptions are historical only and must now be interpreted through the managed OpenClaw packaged payload plus external Node.js contract.
+
 ## Goal
 
 Allow the built-in OpenClaw runtime started by Claw Studio to honor a user-selected gateway port while still avoiding conflicts automatically when that port is occupied.

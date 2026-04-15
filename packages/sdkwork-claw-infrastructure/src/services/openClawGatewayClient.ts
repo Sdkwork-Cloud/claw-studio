@@ -45,7 +45,8 @@ export type OpenClawGatewayValidationStatus =
   | 'unreachable'
   | 'tool_denied'
   | 'invalid_response'
-  | 'unsupported_runtime';
+  | 'unsupported_runtime'
+  | 'unsupported_transport';
 
 export interface OpenClawGatewayValidationResult {
   status: OpenClawGatewayValidationStatus;
@@ -1902,9 +1903,20 @@ function normalizeResolveExecApprovalArgs(
   };
 }
 
+function exposesOpenClawGatewayTransport(
+  detail: StudioInstanceDetailRecord | null | undefined,
+) {
+  const transports = [
+    detail?.connectivity?.primaryTransport,
+    detail?.instance.transportKind,
+  ];
+
+  return transports.some((transport) => transport?.trim() === 'openclawGatewayWs');
+}
+
 function isBuiltInManagedOpenClawAccess(access: OpenClawGatewayAccessDescriptor) {
   return (
-    access.runtimeKind === 'openclaw' &&
+    exposesOpenClawGatewayTransport(access.detail) &&
     access.detail?.instance.isBuiltIn === true &&
     access.detail.instance.deploymentMode === 'local-managed'
   );
@@ -1957,11 +1969,11 @@ export function createOpenClawGatewayClient(
     request: OpenClawInvokeRequest<object>,
     options: OpenClawGatewayRequestOptions = {},
   ): Promise<TResult> {
-    if (access.runtimeKind !== 'openclaw') {
+    if (!exposesOpenClawGatewayTransport(access.detail)) {
       throw new OpenClawGatewayAccessError(
         createValidationResult(
-          'unsupported_runtime',
-          'The selected instance is not an OpenClaw runtime.',
+          'unsupported_transport',
+          'The selected instance does not expose the OpenClaw Gateway transport.',
           access.endpoint,
         ),
       );
@@ -2093,10 +2105,10 @@ export function createOpenClawGatewayClient(
   async function validateResolvedAccess(
     access: OpenClawGatewayAccessDescriptor,
   ): Promise<OpenClawGatewayValidationResult> {
-    if (access.runtimeKind !== 'openclaw') {
+    if (!exposesOpenClawGatewayTransport(access.detail)) {
       return createValidationResult(
-        'unsupported_runtime',
-        'The selected instance is not an OpenClaw runtime.',
+        'unsupported_transport',
+        'The selected instance does not expose the OpenClaw Gateway transport.',
         access.endpoint,
       );
     }

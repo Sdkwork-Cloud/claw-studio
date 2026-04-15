@@ -2,7 +2,6 @@ import {
   bootstrapServerBrowserPlatformBridge,
   getPlatformBridge,
 } from '@sdkwork/claw-core';
-import { ensureI18n } from '@sdkwork/claw-i18n';
 
 export interface BootstrapShellRuntimeDependencies {
   getActivePlatform: () => string;
@@ -10,13 +9,16 @@ export interface BootstrapShellRuntimeDependencies {
   ensureI18n: () => Promise<void>;
 }
 
+async function ensureShellI18n() {
+  const { ensureI18n } = await import('@sdkwork/claw-i18n');
+  await ensureI18n();
+}
+
 function createBootstrapShellRuntimeDependencies(): BootstrapShellRuntimeDependencies {
   return {
     getActivePlatform: () => getPlatformBridge().platform.getPlatform(),
     bootstrapHostedBrowserBridge: () => bootstrapServerBrowserPlatformBridge(),
-    ensureI18n: async () => {
-      await ensureI18n();
-    },
+    ensureI18n: ensureShellI18n,
   };
 }
 

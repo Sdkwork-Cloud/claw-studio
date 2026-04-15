@@ -24,6 +24,9 @@ function writeDesktopManifest({
   platform,
   arch,
   artifacts,
+  packageProfileId = 'openclaw-only',
+  includedKernelIds = ['openclaw'],
+  defaultEnabledKernelIds = ['openclaw'],
 } = {}) {
   const manifestPath = path.join(
     releaseAssetsDir,
@@ -37,6 +40,9 @@ function writeDesktopManifest({
     profileId: 'claw-studio',
     productName: 'Claw Studio',
     releaseTag: 'release-2026-04-06-08',
+    packageProfileId,
+    includedKernelIds,
+    defaultEnabledKernelIds,
     platform,
     arch,
     artifacts,
@@ -50,6 +56,10 @@ function buildDesktopStartupEvidence({
   phase = 'shell-mounted',
   ready = true,
   gatewayWebsocketDialable = true,
+  packageProfileId = 'openclaw-only',
+  includedKernelIds = ['openclaw'],
+  defaultEnabledKernelIds = ['openclaw'],
+  builtInInstanceId = 'local-built-in',
   builtInInstanceStatus = 'online',
   localAiProxy = {
     lifecycle: 'running',
@@ -70,6 +80,16 @@ function buildDesktopStartupEvidence({
       name: 'Claw Studio',
       version: '0.1.0',
       tauriVersion: '2.0.0',
+    },
+    bundledComponents: {
+      packageProfileId,
+      includedKernelIds,
+      defaultEnabledKernelIds,
+      componentCount: 1,
+      defaultStartupComponentIds: ['desktop-host'],
+      autoUpgradeEnabled: true,
+      approvalMode: 'strict',
+      components: [],
     },
     paths: {
       dataDir: 'C:/Users/test/AppData/Roaming/Claw Studio',
@@ -124,7 +144,7 @@ function buildDesktopStartupEvidence({
       websocketUrl: 'ws://127.0.0.1:19797/openclaw/ws',
     },
     builtInInstance: {
-      id: 'local-built-in',
+      id: builtInInstanceId,
       name: 'OpenClaw',
       version: '2026.4.2',
       runtimeKind: 'openclaw',
@@ -212,6 +232,9 @@ test('desktop startup smoke validates captured startup evidence and writes a str
     assert.equal(smokeReport.arch, 'x64');
     assert.equal(smokeReport.status, 'passed');
     assert.equal(smokeReport.phase, 'shell-mounted');
+    assert.equal(smokeReport.packageProfileId, 'openclaw-only');
+    assert.deepEqual(smokeReport.includedKernelIds, ['openclaw']);
+    assert.deepEqual(smokeReport.defaultEnabledKernelIds, ['openclaw']);
     assert.equal(smokeReport.descriptorBrowserBaseUrl, 'http://127.0.0.1:19797');
     assert.equal(smokeReport.builtInInstanceId, 'local-built-in');
     assert.equal(smokeReport.builtInInstanceStatus, 'online');
@@ -242,6 +265,199 @@ test('desktop startup smoke validates captured startup evidence and writes a str
       ],
     );
     assert.equal(smokeReport.checks.every((check) => check.status === 'passed'), true);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('desktop startup smoke accepts the managed built-in OpenClaw instance when the id is not the legacy local-built-in value', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-startup-evidence.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-startup-managed-id-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const artifactRelativePath = 'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe';
+
+  try {
+    writeArtifactFile(releaseAssetsDir, artifactRelativePath);
+    writeDesktopManifest({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+      artifacts: [
+        {
+          name: 'Claw Studio_0.1.0_x64-setup.exe',
+          relativePath: artifactRelativePath,
+          family: 'desktop',
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'installer',
+          sha256: 'synthetic',
+          size: 17,
+        },
+      ],
+    });
+
+    writeJsonFile(
+      smoke.resolveCapturedDesktopStartupEvidencePath({
+        releaseAssetsDir,
+        platform: 'windows',
+        arch: 'x64',
+      }),
+      buildDesktopStartupEvidence({
+        builtInInstanceId: 'managed-openclaw-primary',
+      }),
+    );
+
+    const result = await smoke.smokeDesktopStartupEvidence({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+    });
+
+    assert.equal(result.report.builtInInstanceId, 'managed-openclaw-primary');
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('desktop startup smoke accepts hermes-only desktop packages without managed built-in OpenClaw evidence', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-startup-evidence.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-startup-hermes-only-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const artifactRelativePath = 'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe';
+
+  try {
+    writeArtifactFile(releaseAssetsDir, artifactRelativePath);
+    writeDesktopManifest({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+      packageProfileId: 'hermes-only',
+      includedKernelIds: ['hermes'],
+      defaultEnabledKernelIds: ['hermes'],
+      artifacts: [
+        {
+          name: 'Claw Studio_0.1.0_x64-setup.exe',
+          relativePath: artifactRelativePath,
+          family: 'desktop',
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'installer',
+          sha256: 'synthetic',
+          size: 17,
+        },
+      ],
+    });
+
+    const evidence = buildDesktopStartupEvidence({
+      packageProfileId: 'hermes-only',
+      includedKernelIds: ['hermes'],
+      defaultEnabledKernelIds: ['hermes'],
+      gatewayWebsocketDialable: false,
+    });
+    evidence.openClawRuntime = null;
+    evidence.openClawGateway = null;
+    evidence.builtInInstance = null;
+    evidence.readinessEvidence.gatewayWebsocketProbeSupported = false;
+    evidence.readinessEvidence.gatewayWebsocketDialable = false;
+
+    writeJsonFile(
+      smoke.resolveCapturedDesktopStartupEvidencePath({
+        releaseAssetsDir,
+        platform: 'windows',
+        arch: 'x64',
+      }),
+      evidence,
+    );
+
+    const result = await smoke.smokeDesktopStartupEvidence({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+    });
+
+    assert.equal(result.report.builtInInstanceId, '');
+    assert.equal(result.report.builtInInstanceStatus, '');
+    assert.equal(result.report.packageProfileId, 'hermes-only');
+    assert.deepEqual(result.report.includedKernelIds, ['hermes']);
+    assert.deepEqual(result.report.defaultEnabledKernelIds, ['hermes']);
+    assert.deepEqual(
+      result.report.checks
+        .filter((check) => check.id === 'built-in-instance' || check.id === 'gateway-websocket')
+        .map((check) => ({ id: check.id, status: check.status, detail: check.detail })),
+      [
+        {
+          id: 'built-in-instance',
+          status: 'passed',
+          detail: 'desktop startup evidence skipped managed OpenClaw instance checks because package profile excludes openclaw',
+        },
+        {
+          id: 'gateway-websocket',
+          status: 'passed',
+          detail: 'desktop startup evidence skipped managed OpenClaw gateway websocket checks because package profile excludes openclaw',
+        },
+      ],
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('desktop startup smoke rejects captured evidence when bundled package context drifts from the desktop manifest', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-startup-evidence.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-startup-profile-drift-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const artifactRelativePath = 'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe';
+
+  try {
+    writeArtifactFile(releaseAssetsDir, artifactRelativePath);
+    writeDesktopManifest({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+      packageProfileId: 'hermes-only',
+      includedKernelIds: ['hermes'],
+      defaultEnabledKernelIds: ['hermes'],
+      artifacts: [
+        {
+          name: 'Claw Studio_0.1.0_x64-setup.exe',
+          relativePath: artifactRelativePath,
+          family: 'desktop',
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'installer',
+          sha256: 'synthetic',
+          size: 17,
+        },
+      ],
+    });
+
+    writeJsonFile(
+      smoke.resolveCapturedDesktopStartupEvidencePath({
+        releaseAssetsDir,
+        platform: 'windows',
+        arch: 'x64',
+      }),
+      buildDesktopStartupEvidence({
+        packageProfileId: 'dual-kernel',
+        includedKernelIds: ['openclaw', 'hermes'],
+        defaultEnabledKernelIds: ['openclaw', 'hermes'],
+      }),
+    );
+
+    await assert.rejects(
+      () => smoke.smokeDesktopStartupEvidence({
+        releaseAssetsDir,
+        platform: 'windows',
+        arch: 'x64',
+      }),
+      /package profile|included kernels|default enabled kernels/i,
+    );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

@@ -33,7 +33,7 @@ pub(super) fn require_running_openclaw_runtime(
 
     if gateway.lifecycle != ManagedServiceLifecycle::Running {
         return Err(FrameworkError::Conflict(
-            "the bundled OpenClaw gateway is offline; start the built-in instance before managing cron tasks"
+            "the built-in OpenClaw gateway is offline; start the built-in instance before managing cron tasks"
                 .to_string(),
         ));
     }

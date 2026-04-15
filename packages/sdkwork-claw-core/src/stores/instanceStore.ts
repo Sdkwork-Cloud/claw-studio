@@ -1,5 +1,8 @@
-import { createStore, type StateCreator } from 'zustand/vanilla';
-import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
+import {
+  createPersistedSimpleStore,
+  type StateStorage,
+  type StoreStateSetter,
+} from './simpleStore.ts';
 
 export interface InstanceStoreState {
   activeInstanceId: string | null;
@@ -9,12 +12,7 @@ export interface InstanceStoreState {
 
 const STORAGE_KEY = 'claw-studio-instance-storage';
 
-export const createInstanceStoreState: StateCreator<
-  InstanceStoreState,
-  [],
-  [],
-  InstanceStoreState
-> = (set) => ({
+export const createInstanceStoreState = (set: StoreStateSetter<InstanceStoreState>) => ({
   activeInstanceId: null,
   setActiveInstanceId(id) {
     set({ activeInstanceId: id });
@@ -28,7 +26,7 @@ export function createInstanceStorePersistOptions(storage?: StateStorage) {
   return storage
     ? {
         name: STORAGE_KEY,
-        storage: createJSONStorage(() => storage),
+        storage,
       }
     : {
         name: STORAGE_KEY,
@@ -36,8 +34,9 @@ export function createInstanceStorePersistOptions(storage?: StateStorage) {
 }
 
 export function createInstanceStore(storage?: StateStorage) {
-  return createStore<InstanceStoreState>()(
-    persist(createInstanceStoreState, createInstanceStorePersistOptions(storage)),
+  return createPersistedSimpleStore(
+    createInstanceStoreState,
+    createInstanceStorePersistOptions(storage),
   );
 }
 

@@ -3249,7 +3249,7 @@ mod tests {
             .project_managed_openclaw_provider(&paths, &snapshot, &health)
             .expect("project managed openclaw provider");
 
-        let projected = read_json(&paths.openclaw_config_file);
+        let projected = read_json(&managed_openclaw_config_path(&paths));
         assert_eq!(
             projected["models"]["providers"]["sdkwork-local-proxy"]["baseUrl"],
             health.base_url
@@ -3314,7 +3314,7 @@ mod tests {
             .project_managed_openclaw_provider(&paths, &snapshot, &health)
             .expect("project managed openclaw provider");
 
-        let projected = read_json(&paths.openclaw_config_file);
+        let projected = read_json(&managed_openclaw_config_path(&paths));
         assert_eq!(
             projected["agents"]["defaults"]["model"]["primary"],
             "anthropic/claude-sonnet-4-5"
@@ -3400,7 +3400,7 @@ mod tests {
             .project_managed_openclaw_provider(&paths, &snapshot, &health)
             .expect("project managed openclaw provider");
 
-        let projected = read_json(&paths.openclaw_config_file);
+        let projected = read_json(&managed_openclaw_config_path(&paths));
         let provider = projected["models"]["providers"]["sdkwork-local-proxy"]
             .as_object()
             .expect("provider object");
@@ -3450,7 +3450,7 @@ mod tests {
             .project_managed_openclaw_provider(&paths, &snapshot, &health)
             .expect("project managed openclaw provider");
 
-        let projected = read_json(&paths.openclaw_config_file);
+        let projected = read_json(&managed_openclaw_config_path(&paths));
         assert_eq!(
             projected["models"]["providers"]["sdkwork-local-proxy"]["baseUrl"],
             health.base_url
@@ -3508,7 +3508,7 @@ mod tests {
             .project_managed_openclaw_provider(&paths, &snapshot, &health)
             .expect("project managed openclaw provider");
 
-        let projected = read_json(&paths.openclaw_config_file);
+        let projected = read_json(&managed_openclaw_config_path(&paths));
         assert_eq!(
             projected["models"]["providers"]["sdkwork-local-proxy"]["baseUrl"],
             expected_test_public_root_base_url(18_791)
@@ -3597,7 +3597,7 @@ mod tests {
             .project_managed_openclaw_provider(&paths, &snapshot, &health)
             .expect("project managed openclaw provider");
 
-        let projected = read_json(&paths.openclaw_config_file);
+        let projected = read_json(&managed_openclaw_config_path(&paths));
         let provider = projected["models"]["providers"]["sdkwork-local-proxy"]
             .as_object()
             .expect("provider object");
@@ -3628,7 +3628,7 @@ mod tests {
             .project_managed_openclaw_provider(&paths, &snapshot, &health)
             .expect("project managed openclaw provider");
 
-        let projected = read_json(&paths.openclaw_config_file);
+        let projected = read_json(&managed_openclaw_config_path(&paths));
         assert_eq!(
             projected["agents"]["defaults"]["models"]["sdkwork-local-proxy/gpt-5.4"]["params"]
                 ["temperature"],
@@ -3731,6 +3731,14 @@ mod tests {
 
     fn expected_test_public_v1_base_url(port: u16) -> String {
         format!("{}/v1", expected_test_public_root_base_url(port))
+    }
+
+    fn managed_openclaw_config_path(
+        paths: &crate::framework::paths::AppPaths,
+    ) -> std::path::PathBuf {
+        crate::framework::services::kernel_runtime_authority::KernelRuntimeAuthorityService::new()
+            .active_openclaw_config_path(paths)
+            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
     }
 
     fn read_json(path: &std::path::Path) -> Value {

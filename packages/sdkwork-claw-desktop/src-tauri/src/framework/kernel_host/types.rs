@@ -117,7 +117,7 @@ pub struct DesktopKernelProvenanceInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub install_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub openclaw_version: Option<String>,
+    pub runtime_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub node_version: Option<String>,
     pub platform: String,

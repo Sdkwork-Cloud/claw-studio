@@ -321,11 +321,17 @@ mod tests {
             vec!["openclaw_gateway".to_string()]
         );
         assert_eq!(info.supervisor.lifecycle, "running");
-        assert_eq!(info.bundled_components.component_count, 4);
+        assert_eq!(info.bundled_components.component_count, 0);
+        assert_eq!(info.bundled_components.package_profile_id, "openclaw-only");
+        assert_eq!(info.bundled_components.included_kernel_ids, vec!["openclaw"]);
         assert_eq!(
-            info.bundled_components.default_startup_component_ids,
-            vec!["openclaw".to_string()]
+            info.bundled_components.default_enabled_kernel_ids,
+            vec!["openclaw"]
         );
+        assert!(info
+            .bundled_components
+            .default_startup_component_ids
+            .is_empty());
         assert_eq!(info.host.topology.kind, "localManagedNative");
         assert_eq!(info.host.topology.state, "installed");
         assert_eq!(info.host.runtime.state, "stopped");
@@ -362,7 +368,7 @@ mod tests {
                 .as_str()
                 .expect("runtime config path"),
         )
-        .ends_with("user-home/openclaw-home/.openclaw/openclaw.json"));
+        .ends_with("machine/state/kernels/openclaw/managed-config/openclaw.json"));
         assert_eq!(
             payload["openClawRuntime"]["startupChain"][0]["id"],
             "configureOpenClawGateway"
@@ -575,6 +581,47 @@ mod tests {
         assert_eq!(
             payload["desktopStartupEvidence"]["errorCause"],
             "socket timeout"
+        );
+    }
+
+    #[test]
+    fn desktop_kernel_info_exposes_bundle_manifest_kernel_profile_summary() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        fs::create_dir_all(&paths.foundation_components_dir).expect("foundation components dir");
+        fs::write(
+            paths.foundation_components_dir.join("bundle-manifest.json"),
+            r#"{
+  "version": 1,
+  "packageProfileId": "hermes-only",
+  "includedKernelIds": ["hermes"],
+  "defaultEnabledKernelIds": ["hermes"]
+}
+"#,
+        )
+        .expect("bundle manifest");
+        let logger = init_logger(&paths).expect("logger");
+        let context = Arc::new(FrameworkContext::from_parts(
+            paths.clone(),
+            AppConfig::default(),
+            logger,
+        ));
+        let state = AppState::from_context(context);
+
+        let info = desktop_kernel_info_from_state(&state).expect("kernel info");
+        let payload = serde_json::to_value(&info).expect("kernel info json");
+
+        assert_eq!(info.bundled_components.package_profile_id, "hermes-only");
+        assert_eq!(info.bundled_components.included_kernel_ids, vec!["hermes"]);
+        assert_eq!(
+            info.bundled_components.default_enabled_kernel_ids,
+            vec!["hermes"]
+        );
+        assert_eq!(payload["bundledComponents"]["packageProfileId"], "hermes-only");
+        assert_eq!(payload["bundledComponents"]["includedKernelIds"][0], "hermes");
+        assert_eq!(
+            payload["bundledComponents"]["defaultEnabledKernelIds"][0],
+            "hermes"
         );
     }
 

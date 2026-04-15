@@ -10,6 +10,7 @@
     "@sdkwork/app-sdk": "workspace:^",
     "@sdkwork/claw-i18n": "workspace:*",
     "@sdkwork/claw-infrastructure": "workspace:*",
+    "@sdkwork/claw-types": "workspace:*",
     "@sdkwork/core-pc-react": "workspace:*",
     "fuse.js": "^7.3.0",
     "json5": "^2.2.3",

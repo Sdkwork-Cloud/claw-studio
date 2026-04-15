@@ -99,6 +99,8 @@ runTest('sdkwork-claw-core package exposes a browser root entry and a Node-safe 
   const rootExport = pkg.exports?.['.'];
   const nodeEntrySource = read('packages/sdkwork-claw-core/src/node.ts');
   const nodeServicesSource = read('packages/sdkwork-claw-core/src/services/node/index.ts');
+  const instanceStoreSource = read('packages/sdkwork-claw-core/src/stores/instanceStore.ts');
+  const llmStoreSource = read('packages/sdkwork-claw-core/src/stores/llmStore.ts');
 
   assert.equal(typeof rootExport, 'object');
   assert.deepEqual(Object.keys(rootExport ?? {}), ['types', 'browser', 'default']);
@@ -112,8 +114,11 @@ runTest('sdkwork-claw-core package exposes a browser root entry and a Node-safe 
   assert.match(nodeEntrySource, /\.\/services\/node\/index\.ts/);
   assert.match(nodeEntrySource, /\.\/stores\/instanceStore\.ts/);
   assert.match(nodeEntrySource, /\.\/stores\/llmStore\.ts/);
+  assert.doesNotMatch(instanceStoreSource, /zustand/);
+  assert.doesNotMatch(llmStoreSource, /zustand/);
   assert.match(nodeServicesSource, /\.\.\/accountService\.ts/);
   assert.match(nodeServicesSource, /\.\.\/settingsService\.ts/);
+  assert.match(nodeServicesSource, /\.\.\/dashboardCommerceService\.ts/);
   assert.match(nodeServicesSource, /\.\.\/openClawConfigService\.ts/);
   assert.match(nodeServicesSource, /\.\.\/openClawProviderRequestDraftService\.ts/);
   assert.match(nodeServicesSource, /\.\.\/providerRoutingCatalogService\.ts/);
@@ -137,7 +142,6 @@ runTest('sdkwork-claw-core package exposes a browser root entry and a Node-safe 
   assert.doesNotMatch(nodeServicesSource, /\.\.\/clawHubService\.ts/);
   assert.doesNotMatch(nodeServicesSource, /\.\.\/clawMallService\.ts/);
   assert.doesNotMatch(nodeServicesSource, /\.\.\/communityService\.ts/);
-  assert.doesNotMatch(nodeServicesSource, /\.\.\/dashboardCommerceService\.ts/);
   assert.doesNotMatch(nodeServicesSource, /\.\.\/feedbackCenterService\.ts/);
   assert.doesNotMatch(nodeServicesSource, /\.\.\/pointsWalletService\.ts/);
 });
@@ -390,16 +394,16 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   const workspaceManifest = read('pnpm-workspace.yaml');
   const npmrc = read('.npmrc');
   const sharedSdkReleaseConfig = read('config/shared-sdk-release-sources.json');
+  const sharedSdkReleaseConfigJson = readJson<{
+    sources?: Record<string, { repoUrl?: string; ref?: string }>;
+  }>('config/shared-sdk-release-sources.json');
   const coreCheckRunner = read('scripts/run-sdkwork-core-check.mjs');
   const nodeTypeScriptRunner = read('scripts/run-node-typescript-check.mjs');
   const prepareSharedSdkScript = read('scripts/prepare-shared-sdk-packages.mjs');
   const prepareGitSourcesScript = read('scripts/prepare-shared-sdk-git-sources.mjs');
-  const openchatImSdkPackageJson = read(
-    '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/composed/package.json',
-  );
-  const openchatImWukongimAdapterPackageJson = read(
-    '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/adapter-wukongim/package.json',
-  );
+  const imBackendSource = sharedSdkReleaseConfigJson.sources?.['im-backend-sdk'];
+  const openchatImSource = sharedSdkReleaseConfigJson.sources?.['openchat-im-sdk'];
+  const openchatImWukongimSource = sharedSdkReleaseConfigJson.sources?.['openchat-im-wukongim-adapter'];
 
   assert.match(npmrc, /link-workspace-packages\s*=\s*true/);
   assert.match(workspaceManifest, /spring-ai-plus-app-api/);
@@ -418,6 +422,12 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.match(sharedSdkReleaseConfig, /openchat-im-sdk/);
   assert.match(sharedSdkReleaseConfig, /openchat-im-wukongim-adapter/);
   assert.doesNotMatch(sharedSdkReleaseConfig, /"ref"\s*:\s*"main"/);
+  assert.equal(imBackendSource?.repoUrl, 'https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git');
+  assert.equal(openchatImSource?.repoUrl, 'https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git');
+  assert.equal(openchatImWukongimSource?.repoUrl, 'https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git');
+  assert.match(imBackendSource?.ref ?? '', /^[0-9a-f]{40}$/);
+  assert.equal(openchatImSource?.ref, imBackendSource?.ref);
+  assert.equal(openchatImWukongimSource?.ref, imBackendSource?.ref);
   assert.match(workspacePackageJson, /"prepare:shared-sdk"\s*:\s*"node scripts\/prepare-shared-sdk-packages\.mjs"/);
   assert.match(workspacePackageJson, /"build"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web build"/);
   assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production"/);
@@ -442,20 +452,10 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
   assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-core\.git/);
   assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-im-sdk\.git/);
+  assert.match(prepareGitSourcesScript, /SHARED_SDK_GIT_FORCE_SYNC_ENV_VAR/);
+  assert.match(prepareGitSourcesScript, /syncExistingSourceRepo/);
   assert.doesNotMatch(prepareGitSourcesScript, /vendor\/shared-sdk/);
   assert.doesNotMatch(prepareGitSourcesScript, /materializePackageRootFromVendoredSource/);
-  assert.doesNotMatch(openchatImSdkPackageJson, /\.\.\/\.\.\/\.\.\/node_modules/);
-  assert.doesNotMatch(openchatImWukongimAdapterPackageJson, /\.\.\/\.\.\/\.\.\/node_modules/);
-  assert.match(openchatImSdkPackageJson, /"build"\s*:\s*"vite build"/);
-  assert.match(openchatImSdkPackageJson, /"typecheck"\s*:\s*"tsc -p tsconfig\.build\.json --noEmit"/);
-  assert.match(openchatImSdkPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"typescript"/);
-  assert.match(openchatImSdkPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite"/);
-  assert.match(openchatImSdkPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite-plugin-dts"/);
-  assert.match(openchatImWukongimAdapterPackageJson, /"build"\s*:\s*"vite build"/);
-  assert.match(openchatImWukongimAdapterPackageJson, /"typecheck"\s*:\s*"tsc -p tsconfig\.build\.json --noEmit"/);
-  assert.match(openchatImWukongimAdapterPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"typescript"/);
-  assert.match(openchatImWukongimAdapterPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite"/);
-  assert.match(openchatImWukongimAdapterPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite-plugin-dts"/);
   assert.match(nodeTypeScriptRunner, /--experimental-transform-types/);
   assert.match(nodeTypeScriptRunner, /--disable-warning=ExperimentalWarning/);
   assert.match(nodeTypeScriptRunner, /ts-extension-loader\.mjs/);
@@ -519,5 +519,6 @@ runTest('sdkwork-claw-core llm service routes generation through the active inst
   assert.doesNotMatch(llmServiceSource, /@google\/genai/);
   assert.doesNotMatch(llmServiceSource, /GoogleGenAI/);
   assert.doesNotMatch(llmServiceSource, /process\.env\.GEMINI_API_KEY/);
-  assert.match(llmServiceSource, /Select or start an OpenClaw-compatible instance/);
+  assert.doesNotMatch(llmServiceSource, /runtimeKind === 'openclaw'/);
+  assert.match(llmServiceSource, /Select or start an AI-compatible instance/);
 });

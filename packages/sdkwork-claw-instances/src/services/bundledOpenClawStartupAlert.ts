@@ -1,5 +1,5 @@
 import type {
-  StudioBuiltInOpenClawActivationStage,
+  StudioInstanceActivationStage,
   StudioInstanceDetailRecord,
 } from '@sdkwork/claw-types';
 
@@ -24,6 +24,9 @@ type BundledOpenClawStartupDetail = Pick<
   StudioInstanceDetailRecord,
   'instance' | 'lifecycle' | 'observability' | 'artifacts'
 >;
+
+export const BUNDLED_OPENCLAW_ACTIVATION_DETAIL_NOTE_PREFIX =
+  'Last built-in OpenClaw activation detail stage: ';
 
 export function buildBundledOpenClawStartupAlert(
   detail: BundledOpenClawStartupDetail | null | undefined,
@@ -58,7 +61,7 @@ function resolveBundledStartupFailureActionDetailKey(startupError: string) {
   if (
     normalizedError.includes('access denied') ||
     normalizedError.includes('os error 5') ||
-    startupError.includes('鎷掔粷璁块棶')
+    startupError.includes('\u62D2\u7EDD\u8BBF\u95EE')
   ) {
     return 'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.actions.runtimeAccessDenied';
   }
@@ -81,6 +84,8 @@ function buildBundledStartupFailureDiagnostics(
 ): BundledOpenClawStartupAlertDiagnostic[] {
   const diagnostics: BundledOpenClawStartupAlertDiagnostic[] = [];
   const lastActivationStage = detail.lifecycle.lastActivationStage || null;
+  const activationDetailStage =
+    readBundledOpenClawActivationDetailStage(detail.lifecycle.notes) || null;
   const gatewayLogPath = detail.observability.logFilePath?.trim();
   const desktopMainLogPath =
     detail.artifacts
@@ -94,7 +99,7 @@ function buildBundledStartupFailureDiagnostics(
         'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.lastActivationStage.label',
       detailKey:
         'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.lastActivationStage.description',
-      value: formatBundledStartupStage(lastActivationStage),
+      value: activationDetailStage || formatBundledStartupStage(lastActivationStage),
     });
   }
 
@@ -125,20 +130,29 @@ function buildBundledStartupFailureDiagnostics(
   return diagnostics;
 }
 
-function formatBundledStartupStage(stage: StudioBuiltInOpenClawActivationStage) {
+export function isBundledOpenClawActivationDetailNote(note: string) {
+  return note.startsWith(BUNDLED_OPENCLAW_ACTIVATION_DETAIL_NOTE_PREFIX);
+}
+
+function readBundledOpenClawActivationDetailStage(notes: string[]) {
+  for (const note of notes) {
+    if (!isBundledOpenClawActivationDetailNote(note)) {
+      continue;
+    }
+
+    const stage = note
+      .slice(BUNDLED_OPENCLAW_ACTIVATION_DETAIL_NOTE_PREFIX.length)
+      .trim();
+    if (stage) {
+      return stage;
+    }
+  }
+
+  return null;
+}
+
+function formatBundledStartupStage(stage: StudioInstanceActivationStage) {
   switch (stage) {
-    case 'prepareRuntimeActivation':
-      return 'Prepare Runtime Activation';
-    case 'bundledRuntimeReady':
-      return 'Bundled Runtime Ready';
-    case 'gatewayConfigured':
-      return 'Gateway Configured';
-    case 'localAiProxyReady':
-      return 'Local AI Proxy Ready';
-    case 'desktopKernelRunning':
-      return 'Desktop Kernel Running';
-    case 'builtInInstanceOnline':
-      return 'Built-In Instance Online';
     default:
       return String(stage)
         .replace(/([a-z])([A-Z])/g, '$1 $2')
@@ -146,3 +160,4 @@ function formatBundledStartupStage(stage: StudioBuiltInOpenClawActivationStage) 
         .replace(/\b\w/g, (segment: string) => segment.toUpperCase());
   }
 }
+

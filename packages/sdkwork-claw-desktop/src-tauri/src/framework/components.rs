@@ -1,4 +1,3 @@
-use crate::framework::openclaw_release::bundled_openclaw_version;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,44 +35,7 @@ pub struct PackagedComponentDefinition {
 }
 
 pub fn bundled_component_defaults() -> Vec<PackagedComponentDefinition> {
-    vec![
-        PackagedComponentDefinition {
-            id: "openclaw".to_string(),
-            display_name: "OpenClaw".to_string(),
-            kind: PackagedComponentKind::NodeApp,
-            bundled_version: bundled_openclaw_version().to_string(),
-            startup_mode: PackagedComponentStartupMode::AutoStart,
-            install_subdir: "modules/openclaw/current".to_string(),
-            upgrade_channel: "stable".to_string(),
-            service_ids: vec!["openclaw".to_string()],
-            source_url: None,
-            commit: None,
-        },
-        PackagedComponentDefinition {
-            id: "zeroclaw".to_string(),
-            display_name: "ZeroClaw".to_string(),
-            kind: PackagedComponentKind::Binary,
-            bundled_version: "bundled".to_string(),
-            startup_mode: PackagedComponentStartupMode::Manual,
-            install_subdir: "modules/zeroclaw/current".to_string(),
-            upgrade_channel: "stable".to_string(),
-            service_ids: vec!["zeroclaw".to_string()],
-            source_url: None,
-            commit: None,
-        },
-        PackagedComponentDefinition {
-            id: "ironclaw".to_string(),
-            display_name: "IronClaw".to_string(),
-            kind: PackagedComponentKind::Binary,
-            bundled_version: "bundled".to_string(),
-            startup_mode: PackagedComponentStartupMode::Manual,
-            install_subdir: "modules/ironclaw/current".to_string(),
-            upgrade_channel: "stable".to_string(),
-            service_ids: vec!["ironclaw".to_string()],
-            source_url: None,
-            commit: None,
-        },
-    ]
+    Vec::new()
 }
 
 pub fn default_startup_component_ids(definitions: &[PackagedComponentDefinition]) -> Vec<String> {
@@ -91,18 +53,7 @@ mod tests {
     #[test]
     fn bundled_component_defaults_cover_packaged_platform_contract() {
         let definitions = bundled_component_defaults();
-        let ids = definitions
-            .iter()
-            .map(|definition| definition.id.as_str())
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            ids,
-            vec!["openclaw", "zeroclaw", "ironclaw"]
-        );
-        assert_eq!(
-            default_startup_component_ids(&definitions),
-            vec!["openclaw".to_string()]
-        );
+        assert!(definitions.is_empty());
+        assert!(default_startup_component_ids(&definitions).is_empty());
     }
 }

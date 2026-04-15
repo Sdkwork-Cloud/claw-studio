@@ -26,6 +26,7 @@ interface InstanceFilesWorkspaceBaseProps {
   instanceId: string;
   files: InstanceWorkbenchFile[];
   runtimeKind?: string | null;
+  transportKind?: string | null;
   isBuiltIn?: boolean;
   isLoading?: boolean;
   onReload?: () => Promise<void> | void;
@@ -145,6 +146,7 @@ export function InstanceFilesWorkspace(props: InstanceFilesWorkspaceProps) {
         file: selectedFile,
         loadedFileContents,
         runtimeKind: props.runtimeKind,
+        transportKind: props.transportKind,
         isBuiltIn: props.isBuiltIn,
       })
     : false;
@@ -153,6 +155,7 @@ export function InstanceFilesWorkspace(props: InstanceFilesWorkspaceProps) {
         file: selectedFile,
         loadedFileContents,
         runtimeKind: props.runtimeKind,
+        transportKind: props.transportKind,
         isBuiltIn: props.isBuiltIn,
       })
     : '';
@@ -217,6 +220,7 @@ export function InstanceFilesWorkspace(props: InstanceFilesWorkspaceProps) {
       file,
       loadedFileContents,
       runtimeKind: props.runtimeKind,
+      transportKind: props.transportKind,
       isBuiltIn: props.isBuiltIn,
     });
 

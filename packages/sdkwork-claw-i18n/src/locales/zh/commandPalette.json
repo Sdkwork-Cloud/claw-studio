@@ -38,8 +38,8 @@
       "subtitle": "下载 AI 模型"
     },
     "upload": {
-      "title": "前往 Claw联网",
-      "subtitle": "管理 OpenClaw 注册中心连接和网关接入"
+      "title": "前往 OpenClaw 联网",
+      "subtitle": "查看本地 OpenClaw 网关端点与注册表关联连通性"
     },
     "instances": {
       "title": "前往实例",
@@ -47,7 +47,7 @@
     },
     "kernel": {
       "title": "前往内核中心",
-      "subtitle": "查看内置 OpenClaw 宿主、端点与运行来源"
+      "subtitle": "查看内核治理归属、端点与运行来源"
     },
     "nodes": {
       "title": "前往节点",

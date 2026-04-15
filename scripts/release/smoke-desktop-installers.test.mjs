@@ -22,41 +22,34 @@ function writeArtifactFile(releaseAssetsDir, relativePath) {
 function buildInstallerContract(platform) {
   if (platform === 'windows') {
     return {
-      version: 1,
+      version: 2,
       platform: 'windows',
       delivery: 'archive-only-resources',
-      installMode: 'postinstall-prewarm',
+      installMode: 'first-launch-archive-extract',
       bundledResourceRoot: 'resources/openclaw/',
       runtimeArchive: 'resources/openclaw/runtime.zip',
       sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json',
-      installerHookPath: 'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh',
-      prepareCommand: '--prepare-bundled-openclaw-runtime',
-      prepareFailureMode: 'abort-install',
-      cliRegistrationCommand: '--register-openclaw-cli',
-      cliRegistrationFailureMode: 'best-effort',
+      requiredExternalRuntimes: ['nodejs'],
     };
   }
 
   if (platform === 'linux') {
     return {
-      version: 1,
+      version: 2,
       platform: 'linux',
       delivery: 'archive-only-resources',
-      installMode: 'postinstall-prewarm',
+      installMode: 'first-launch-archive-extract',
       bundledResourceRoot: 'resources/openclaw/',
       runtimeArchive: 'resources/openclaw/runtime.zip',
       sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.linux.conf.json',
-      postInstallScriptPath: 'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
+      requiredExternalRuntimes: ['nodejs'],
       packageFormats: ['deb', 'rpm'],
-      prepareCommand: '--prepare-bundled-openclaw-runtime',
-      prepareFailureMode: 'abort-install',
-      installRootOverrides: ['SDKWORK_CLAW_INSTALL_ROOT', 'RPM_INSTALL_PREFIX', '--install-root'],
     };
   }
 
   if (platform === 'macos') {
     return {
-      version: 1,
+      version: 2,
       platform: 'macos',
       delivery: 'archive-only-resources',
       installMode: 'preexpanded-managed-layout',
@@ -65,10 +58,99 @@ function buildInstallerContract(platform) {
       sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json',
       stagedInstallRootSource: 'generated/release/macos-install-root/',
       stagedInstallRootTarget: 'MacOS/',
+      requiredExternalRuntimes: ['nodejs'],
     };
   }
 
   throw new Error(`Unsupported installer contract platform: ${platform}`);
+}
+
+function buildPackageProfileManifestFields(packageProfileId) {
+  if (packageProfileId === 'openclaw-only') {
+    return {
+      includedKernelIds: ['openclaw'],
+      defaultEnabledKernelIds: ['openclaw'],
+      requiredExternalRuntimes: ['nodejs'],
+      optionalExternalRuntimes: [],
+      launcherKinds: ['externalLocal'],
+      kernelPlatformSupport: {
+        openclaw: {
+          windows: 'native',
+          macos: 'native',
+          linux: 'native',
+        },
+      },
+    };
+  }
+
+  if (packageProfileId === 'hermes-only') {
+    return {
+      includedKernelIds: ['hermes'],
+      defaultEnabledKernelIds: ['hermes'],
+      requiredExternalRuntimes: ['python', 'uv'],
+      optionalExternalRuntimes: ['nodejs'],
+      launcherKinds: ['externalWslOrRemote'],
+      kernelPlatformSupport: {
+        hermes: {
+          windows: 'wsl2OrRemoteOnly',
+          macos: 'native',
+          linux: 'native',
+        },
+      },
+    };
+  }
+
+  if (packageProfileId === 'dual-kernel') {
+    return {
+      includedKernelIds: ['openclaw', 'hermes'],
+      defaultEnabledKernelIds: ['openclaw', 'hermes'],
+      requiredExternalRuntimes: ['nodejs', 'python', 'uv'],
+      optionalExternalRuntimes: [],
+      launcherKinds: ['externalLocal', 'externalWslOrRemote'],
+      kernelPlatformSupport: {
+        openclaw: {
+          windows: 'native',
+          macos: 'native',
+          linux: 'native',
+        },
+        hermes: {
+          windows: 'wsl2OrRemoteOnly',
+          macos: 'native',
+          linux: 'native',
+        },
+      },
+    };
+  }
+
+  throw new Error(`Unsupported test package profile: ${packageProfileId}`);
+}
+
+function buildHermesExternalRuntimePolicy() {
+  return {
+    packagingPolicy: 'external-runtime-only',
+    launcherKinds: ['externalWslOrRemote'],
+    platformSupport: {
+      windows: 'wsl2OrRemoteOnly',
+      macos: 'native',
+      linux: 'native',
+    },
+    runtimeRequirements: ['python', 'uv'],
+    optionalRuntimeRequirements: ['nodejs'],
+  };
+}
+
+function buildOpenClawExternalRuntimePolicy() {
+  return {
+    packagingPolicy: 'external-runtime-only',
+    launcherKinds: ['externalLocal'],
+    platformSupport: {
+      windows: 'native',
+      macos: 'native',
+      linux: 'native',
+    },
+    runtimeRequirements: ['nodejs'],
+    optionalRuntimeRequirements: [],
+  };
 }
 
 function writeDesktopManifest({
@@ -76,8 +158,18 @@ function writeDesktopManifest({
   platform,
   arch,
   artifacts,
-  openClawInstallerContract = buildInstallerContract(platform),
+  packageProfileId = 'openclaw-only',
+  includedKernelIds,
+  defaultEnabledKernelIds,
+  requiredExternalRuntimes,
+  optionalExternalRuntimes,
+  launcherKinds,
+  kernelPlatformSupport,
+  kernelInstallContracts = {
+    openclaw: buildInstallerContract(platform),
+  },
 }) {
+  const packageProfileManifestFields = buildPackageProfileManifestFields(packageProfileId);
   const manifestPath = path.join(
     releaseAssetsDir,
     'desktop',
@@ -90,9 +182,22 @@ function writeDesktopManifest({
     profileId: 'claw-studio',
     productName: 'Claw Studio',
     releaseTag: 'release-2026-04-05-01',
+    packageProfileId,
+    includedKernelIds: includedKernelIds ?? packageProfileManifestFields.includedKernelIds,
+    defaultEnabledKernelIds:
+      defaultEnabledKernelIds ?? packageProfileManifestFields.defaultEnabledKernelIds,
+    requiredExternalRuntimes:
+      requiredExternalRuntimes ?? packageProfileManifestFields.requiredExternalRuntimes,
+    optionalExternalRuntimes:
+      optionalExternalRuntimes ?? packageProfileManifestFields.optionalExternalRuntimes,
+    launcherKinds: launcherKinds ?? packageProfileManifestFields.launcherKinds,
+    kernelPlatformSupport:
+      kernelPlatformSupport ?? packageProfileManifestFields.kernelPlatformSupport,
     platform,
     arch,
-    openClawInstallerContract,
+    ...(kernelInstallContracts !== undefined
+      ? { kernelInstallContracts }
+      : {}),
     artifacts,
   });
 
@@ -102,7 +207,6 @@ function writeDesktopManifest({
 function buildInstallReadyLayout({
   mode,
   installKey,
-  nodeEntryRelativePath = 'runtime/package/node_modules/node/bin/node',
   cliEntryRelativePath = 'runtime/package/node_modules/openclaw/openclaw.mjs',
 } = {}) {
   return {
@@ -112,7 +216,6 @@ function buildInstallReadyLayout({
     requiresArchiveExtractionOnFirstLaunch: false,
     manifestRelativePath: 'manifest.json',
     runtimeSidecarRelativePath: 'runtime/.sdkwork-openclaw-runtime.json',
-    nodeEntryRelativePath,
     cliEntryRelativePath,
   };
 }
@@ -196,7 +299,7 @@ test('desktop installer smoke uses the default local planner when no installer f
       arch: 'x64',
       verifyDesktopOpenClawReleaseAssetsFn: async () => ({
         installReadyLayout: buildInstallReadyLayout({
-          mode: 'simulated-prewarm',
+          mode: 'archive-extract-ready',
           installKey: '2026.4.7-windows-x64',
         }),
       }),
@@ -208,6 +311,124 @@ test('desktop installer smoke uses the default local planner when no installer f
     assert.equal(result.installPlans[0].plan.request.platform, 'windows');
     assert.equal(result.installPlans[0].plan.request.format, 'exe');
     assert.equal(result.installPlans[0].plan.request.dryRun, true);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('desktop installer smoke skips OpenClaw runtime verification for hermes-only desktop package profiles', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-hermes-only-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const installerRelativePath = 'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe';
+
+  try {
+    writeArtifactFile(releaseAssetsDir, installerRelativePath);
+    writeDesktopManifest({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+      packageProfileId: 'hermes-only',
+      includedKernelIds: ['hermes'],
+      defaultEnabledKernelIds: ['hermes'],
+      kernelInstallContracts: undefined,
+      artifacts: [
+        {
+          name: 'Claw Studio_0.1.0_x64-setup.exe',
+          relativePath: installerRelativePath,
+          family: 'desktop',
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'installer',
+          sha256: 'synthetic',
+          size: readFileSync(path.join(releaseAssetsDir, installerRelativePath)).length,
+        },
+      ],
+    });
+
+    const result = await smoke.smokeDesktopInstallers({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+      verifyDesktopOpenClawReleaseAssetsFn: async () => {
+        throw new Error('hermes-only package must not invoke OpenClaw release asset verification');
+      },
+      readDesktopOpenClawInstallerContractFn: async () => {
+        throw new Error('hermes-only package must not read an OpenClaw installer contract');
+      },
+    });
+
+    assert.equal(result.installPlans.length, 1);
+    const smokeReportPath = smoke.resolveDesktopInstallerSmokeReportPath({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+    });
+    const smokeReport = JSON.parse(readFileSync(smokeReportPath, 'utf8'));
+    assert.equal('kernelInstallContracts' in smokeReport, false);
+    assert.deepEqual(smokeReport.kernelInstallReadiness, {
+      hermes: {
+        externalRuntimePolicy: buildHermesExternalRuntimePolicy(),
+      },
+    });
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('desktop installer smoke rejects desktop manifests whose package-profile metadata drifts from the active kernel profile contract', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-profile-drift-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const installerRelativePath = 'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe';
+
+  try {
+    writeArtifactFile(releaseAssetsDir, installerRelativePath);
+    writeDesktopManifest({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+      packageProfileId: 'hermes-only',
+      kernelPlatformSupport: {
+        hermes: {
+          windows: 'native',
+          macos: 'native',
+          linux: 'native',
+        },
+      },
+      kernelInstallContracts: undefined,
+      artifacts: [
+        {
+          name: 'Claw Studio_0.1.0_x64-setup.exe',
+          relativePath: installerRelativePath,
+          family: 'desktop',
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'installer',
+          sha256: 'synthetic',
+          size: readFileSync(path.join(releaseAssetsDir, installerRelativePath)).length,
+        },
+      ],
+    });
+
+    await assert.rejects(
+      () => smoke.smokeDesktopInstallers({
+        releaseAssetsDir,
+        platform: 'windows',
+        arch: 'x64',
+        verifyDesktopOpenClawReleaseAssetsFn: async () => {
+          throw new Error('profile-drift hermes-only package must not invoke OpenClaw verification');
+        },
+        readDesktopOpenClawInstallerContractFn: async () => {
+          throw new Error('profile-drift hermes-only package must not read an OpenClaw installer contract');
+        },
+      }),
+      /package-profile metadata/i,
+    );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -254,7 +475,7 @@ test('desktop installer smoke creates dry-run install plans for Windows installe
         callOrder.push('verify');
         return {
           installReadyLayout: buildInstallReadyLayout({
-            mode: 'simulated-prewarm',
+            mode: 'archive-extract-ready',
             installKey: '2026.4.2-windows-x64',
           }),
         };
@@ -305,11 +526,16 @@ test('desktop installer smoke creates dry-run install plans for Windows installe
     );
     assert.deepEqual(smokeReport.installableArtifactRelativePaths, [installerRelativePath]);
     assert.deepEqual(
-      smokeReport.installReadyLayout,
-      buildInstallReadyLayout({
-        mode: 'simulated-prewarm',
-        installKey: '2026.4.2-windows-x64',
-      }),
+      smokeReport.kernelInstallReadiness,
+      {
+        openclaw: {
+          externalRuntimePolicy: buildOpenClawExternalRuntimePolicy(),
+          installReadyLayout: buildInstallReadyLayout({
+            mode: 'archive-extract-ready',
+            installKey: '2026.4.2-windows-x64',
+          }),
+        },
+      },
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
@@ -363,7 +589,7 @@ test('desktop installer smoke plans every Linux installable artifact through loc
       arch: 'x64',
       verifyDesktopOpenClawReleaseAssetsFn: async () => ({
         installReadyLayout: buildInstallReadyLayout({
-          mode: 'simulated-prewarm',
+          mode: 'archive-extract-ready',
           installKey: '2026.4.2-linux-x64',
         }),
       }),
@@ -509,7 +735,7 @@ test('desktop installer smoke rejects install-ready layout evidence whose mode d
           notes: [],
         }),
       }),
-      /install-ready|installReadyLayout|simulated-prewarm/i,
+      /install-ready|installReadyLayout|archive-extract-ready/i,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
@@ -664,18 +890,14 @@ test('desktop installer smoke rejects manifests whose persisted OpenClaw install
   const releaseAssetsDir = path.join(tempRoot, 'release-assets');
   const installerRelativePath = 'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe';
   const expectedInstallerContract = {
-    version: 1,
+    version: 2,
     platform: 'windows',
     delivery: 'archive-only-resources',
-    installMode: 'postinstall-prewarm',
+    installMode: 'first-launch-archive-extract',
     bundledResourceRoot: 'resources/openclaw/',
     runtimeArchive: 'resources/openclaw/runtime.zip',
     sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json',
-    installerHookPath: 'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh',
-    prepareCommand: '--prepare-bundled-openclaw-runtime',
-    prepareFailureMode: 'abort-install',
-    cliRegistrationCommand: '--register-openclaw-cli',
-    cliRegistrationFailureMode: 'best-effort',
+    requiredExternalRuntimes: ['nodejs'],
   };
 
   try {
@@ -684,7 +906,7 @@ test('desktop installer smoke rejects manifests whose persisted OpenClaw install
       releaseAssetsDir,
       platform: 'windows',
       arch: 'x64',
-      openClawInstallerContract: null,
+      kernelInstallContracts: null,
       artifacts: [
         {
           name: 'Claw Studio_0.1.0_x64-setup.exe',
@@ -706,7 +928,7 @@ test('desktop installer smoke rejects manifests whose persisted OpenClaw install
         arch: 'x64',
         verifyDesktopOpenClawReleaseAssetsFn: async () => ({
           installReadyLayout: buildInstallReadyLayout({
-            mode: 'simulated-prewarm',
+            mode: 'archive-extract-ready',
             installKey: '2026.4.2-windows-x64',
           }),
         }),
@@ -724,9 +946,11 @@ test('desktop installer smoke rejects manifests whose persisted OpenClaw install
     );
 
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-    manifest.openClawInstallerContract = {
-      ...expectedInstallerContract,
-      prepareFailureMode: 'defer-install',
+    manifest.kernelInstallContracts = {
+      openclaw: {
+        ...expectedInstallerContract,
+        prepareFailureMode: 'defer-install',
+      },
     };
     writeJsonFile(manifestPath, manifest);
 
@@ -737,7 +961,7 @@ test('desktop installer smoke rejects manifests whose persisted OpenClaw install
         arch: 'x64',
         verifyDesktopOpenClawReleaseAssetsFn: async () => ({
           installReadyLayout: buildInstallReadyLayout({
-            mode: 'simulated-prewarm',
+            mode: 'archive-extract-ready',
             installKey: '2026.4.2-windows-x64',
           }),
         }),

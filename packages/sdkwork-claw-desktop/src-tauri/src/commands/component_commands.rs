@@ -71,7 +71,7 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
-    fn desktop_component_catalog_exposes_component_capability_surface() {
+    fn desktop_component_catalog_is_empty_until_support_components_are_registered() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let logger = init_logger(&paths).expect("logger");
@@ -83,16 +83,8 @@ mod tests {
         let state = AppState::from_context(context);
 
         let catalog = desktop_component_catalog_from_state(&state).expect("component catalog");
-        let openclaw = catalog
-            .components
-            .iter()
-            .find(|component| component.id == "openclaw")
-            .expect("openclaw component");
-
-        assert!(openclaw
-            .capabilities
-            .iter()
-            .any(|capability| capability.key == "gateway"));
+        assert!(catalog.default_startup_component_ids.is_empty());
+        assert!(catalog.components.is_empty());
     }
 
     #[test]

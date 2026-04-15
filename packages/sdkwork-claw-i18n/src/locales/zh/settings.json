@@ -51,7 +51,7 @@
     "data": "数据与隐私"
   },
   "kernelCenter": {
-    "description": "内置 OpenClaw 内核被视为产品的必备基础设施。这里会如实展示当前宿主归属、活动端点、存储配置与运行来源，不会掩盖任何回退行为。",
+    "description": "这里会如实展示当前内核治理归属、活动端点、存储配置与运行来源，不会掩盖任何回退行为。",
     "actions": {
       "refresh": "刷新",
       "ensureRunning": "确保运行",
@@ -114,7 +114,7 @@
       "manual": "手动启动"
     },
     "installSources": {
-      "bundled": "内置",
+      "bundled": "随包提供",
       "external": "外部",
       "remote": "远程",
       "unknown": "未知"
@@ -195,7 +195,7 @@
       "websocketUrl": "WebSocket URL",
       "preferredPort": "首选端口",
       "activePort": "活动端口",
-      "openclawVersion": "OpenClaw 版本",
+      "runtimeVersion": "内核版本",
       "nodeVersion": "Node.js 版本",
       "activeProfile": "活动配置",
       "profilePath": "配置路径",

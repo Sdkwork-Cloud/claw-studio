@@ -95,13 +95,15 @@ withTempDir((tempDir) => {
   const srcTauriDir = path.join(tempDir, 'src-tauri');
   const targetDir = path.join(srcTauriDir, 'target');
   writeJson(path.join(srcTauriDir, 'resources', 'openclaw', 'manifest.json'), {
-    schemaVersion: 1,
+    schemaVersion: 2,
     runtimeId: 'openclaw',
     openclawVersion: DEFAULT_OPENCLAW_VERSION,
-    nodeVersion: DEFAULT_NODE_VERSION,
+    requiredExternalRuntimes: ['nodejs'],
+    requiredExternalRuntimeVersions: {
+      nodejs: DEFAULT_NODE_VERSION,
+    },
     platform: 'windows',
     arch: 'x64',
-    nodeRelativePath: 'runtime/node/node.exe',
     cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
   });
   writeJson(path.join(targetDir, 'dev', 'debug', 'resources', 'openclaw-runtime', 'manifest.json'), {
@@ -111,7 +113,6 @@ withTempDir((tempDir) => {
     nodeVersion: '22.16.0',
     platform: 'windows',
     arch: 'x64',
-    nodeRelativePath: 'runtime/node/node.exe',
     cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
   });
 
@@ -129,13 +130,15 @@ withTempDir((tempDir) => {
   const srcTauriDir = path.join(tempDir, 'src-tauri');
   const targetDir = path.join(srcTauriDir, 'target');
   const sourceManifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     runtimeId: 'openclaw',
     openclawVersion: DEFAULT_OPENCLAW_VERSION,
-    nodeVersion: DEFAULT_NODE_VERSION,
+    requiredExternalRuntimes: ['nodejs'],
+    requiredExternalRuntimeVersions: {
+      nodejs: DEFAULT_NODE_VERSION,
+    },
     platform: 'windows',
     arch: 'x64',
-    nodeRelativePath: 'runtime/node/node.exe',
     cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
   };
   writeJson(path.join(srcTauriDir, 'resources', 'openclaw', 'manifest.json'), sourceManifest);
@@ -159,13 +162,15 @@ withTempDir((tempDir) => {
   const srcTauriDir = path.join(desktopPackageDir, 'src-tauri');
   const packageTargetDir = path.join(desktopPackageDir, '.tauri-target');
   writeJson(path.join(srcTauriDir, 'resources', 'openclaw', 'manifest.json'), {
-    schemaVersion: 1,
+    schemaVersion: 2,
     runtimeId: 'openclaw',
     openclawVersion: DEFAULT_OPENCLAW_VERSION,
-    nodeVersion: DEFAULT_NODE_VERSION,
+    requiredExternalRuntimes: ['nodejs'],
+    requiredExternalRuntimeVersions: {
+      nodejs: DEFAULT_NODE_VERSION,
+    },
     platform: 'windows',
     arch: 'x64',
-    nodeRelativePath: 'runtime/node/node.exe',
     cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
   });
   writeJson(
@@ -177,7 +182,6 @@ withTempDir((tempDir) => {
       nodeVersion: DEFAULT_NODE_VERSION,
       platform: 'windows',
       arch: 'x64',
-      nodeRelativePath: 'runtime/node/node.exe',
       cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
     },
   );
@@ -209,7 +213,6 @@ withTempDir((tempDir) => {
     nodeVersion: DEFAULT_NODE_VERSION,
     platform: 'windows',
     arch: 'x64',
-    nodeRelativePath: 'runtime/node/node.exe',
     cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
   });
 

@@ -80,7 +80,7 @@ function createDetail(overrides: Partial<StudioInstanceDetailRecord> = {}): Stud
       owner: 'appManaged',
       startStopSupported: true,
       configWritable: true,
-      notes: ['Claw Studio manages the bundled OpenClaw runtime.'],
+      notes: ['Claw Studio manages the built-in OpenClaw runtime.'],
     },
     storage: {
       status: 'ready',
@@ -250,7 +250,7 @@ await runTest(
       summary.entries.find((entry) => entry.id === 'managementScope')?.value,
       'Provider Center + config workspace',
     );
-    assert.deepEqual(summary.notes, ['Claw Studio manages the bundled OpenClaw runtime.']);
+    assert.deepEqual(summary.notes, ['Claw Studio manages the built-in OpenClaw runtime.']);
   },
 );
 
@@ -376,6 +376,75 @@ await runTest(
 );
 
 await runTest(
+  'buildInstanceManagementSummary reports partial runtime control for non-OpenClaw instances when a writable remote management surface is exposed',
+  () => {
+    const detail = createDetail({
+      instance: {
+        ...createDetail().instance,
+        id: 'custom-managed-instance',
+        name: 'Custom Managed Instance',
+        runtimeKind: 'custom',
+        deploymentMode: 'remote',
+        transportKind: 'customHttp',
+        isBuiltIn: false,
+        isDefault: false,
+        version: '2026.4.14',
+        typeLabel: 'Custom Remote Runtime',
+        host: '10.0.0.42',
+        port: 8080,
+        baseUrl: 'https://runtime.example.com/v1',
+        websocketUrl: null,
+      },
+      lifecycle: {
+        owner: 'remoteService',
+        startStopSupported: false,
+        configWritable: false,
+        lifecycleControllable: false,
+        workbenchManaged: false,
+        endpointObserved: true,
+        notes: ['Remote control plane exposes a writable management surface.'],
+      },
+      dataAccess: {
+        routes: [
+          {
+            id: 'config-api',
+            label: 'Config API',
+            scope: 'config',
+            mode: 'remoteEndpoint',
+            status: 'ready',
+            target: 'https://runtime.example.com/admin/config',
+            readonly: false,
+            authoritative: true,
+            detail: 'Remote config endpoint.',
+            source: 'runtime',
+          },
+        ],
+      },
+      consoleAccess: null,
+      officialRuntimeNotes: [
+        {
+          title: 'Remote Runtime',
+          content: 'Managed over HTTPS',
+        },
+      ],
+    });
+
+    const summary = buildInstanceManagementSummary(
+      createWorkbench({
+        detail,
+        managedConfigPath: null,
+        agents: [],
+      }),
+    );
+
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'managementScope')?.value,
+      'Partial runtime control',
+    );
+  },
+);
+
+await runTest(
   'buildInstanceManagementSummary does not infer partial runtime control from local-managed deployment metadata alone',
   () => {
     const detail = createDetail({
@@ -468,7 +537,7 @@ await runTest(
 );
 
 await runTest(
-  'buildInstanceManagementSummary surfaces bundled OpenClaw startup failures with actionable readiness-timeout diagnostics',
+  'buildInstanceManagementSummary surfaces built-in OpenClaw startup failures with actionable readiness-timeout diagnostics',
   () => {
     const startupError =
       'timeout: openclaw gateway did not become ready on 127.0.0.1:18871 within 30000ms';
@@ -491,11 +560,12 @@ await runTest(
       ],
       lifecycle: {
         ...createDetail().lifecycle,
-        lastActivationStage: 'gatewayConfigured',
+        lastActivationStage: 'prepareConfig',
         lastError: startupError,
         notes: [
-          'Claw Studio manages the bundled OpenClaw runtime.',
-          `Last bundled OpenClaw start error: ${startupError}`,
+          'Claw Studio manages the built-in OpenClaw runtime.',
+          'Last built-in OpenClaw activation detail stage: Gateway Configured',
+          `Last built-in OpenClaw start error: ${startupError}`,
         ],
       },
     });
@@ -543,12 +613,12 @@ await runTest(
         },
       ],
     });
-    assert.deepEqual(summary.notes, ['Claw Studio manages the bundled OpenClaw runtime.']);
+    assert.deepEqual(summary.notes, ['Claw Studio manages the built-in OpenClaw runtime.']);
   },
 );
 
 await runTest(
-  'buildInstanceManagementSummary recommends checking file locks when bundled startup fails with access denied',
+  'buildInstanceManagementSummary recommends checking file locks when built-in startup fails with access denied',
   () => {
     const startupError =
       'failed to finalize bundled runtime install root D:/OpenClaw/runtimes/openclaw: 拒绝访问。 (os error 5)';
@@ -571,11 +641,12 @@ await runTest(
       ],
       lifecycle: {
         ...createDetail().lifecycle,
-        lastActivationStage: 'prepareRuntimeActivation',
+        lastActivationStage: 'prepareInstall',
         lastError: startupError,
         notes: [
-          'Claw Studio manages the bundled OpenClaw runtime.',
-          `Last bundled OpenClaw start error: ${startupError}`,
+          'Claw Studio manages the built-in OpenClaw runtime.',
+          'Last built-in OpenClaw activation detail stage: Prepare Runtime Activation',
+          `Last built-in OpenClaw start error: ${startupError}`,
         ],
       },
     });

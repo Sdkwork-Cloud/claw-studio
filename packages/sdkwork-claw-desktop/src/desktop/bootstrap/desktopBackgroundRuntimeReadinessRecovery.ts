@@ -1,5 +1,9 @@
 import type { StartupAppearanceSnapshot } from './startupPresentation.ts';
 
+export type BackgroundRuntimeReadinessRecoveryMode =
+  | 'managed-openclaw'
+  | 'generic-hosted-runtime';
+
 export interface BackgroundRuntimeReadinessRecoveryToastCopy {
   retryActionLabel: string;
   detailsActionLabel: string;
@@ -13,13 +17,19 @@ export interface BackgroundRuntimeReadinessRecoveryToastCopy {
 }
 
 interface RetryBackgroundRuntimeReadinessRecoveryArgs {
-  instanceId: string;
+  recoveryMode?: BackgroundRuntimeReadinessRecoveryMode;
+  instanceId?: string | null;
   clearFailureState: () => void;
   restartInstance: (instanceId: string) => Promise<unknown>;
   reconnectHostedRuntimeReadiness: () => Promise<void>;
 }
 
+interface ResolveBackgroundRuntimeReadinessRecoveryToastCopyOptions {
+  recoveryMode?: BackgroundRuntimeReadinessRecoveryMode;
+}
+
 export async function retryBackgroundRuntimeReadinessRecovery({
+  recoveryMode = 'managed-openclaw',
   instanceId,
   clearFailureState,
   restartInstance,
@@ -27,9 +37,15 @@ export async function retryBackgroundRuntimeReadinessRecovery({
 }: RetryBackgroundRuntimeReadinessRecoveryArgs): Promise<void> {
   clearFailureState();
 
-  const restartedInstance = await restartInstance(instanceId);
-  if (!restartedInstance) {
-    throw new Error('The built-in OpenClaw instance could not be resolved for retry.');
+  if (recoveryMode === 'managed-openclaw') {
+    if (!instanceId) {
+      throw new Error('The managed OpenClaw instance could not be resolved for retry.');
+    }
+
+    const restartedInstance = await restartInstance(instanceId);
+    if (!restartedInstance) {
+      throw new Error('The built-in OpenClaw instance could not be resolved for retry.');
+    }
   }
 
   await reconnectHostedRuntimeReadiness();
@@ -37,7 +53,42 @@ export async function retryBackgroundRuntimeReadinessRecovery({
 
 export function resolveBackgroundRuntimeReadinessRecoveryToastCopy(
   language: StartupAppearanceSnapshot['language'],
+  options?: ResolveBackgroundRuntimeReadinessRecoveryToastCopyOptions,
 ): BackgroundRuntimeReadinessRecoveryToastCopy {
+  if (options?.recoveryMode === 'generic-hosted-runtime') {
+    if (language === 'zh') {
+      return {
+        retryActionLabel: '\u91cd\u8bd5\u68c0\u67e5',
+        detailsActionLabel: '\u67e5\u770b\u5b9e\u4f8b',
+        loadingTitle: '\u6b63\u5728\u91cd\u8bd5\u684c\u9762\u8fd0\u884c\u65f6\u68c0\u67e5',
+        loadingDescription:
+          'Claw Studio \u6b63\u5728\u91cd\u65b0\u68c0\u67e5\u684c\u9762\u8fd0\u884c\u65f6\u7684\u540e\u53f0\u5c31\u7eea\u72b6\u6001\u3002',
+        startedTitle: '\u5df2\u91cd\u65b0\u53d1\u8d77\u684c\u9762\u8fd0\u884c\u65f6\u68c0\u67e5',
+        startedDescription:
+          'Claw Studio \u5df2\u91cd\u65b0\u53d1\u8d77\u684c\u9762\u8fd0\u884c\u65f6\u5c31\u7eea\u68c0\u67e5\uff0c\u540e\u53f0\u91cd\u8bd5\u4ecd\u5728\u8fdb\u884c\u3002',
+        failedTitle: '\u684c\u9762\u8fd0\u884c\u65f6\u91cd\u8bd5\u5931\u8d25',
+        readyTitle: '\u684c\u9762\u8fd0\u884c\u65f6\u5df2\u5c31\u7eea',
+        readyDescription:
+          'Claw Studio \u5df2\u786e\u8ba4\u684c\u9762\u8fd0\u884c\u65f6\u540e\u53f0\u5c31\u7eea\u72b6\u6001\u5df2\u6062\u590d\u3002',
+      };
+    }
+
+    return {
+      retryActionLabel: 'Retry check',
+      detailsActionLabel: 'View instances',
+      loadingTitle: 'Retrying desktop runtime checks',
+      loadingDescription:
+        'Claw Studio is re-checking desktop runtime readiness in the background.',
+      startedTitle: 'Desktop runtime retry requested',
+      startedDescription:
+        'Claw Studio started another desktop runtime readiness check in the background.',
+      failedTitle: 'Desktop runtime retry failed',
+      readyTitle: 'Desktop runtime is ready',
+      readyDescription:
+        'Claw Studio confirmed the desktop runtime readiness checks recovered successfully.',
+    };
+  }
+
   if (language === 'zh') {
     return {
       retryActionLabel: '\u7acb\u5373\u91cd\u8bd5',
@@ -60,13 +111,13 @@ export function resolveBackgroundRuntimeReadinessRecoveryToastCopy(
     detailsActionLabel: 'View details',
     loadingTitle: 'Retrying built-in OpenClaw',
     loadingDescription:
-      'Claw Studio is restarting the bundled OpenClaw runtime and re-checking background readiness.',
+      'Claw Studio is restarting the built-in OpenClaw runtime and re-checking background readiness.',
     startedTitle: 'Built-in OpenClaw retry requested',
     startedDescription:
-      'Claw Studio restarted the bundled OpenClaw runtime. Background readiness checks are running again.',
+      'Claw Studio restarted the built-in OpenClaw runtime. Background readiness checks are running again.',
     failedTitle: 'Built-in OpenClaw retry failed',
     readyTitle: 'Built-in OpenClaw is ready',
     readyDescription:
-      'Claw Studio confirmed the bundled OpenClaw gateway is available again and ready to use.',
+      'Claw Studio confirmed the built-in OpenClaw gateway is available again and ready to use.',
   };
 }

@@ -10,9 +10,12 @@ use crate::framework::{
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{fs, path::Path};
 
+const BUNDLE_MANIFEST_FILE_NAME: &str = "bundle-manifest.json";
 const COMPONENT_REGISTRY_FILE_NAME: &str = "component-registry.json";
 const SERVICE_DEFAULTS_FILE_NAME: &str = "service-defaults.json";
 const UPGRADE_POLICY_FILE_NAME: &str = "upgrade-policy.json";
+const DEFAULT_KERNEL_PACKAGE_PROFILE_ID: &str = "openclaw-only";
+const DEFAULT_OPENCLAW_KERNEL_ID: &str = "openclaw";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
@@ -56,9 +59,62 @@ impl Default for BundledUpgradePolicy {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct BundledComponentResources {
+    pub bundle_manifest: BundledKernelPackageManifest,
     pub registry: PackagedComponentRegistry,
     pub service_defaults: BundledServiceDefaults,
     pub upgrade_policy: BundledUpgradePolicy,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct BundledKernelPackageManifest {
+    pub version: u32,
+    pub package_profile_id: String,
+    pub included_kernel_ids: Vec<String>,
+    pub default_enabled_kernel_ids: Vec<String>,
+}
+
+impl Default for BundledKernelPackageManifest {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            package_profile_id: DEFAULT_KERNEL_PACKAGE_PROFILE_ID.to_string(),
+            included_kernel_ids: vec![DEFAULT_OPENCLAW_KERNEL_ID.to_string()],
+            default_enabled_kernel_ids: vec![DEFAULT_OPENCLAW_KERNEL_ID.to_string()],
+        }
+    }
+}
+
+impl BundledKernelPackageManifest {
+    fn normalized(self) -> Self {
+        let package_profile_id = normalize_optional_string(Some(self.package_profile_id))
+            .unwrap_or_else(|| DEFAULT_KERNEL_PACKAGE_PROFILE_ID.to_string());
+        let included_kernel_ids = {
+            let normalized = normalize_string_vec(self.included_kernel_ids);
+            if normalized.is_empty() {
+                vec![DEFAULT_OPENCLAW_KERNEL_ID.to_string()]
+            } else {
+                normalized
+            }
+        };
+        let default_enabled_kernel_ids = {
+            let mut normalized = normalize_string_vec(self.default_enabled_kernel_ids)
+                .into_iter()
+                .filter(|kernel_id| included_kernel_ids.contains(kernel_id))
+                .collect::<Vec<_>>();
+            if normalized.is_empty() {
+                normalized = included_kernel_ids.clone();
+            }
+            normalized
+        };
+
+        Self {
+            version: self.version,
+            package_profile_id,
+            included_kernel_ids,
+            default_enabled_kernel_ids,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -74,21 +130,39 @@ impl ComponentRegistryService {
     }
 
     pub fn load_resources_from_dir(&self, directory: &Path) -> Result<BundledComponentResources> {
-        if !directory.join(COMPONENT_REGISTRY_FILE_NAME).exists() {
-            return Ok(BundledComponentResources::from_defaults());
+        let mut resources = BundledComponentResources::from_defaults();
+
+        if directory.join(BUNDLE_MANIFEST_FILE_NAME).exists() {
+            resources.bundle_manifest =
+                read_json_file::<BundledKernelPackageManifest>(&directory.join(BUNDLE_MANIFEST_FILE_NAME))?
+                    .normalized();
         }
 
-        Ok(BundledComponentResources {
-            registry: read_json_file(&directory.join(COMPONENT_REGISTRY_FILE_NAME))?,
-            service_defaults: read_json_file(&directory.join(SERVICE_DEFAULTS_FILE_NAME))?,
-            upgrade_policy: read_json_file(&directory.join(UPGRADE_POLICY_FILE_NAME))?,
-        })
+        if directory.join(COMPONENT_REGISTRY_FILE_NAME).exists() {
+            resources.registry = read_json_file(&directory.join(COMPONENT_REGISTRY_FILE_NAME))?;
+        }
+
+        if directory.join(SERVICE_DEFAULTS_FILE_NAME).exists() {
+            resources.service_defaults = read_json_file(&directory.join(SERVICE_DEFAULTS_FILE_NAME))?;
+        }
+
+        if directory.join(UPGRADE_POLICY_FILE_NAME).exists() {
+            resources.upgrade_policy = read_json_file(&directory.join(UPGRADE_POLICY_FILE_NAME))?;
+        }
+
+        Ok(resources)
     }
 
     pub fn kernel_info(&self, paths: &AppPaths) -> Result<DesktopBundledComponentsInfo> {
         let resources = self.load_resources(paths)?;
 
         Ok(DesktopBundledComponentsInfo {
+            package_profile_id: resources.bundle_manifest.package_profile_id.clone(),
+            included_kernel_ids: resources.bundle_manifest.included_kernel_ids.clone(),
+            default_enabled_kernel_ids: resources
+                .bundle_manifest
+                .default_enabled_kernel_ids
+                .clone(),
             component_count: resources.registry.components.len(),
             default_startup_component_ids: resources
                 .service_defaults
@@ -128,6 +202,7 @@ impl BundledComponentResources {
             .map(|definition| definition.id.clone())
             .collect::<Vec<_>>();
         Self {
+            bundle_manifest: BundledKernelPackageManifest::default(),
             registry: PackagedComponentRegistry {
                 version: 1,
                 components: definitions,
@@ -142,6 +217,31 @@ impl BundledComponentResources {
             upgrade_policy: BundledUpgradePolicy::default(),
         }
     }
+}
+
+fn normalize_optional_string(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
+fn normalize_string_vec(values: Vec<String>) -> Vec<String> {
+    let mut normalized = Vec::new();
+
+    for value in values {
+        if let Some(trimmed) = normalize_optional_string(Some(value)) {
+            if !normalized.contains(&trimmed) {
+                normalized.push(trimmed);
+            }
+        }
+    }
+
+    normalized
 }
 
 fn read_json_file<T>(path: &Path) -> Result<T>
@@ -186,6 +286,7 @@ fn startup_mode_label(mode: &crate::framework::components::PackagedComponentStar
 mod tests {
     use super::ComponentRegistryService;
     use crate::framework::paths::resolve_paths_for_root;
+    use std::fs;
 
     #[test]
     fn component_registry_resources_define_default_bundled_startup_contract() {
@@ -197,16 +298,77 @@ mod tests {
             .load_resources(&paths)
             .expect("bundled component resources");
 
-        assert_eq!(
-            resources.service_defaults.auto_start_component_ids,
-            vec!["openclaw".to_string()]
-        );
-        assert_eq!(
-            resources.service_defaults.manual_component_ids,
-            vec!["zeroclaw".to_string(), "ironclaw".to_string()]
-        );
+        assert!(resources.registry.components.is_empty());
+        assert!(resources.service_defaults.auto_start_component_ids.is_empty());
+        assert!(resources.service_defaults.manual_component_ids.is_empty());
         assert!(resources.service_defaults.embedded_component_ids.is_empty());
+        assert_eq!(resources.bundle_manifest.package_profile_id, "openclaw-only");
+        assert_eq!(resources.bundle_manifest.included_kernel_ids, vec!["openclaw"]);
+        assert_eq!(
+            resources.bundle_manifest.default_enabled_kernel_ids,
+            vec!["openclaw"]
+        );
         assert_eq!(resources.upgrade_policy.default_channel, "stable");
         assert_eq!(resources.upgrade_policy.approval_mode, "manual");
+    }
+
+    #[test]
+    fn component_registry_resources_read_bundle_manifest_kernel_profile_summary() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let service = ComponentRegistryService::new();
+
+        fs::create_dir_all(&paths.foundation_components_dir).expect("foundation components dir");
+        fs::write(
+            paths.foundation_components_dir.join("bundle-manifest.json"),
+            r#"{
+  "version": 1,
+  "packageProfileId": "hermes-only",
+  "includedKernelIds": ["hermes"],
+  "defaultEnabledKernelIds": ["hermes"]
+}
+"#,
+        )
+        .expect("bundle manifest");
+
+        let resources = service
+            .load_resources(&paths)
+            .expect("bundled component resources");
+
+        assert_eq!(resources.bundle_manifest.package_profile_id, "hermes-only");
+        assert_eq!(resources.bundle_manifest.included_kernel_ids, vec!["hermes"]);
+        assert_eq!(
+            resources.bundle_manifest.default_enabled_kernel_ids,
+            vec!["hermes"]
+        );
+    }
+
+    #[test]
+    fn component_registry_resources_normalize_default_enabled_kernels_to_included_kernels() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let service = ComponentRegistryService::new();
+
+        fs::create_dir_all(&paths.foundation_components_dir).expect("foundation components dir");
+        fs::write(
+            paths.foundation_components_dir.join("bundle-manifest.json"),
+            r#"{
+  "version": 1,
+  "packageProfileId": "dual-kernel",
+  "includedKernelIds": ["openclaw", "hermes"],
+  "defaultEnabledKernelIds": ["missing-kernel"]
+}
+"#,
+        )
+        .expect("bundle manifest");
+
+        let resources = service
+            .load_resources(&paths)
+            .expect("bundled component resources");
+
+        assert_eq!(
+            resources.bundle_manifest.default_enabled_kernel_ids,
+            vec!["openclaw", "hermes"]
+        );
     }
 }

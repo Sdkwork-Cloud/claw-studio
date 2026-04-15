@@ -386,7 +386,7 @@ impl ServerStudioPublicApiProvider {
         let mut baseline = json!({
             "id": BUILT_IN_INSTANCE_ID,
             "name": "Local Built-In",
-            "description": "Bundled local OpenClaw runtime managed by Claw Studio.",
+            "description": "Packaged local OpenClaw kernel managed by Claw Studio.",
             "runtimeKind": "openclaw",
             "deploymentMode": "local-managed",
             "transportKind": "openclawGatewayWs",

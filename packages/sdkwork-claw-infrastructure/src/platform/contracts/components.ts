@@ -1,7 +1,8 @@
+export type KnownRuntimeBundledComponentId = never;
+
 export type RuntimeBundledComponentId =
-  | 'openclaw'
-  | 'zeroclaw'
-  | 'ironclaw';
+  | KnownRuntimeBundledComponentId
+  | (string & {});
 
 export type RuntimeDesktopComponentKind =
   | 'binary'

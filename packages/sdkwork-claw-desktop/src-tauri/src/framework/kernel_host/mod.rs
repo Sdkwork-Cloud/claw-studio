@@ -17,6 +17,7 @@ use crate::framework::{
     kernel::DesktopSupervisorInfo,
     paths::AppPaths,
     services::{
+        kernel_runtime_authority::KernelRuntimeAuthorityService,
         openclaw_runtime::{load_manifest, ActivatedOpenClawRuntime, OPENCLAW_RUNTIME_ID},
         supervisor::SERVICE_ID_OPENCLAW_GATEWAY,
     },
@@ -404,8 +405,10 @@ pub fn build_desktop_kernel_host_info(
         provenance: DesktopKernelProvenanceInfo {
             runtime_id: OPENCLAW_RUNTIME_ID.to_string(),
             install_key,
-            openclaw_version: manifest.as_ref().map(|item| item.openclaw_version.clone()),
-            node_version: manifest.as_ref().map(|item| item.node_version.clone()),
+            runtime_version: manifest.as_ref().map(|item| item.openclaw_version.clone()),
+            node_version: manifest
+                .as_ref()
+                .and_then(|item| item.external_node_version().map(str::to_string)),
             platform: manifest
                 .as_ref()
                 .map(|item| item.platform.clone())
@@ -417,7 +420,13 @@ pub fn build_desktop_kernel_host_info(
             install_source: "bundled".to_string(),
             config_path: runtime
                 .map(|configured| configured.config_path.to_string_lossy().into_owned())
-                .unwrap_or_else(|| paths.openclaw_config_file.to_string_lossy().into_owned()),
+                .unwrap_or_else(|| {
+                    KernelRuntimeAuthorityService::new()
+                        .active_openclaw_config_path(paths)
+                        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                        .to_string_lossy()
+                        .into_owned()
+                }),
             runtime_home_dir: runtime
                 .map(|configured| configured.home_dir.to_string_lossy().into_owned())
                 .unwrap_or_else(|| paths.openclaw_home_dir.to_string_lossy().into_owned()),

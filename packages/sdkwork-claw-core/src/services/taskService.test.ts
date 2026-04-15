@@ -178,7 +178,7 @@ function createDetail(input: {
       remote: false,
     },
     connectivity: {
-      primaryTransport: 'customHttp',
+      primaryTransport: input.transportKind || 'customHttp',
       endpoints: [],
     },
     observability: {
@@ -814,6 +814,63 @@ await runTest('taskService routes backend-authored OpenClaw task mutations and f
       },
     ]);
     assert.deepEqual(gatewayCalls, []);
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('taskService uses gateway-authored cron jobs for instances that expose the gateway task transport even when runtimeKind is custom', async () => {
+  const originalBridge = getPlatformBridge();
+  const gatewayCalls: Array<{ instanceId: string; request: Record<string, unknown> }> = [];
+
+  configurePlatformBridge({
+    studio: {
+      ...originalBridge.studio,
+      async getInstanceDetail(instanceId) {
+        return createDetail({
+          id: instanceId,
+          runtimeKind: 'custom',
+          deploymentMode: 'local-managed',
+          transportKind: 'openclawGatewayWs',
+          isBuiltIn: true,
+          workbench: null,
+        });
+      },
+      async invokeOpenClawGateway(instanceId, request) {
+        gatewayCalls.push({
+          instanceId,
+          request: request as Record<string, unknown>,
+        });
+        return {
+          items: [
+            createOpenClawGatewayJob('gateway-custom-task-1', {
+              name: 'Gateway Task Surface',
+              prompt: 'Route by transport, not runtime kind.',
+            }),
+          ],
+        };
+      },
+    },
+  });
+
+  try {
+    const tasks = await taskService.getTasks('custom-gateway-runtime');
+
+    assert.equal(tasks.length, 1);
+    assert.equal(tasks[0]?.id, 'gateway-custom-task-1');
+    assert.equal(tasks[0]?.name, 'Gateway Task Surface');
+    assert.deepEqual(gatewayCalls, [
+      {
+        instanceId: 'custom-gateway-runtime',
+        request: {
+          tool: 'cron',
+          action: 'list',
+          args: {
+            includeDisabled: true,
+          },
+        },
+      },
+    ]);
   } finally {
     configurePlatformBridge(originalBridge);
   }

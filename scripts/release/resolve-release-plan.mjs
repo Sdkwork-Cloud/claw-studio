@@ -13,6 +13,11 @@ import {
   buildServerReleaseMatrix,
   resolveReleaseProfile,
 } from './release-profiles.mjs';
+import {
+  DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
+  listKernelPackageProfiles,
+  resolveKernelPackageProfile,
+} from './kernel-package-profiles.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -29,10 +34,17 @@ function readOptionValue(argv, index, flag) {
 
 export function createReleasePlan({
   profileId = DEFAULT_RELEASE_PROFILE_ID,
+  packageProfileId = '',
   releaseTag = '',
   gitRef = '',
 } = {}) {
   const profile = resolveReleaseProfile(profileId);
+  const defaultPackageProfileId = String(profile.defaultPackageProfileId ?? '').trim()
+    || DEFAULT_KERNEL_PACKAGE_PROFILE_ID;
+  const resolvedPackageProfile = resolveKernelPackageProfile(
+    String(packageProfileId ?? '').trim() || defaultPackageProfileId,
+  );
+  const packageProfiles = listKernelPackageProfiles();
   const normalizedReleaseTag = String(releaseTag ?? '').trim();
   const normalizedGitRef = String(gitRef ?? '').trim()
     || (normalizedReleaseTag ? `refs/tags/${normalizedReleaseTag}` : '');
@@ -44,6 +56,12 @@ export function createReleasePlan({
   return {
     profileId: profile.id,
     productName: profile.productName,
+    defaultPackageProfileId,
+    packageProfileId: resolvedPackageProfile.profileId,
+    packageProfile: {
+      ...resolvedPackageProfile,
+    },
+    packageProfiles,
     releaseTag: normalizedReleaseTag,
     gitRef: normalizedGitRef,
     releaseName: `${profile.productName} ${normalizedReleaseTag}`,
@@ -60,6 +78,7 @@ export function createReleasePlan({
 export function parseArgs(argv) {
   const options = {
     profileId: DEFAULT_RELEASE_PROFILE_ID,
+    packageProfileId: '',
     releaseTag: '',
     gitRef: '',
     githubOutput: false,
@@ -70,6 +89,12 @@ export function parseArgs(argv) {
 
     if (token === '--profile') {
       options.profileId = readOptionValue(argv, index, '--profile');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--package-profile') {
+      options.packageProfileId = readOptionValue(argv, index, '--package-profile');
       index += 1;
       continue;
     }
@@ -103,6 +128,10 @@ function writeGitHubOutput(plan) {
   const outputLines = [
     `profile_id=${plan.profileId}`,
     `product_name=${plan.productName}`,
+    `default_package_profile_id=${plan.defaultPackageProfileId}`,
+    `package_profile_id=${plan.packageProfileId}`,
+    `package_profile_included_kernel_ids=${JSON.stringify(plan.packageProfile.includedKernelIds)}`,
+    `package_profiles=${JSON.stringify(plan.packageProfiles)}`,
     `release_tag=${plan.releaseTag}`,
     `git_ref=${plan.gitRef}`,
     `release_name=${plan.releaseName}`,

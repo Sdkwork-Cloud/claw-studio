@@ -3,6 +3,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+import { detectLegacyOpenClawSourceRuntimeResidue } from './cleanup-legacy-openclaw-source-runtime.mjs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
@@ -170,6 +172,11 @@ export async function assessOpenClawUpgradeReadiness({
     'upstreams',
     'openclaw',
   );
+  const {
+    legacySourceRuntimeDir,
+    legacySourceRuntimeDirPresent,
+    legacySourceRuntimeVersion,
+  } = await detectLegacyOpenClawSourceRuntimeResidue({ workspaceRootDir });
   const targetTag = `v${normalizedTargetVersion}`;
   const localTarballPath = path.join(workspaceRootDir, `openclaw-${normalizedTargetVersion}.tgz`);
 
@@ -192,24 +199,32 @@ export async function assessOpenClawUpgradeReadiness({
 
   const blockers = [];
 
+  if (legacySourceRuntimeDirPresent) {
+    const legacyVersionSuffix = legacySourceRuntimeVersion
+      ? ` (detected version ${legacySourceRuntimeVersion})`
+      : '';
+    blockers.push(
+      `Legacy desktop source runtime residue is still present at ${path.relative(workspaceRootDir, legacySourceRuntimeDir).replaceAll('\\', '/')}${legacyVersionSuffix}. Remove it before upgrading the packaged OpenClaw runtime.`,
+    );
+  }
   if (localUpstreamVersion !== normalizedTargetVersion) {
     blockers.push(
-      `Local bundled OpenClaw upstream checkout is still at ${localUpstreamVersion ?? 'unknown'} instead of ${normalizedTargetVersion}.`,
+      `Local OpenClaw upstream checkout is still at ${localUpstreamVersion ?? 'unknown'} instead of ${normalizedTargetVersion}.`,
     );
   }
   if (!localUpstreamHasTargetTag) {
     blockers.push(
-      `Local bundled OpenClaw upstream checkout does not contain git tag ${targetTag}.`,
+      `Local OpenClaw upstream checkout does not contain git tag ${targetTag}.`,
     );
   }
   if (localUpstreamDirty === true) {
     blockers.push(
-      'Local bundled OpenClaw upstream checkout has uncommitted changes and should not be hard-reset in place.',
+      'Local OpenClaw upstream checkout has uncommitted changes and should not be hard-reset in place.',
     );
   }
   if (!localTarballPresent && localUpstreamVersion !== normalizedTargetVersion) {
     blockers.push(
-      `No local openclaw-${normalizedTargetVersion}.tgz tarball is available for an offline bundled runtime upgrade.`,
+      `No local openclaw-${normalizedTargetVersion}.tgz tarball is available for an offline packaged OpenClaw upgrade.`,
     );
   }
 
@@ -222,6 +237,8 @@ export async function assessOpenClawUpgradeReadiness({
     localPreparedRuntimeVersion,
     localUpstreamVersion,
     versionSourcesAligned,
+    legacySourceRuntimeDirPresent,
+    legacySourceRuntimeVersion,
     localUpstreamHasTargetTag,
     localUpstreamDirty,
     localUpstreamDirtyCheck,

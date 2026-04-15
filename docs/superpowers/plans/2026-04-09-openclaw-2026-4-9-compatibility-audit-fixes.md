@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Supersession Note (2026-04-13):** This plan is preserved for historical compatibility-audit context. Current implementation should follow `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md` and the external-runtime hard-cut plan. References below to a bundled desktop/runtime pipeline are historical and must not be treated as the current platform standard.
+
 **Goal:** Audit the Claw Studio workspace against OpenClaw `2026.4.9`, identify upgrade regressions in the highest-risk integration surfaces, and land the smallest fixes plus regression coverage needed to keep the bundled desktop/runtime experience stable.
 
 **Architecture:** Keep the current shared OpenClaw release metadata and desktop bundled-runtime pipeline intact. Focus only on compatibility seams that can regress when upstream runtime behavior shifts: bundled runtime preparation, gateway chat/session/control routing, and provider/browser-control auth projection. Fix each confirmed regression with a failing test first, then the minimal implementation, then focused verification.

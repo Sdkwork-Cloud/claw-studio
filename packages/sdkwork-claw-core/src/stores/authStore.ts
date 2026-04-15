@@ -1,5 +1,9 @@
-import { createStore, type StateCreator, type StoreApi } from 'zustand/vanilla';
-import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
+import {
+  createPersistedSimpleStore,
+  type PersistedSimpleStoreApi,
+  type StateStorage,
+  type StoreStateSetter,
+} from './simpleStore.ts';
 import { appAuthService } from '../services/index.ts';
 import type {
   AppAuthOAuthDeviceType,
@@ -178,7 +182,7 @@ function resolveSignInAccount(credentials: SignInInput) {
   return account;
 }
 
-export const createAuthStoreState: StateCreator<AuthStoreState, [], [], AuthStoreState> = (set) => ({
+export const createAuthStoreState = (set: StoreStateSetter<AuthStoreState>) => ({
   isAuthenticated: false,
   user: null,
   async signIn(credentials) {
@@ -312,7 +316,7 @@ export function createAuthStorePersistOptions(storage?: StateStorage) {
   return storage
     ? {
         name: STORAGE_KEY,
-        storage: createJSONStorage(() => storage),
+        storage,
         partialize: (state: AuthStoreState) => ({
           isAuthenticated: state.isAuthenticated,
           user: state.user,
@@ -327,7 +331,7 @@ export function createAuthStorePersistOptions(storage?: StateStorage) {
       };
 }
 
-type AuthStoreApi = Pick<StoreApi<AuthStoreState>, 'getState' | 'setState'>;
+type AuthStoreApi = Pick<PersistedSimpleStoreApi<AuthStoreState>, 'getState' | 'setState'>;
 
 export function synchronizeAuthStoreSession(store: AuthStoreApi) {
   const { isAuthenticated } = store.getState();
@@ -339,8 +343,9 @@ export function synchronizeAuthStoreSession(store: AuthStoreApi) {
 }
 
 export function createAuthStore(storage?: StateStorage) {
-  const store = createStore<AuthStoreState>()(
-    persist(createAuthStoreState, createAuthStorePersistOptions(storage)),
+  const store = createPersistedSimpleStore(
+    createAuthStoreState,
+    createAuthStorePersistOptions(storage),
   );
   synchronizeAuthStoreSession(store);
   return store;

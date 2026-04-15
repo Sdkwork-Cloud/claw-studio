@@ -127,12 +127,41 @@ function buildOpenClawGatewayWebsocketUrl(
   return websocketCandidate ?? baseCandidate;
 }
 
+function buildGatewayOfflineReason(instance: StudioInstanceRecord) {
+  if (instance.deploymentMode === 'local-managed') {
+    return `Managed gateway runtime is not online yet (status: ${instance.status}).`;
+  }
+
+  return `Gateway runtime is not online yet (status: ${instance.status}).`;
+}
+
 function buildOpenClawOfflineReason(instance: StudioInstanceRecord) {
   if (instance.deploymentMode === 'local-managed') {
     return `Built-in OpenClaw is not online yet (status: ${instance.status}).`;
   }
 
   return `OpenClaw runtime is not online yet (status: ${instance.status}).`;
+}
+
+function buildGatewayTransportRoute(
+  shared: Pick<InstanceChatRoute, 'runtimeKind' | 'transportKind' | 'deploymentMode'>,
+  baseUrl: string | null,
+  websocketUrl: string | null,
+): InstanceChatRoute {
+  if (websocketUrl || baseUrl) {
+    return {
+      ...shared,
+      mode: 'instanceOpenClawGatewayWs',
+      endpoint: buildExplicitOpenClawHttpEndpoint(baseUrl),
+      websocketUrl: buildOpenClawGatewayWebsocketUrl(baseUrl, websocketUrl),
+    };
+  }
+
+  return {
+    ...shared,
+    mode: 'unsupported',
+    reason: 'Gateway transport instances must publish an HTTP or WebSocket endpoint.',
+  };
 }
 
 export function resolveInstanceChatRoute(
@@ -153,6 +182,18 @@ export function resolveInstanceChatRoute(
     deploymentMode: instance.deploymentMode,
   } as const;
 
+  if (instance.transportKind === 'openclawGatewayWs') {
+    if (instance.status !== 'online') {
+      return {
+        ...shared,
+        mode: 'unsupported',
+        reason: buildGatewayOfflineReason(instance),
+      };
+    }
+
+    return buildGatewayTransportRoute(shared, baseUrl, websocketUrl);
+  }
+
   if (instance.runtimeKind === 'openclaw') {
     if (instance.status !== 'online') {
       return {
@@ -162,38 +203,10 @@ export function resolveInstanceChatRoute(
       };
     }
 
-    if (websocketUrl || baseUrl) {
-      return {
-        ...shared,
-        mode: 'instanceOpenClawGatewayWs',
-        endpoint: buildExplicitOpenClawHttpEndpoint(baseUrl),
-        websocketUrl: buildOpenClawGatewayWebsocketUrl(baseUrl, websocketUrl),
-      };
-    }
-
-    return {
-      ...shared,
-      mode: 'unsupported',
-      reason: 'OpenClaw instances must publish a gateway HTTP or WebSocket endpoint.',
-    };
+    return buildGatewayTransportRoute(shared, baseUrl, websocketUrl);
   }
 
   switch (instance.transportKind) {
-    case 'openclawGatewayWs':
-      if (websocketUrl || baseUrl) {
-        return {
-          ...shared,
-          mode: 'instanceOpenClawGatewayWs',
-          endpoint: buildExplicitOpenClawHttpEndpoint(baseUrl),
-          websocketUrl: buildOpenClawGatewayWebsocketUrl(baseUrl, websocketUrl),
-        };
-      }
-
-      return {
-        ...shared,
-        mode: 'unsupported',
-        reason: 'OpenClaw instance is missing both HTTP and WebSocket endpoints.',
-      };
     case 'zeroclawHttp':
     case 'openaiHttp':
     case 'customHttp':

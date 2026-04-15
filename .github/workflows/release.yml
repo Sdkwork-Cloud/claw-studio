@@ -6,6 +6,11 @@ on:
       - 'release-*'
   workflow_dispatch:
     inputs:
+      package_profile:
+        description: Kernel package profile id to publish, for example openclaw-only, hermes-only, or dual-kernel
+        required: false
+        default: openclaw-only
+        type: string
       release_tag:
         description: Existing release tag to publish
         required: true
@@ -26,6 +31,7 @@ jobs:
     uses: ./.github/workflows/release-reusable.yml
     with:
       release_profile: claw-studio
+      package_profile: ${{ github.event_name == 'push' && 'openclaw-only' || github.event.inputs.package_profile }}
       release_tag: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.release_tag }}
       git_ref: ${{ github.event_name == 'push' && github.ref || github.event.inputs.git_ref }}
     secrets: inherit

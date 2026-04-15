@@ -29,7 +29,6 @@ function buildExpectedInstallReadyLayout(manifest, mode) {
     requiresArchiveExtractionOnFirstLaunch: false,
     manifestRelativePath: 'manifest.json',
     runtimeSidecarRelativePath: 'runtime/.sdkwork-openclaw-runtime.json',
-    nodeEntryRelativePath: manifest.nodeRelativePath,
     cliEntryRelativePath: manifest.cliRelativePath,
   };
 }
@@ -38,6 +37,7 @@ async function setupPreparedReleaseAssets({
   platform,
   arch,
   createArchiveImpl,
+  includeBundledNode = false,
 } = {}) {
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'verify-openclaw-release-assets-'));
   const sourceRuntimeDir = path.join(tempRoot, 'source-runtime');
@@ -49,10 +49,6 @@ async function setupPreparedReleaseAssets({
     nodeVersion: expectedNodeVersion,
     target,
   });
-  const nodePath = path.join(
-    sourceRuntimeDir,
-    manifest.nodeRelativePath.replace(/^runtime[\\/]/, ''),
-  );
   const cliPath = path.join(
     sourceRuntimeDir,
     manifest.cliRelativePath.replace(/^runtime[\\/]/, ''),
@@ -73,12 +69,18 @@ async function setupPreparedReleaseAssets({
     'package.json',
   );
 
-  mkdirSync(path.dirname(nodePath), { recursive: true });
   mkdirSync(path.dirname(cliPath), { recursive: true });
   mkdirSync(path.dirname(openclawPackageJsonPath), { recursive: true });
   mkdirSync(path.dirname(carbonPackageJsonPath), { recursive: true });
   mkdirSync(resourceDir, { recursive: true });
-  writeFileSync(nodePath, fakeNodeExecutableContent, 'utf8');
+  if (includeBundledNode) {
+    const nodePath = path.join(
+      sourceRuntimeDir,
+      target.nodeBinaryRelativePath.replace(/^runtime[\\/]/, ''),
+    );
+    mkdirSync(path.dirname(nodePath), { recursive: true });
+    writeFileSync(nodePath, fakeNodeExecutableContent, 'utf8');
+  }
   writeFileSync(cliPath, 'console.log("openclaw");\n', 'utf8');
   writeFileSync(
     openclawPackageJsonPath,
@@ -87,7 +89,7 @@ async function setupPreparedReleaseAssets({
   );
   writeFileSync(
     carbonPackageJsonPath,
-    `${JSON.stringify({ name: '@buape/carbon', version: '0.0.0-beta-20260327000044' }, null, 2)}\n`,
+    `${JSON.stringify({ name: '@buape/carbon', version: '0.14.0' }, null, 2)}\n`,
     'utf8',
   );
 
@@ -140,10 +142,13 @@ test('desktop OpenClaw release asset verifier accepts Windows archive-only packa
 
     assert.equal(result.manifest.platform, 'windows');
     assert.equal(result.manifest.arch, 'x64');
+    assert.equal(Object.hasOwn(result.manifest, 'nodeVersion'), false);
+    assert.deepEqual(result.manifest.requiredExternalRuntimes, ['nodejs']);
+    assert.equal(result.manifest.requiredExternalRuntimeVersions?.nodejs, expectedNodeVersion);
     assert.equal(result.packagedResourceDir, fixture.packagedResourceDir);
     assert.deepEqual(
       result.installReadyLayout,
-      buildExpectedInstallReadyLayout(result.manifest, 'simulated-prewarm'),
+      buildExpectedInstallReadyLayout(result.manifest, 'archive-extract-ready'),
     );
     assert.equal(
       existsSync(path.join(fixture.packagedResourceDir, BUNDLED_RESOURCE_RUNTIME_ARCHIVE_FILENAME)),
@@ -221,7 +226,7 @@ test('desktop OpenClaw release asset verifier accepts Linux archive-only package
     assert.equal(result.packagedInstallRootLayoutDir, null);
     assert.deepEqual(
       result.installReadyLayout,
-      buildExpectedInstallReadyLayout(result.manifest, 'simulated-prewarm'),
+      buildExpectedInstallReadyLayout(result.manifest, 'archive-extract-ready'),
     );
   } finally {
     rmSync(fixture.tempRoot, { recursive: true, force: true });
@@ -254,6 +259,66 @@ test('desktop OpenClaw release asset verifier rejects packaged resource roots th
   }
 });
 
+test('desktop OpenClaw release asset verifier rejects legacy source runtime residue under src-tauri/resources/openclaw-runtime', async () => {
+  const modulePath = path.join(rootDir, 'scripts', 'verify-desktop-openclaw-release-assets.mjs');
+  const verifier = await import(pathToFileURL(modulePath).href);
+
+  const fixture = await setupPreparedReleaseAssets({
+    platform: 'linux',
+    arch: 'x64',
+  });
+
+  try {
+    const legacyRuntimeRoot = path.join(
+      fixture.workspaceRootDir,
+      'packages',
+      'sdkwork-claw-desktop',
+      'src-tauri',
+      'resources',
+      'openclaw-runtime',
+    );
+    mkdirSync(
+      path.join(legacyRuntimeRoot, 'runtime', 'package', 'node_modules', 'openclaw'),
+      { recursive: true },
+    );
+    writeFileSync(
+      path.join(legacyRuntimeRoot, 'manifest.json'),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        runtimeId: 'openclaw',
+        openclawVersion: '2026.3.28',
+        nodeVersion: expectedNodeVersion,
+        platform: 'windows',
+        arch: 'x64',
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(
+        legacyRuntimeRoot,
+        'runtime',
+        'package',
+        'node_modules',
+        'openclaw',
+        'package.json',
+      ),
+      `${JSON.stringify({ name: 'openclaw', version: '2026.3.28' }, null, 2)}\n`,
+      'utf8',
+    );
+
+    await assert.rejects(
+      verifier.verifyDesktopOpenClawReleaseAssets({
+        workspaceRootDir: fixture.workspaceRootDir,
+        resourceDir: fixture.resourceDir,
+        target: fixture.target,
+      }),
+      /legacy source runtime residue|openclaw-runtime|2026\.3\.28/i,
+    );
+  } finally {
+    rmSync(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('desktop OpenClaw release asset verifier rejects invalid archive payloads', async () => {
   const modulePath = path.join(rootDir, 'scripts', 'verify-desktop-openclaw-release-assets.mjs');
   const verifier = await import(pathToFileURL(modulePath).href);
@@ -274,6 +339,36 @@ test('desktop OpenClaw release asset verifier rejects invalid archive payloads',
         target: fixture.target,
       }),
       /archive|extract|runtime/i,
+    );
+  } finally {
+    rmSync(fixture.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('desktop OpenClaw release asset verifier rejects packaged runtime archives that still contain a bundled Node payload', async () => {
+  const modulePath = path.join(rootDir, 'scripts', 'verify-desktop-openclaw-release-assets.mjs');
+  const verifier = await import(pathToFileURL(modulePath).href);
+
+  const fixture = await setupPreparedReleaseAssets({
+    platform: 'linux',
+    arch: 'x64',
+  });
+
+  try {
+    mkdirSync(path.join(fixture.packagedResourceDir, 'runtime', 'node'), { recursive: true });
+    writeFileSync(
+      path.join(fixture.packagedResourceDir, 'runtime', 'node', 'node'),
+      fakeNodeExecutableContent,
+      'utf8',
+    );
+
+    await assert.rejects(
+      verifier.verifyDesktopOpenClawReleaseAssets({
+        workspaceRootDir: fixture.workspaceRootDir,
+        resourceDir: fixture.resourceDir,
+        target: fixture.target,
+      }),
+      /bundled node|runtime\/node|must not contain|archive-only|runtime/i,
     );
   } finally {
     rmSync(fixture.tempRoot, { recursive: true, force: true });

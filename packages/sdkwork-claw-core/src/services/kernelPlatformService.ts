@@ -25,6 +25,7 @@ export interface KernelPlatformSnapshot {
   topologyState: RuntimeDesktopKernelHostInfo['topology']['state'];
   runtimeState: RuntimeDesktopKernelHostInfo['runtime']['state'];
   runtimeHealth: RuntimeDesktopKernelHostInfo['runtime']['health'];
+  runtimeId: string;
   hostManager: RuntimeDesktopKernelHostInfo['host']['serviceManager'];
   controlMode: KernelPlatformControlMode;
   baseUrl: string;
@@ -33,7 +34,7 @@ export interface KernelPlatformSnapshot {
   activePort: number;
   usesDynamicPort: boolean;
   serviceConfigPath: string;
-  openclawVersion?: string | null;
+  runtimeVersion?: string | null;
   nodeVersion?: string | null;
 }
 
@@ -64,6 +65,7 @@ export function mapKernelPlatformSnapshot(
     topologyState: status.topology.state,
     runtimeState: status.runtime.state,
     runtimeHealth: status.runtime.health,
+    runtimeId: status.provenance.runtimeId,
     hostManager: status.host.serviceManager,
     controlMode: mapControlMode(status),
     baseUrl: status.endpoint.baseUrl,
@@ -72,7 +74,7 @@ export function mapKernelPlatformSnapshot(
     activePort: status.endpoint.activePort,
     usesDynamicPort: status.endpoint.dynamicPort,
     serviceConfigPath: status.host.serviceConfigPath,
-    openclawVersion: status.provenance.openclawVersion ?? null,
+    runtimeVersion: status.provenance.runtimeVersion ?? null,
     nodeVersion: status.provenance.nodeVersion ?? null,
   };
 }

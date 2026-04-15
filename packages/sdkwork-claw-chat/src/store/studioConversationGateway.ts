@@ -14,7 +14,7 @@ async function shouldBlockSnapshotConversationAuthority(instanceId: string | nul
   }
 
   return (
-    instance.runtimeKind === 'openclaw' &&
+    instance.transportKind === 'openclawGatewayWs' &&
     instance.deploymentMode === 'local-managed' &&
     route.mode !== 'instanceOpenClawGatewayWs'
   );

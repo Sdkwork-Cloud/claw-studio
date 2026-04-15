@@ -67,15 +67,19 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
 
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /push:\s*[\s\S]*tags:\s*[\s\S]*release-\*/);
+  assert.match(workflow, /package_profile:/);
   assert.match(workflow, /uses:\s*\.\/\.github\/workflows\/release-reusable\.yml/);
   assert.match(workflow, /release_profile:\s*claw-studio/);
+  assert.match(workflow, /package_profile:\s*\$\{\{ github\.event_name == 'push' && 'openclaw-only' \|\| github\.event\.inputs\.package_profile \}\}/);
   assert.match(
     workflow,
     /permissions:\s*[\s\S]*packages:\s*write/,
     'release caller workflow must grant packages: write to the reusable release workflow',
   );
   assert.match(reusableWorkflow, /workflow_call:/);
+  assert.match(reusableWorkflow, /package_profile:/);
   assert.match(reusableWorkflow, /concurrency:/);
+  assert.match(reusableWorkflow, /release-\$\{\{ inputs\.release_profile \}\}-\$\{\{ inputs\.package_profile \}\}-\$\{\{ inputs\.release_tag \}\}/);
   assert.match(reusableWorkflow, /packages:\s*write/);
   assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_MODE:\s*git/);
   assert.match(reusableWorkflow, /verify-release:/);
@@ -111,15 +115,17 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(reusableWorkflow, /pnpm check:server/);
   assert.match(reusableWorkflow, /pnpm build/);
   assert.match(reusableWorkflow, /pnpm docs:build/);
-  assert.match(reusableWorkflow, /node scripts\/release\/resolve-release-plan\.mjs --profile \$\{\{ inputs\.release_profile \}\}/);
+  assert.match(reusableWorkflow, /package_profile_id: \$\{\{ steps\.plan\.outputs\.package_profile_id \}\}/);
+  assert.match(reusableWorkflow, /package_profile_included_kernel_ids: \$\{\{ steps\.plan\.outputs\.package_profile_included_kernel_ids \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/release\/resolve-release-plan\.mjs --profile \$\{\{ inputs\.release_profile \}\} --package-profile \$\{\{ inputs\.package_profile \}\}/);
   assert.match(reusableWorkflow, /server_matrix: \$\{\{ steps\.plan\.outputs\.server_matrix \}\}/);
   assert.match(reusableWorkflow, /container_matrix: \$\{\{ steps\.plan\.outputs\.container_matrix \}\}/);
   assert.match(reusableWorkflow, /kubernetes_matrix: \$\{\{ steps\.plan\.outputs\.kubernetes_matrix \}\}/);
-  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase sync --target \$\{\{ matrix\.target \}\} --release/);
-  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase prepare-target --target \$\{\{ matrix\.target \}\}/);
-  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase prepare-openclaw --target \$\{\{ matrix\.target \}\}/);
-  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase bundle --target \$\{\{ matrix\.target \}\}/);
-  assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs desktop --profile \$\{\{ inputs\.release_profile \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --package-profile \$\{\{ needs\.prepare\.outputs\.package_profile_id \}\} --phase sync --target \$\{\{ matrix\.target \}\} --release/);
+  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --package-profile \$\{\{ needs\.prepare\.outputs\.package_profile_id \}\} --phase prepare-target --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /if: contains\(needs\.prepare\.outputs\.package_profile_included_kernel_ids, 'openclaw'\)[\s\S]*node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --package-profile \$\{\{ needs\.prepare\.outputs\.package_profile_id \}\} --phase prepare-openclaw --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --package-profile \$\{\{ needs\.prepare\.outputs\.package_profile_id \}\} --phase bundle --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs desktop --profile \$\{\{ inputs\.release_profile \}\} --package-profile \$\{\{ needs\.prepare\.outputs\.package_profile_id \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\}/);
   assert.match(
     reusableWorkflow,
     /desktop-release:[\s\S]*apt-get install -y[\s\S]*xvfb/s,
@@ -127,7 +133,7 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   );
   assert.match(
     reusableWorkflow,
-    /desktop-release:[\s\S]*package-release-assets\.mjs desktop --profile \$\{\{ inputs\.release_profile \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --output-dir artifacts\/release[\s\S]*smoke-desktop-installers\.mjs --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --release-assets-dir artifacts\/release/s,
+    /desktop-release:[\s\S]*package-release-assets\.mjs desktop --profile \$\{\{ inputs\.release_profile \}\} --package-profile \$\{\{ needs\.prepare\.outputs\.package_profile_id \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --output-dir artifacts\/release[\s\S]*smoke-desktop-installers\.mjs --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --release-assets-dir artifacts\/release/s,
     'desktop release workflow must smoke packaged installers before attesting and uploading artifacts',
   );
   assert.match(
@@ -219,6 +225,7 @@ test('root package exposes release helper scripts for desktop and asset packagin
   assert.equal(existsSync(releaseClosureScriptPath), true, 'missing scripts/check-release-closure.mjs');
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/check-release-closure\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/release-profiles\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/kernel-definitions\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/run-desktop-release-build\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/run-claw-server-build\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/release-smoke-contract\.test\.mjs/);
@@ -304,13 +311,18 @@ test('release closure contract documents and guards desktop install-ready smoke 
   );
   assert.match(
     releaseClosureGuard,
-    /openClawInstallerContract/,
-    'release closure guard must protect the persisted desktop OpenClaw installer contract',
+    /kernelInstallContracts/,
+    'release closure guard must protect the persisted desktop kernel install contracts',
   );
   assert.match(
     releaseClosureGuard,
     /desktopInstallerSmoke/,
     'release closure guard must protect aggregated desktop installer smoke metadata',
+  );
+  assert.match(
+    releaseClosureGuard,
+    /kernelInstallReadiness/,
+    'release closure guard must protect per-kernel install readiness metadata',
   );
   assert.match(
     releaseClosureGuard,
@@ -370,13 +382,18 @@ test('release closure contract documents and guards desktop install-ready smoke 
   );
   assert.match(
     releaseDoc,
-    /openClawInstallerContract/,
-    'release documentation must describe the desktop OpenClaw installer contract metadata',
+    /kernelInstallContracts/,
+    'release documentation must describe the desktop kernel install contract metadata',
   );
   assert.match(
     releaseDoc,
     /desktopInstallerSmoke/,
     'release documentation must describe aggregated desktop installer smoke metadata',
+  );
+  assert.match(
+    releaseDoc,
+    /kernelInstallReadiness/,
+    'release documentation must describe per-kernel install readiness metadata',
   );
   assert.match(
     releaseDoc,
@@ -1424,7 +1441,7 @@ test('desktop release build runner injects the supported Visual Studio generator
     env: {},
   });
 
-  assert.equal(windowsPlan.command, 'pnpm');
+  assert.equal(windowsPlan.command, 'pnpm.cmd');
   assert.deepEqual(windowsPlan.args, [
     '--filter',
     '@sdkwork/claw-desktop',
@@ -1433,6 +1450,8 @@ test('desktop release build runner injects the supported Visual Studio generator
     '--',
     '--profile',
     'claw-studio',
+    '--package-profile',
+    'openclaw-only',
     '--vite-mode',
     'production',
     '--bundles',
@@ -1440,6 +1459,7 @@ test('desktop release build runner injects the supported Visual Studio generator
   ]);
   assert.equal(windowsPlan.env.CMAKE_GENERATOR, 'Visual Studio 17 2022');
   assert.equal(windowsPlan.env.HOST_CMAKE_GENERATOR, 'Visual Studio 17 2022');
+  assert.equal(windowsPlan.shell, false);
 
   assert.equal(linuxPlan.command, 'pnpm');
   assert.deepEqual(linuxPlan.args, [
@@ -1450,6 +1470,8 @@ test('desktop release build runner injects the supported Visual Studio generator
     '--',
     '--profile',
     'claw-studio',
+    '--package-profile',
+    'openclaw-only',
     '--vite-mode',
     'production',
     '--bundles',
@@ -1458,6 +1480,7 @@ test('desktop release build runner injects the supported Visual Studio generator
   assert.equal(Object.hasOwn(linuxPlan.env, 'CMAKE_GENERATOR'), false);
   assert.equal(windowsPlan.env.SDKWORK_VITE_MODE, 'production');
   assert.equal(linuxPlan.env.SDKWORK_VITE_MODE, 'production');
+  assert.equal(linuxPlan.shell, false);
 });
 
 test('desktop release build runner can override the vite mode for test bundles while keeping production as the default', async () => {
@@ -1534,6 +1557,8 @@ test('desktop release build runner forwards explicit target triples to tauri bui
     '--',
     '--profile',
     'claw-studio',
+    '--package-profile',
+    'openclaw-only',
     '--vite-mode',
     'production',
     '--bundles',
@@ -1870,11 +1895,16 @@ test('release plan resolver expands the claw-studio profile into the full deskto
 
   const plan = resolver.createReleasePlan({
     profileId: 'claw-studio',
+    packageProfileId: 'dual-kernel',
     releaseTag: 'release-2026-03-31-03',
     gitRef: 'refs/tags/release-2026-03-31-03',
   });
 
   assert.equal(plan.profileId, 'claw-studio');
+  assert.equal(plan.defaultPackageProfileId, 'openclaw-only');
+  assert.equal(plan.packageProfileId, 'dual-kernel');
+  assert.deepEqual(plan.packageProfile.includedKernelIds, ['openclaw', 'hermes']);
+  assert.equal(plan.packageProfiles.length >= 3, true);
   assert.equal(plan.desktopMatrix.length, 6);
   assert.equal(plan.serverMatrix.length, 6);
   assert.equal(plan.containerMatrix.length, 4);
@@ -1932,6 +1962,10 @@ test('release plan resolver expands the claw-studio profile into the full deskto
   assert.throws(
     () => resolver.parseArgs(['--release-tag']),
     /Missing value for --release-tag/,
+  );
+  assert.deepEqual(
+    resolver.parseArgs(['--package-profile', 'hermes-only']).packageProfileId,
+    'hermes-only',
   );
 });
 

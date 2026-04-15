@@ -27,6 +27,7 @@ import {
   DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
   DEFAULT_OPENCLAW_VERSION,
 } from './openclaw-release.mjs';
+import { cleanupLegacyOpenClawSourceRuntimeResidue } from './cleanup-legacy-openclaw-source-runtime.mjs';
 export {
   DEFAULT_NODE_VERSION,
   DEFAULT_OPENCLAW_PACKAGE,
@@ -45,16 +46,17 @@ const PREPARED_RUNTIME_MANIFEST_KEYS = [
   'schemaVersion',
   'runtimeId',
   'openclawVersion',
-  'nodeVersion',
+  'requiredExternalRuntimes',
+  'requiredExternalRuntimeVersions',
   'platform',
   'arch',
-  'nodeRelativePath',
   'cliRelativePath',
 ];
 const PREPARED_RUNTIME_SIDECAR_MANIFEST_FILENAME = '.sdkwork-openclaw-runtime.json';
 const CACHED_NODE_RUNTIME_SIDECAR_MANIFEST_FILENAME = '.sdkwork-node-runtime.json';
 const PREPARED_RESOURCE_RETAINED_ENTRY_NAMES = new Set(['.gitkeep']);
 export const BUNDLED_RESOURCE_RUNTIME_ARCHIVE_FILENAME = 'runtime.zip';
+const REQUIRED_OPENCLAW_EXTERNAL_RUNTIMES = Object.freeze(['nodejs']);
 const OPENCLAW_DISABLE_BUNDLED_PLUGIN_POSTINSTALL_ENV =
   'OPENCLAW_DISABLE_BUNDLED_PLUGIN_POSTINSTALL';
 const OPENCLAW_RUNTIME_INSTALL_CACHE_DIRNAME = 'npm-cache';
@@ -496,11 +498,11 @@ export function resolveOpenClawTarget(platform = process.platform, arch = proces
   const archId = arch === 'x64' ? 'x64' : arch === 'arm64' ? 'arm64' : arch;
 
   if (!['windows', 'macos', 'linux'].includes(platformId)) {
-    throw new Error(`Unsupported platform for bundled OpenClaw runtime: ${platform}`);
+    throw new Error(`Unsupported platform for packaged OpenClaw runtime: ${platform}`);
   }
 
   if (!['x64', 'arm64'].includes(archId)) {
-    throw new Error(`Unsupported architecture for bundled OpenClaw runtime: ${arch}`);
+    throw new Error(`Unsupported architecture for packaged OpenClaw runtime: ${arch}`);
   }
 
   if (platformId === 'windows') {
@@ -514,8 +516,8 @@ export function resolveOpenClawTarget(platform = process.platform, arch = proces
       nodeDownloadName(version) {
         return `node-v${version}-win-${archId}`;
       },
-      bundledNodePath: 'runtime/node/node.exe',
-      bundledCliPath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
+      nodeBinaryRelativePath: 'runtime/node/node.exe',
+      cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
     };
   }
 
@@ -531,8 +533,8 @@ export function resolveOpenClawTarget(platform = process.platform, arch = proces
       const platformSlug = platformId === 'macos' ? 'darwin' : 'linux';
       return `node-v${version}-${platformSlug}-${archId}`;
     },
-    bundledNodePath: 'runtime/node/bin/node',
-    bundledCliPath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
+    nodeBinaryRelativePath: 'runtime/node/bin/node',
+    cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
   };
 }
 
@@ -543,7 +545,7 @@ export function resolveRequestedOpenClawTarget({
   return resolveOpenClawTarget(target.platform, target.arch);
 }
 
-export function resolveBundledNpmCommand(nodeRuntimeDir, platform = process.platform) {
+export function resolveNodeRuntimeNpmCommand(nodeRuntimeDir, platform = process.platform) {
   const normalizedPlatform =
     platform === 'win32' || platform === 'windows'
       ? 'windows'
@@ -1384,10 +1386,10 @@ function resolveGitDependencyEntriesFromPackageJson(packageJson) {
     .toSorted((left, right) => left.name.localeCompare(right.name));
 }
 
-async function installBundledRuntimePackageDependencies({
+async function installPreparedRuntimePackageDependencies({
   packageDir,
   installSpecs,
-  bundledNpm,
+  runtimeNpm,
   env,
   runCommandImpl = runCommand,
 }) {
@@ -1395,8 +1397,8 @@ async function installBundledRuntimePackageDependencies({
     return [];
   }
 
-  await runCommandImpl(bundledNpm.command, [
-    ...bundledNpm.args,
+  await runCommandImpl(runtimeNpm.command, [
+    ...runtimeNpm.args,
     'install',
     '--omit=dev',
     '--no-save',
@@ -1433,17 +1435,17 @@ async function withHydrationInstallPackageJson(packageDir, callback) {
   }
 }
 
-async function stageBundledRuntimeRegistryPackage({
+async function stagePreparedRuntimeRegistryPackage({
   installSpec,
   packageInstallRoot,
   tempDir,
-  bundledNpm,
+  runtimeNpm,
   env,
   runCommandImpl = runCommand,
 }) {
-  const packDir = await mkdtemp(path.join(tempDir, 'bundled-runtime-pack-'));
-  await runCommandImpl(bundledNpm.command, [
-    ...bundledNpm.args,
+  const packDir = await mkdtemp(path.join(tempDir, 'prepared-runtime-pack-'));
+  await runCommandImpl(runtimeNpm.command, [
+    ...runtimeNpm.args,
     'pack',
     installSpec,
     '--ignore-scripts',
@@ -1457,10 +1459,10 @@ async function stageBundledRuntimeRegistryPackage({
   const packedEntries = await readdir(packDir, { withFileTypes: true });
   const packedArchive = packedEntries.find((entry) => entry.isFile() && entry.name.endsWith('.tgz'));
   if (!packedArchive) {
-    throw new Error(`Failed to stage bundled runtime package ${installSpec}: npm pack produced no tarball in ${packDir}`);
+    throw new Error(`Failed to stage prepared runtime package ${installSpec}: npm pack produced no tarball in ${packDir}`);
   }
 
-  const extractRoot = await mkdtemp(path.join(tempDir, 'bundled-runtime-extract-'));
+  const extractRoot = await mkdtemp(path.join(tempDir, 'prepared-runtime-extract-'));
   await runCommandImpl('tar', ['-xf', path.join(packDir, packedArchive.name), '-C', extractRoot], {
     cwd: packageInstallRoot,
     env,
@@ -1472,19 +1474,19 @@ async function stageBundledRuntimeRegistryPackage({
     ?? extractedEntries.find((entry) => entry.isDirectory());
   if (!packageEntry) {
     throw new Error(
-      `Failed to stage bundled runtime package ${installSpec}: extracted tarball did not contain a package directory in ${extractRoot}`,
+      `Failed to stage prepared runtime package ${installSpec}: extracted tarball did not contain a package directory in ${extractRoot}`,
     );
   }
 
   return path.join(extractRoot, packageEntry.name);
 }
 
-async function cloneBundledRuntimeGitDependency({
+async function clonePreparedRuntimeGitDependency({
   gitDependency,
   tempDir,
   runCommandImpl = runCommand,
 }) {
-  const cloneRoot = await mkdtemp(path.join(tempDir, 'bundled-runtime-git-'));
+  const cloneRoot = await mkdtemp(path.join(tempDir, 'prepared-runtime-git-'));
   const cloneDir = path.join(cloneRoot, 'package');
   const cloneArgs = ['clone', '--depth', '1'];
   if (gitDependency.cloneRef) {
@@ -1499,14 +1501,14 @@ async function cloneBundledRuntimeGitDependency({
 export async function hydrateBundledPluginRuntimeDependency({
   hydrationTarget,
   packageInstallRoot,
-  bundledNpm,
+  runtimeNpm,
   baseEnv = process.env,
   cacheDir = DEFAULT_PREPARE_CACHE_DIR,
   platform = process.platform,
   runCommandImpl = runCommand,
-  stageRegistryPackageImpl = stageBundledRuntimeRegistryPackage,
-  cloneGitDependencyImpl = cloneBundledRuntimeGitDependency,
-  installPackageDependenciesImpl = installBundledRuntimePackageDependencies,
+  stageRegistryPackageImpl = stagePreparedRuntimeRegistryPackage,
+  cloneGitDependencyImpl = clonePreparedRuntimeGitDependency,
+  installPackageDependenciesImpl = installPreparedRuntimePackageDependencies,
 }) {
   const requestedInstallSpec = String(hydrationTarget?.installSpec ?? '').trim();
   const requestedPackageName =
@@ -1530,7 +1532,7 @@ export async function hydrateBundledPluginRuntimeDependency({
     packageName: requestedPackageName,
     packageInstallRoot,
     tempDir: installPaths.tempDir,
-    bundledNpm,
+    runtimeNpm,
     env: nestedEnv,
     runCommandImpl,
   });
@@ -1552,7 +1554,7 @@ export async function hydrateBundledPluginRuntimeDependency({
     await installPackageDependenciesImpl({
       packageDir: stagedPackageDir,
       installSpecs: resolvedHydrationTarget.registryDependencyInstallSpecs,
-      bundledNpm,
+      runtimeNpm,
       env: nestedEnv,
       runCommandImpl,
     });
@@ -1564,7 +1566,7 @@ export async function hydrateBundledPluginRuntimeDependency({
       gitDependency,
       packageInstallRoot,
       tempDir: installPaths.tempDir,
-      bundledNpm,
+      runtimeNpm,
       env: nestedEnv,
       runCommandImpl,
     });
@@ -1586,7 +1588,7 @@ export async function hydrateBundledPluginRuntimeDependency({
         installSpecs: resolveRegistryDependencyInstallSpecsFromPackageJson(
           stagedGitDependencyPackageJson,
         ),
-        bundledNpm,
+        runtimeNpm,
         env: nestedEnv,
         runCommandImpl,
       });
@@ -1952,7 +1954,7 @@ export async function resolveMissingBundledPluginRuntimeInstallSpecs({
 async function installMissingBundledPluginRuntimeDeps({
   packageRoot,
   packageInstallRoot = packageRoot,
-  bundledNpm,
+  runtimeNpm,
   baseEnv = process.env,
   cacheDir = DEFAULT_PREPARE_CACHE_DIR,
   platform = process.platform,
@@ -1986,10 +1988,10 @@ async function installMissingBundledPluginRuntimeDeps({
     directInstallSpecs.push(missingSpec);
   }
 
-  await installBundledRuntimePackageDependencies({
+  await installPreparedRuntimePackageDependencies({
     packageDir: packageInstallRoot,
     installSpecs: directInstallSpecs,
-    bundledNpm,
+    runtimeNpm,
     env: nestedEnv,
     runCommandImpl,
   });
@@ -1999,10 +2001,10 @@ async function installMissingBundledPluginRuntimeDeps({
     platform,
     arch,
   });
-  await installBundledRuntimePackageDependencies({
+  await installPreparedRuntimePackageDependencies({
     packageDir: packageInstallRoot,
     installSpecs: nativeCompanionInstallSpecs,
-    bundledNpm,
+    runtimeNpm,
     env: nestedEnv,
     runCommandImpl,
   });
@@ -2014,7 +2016,7 @@ async function installMissingBundledPluginRuntimeDeps({
         packageName: resolvePackageNameFromInstallSpec(hydratedInstallSpec),
       },
       packageInstallRoot,
-      bundledNpm,
+      runtimeNpm,
       baseEnv,
       cacheDir,
       platform,
@@ -2081,7 +2083,7 @@ function collectPreparedRuntimeSmokeLoadPackageNames({
   bundledPluginRuntimeDeps,
 }) {
   const rootDependencies = collectPackageDependencyEntries(openclawPackageJson);
-  const bundledRuntimeDependencyNames = new Set(
+  const preparedRuntimeDependencyNames = new Set(
     bundledPluginRuntimeDeps.map((runtimeDep) => runtimeDep.name),
   );
   const candidateNames = new Set([
@@ -2093,7 +2095,7 @@ function collectPreparedRuntimeSmokeLoadPackageNames({
   for (const packageName of candidateNames) {
     if (
       rootDependencies[packageName]
-      || bundledRuntimeDependencyNames.has(packageName)
+      || preparedRuntimeDependencyNames.has(packageName)
       || existsSync(resolvePreparedRuntimeDependencySentinelPath({ modulesRoot, packageName }))
     ) {
       smokeLoadPackageNames.push(packageName);
@@ -2254,28 +2256,76 @@ export function buildOpenClawManifest({
   openclawVersion,
   nodeVersion,
   target,
-  nodeRelativePath = target.bundledNodePath,
-  cliRelativePath = target.bundledCliPath,
+  cliRelativePath = target.cliRelativePath,
 }) {
-  return {
-    schemaVersion: 1,
+  const manifest = {
+    schemaVersion: 2,
     runtimeId: 'openclaw',
     openclawVersion,
-    nodeVersion,
+    requiredExternalRuntimes: [...REQUIRED_OPENCLAW_EXTERNAL_RUNTIMES],
+    requiredExternalRuntimeVersions: {
+      nodejs: String(nodeVersion ?? '').trim(),
+    },
     platform: target.platformId,
     arch: target.archId,
-    nodeRelativePath,
     cliRelativePath,
+  };
+
+  return manifest;
+}
+
+function normalizePreparedRuntimeStringArray(values) {
+  return Array.isArray(values)
+    ? values
+      .map((value) => String(value ?? '').trim())
+      .filter(Boolean)
+      .toSorted((left, right) => left.localeCompare(right))
+    : [];
+}
+
+function normalizePreparedRuntimeVersionMap(values) {
+  if (!values || typeof values !== 'object') {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(values)
+      .map(([runtimeId, version]) => [String(runtimeId ?? '').trim(), String(version ?? '').trim()])
+      .filter(([runtimeId, version]) => runtimeId.length > 0 && version.length > 0)
+      .toSorted(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+function normalizePreparedOpenClawManifest(manifest) {
+  if (!manifest || typeof manifest !== 'object') {
+    return null;
+  }
+
+  return {
+    schemaVersion: Number(manifest.schemaVersion ?? 0),
+    runtimeId: String(manifest.runtimeId ?? '').trim(),
+    openclawVersion: String(manifest.openclawVersion ?? '').trim(),
+    requiredExternalRuntimes: normalizePreparedRuntimeStringArray(
+      manifest.requiredExternalRuntimes,
+    ),
+    requiredExternalRuntimeVersions: normalizePreparedRuntimeVersionMap(
+      manifest.requiredExternalRuntimeVersions,
+    ),
+    platform: String(manifest.platform ?? '').trim(),
+    arch: String(manifest.arch ?? '').trim(),
+    cliRelativePath: String(manifest.cliRelativePath ?? '').trim(),
   };
 }
 
 export function preparedOpenClawManifestMatches(existingManifest, expectedManifest) {
-  if (!existingManifest || typeof existingManifest !== 'object') {
+  const normalizedExistingManifest = normalizePreparedOpenClawManifest(existingManifest);
+  const normalizedExpectedManifest = normalizePreparedOpenClawManifest(expectedManifest);
+  if (!normalizedExistingManifest || !normalizedExpectedManifest) {
     return false;
   }
 
   return PREPARED_RUNTIME_MANIFEST_KEYS.every(
-    (key) => existingManifest[key] === expectedManifest[key],
+    (key) => JSON.stringify(normalizedExistingManifest[key]) === JSON.stringify(normalizedExpectedManifest[key]),
   );
 }
 
@@ -2430,6 +2480,7 @@ export async function prepareOpenClawRuntimeFromSource({
   });
   await cleanPreparedOpenClawResourceDir(resourceDir);
   await copyDirectoryWithWindowsFallback(sourceRuntimeDir, path.join(resourceDir, 'runtime'));
+  await removePreparedBundledNodeRuntime(path.join(resourceDir, 'runtime'));
   await writePreparedRuntimeSidecarManifest({
     runtimeDir: path.join(resourceDir, 'runtime'),
     manifest,
@@ -2465,7 +2516,6 @@ export async function prepareOpenClawRuntimeFromStagedDirs({
   });
   await cleanPreparedOpenClawResourceDir(resourceDir);
   await mkdir(path.join(resourceDir, 'runtime'), { recursive: true });
-  await copyDirectoryWithWindowsFallback(nodeSourceDir, path.join(resourceDir, 'runtime', 'node'));
   await copyDirectoryWithWindowsFallback(packageSourceDir, path.join(resourceDir, 'runtime', 'package'));
   await writePreparedRuntimeSidecarManifest({
     runtimeDir: path.join(resourceDir, 'runtime'),
@@ -2589,7 +2639,6 @@ export async function prepareOpenClawRuntime({
     });
     await cleanPreparedOpenClawResourceDir(resourceDir);
     await mkdir(path.join(resourceDir, 'runtime'), { recursive: true });
-    await copyDirectoryWithWindowsFallback(extractedNodeDir, path.join(resourceDir, 'runtime', 'node'));
 
     await mkdir(packageDir, { recursive: true });
     await writeFile(
@@ -2604,11 +2653,11 @@ export async function prepareOpenClawRuntime({
       openclawVersion,
       runtimeSupplementalPackages,
     });
-    const bundledNpm = resolveBundledNpmCommand(extractedNodeDir, target.platformId);
+    const runtimeNpm = resolveNodeRuntimeNpmCommand(extractedNodeDir, target.platformId);
     await retryOpenClawRuntimeOperation(
       async () => {
-        await runCommand(bundledNpm.command, [
-          ...bundledNpm.args,
+        await runCommand(runtimeNpm.command, [
+          ...runtimeNpm.args,
           'install',
           '--omit=dev',
           '--no-package-lock',
@@ -2631,7 +2680,7 @@ export async function prepareOpenClawRuntime({
         await installMissingBundledPluginRuntimeDeps({
           packageRoot: path.join(packageDir, 'node_modules', 'openclaw'),
           packageInstallRoot: packageDir,
-          bundledNpm,
+          runtimeNpm,
           baseEnv: process.env,
           cacheDir,
           platform: target.platformId,
@@ -2727,6 +2776,20 @@ async function cleanPreparedOpenClawResourceDir(
   }
 }
 
+async function removePreparedBundledNodeRuntime(runtimeDir) {
+  const bundledNodeDir = path.join(runtimeDir, 'node');
+  try {
+    await stat(bundledNodeDir);
+  } catch (error) {
+    if (error && typeof error === 'object' && error.code === 'ENOENT') {
+      return;
+    }
+    throw error;
+  }
+
+  await removeDirectoryWithRetries(bundledNodeDir);
+}
+
 export async function validatePreparedRuntimeSource(
   sourceRuntimeDir,
   manifest,
@@ -2735,9 +2798,7 @@ export async function validatePreparedRuntimeSource(
   } = {},
 ) {
   const checks = [
-    path.join(sourceRuntimeDir, 'node'),
     path.join(sourceRuntimeDir, 'package'),
-    path.join(sourceRuntimeDir, manifest.nodeRelativePath.replace(/^runtime[\\/]/, '')),
     path.join(sourceRuntimeDir, manifest.cliRelativePath.replace(/^runtime[\\/]/, '')),
     ...resolveOpenClawRuntimeSupplementalPackagePaths({
       packageSourceDir: path.join(sourceRuntimeDir, 'package'),
@@ -2753,6 +2814,18 @@ export async function validatePreparedRuntimeSource(
     }
   }
 
+  const bundledNodeDir = path.join(sourceRuntimeDir, 'node');
+  try {
+    await stat(bundledNodeDir);
+    throw new Error(
+      `Prepared OpenClaw runtime must not retain a bundled Node payload at ${bundledNodeDir}`,
+    );
+  } catch (error) {
+    if (!(error && typeof error === 'object' && error.code === 'ENOENT')) {
+      throw error;
+    }
+  }
+
   await validatePreparedOpenClawPackageTree({
     packageRoot: path.join(sourceRuntimeDir, 'package', 'node_modules', 'openclaw'),
     packageInstallRoot: path.join(sourceRuntimeDir, 'package'),
@@ -2763,15 +2836,12 @@ export async function validatePreparedRuntimeSource(
 }
 
 async function validatePreparedRuntimeArtifacts({
-  nodeSourceDir,
   packageSourceDir,
   manifest,
   runtimeSupplementalPackages = DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
 }) {
   const checks = [
-    nodeSourceDir,
     packageSourceDir,
-    path.join(nodeSourceDir, manifest.nodeRelativePath.replace(/^runtime[\\/]node[\\/]/, '')),
     path.join(packageSourceDir, manifest.cliRelativePath.replace(/^runtime[\\/]package[\\/]/, '')),
     ...resolveOpenClawRuntimeSupplementalPackagePaths({
       packageSourceDir,
@@ -2839,7 +2909,7 @@ function buildCachedNodeRuntimeSidecarManifest({
     nodeVersion,
     platform: target.platformId,
     arch: target.archId,
-    nodeRelativePath: target.bundledNodePath,
+    nodeBinaryRelativePath: target.nodeBinaryRelativePath,
   };
 }
 
@@ -2853,7 +2923,8 @@ function cachedNodeRuntimeSidecarManifestMatches(sidecarManifest, expectedManife
     && sidecarManifest.nodeVersion === expectedManifest.nodeVersion
     && sidecarManifest.platform === expectedManifest.platform
     && sidecarManifest.arch === expectedManifest.arch
-    && sidecarManifest.nodeRelativePath === expectedManifest.nodeRelativePath
+    && normalizeRuntimeIntegrityRelativePath(sidecarManifest.nodeBinaryRelativePath)
+      === normalizeRuntimeIntegrityRelativePath(expectedManifest.nodeBinaryRelativePath)
   );
 }
 
@@ -2917,9 +2988,6 @@ async function collectPreparedRuntimeIntegrityFiles({
   const bundledPluginRuntimeDeps = await loadBundledPluginRuntimeDeps(openclawPackageRoot);
   const relativePathSet = new Set([
     normalizeRuntimeIntegrityRelativePath(
-      manifest.nodeRelativePath.replace(/^runtime[\\/]/, ''),
-    ),
-    normalizeRuntimeIntegrityRelativePath(
       manifest.cliRelativePath.replace(/^runtime[\\/]/, ''),
     ),
     'package/node_modules/openclaw/package.json',
@@ -2975,7 +3043,7 @@ export async function inspectCachedNodeRuntimeDir({
     await stat(nodeSourceDir);
     const nodeExecutablePath = path.join(
       nodeSourceDir,
-      target.bundledNodePath.replace(/^runtime[\\/]node[\\/]/, ''),
+      target.nodeBinaryRelativePath.replace(/^runtime[\\/]node[\\/]/, ''),
     );
     for (const dependencyPath of resolveBundledNodeInstallDependencyPaths(nodeSourceDir, target)) {
       await stat(dependencyPath);
@@ -3374,30 +3442,6 @@ async function repairPreparedOpenClawRuntimeManifest({
     };
   }
 
-  let preparedNodeVersion;
-  try {
-    preparedNodeVersion = await readPreparedNodeVersion(
-      path.join(resourceDir, manifest.nodeRelativePath),
-    );
-  } catch (error) {
-    return {
-      reusable: false,
-      reason: 'node-version-unreadable',
-      manifestPath,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-
-  if (preparedNodeVersion !== manifest.nodeVersion) {
-    return {
-      reusable: false,
-      reason: 'node-version-mismatch',
-      manifestPath,
-      preparedNodeVersion,
-      expectedNodeVersion: manifest.nodeVersion,
-    };
-  }
-
   let preparedOpenClawVersion;
   try {
     preparedOpenClawVersion = await readPreparedOpenClawPackageVersion(
@@ -3552,8 +3596,8 @@ async function bundledResourceArchiveMirrorIsReusable({
     if (
       !preparedOpenClawManifestMatches(mirrorManifest, expectedManifest)
       || !archiveEntryNames.has(`runtime/${PREPARED_RUNTIME_SIDECAR_MANIFEST_FILENAME}`)
-      || !archiveEntryNames.has(expectedManifest.nodeRelativePath)
       || !archiveEntryNames.has(expectedManifest.cliRelativePath)
+      || archiveEntryNamesContainBundledNodePayload(archiveEntryNames)
     ) {
       return false;
     }
@@ -3569,6 +3613,16 @@ async function bundledResourceArchiveMirrorIsReusable({
   } catch {
     return false;
   }
+}
+
+function archiveEntryNamesContainBundledNodePayload(entryNames) {
+  for (const entryName of entryNames) {
+    if (String(entryName ?? '').replaceAll('\\', '/').startsWith('runtime/node/')) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function repairArchiveOnlyBundledResourceRootInPlace({
@@ -3628,7 +3682,7 @@ async function repairArchiveOnlyBundledResourceRootInPlace({
   }
 
   throw new Error(
-    `Unable to repair archive-only bundled OpenClaw resource root in place at ${mirrorRoot}.`,
+    `Unable to repair archive-only packaged OpenClaw resource root in place at ${mirrorRoot}.`,
   );
 }
 
@@ -3676,14 +3730,14 @@ async function createBundledResourceRuntimeArchive({
 
 function resolveOpenClawInstallKey(manifest) {
   if (!manifest || typeof manifest !== 'object') {
-    throw new Error('Expected a bundled OpenClaw manifest object.');
+    throw new Error('Expected a packaged OpenClaw manifest object.');
   }
 
   const openclawVersion = String(manifest.openclawVersion ?? '').trim();
   const platformId = String(manifest.platform ?? '').trim();
   const archId = String(manifest.arch ?? '').trim();
   if (!openclawVersion || !platformId || !archId) {
-    throw new Error('Bundled OpenClaw manifest is missing install key fields.');
+    throw new Error('Packaged OpenClaw manifest is missing install key fields.');
   }
 
   return `${openclawVersion}-${platformId}-${archId}`;
@@ -3784,6 +3838,8 @@ export async function syncPackagedOpenClawReleaseArtifacts({
   runtimeSupplementalPackages = DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
   archivePlatform = process.platform,
 } = {}) {
+  await cleanupLegacyOpenClawSourceRuntimeResidue({ workspaceRootDir });
+
   const resolvedManifest = manifest ?? JSON.parse(
     await readFile(path.join(resourceDir, 'manifest.json'), 'utf8'),
   );
@@ -4006,7 +4062,7 @@ async function main() {
   });
   const action = result.strategy === 'reused-existing' ? 'Reused' : 'Prepared';
   console.log(
-    `${action} bundled OpenClaw runtime ${result.manifest.openclawVersion} for ${result.manifest.platform}-${result.manifest.arch} at ${result.resourceDir} (${result.strategy})`,
+    `${action} packaged OpenClaw runtime ${result.manifest.openclawVersion} for ${result.manifest.platform}-${result.manifest.arch} at ${result.resourceDir} (${result.strategy})`,
   );
 }
 

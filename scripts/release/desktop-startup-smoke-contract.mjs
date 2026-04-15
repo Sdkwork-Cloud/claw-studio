@@ -55,6 +55,12 @@ function normalizeOptionalString(value) {
   return normalized || '';
 }
 
+function normalizeOptionalStringArray(values) {
+  return Array.isArray(values)
+    ? values.map((value) => normalizeOptionalString(value)).filter(Boolean)
+    : [];
+}
+
 export function normalizeDesktopStartupSmokeLocalAiProxyRuntime(value) {
   if (!value || typeof value !== 'object') {
     return null;
@@ -82,5 +88,32 @@ export function normalizeDesktopStartupSmokeLocalAiProxyRuntime(value) {
     observabilityDbPath,
     snapshotPath,
     logPath,
+  };
+}
+
+export function normalizeDesktopStartupSmokePackageContext(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const packageProfileId = normalizeOptionalString(value.packageProfileId);
+  const includedKernelIds = normalizeOptionalStringArray(value.includedKernelIds);
+  const defaultEnabledKernelIds = normalizeOptionalStringArray(
+    value.defaultEnabledKernelIds,
+  );
+
+  if (
+    !packageProfileId
+    || includedKernelIds.length === 0
+    || defaultEnabledKernelIds.length === 0
+    || defaultEnabledKernelIds.some((kernelId) => !includedKernelIds.includes(kernelId))
+  ) {
+    return null;
+  }
+
+  return {
+    packageProfileId,
+    includedKernelIds,
+    defaultEnabledKernelIds,
   };
 }

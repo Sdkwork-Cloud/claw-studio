@@ -126,11 +126,28 @@ await runTest('sdkwork-claw-chat resolves model catalogs through the shared prov
   assert.match(serviceSource, /from '@sdkwork\/claw-core'/);
 });
 
+await runTest('sdkwork-claw-chat model catalog runtime probing keys gateway behavior off route mode instead of the OpenClaw kernel id', () => {
+  const coreSource = read(
+    'packages/sdkwork-claw-chat/src/services/instanceEffectiveModelCatalogCore.ts',
+  );
+
+  assert.match(coreSource, /if \(route\.mode !== 'instanceOpenClawGatewayWs'\) \{/);
+  assert.doesNotMatch(
+    coreSource,
+    /if \(route\.mode !== 'instanceOpenClawGatewayWs' \|\| instance\.runtimeKind !== 'openclaw'\) \{/,
+  );
+  assert.match(coreSource, /const gatewayModels = await this\.dependencies\.listGatewayModels\(instanceId\);/);
+  assert.match(coreSource, /if \(!configPath\) \{/);
+  assert.match(coreSource, /channels: buildRuntimeFallbackChannels\(gatewayModels\),/);
+});
+
 await runTest('sdkwork-claw-chat services barrel stays Node-safe for pure service tests', () => {
   const servicesIndexSource = read('packages/sdkwork-claw-chat/src/services/index.ts');
+  const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/chatStore.ts');
 
   assert.doesNotMatch(servicesIndexSource, /clawChatService/);
   assert.doesNotMatch(servicesIndexSource, /react-i18next/);
+  assert.doesNotMatch(chatStoreSource, /zustand/);
 });
 
 await runTest('sdkwork-claw-chat parity checks use the shared Node TypeScript runner for Node-loaded chat services', () => {
@@ -174,7 +191,7 @@ await runTest('sdkwork-claw-chat chat service forbids browser-direct provider ca
   assert.doesNotMatch(chatServiceSource, /API_KEY_MAP/);
   assert.doesNotMatch(chatServiceSource, /channel\.baseUrl}\/chat\/completions/);
   assert.doesNotMatch(chatServiceSource, /new GoogleGenAI/);
-  assert.match(chatServiceSource, /Select or start an OpenClaw-compatible instance to chat\./);
+  assert.match(chatServiceSource, /Select or start an AI-compatible instance to chat\./);
 });
 
 await runTest('sdkwork-claw-chat chat service requires a real active instance before streaming', async () => {
@@ -216,7 +233,7 @@ await runTest('sdkwork-claw-chat chat service requires a real active instance be
     }
 
     assert.deepEqual(chunks, [
-      'Error: Select or start an OpenClaw-compatible instance to chat.',
+      'Error: Select or start an AI-compatible instance to chat.',
     ]);
   } finally {
     instanceStore.setState(initialState, true);
@@ -331,6 +348,8 @@ await runTest('sdkwork-claw-chat keeps active session state isolated per instanc
   assert.match(chatStoreSource, /instanceRouteModeById/);
   assert.match(localGatewaySource, /openclawGateway/);
   assert.match(localGatewaySource, /not persisted locally/);
+  assert.doesNotMatch(localGatewaySource, /instance\.runtimeKind === 'openclaw'/);
+  assert.match(localGatewaySource, /instance\.transportKind === 'openclawGatewayWs'/);
   assert.match(chatMappingSource, /must not be persisted through the studio conversation store/);
   assert.match(chatPageSource, /const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';/);
   assert.match(chatPageSource, /sendGatewayMessage/);

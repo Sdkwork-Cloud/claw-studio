@@ -1,0 +1,7 @@
+{
+  "order": 300,
+  "profileId": "dual-kernel",
+  "displayName": "Dual Kernel",
+  "includedKernelIds": ["openclaw", "hermes"],
+  "defaultEnabledKernelIds": ["openclaw", "hermes"]
+}

@@ -265,21 +265,34 @@ await runTest('request language detection falls back cleanly to the default lang
   assert.equal(detectRequestLanguage(undefined), 'en');
 });
 
+await runTest('translation bundles stay lazy until a source language is actually requested', async () => {
+  assert.equal(translationResources.en, undefined);
+  assert.equal(translationResources.zh, undefined);
+  assert.equal(translationResources['zh-TW'], undefined);
+
+  const english = await ensureI18n('en');
+
+  assert.equal(english.hasResourceBundle('en', 'translation'), true);
+  assert.equal(translationResources.en?.translation.account.title, 'Account & Wallet');
+  assert.equal(translationResources.fr?.translation.account.title, 'Account & Wallet');
+  assert.equal(translationResources.zh, undefined);
+  assert.equal(translationResources['zh-TW'], undefined);
+});
+
 await runTest('ensureI18n exposes both translated bundles and fallback language bundles', async () => {
   const instance = await ensureI18n('pt-BR');
 
   assert.equal(instance.hasResourceBundle('en', 'translation'), true);
-  assert.equal(instance.hasResourceBundle('zh', 'translation'), true);
   assert.equal(instance.hasResourceBundle('pt-BR', 'translation'), true);
-  assert.equal(instance.hasResourceBundle('zh-TW', 'translation'), true);
+  assert.equal(instance.hasResourceBundle('zh', 'translation'), false);
+  assert.equal(instance.hasResourceBundle('zh-TW', 'translation'), false);
   assert.equal(instance.language, 'pt-BR');
-  assert.equal(translationResources.en.translation.account.title, 'Account & Wallet');
-  assert.equal(translationResources.fr.translation.account.title, 'Account & Wallet');
-  assert.equal(translationResources['pt-BR'].translation.account.title, 'Account & Wallet');
-  assert.equal(typeof translationResources.en.translation.account.confirmRecharge, 'string');
-  assert.equal(typeof translationResources.zh.translation.account.confirmRecharge, 'string');
-  assert.equal(typeof translationResources.zh.translation.account.title, 'string');
-  assert.equal(typeof translationResources['zh-TW'].translation.account.title, 'string');
+  assert.equal(translationResources.en?.translation.account.title, 'Account & Wallet');
+  assert.equal(translationResources.fr?.translation.account.title, 'Account & Wallet');
+  assert.equal(translationResources['pt-BR']?.translation.account.title, 'Account & Wallet');
+  assert.equal(typeof translationResources.en?.translation.account.confirmRecharge, 'string');
+  assert.equal(translationResources.zh, undefined);
+  assert.equal(translationResources['zh-TW'], undefined);
 });
 
 await runTest('i18n interpolation formats numeric counts using the active locale', async () => {
@@ -287,6 +300,10 @@ await runTest('i18n interpolation formats numeric counts using the active locale
   assert.equal(english.t('market.labels.installCount', { count: 12345 }), '12,345 installs');
 
   const chinese = await ensureI18n('zh');
+  assert.equal(chinese.hasResourceBundle('zh', 'translation'), true);
+  assert.equal(chinese.hasResourceBundle('zh-TW', 'translation'), true);
+  assert.equal(typeof translationResources.zh?.translation.account.confirmRecharge, 'string');
+  assert.equal(typeof translationResources['zh-TW']?.translation.account.title, 'string');
   assert.equal(
     chinese.t('community.postDetail.meta.views', { count: 12345 }),
     '12,345 \u6d4f\u89c8\u6b21\u6570',

@@ -1,0 +1,7 @@
+{
+  "order": 100,
+  "profileId": "openclaw-only",
+  "displayName": "OpenClaw Only",
+  "includedKernelIds": ["openclaw"],
+  "defaultEnabledKernelIds": ["openclaw"]
+}

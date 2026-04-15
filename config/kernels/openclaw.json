@@ -1,0 +1,22 @@
+{
+  "order": 100,
+  "kernelId": "openclaw",
+  "displayName": "OpenClaw",
+  "vendor": "OpenClaw",
+  "launcherKinds": ["externalLocal"],
+  "platformSupport": {
+    "windows": "native",
+    "macos": "native",
+    "linux": "native"
+  },
+  "runtimeRequirements": ["nodejs"],
+  "optionalRuntimeRequirements": [],
+  "installStrategy": "managedArchiveActivation",
+  "managementTransport": "openclawGatewayWs",
+  "capabilityMatrix": ["chat", "health", "files", "memory", "tasks", "tools", "models"],
+  "sourceMetadata": {
+    "repositoryUrl": "https://github.com/openclaw/openclaw",
+    "docsUrl": "https://github.com/openclaw/openclaw/releases",
+    "packagingPolicy": "external-runtime-only"
+  }
+}

@@ -79,7 +79,7 @@ function createStorageMock() {
 }
 
 await runTest(
-  'usageWorkspaceService lists only OpenClaw instances and prefers the default online gateway',
+  'usageWorkspaceService lists gateway-backed usage instances and prefers the default online gateway',
   async () => {
     const service = createUsageWorkspaceService({
       studioApi: {
@@ -118,6 +118,56 @@ await runTest(
       ['openclaw-default', 'openclaw-secondary'],
     );
     assert.equal(result.defaultInstanceId, 'openclaw-default');
+  },
+);
+
+await runTest(
+  'usageWorkspaceService includes non-OpenClaw instances when they expose the gateway usage transport',
+  async () => {
+    const service = createUsageWorkspaceService({
+      studioApi: {
+        listInstances: async () => [
+          buildInstance({
+            id: 'gateway-hermes',
+            name: 'Hermes Gateway',
+            runtimeKind: 'hermes',
+            isDefault: true,
+            isBuiltIn: true,
+            deploymentMode: 'local-managed',
+          }),
+          buildInstance({
+            id: 'openclaw-secondary',
+            name: 'OpenClaw Secondary',
+            isDefault: false,
+            isBuiltIn: false,
+          }),
+          buildInstance({
+            id: 'custom-http',
+            name: 'Custom HTTP',
+            runtimeKind: 'custom',
+            transportKind: 'customHttp',
+            baseUrl: null,
+            websocketUrl: null,
+            isDefault: false,
+          }),
+        ],
+      },
+      gatewayApi: {
+        getGatewaySessionUsage: async () => ({ sessions: [], totals: {}, aggregates: {} }),
+        getUsageCost: async () => ({ daily: [], totals: {} }),
+        getGatewaySessionUsageTimeseries: async () => ({ points: [] }),
+        getGatewaySessionUsageLogs: async () => ({ logs: [] }),
+      },
+    });
+
+    const result = await service.listUsageInstances();
+
+    assert.deepEqual(
+      result.instances.map((instance) => instance.id),
+      ['gateway-hermes', 'openclaw-secondary'],
+    );
+    assert.equal(result.instances[0]?.runtimeKind, 'hermes');
+    assert.equal(result.defaultInstanceId, 'gateway-hermes');
   },
 );
 

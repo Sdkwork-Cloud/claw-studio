@@ -7,6 +7,10 @@ on:
         description: Release profile id defined under scripts/release/release-profiles.mjs
         required: true
         type: string
+      package_profile:
+        description: Kernel package profile id defined under config/kernel-profiles
+        required: true
+        type: string
       release_tag:
         description: Existing release tag to publish
         required: true
@@ -23,7 +27,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: release-${{ inputs.release_profile }}-${{ inputs.release_tag }}
+  group: release-${{ inputs.release_profile }}-${{ inputs.package_profile }}-${{ inputs.release_tag }}
   cancel-in-progress: true
 
 env:
@@ -34,6 +38,9 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     outputs:
+      default_package_profile_id: ${{ steps.plan.outputs.default_package_profile_id }}
+      package_profile_id: ${{ steps.plan.outputs.package_profile_id }}
+      package_profile_included_kernel_ids: ${{ steps.plan.outputs.package_profile_included_kernel_ids }}
       release_tag: ${{ steps.plan.outputs.release_tag }}
       git_ref: ${{ steps.plan.outputs.git_ref }}
       product_name: ${{ steps.plan.outputs.product_name }}
@@ -61,7 +68,7 @@ jobs:
         id: plan
         shell: bash
         run: |
-          node scripts/release/resolve-release-plan.mjs --profile ${{ inputs.release_profile }} --release-tag "${{ inputs.release_tag }}" --git-ref "${{ inputs.git_ref }}" --github-output
+          node scripts/release/resolve-release-plan.mjs --profile ${{ inputs.release_profile }} --package-profile ${{ inputs.package_profile }} --release-tag "${{ inputs.release_tag }}" --git-ref "${{ inputs.git_ref }}" --github-output
 
   verify-release:
     name: Verify release inputs
@@ -201,27 +208,28 @@ jobs:
         run: pnpm prepare:shared-sdk
 
       - name: Sync bundled desktop components
-        run: node scripts/run-desktop-release-build.mjs --profile ${{ inputs.release_profile }} --phase sync --target ${{ matrix.target }} --release
+        run: node scripts/run-desktop-release-build.mjs --profile ${{ inputs.release_profile }} --package-profile ${{ needs.prepare.outputs.package_profile_id }} --phase sync --target ${{ matrix.target }} --release
 
       - name: Clean stale Tauri target cache
-        run: node scripts/run-desktop-release-build.mjs --profile ${{ inputs.release_profile }} --phase prepare-target --target ${{ matrix.target }}
+        run: node scripts/run-desktop-release-build.mjs --profile ${{ inputs.release_profile }} --package-profile ${{ needs.prepare.outputs.package_profile_id }} --phase prepare-target --target ${{ matrix.target }}
 
       - name: Prepare bundled OpenClaw runtime
-        run: node scripts/run-desktop-release-build.mjs --profile ${{ inputs.release_profile }} --phase prepare-openclaw --target ${{ matrix.target }}
+        if: contains(needs.prepare.outputs.package_profile_included_kernel_ids, 'openclaw')
+        run: node scripts/run-desktop-release-build.mjs --profile ${{ inputs.release_profile }} --package-profile ${{ needs.prepare.outputs.package_profile_id }} --phase prepare-openclaw --target ${{ matrix.target }}
 
       - name: Build Claw Studio desktop bundle on Windows
         if: matrix.platform == 'windows'
         env:
           CMAKE_GENERATOR: Visual Studio 17 2022
           HOST_CMAKE_GENERATOR: Visual Studio 17 2022
-        run: node scripts/run-desktop-release-build.mjs --profile ${{ inputs.release_profile }} --phase bundle --target ${{ matrix.target }}
+        run: node scripts/run-desktop-release-build.mjs --profile ${{ inputs.release_profile }} --package-profile ${{ needs.prepare.outputs.package_profile_id }} --phase bundle --target ${{ matrix.target }}
 
       - name: Build Claw Studio desktop bundle on Unix
         if: matrix.platform != 'windows'
-        run: node scripts/run-desktop-release-build.mjs --profile ${{ inputs.release_profile }} --phase bundle --target ${{ matrix.target }}
+        run: node scripts/run-desktop-release-build.mjs --profile ${{ inputs.release_profile }} --package-profile ${{ needs.prepare.outputs.package_profile_id }} --phase bundle --target ${{ matrix.target }}
 
       - name: Collect desktop release assets
-        run: node scripts/release/package-release-assets.mjs desktop --profile ${{ inputs.release_profile }} --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --output-dir artifacts/release
+        run: node scripts/release/package-release-assets.mjs desktop --profile ${{ inputs.release_profile }} --package-profile ${{ needs.prepare.outputs.package_profile_id }} --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --output-dir artifacts/release
 
       - name: Smoke packaged desktop installers
         run: node scripts/release/smoke-desktop-installers.mjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --release-assets-dir artifacts/release

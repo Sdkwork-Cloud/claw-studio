@@ -2,6 +2,8 @@
 
 **Date:** 2026-03-26
 
+> **Supersession Note (2026-04-13):** This document is preserved for historical release-upgrade context. The current source of truth is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`, with active OpenClaw runtime packaging and activation aligned to `docs/superpowers/plans/2026-04-13-openclaw-external-node-hard-cut-implementation-plan.md`. References below to a bundled OpenClaw runtime, bundled Node.js, or embedded runtime artifacts are historical only and must not drive current release or runtime work.
+
 ## Goal
 
 Upgrade Claw Studio's bundled OpenClaw runtime from `2026.3.23-2` to the latest stable `2026.3.24`, then verify from source and packaged runtime artifacts that the embedded desktop integration still works correctly.

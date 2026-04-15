@@ -34,7 +34,7 @@ export function resolveDesktopOpenClawInstallKeyFromManifest(manifest) {
   const platformId = String(manifest?.platform ?? '').trim();
   const archId = String(manifest?.arch ?? '').trim();
   if (!openclawVersion || !platformId || !archId) {
-    throw new Error('Bundled OpenClaw manifest is missing install key fields.');
+    throw new Error('Packaged OpenClaw manifest is missing install key fields.');
   }
 
   return `${openclawVersion}-${platformId}-${archId}`;
@@ -68,10 +68,6 @@ export function normalizeDesktopInstallReadyLayout(value) {
       requireRuntimePrefix: true,
     },
   );
-  const nodeEntryRelativePath = normalizeRelativePath(
-    value?.nodeEntryRelativePath,
-    { requireRuntimePrefix: true },
-  );
   const cliEntryRelativePath = normalizeRelativePath(
     value?.cliEntryRelativePath,
     { requireRuntimePrefix: true },
@@ -80,22 +76,22 @@ export function normalizeDesktopInstallReadyLayout(value) {
   if (
     !manifestRelativePath
     || !runtimeSidecarRelativePath
-    || !nodeEntryRelativePath
     || !cliEntryRelativePath
   ) {
     return null;
   }
 
-  return {
+  const normalizedLayout = {
     mode,
     installKey,
     reuseOnFirstLaunch: true,
     requiresArchiveExtractionOnFirstLaunch: false,
     manifestRelativePath,
     runtimeSidecarRelativePath,
-    nodeEntryRelativePath,
     cliEntryRelativePath,
   };
+
+  return normalizedLayout;
 }
 
 export function buildDesktopInstallReadyLayout({ manifest, mode } = {}) {
@@ -107,12 +103,11 @@ export function buildDesktopInstallReadyLayout({ manifest, mode } = {}) {
     requiresArchiveExtractionOnFirstLaunch: false,
     manifestRelativePath: DESKTOP_INSTALL_READY_LAYOUT_MANIFEST_RELATIVE_PATH,
     runtimeSidecarRelativePath: DESKTOP_INSTALL_READY_LAYOUT_RUNTIME_SIDECAR_RELATIVE_PATH,
-    nodeEntryRelativePath: manifest?.nodeRelativePath,
     cliEntryRelativePath: manifest?.cliRelativePath,
   });
 
   if (!installReadyLayout) {
-    throw new Error('Bundled OpenClaw manifest cannot produce an install-ready layout contract.');
+    throw new Error('Packaged OpenClaw manifest cannot produce an install-ready layout contract.');
   }
 
   return installReadyLayout;

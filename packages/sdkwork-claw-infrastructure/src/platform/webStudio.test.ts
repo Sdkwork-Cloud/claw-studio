@@ -416,6 +416,76 @@ await runTest(
   },
 );
 
+await runTest(
+  'web studio rejects local-managed Hermes instances because Hermes must stay external',
+  async () => {
+    await withMockedWindowStorage(async () => {
+      const platform = new WebStudioPlatform();
+
+      await assert.rejects(
+        () =>
+          platform.createInstance({
+            name: 'Hermes Local Managed',
+            description: 'Unsupported local-managed Hermes metadata.',
+            runtimeKind: 'hermes',
+            deploymentMode: 'local-managed',
+            transportKind: 'customHttp',
+            iconType: 'server',
+            typeLabel: 'Hermes Agent',
+            host: '127.0.0.1',
+            port: 19540,
+            baseUrl: 'http://127.0.0.1:19540',
+            websocketUrl: null,
+            config: {
+              port: '19540',
+              sandbox: true,
+              autoUpdate: false,
+              logLevel: 'info',
+              corsOrigins: '*',
+              baseUrl: 'http://127.0.0.1:19540',
+              websocketUrl: null,
+            },
+          }),
+        /local-external or remote deployment/i,
+      );
+    });
+  },
+);
+
+await runTest('web studio preserves future kernel identity in generic runtime notes', async () => {
+  await withMockedWindowStorage(async () => {
+    const platform = new WebStudioPlatform();
+    const created = await platform.createInstance({
+      name: 'PhoenixClaw Remote',
+      description: 'Future kernel metadata should keep its runtime identity.',
+      runtimeKind: 'phoenixclaw',
+      deploymentMode: 'remote',
+      transportKind: 'phoenixSocket',
+      iconType: 'server',
+      typeLabel: 'PhoenixClaw',
+      host: 'phoenix.example.com',
+      port: 443,
+      baseUrl: 'https://phoenix.example.com/runtime',
+      websocketUrl: 'wss://phoenix.example.com/runtime/ws',
+      config: {
+        port: '443',
+        sandbox: true,
+        autoUpdate: false,
+        logLevel: 'info',
+        corsOrigins: '*',
+        baseUrl: 'https://phoenix.example.com/runtime',
+        websocketUrl: 'wss://phoenix.example.com/runtime/ws',
+      },
+    });
+
+    const detail = await platform.getInstanceDetail(created.id);
+
+    assert.ok(detail);
+    assert.equal(detail.officialRuntimeNotes[0]?.title, 'phoenixclaw runtime');
+    assert.match(detail.officialRuntimeNotes[0]?.content ?? '', /phoenixclaw/i);
+  });
+});
+
 await runTest('web studio upgrades the stored built-in OpenClaw instance metadata to the latest bundled version', async () => {
   await withMockedWindowStorage(async () => {
     const storage = (globalThis as typeof globalThis & {
@@ -493,3 +563,87 @@ await runTest('web studio upgrades the stored built-in OpenClaw instance metadat
     );
   });
 });
+
+await runTest(
+  'web studio preserves a stable built-in OpenClaw instance id instead of injecting a legacy local-built-in duplicate',
+  async () => {
+    await withMockedWindowStorage(async () => {
+      const storage = (globalThis as typeof globalThis & {
+        window: { localStorage: { setItem(key: string, value: string): void; getItem(key: string): string | null } };
+      }).window.localStorage;
+
+      storage.setItem(
+        'claw-studio:studio:instances:v1',
+        JSON.stringify({
+          version: 1,
+          instances: [
+            {
+              id: 'managed-openclaw-primary',
+              name: 'Managed OpenClaw Primary',
+              description: 'Stable built-in OpenClaw identity.',
+              runtimeKind: 'openclaw',
+              deploymentMode: 'local-managed',
+              transportKind: 'openclawGatewayWs',
+              status: 'online',
+              isBuiltIn: true,
+              isDefault: true,
+              iconType: 'server',
+              version: '2026.3.24',
+              typeLabel: 'Built-In OpenClaw',
+              host: '127.0.0.1',
+              port: 18871,
+              baseUrl: 'http://127.0.0.1:18871',
+              websocketUrl: 'ws://127.0.0.1:18871',
+              cpu: 0,
+              memory: 0,
+              totalMemory: 'Unknown',
+              uptime: '-',
+              capabilities: ['chat', 'health', 'files', 'memory', 'tasks', 'tools', 'models'],
+              storage: {
+                profileId: 'default-local',
+                provider: 'localFile',
+                namespace: 'claw-studio',
+                database: null,
+                connectionHint: null,
+                endpoint: null,
+              },
+              config: {
+                port: '18871',
+                sandbox: true,
+                autoUpdate: true,
+                logLevel: 'info',
+                corsOrigins: '*',
+                workspacePath: null,
+                baseUrl: 'http://127.0.0.1:18871',
+                websocketUrl: 'ws://127.0.0.1:18871',
+                authToken: null,
+              },
+              createdAt: 1,
+              updatedAt: 1,
+              lastSeenAt: 1,
+            },
+          ],
+        }),
+      );
+
+      const platform = new WebStudioPlatform();
+      const instances = await platform.listInstances();
+      const persisted = storage.getItem('claw-studio:studio:instances:v1');
+      const persistedDocument = persisted ? JSON.parse(persisted) : null;
+
+      assert.equal(instances.length, 1);
+      assert.equal(instances[0]?.id, 'managed-openclaw-primary');
+      assert.equal(instances[0]?.name, 'Managed OpenClaw Primary');
+      assert.equal(instances[0]?.version, DEFAULT_BUNDLED_OPENCLAW_VERSION);
+      assert.equal(instances[0]?.port, 18871);
+      assert.equal(instances.some((instance) => instance.id === 'local-built-in'), false);
+      assert.equal(persistedDocument?.instances?.length, 1);
+      assert.equal(persistedDocument?.instances?.[0]?.id, 'managed-openclaw-primary');
+      assert.equal(persistedDocument?.instances?.[0]?.name, 'Managed OpenClaw Primary');
+      assert.equal(
+        persistedDocument?.instances?.[0]?.version,
+        DEFAULT_BUNDLED_OPENCLAW_VERSION,
+      );
+    });
+  },
+);

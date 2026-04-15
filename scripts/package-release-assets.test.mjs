@@ -367,27 +367,96 @@ test('release asset packager collects Windows desktop installers from the target
     assert.equal(manifest.artifacts[0].family, 'desktop');
     assert.equal(manifest.artifacts[0].platform, 'windows');
     assert.equal(manifest.artifacts[0].kind, 'installer');
+    assert.equal(manifest.packageProfileId, 'openclaw-only');
+    assert.deepEqual(manifest.includedKernelIds, ['openclaw']);
+    assert.deepEqual(manifest.defaultEnabledKernelIds, ['openclaw']);
+    assert.deepEqual(manifest.requiredExternalRuntimes, ['nodejs']);
+    assert.deepEqual(manifest.optionalExternalRuntimes, []);
+    assert.deepEqual(manifest.launcherKinds, ['externalLocal']);
+    assert.deepEqual(manifest.kernelPlatformSupport, {
+      openclaw: {
+        windows: 'native',
+        macos: 'native',
+        linux: 'native',
+      },
+    });
     assert.deepEqual(
-      manifest.openClawInstallerContract,
+      manifest.kernelInstallContracts,
       {
-        version: 1,
-        platform: 'windows',
-        delivery: 'archive-only-resources',
-        installMode: 'postinstall-prewarm',
-        bundledResourceRoot: 'resources/openclaw/',
-        runtimeArchive: 'resources/openclaw/runtime.zip',
-        sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json',
-        installerHookPath: 'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh',
-        prepareCommand: '--prepare-bundled-openclaw-runtime',
-        prepareFailureMode: 'abort-install',
-        cliRegistrationCommand: '--register-openclaw-cli',
-        cliRegistrationFailureMode: 'best-effort',
+        openclaw: {
+          version: 2,
+          platform: 'windows',
+          delivery: 'archive-only-resources',
+          installMode: 'first-launch-archive-extract',
+          bundledResourceRoot: 'resources/openclaw/',
+          runtimeArchive: 'resources/openclaw/runtime.zip',
+          sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json',
+          requiredExternalRuntimes: ['nodejs'],
+        },
       },
     );
     assert.equal(
       manifest.artifacts[0].relativePath,
       'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe',
     );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset packager records explicit dual-kernel package profile metadata beside desktop package manifests', async () => {
+  const packagerPath = path.join(rootDir, 'scripts', 'release', 'package-release-assets.mjs');
+  const packager = await import(pathToFileURL(packagerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-windows-dual-kernel-'));
+  const targetDir = path.join(tempRoot, 'target');
+  const bundleRoot = path.join(targetDir, 'x86_64-pc-windows-msvc', 'release', 'bundle', 'nsis');
+  const outputDir = path.join(tempRoot, 'release-assets');
+
+  try {
+    mkdirSync(bundleRoot, { recursive: true });
+    writeFileSync(
+      path.join(bundleRoot, 'Claw Studio_0.1.0_x64-setup.exe'),
+      'synthetic desktop installer\n',
+      'utf8',
+    );
+
+    packager.packageDesktopAssets({
+      platform: 'windows',
+      arch: 'x64',
+      target: 'x86_64-pc-windows-msvc',
+      outputDir,
+      targetDir,
+      packageProfileId: 'dual-kernel',
+    });
+
+    const manifestPath = path.join(
+      outputDir,
+      'desktop',
+      'windows',
+      'x64',
+      'release-asset-manifest.json',
+    );
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+
+    assert.equal(manifest.packageProfileId, 'dual-kernel');
+    assert.deepEqual(manifest.includedKernelIds, ['openclaw', 'hermes']);
+    assert.deepEqual(manifest.defaultEnabledKernelIds, ['openclaw', 'hermes']);
+    assert.deepEqual(manifest.requiredExternalRuntimes, ['nodejs', 'python', 'uv']);
+    assert.deepEqual(manifest.optionalExternalRuntimes, []);
+    assert.deepEqual(manifest.launcherKinds, ['externalLocal', 'externalWslOrRemote']);
+    assert.deepEqual(manifest.kernelPlatformSupport, {
+      openclaw: {
+        windows: 'native',
+        macos: 'native',
+        linux: 'native',
+      },
+      hermes: {
+        windows: 'wsl2OrRemoteOnly',
+        macos: 'native',
+        linux: 'native',
+      },
+    });
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -435,20 +504,19 @@ test('release asset packager records Linux OpenClaw install contract metadata be
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
     assert.deepEqual(
-      manifest.openClawInstallerContract,
+      manifest.kernelInstallContracts,
       {
-        version: 1,
-        platform: 'linux',
-        delivery: 'archive-only-resources',
-        installMode: 'postinstall-prewarm',
-        bundledResourceRoot: 'resources/openclaw/',
-        runtimeArchive: 'resources/openclaw/runtime.zip',
-        sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.linux.conf.json',
-        postInstallScriptPath: 'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-        packageFormats: ['deb', 'rpm'],
-        prepareCommand: '--prepare-bundled-openclaw-runtime',
-        prepareFailureMode: 'abort-install',
-        installRootOverrides: ['--install-root', 'RPM_INSTALL_PREFIX', 'SDKWORK_CLAW_INSTALL_ROOT'],
+        openclaw: {
+          version: 2,
+          platform: 'linux',
+          delivery: 'archive-only-resources',
+          installMode: 'first-launch-archive-extract',
+          bundledResourceRoot: 'resources/openclaw/',
+          runtimeArchive: 'resources/openclaw/runtime.zip',
+          sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.linux.conf.json',
+          requiredExternalRuntimes: ['nodejs'],
+          packageFormats: ['deb', 'rpm'],
+        },
       },
     );
   } finally {
@@ -503,17 +571,20 @@ test('release asset packager records macOS OpenClaw staged-layout contract metad
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
     assert.deepEqual(
-      manifest.openClawInstallerContract,
+      manifest.kernelInstallContracts,
       {
-        version: 1,
-        platform: 'macos',
-        delivery: 'archive-only-resources',
-        installMode: 'preexpanded-managed-layout',
-        bundledResourceRoot: 'resources/openclaw/',
-        runtimeArchive: 'resources/openclaw/runtime.zip',
-        sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json',
-        stagedInstallRootSource: 'generated/release/macos-install-root/',
-        stagedInstallRootTarget: 'MacOS/',
+        openclaw: {
+          version: 2,
+          platform: 'macos',
+          delivery: 'archive-only-resources',
+          installMode: 'preexpanded-managed-layout',
+          bundledResourceRoot: 'resources/openclaw/',
+          runtimeArchive: 'resources/openclaw/runtime.zip',
+          sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json',
+          stagedInstallRootSource: 'generated/release/macos-install-root/',
+          stagedInstallRootTarget: 'MacOS/',
+          requiredExternalRuntimes: ['nodejs'],
+        },
       },
     );
   } finally {
@@ -617,6 +688,7 @@ test('release asset packager exposes desktop, web, server, container, and kubern
   const packager = await import(pathToFileURL(packagerPath).href);
 
   assert.equal(typeof packager.parseArgs, 'function');
+  assert.equal(typeof packager.createTarArchivePlan, 'function');
   assert.equal(typeof packager.packageDesktopAssets, 'function');
   assert.equal(typeof packager.packageWebAssets, 'function');
   assert.equal(typeof packager.packageServerAssets, 'function');
@@ -657,6 +729,42 @@ test('release asset packager exposes desktop, web, server, container, and kubern
     () => packager.parseArgs(['server', '--release-tag']),
     /Missing value for --release-tag/,
   );
+  assert.throws(
+    () => packager.parseArgs(['desktop', '--package-profile']),
+    /Missing value for --package-profile/,
+  );
+});
+
+test('release asset packager resolves tar archives without Windows cmd shell wrapping', async () => {
+  const packagerPath = path.join(rootDir, 'scripts', 'release', 'package-release-assets.mjs');
+  const packager = await import(pathToFileURL(packagerPath).href);
+
+  const windowsPlan = packager.createTarArchivePlan({
+    archivePath: 'C:\\release\\bundle.tar.gz',
+    workingDirectory: 'D:\\workspace\\bundle-root',
+    entryName: 'bundle',
+    platform: 'win32',
+  });
+  const linuxPlan = packager.createTarArchivePlan({
+    archivePath: '/tmp/bundle.tar.gz',
+    workingDirectory: '/tmp/work',
+    entryName: 'bundle',
+    platform: 'linux',
+  });
+
+  assert.equal(windowsPlan.command, 'tar.exe');
+  assert.deepEqual(
+    windowsPlan.args,
+    ['-czf', 'C:\\release\\bundle.tar.gz', '-C', 'D:\\workspace\\bundle-root', 'bundle'],
+  );
+  assert.equal(windowsPlan.shell, false);
+
+  assert.equal(linuxPlan.command, 'tar');
+  assert.deepEqual(
+    linuxPlan.args,
+    ['-czf', '/tmp/bundle.tar.gz', '-C', '/tmp/work', 'bundle'],
+  );
+  assert.equal(linuxPlan.shell, false);
 });
 
 test('web asset packager archives built web and docs outputs with family metadata', async () => {

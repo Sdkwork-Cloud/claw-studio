@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import type { StateStorage } from 'zustand/middleware';
 import { AUTH_SESSION_STORAGE_KEY } from '@sdkwork/claw-infrastructure';
 import { appAuthService } from '../services/index.ts';
 import {
@@ -7,6 +6,7 @@ import {
   readAppSdkSessionTokens,
   resetAppSdkClient,
 } from '../sdk/useAppSdkClient.ts';
+import type { StateStorage } from './simpleStore.ts';
 import { createAuthStore } from './authStore.ts';
 
 function createMemoryStorage(): StateStorage {

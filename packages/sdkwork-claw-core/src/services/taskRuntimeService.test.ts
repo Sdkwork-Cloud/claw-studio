@@ -15,7 +15,17 @@ function runTest(name: string, fn: () => Promise<void> | void) {
     });
 }
 
-function createDetail(runtimeKind: 'openclaw' | 'custom' = 'openclaw'): StudioInstanceDetailRecord {
+function createDetail(input: {
+  runtimeKind?: 'openclaw' | 'custom';
+  transportKind?: string;
+  primaryTransport?: string;
+  isBuiltIn?: boolean;
+} = {}): StudioInstanceDetailRecord {
+  const runtimeKind = input.runtimeKind || 'openclaw';
+  const transportKind =
+    input.transportKind || (runtimeKind === 'openclaw' ? 'openclawGatewayWs' : 'customHttp');
+  const primaryTransport = input.primaryTransport || transportKind;
+
   return {
     instance: {
       id: 'runtime-1',
@@ -23,9 +33,9 @@ function createDetail(runtimeKind: 'openclaw' | 'custom' = 'openclaw'): StudioIn
       description: 'Task runtime fixture.',
       runtimeKind,
       deploymentMode: runtimeKind === 'openclaw' ? 'local-managed' : 'remote',
-      transportKind: runtimeKind === 'openclaw' ? 'openclawGatewayWs' : 'customHttp',
+      transportKind,
       status: 'online',
-      isBuiltIn: runtimeKind === 'openclaw',
+      isBuiltIn: input.isBuiltIn ?? runtimeKind === 'openclaw',
       isDefault: false,
       iconType: 'server',
       version: '2026.4.5',
@@ -84,7 +94,7 @@ function createDetail(runtimeKind: 'openclaw' | 'custom' = 'openclaw'): StudioIn
       remote: false,
     },
     connectivity: {
-      primaryTransport: runtimeKind === 'openclaw' ? 'openclawGatewayWs' : 'customHttp',
+      primaryTransport,
       endpoints: [],
     },
     observability: {
@@ -108,7 +118,7 @@ await runTest('taskRuntimeService loads recent runtime tasks and task flows for 
   const taskCalls: string[] = [];
   const flowCalls: string[] = [];
   const service = createTaskRuntimeService({
-    getInstanceDetail: async () => createDetail('openclaw'),
+    getInstanceDetail: async () => createDetail({ runtimeKind: 'openclaw' }),
     listRuntimeTasks: async (instanceId) => {
       taskCalls.push(instanceId);
       return [
@@ -168,7 +178,7 @@ await runTest('taskRuntimeService loads recent runtime tasks and task flows for 
 
   const overview = await service.getOverview('runtime-1');
 
-  assert.equal(overview.openClawRuntime, true);
+  assert.equal(overview.runtimeTaskSurface, true);
   assert.equal(overview.taskBoard.supported, true);
   assert.equal(overview.taskFlows.supported, true);
   assert.equal(overview.taskBoard.items[0]?.id, 'task-run-1');
@@ -190,10 +200,62 @@ await runTest('taskRuntimeService loads recent runtime tasks and task flows for 
   assert.deepEqual(flowCalls, ['runtime-1']);
 });
 
+await runTest('taskRuntimeService loads recent runtime tasks and task flows for gateway task-surface instances even when runtimeKind is custom', async () => {
+  const taskCalls: string[] = [];
+  const flowCalls: string[] = [];
+  const service = createTaskRuntimeService({
+    getInstanceDetail: async () =>
+      createDetail({
+        runtimeKind: 'custom',
+        transportKind: 'openclawGatewayWs',
+        primaryTransport: 'openclawGatewayWs',
+      }),
+    listRuntimeTasks: async (instanceId) => {
+      taskCalls.push(instanceId);
+      return [
+        {
+          id: 'task-run-custom-1',
+          kind: 'subagent',
+          status: 'queued',
+          summary: 'Gateway-routed runtime task.',
+          raw: {
+            id: 'task-run-custom-1',
+          },
+        },
+      ];
+    },
+    listTaskFlows: async (instanceId) => {
+      flowCalls.push(instanceId);
+      return [
+        {
+          id: 'flow-custom-1',
+          lookupKey: 'custom-gateway-flow',
+          state: 'running',
+          summary: 'Gateway-routed task flow.',
+          updatedAt: '2026-04-07T08:00:00.000Z',
+          raw: {
+            id: 'flow-custom-1',
+          },
+        },
+      ];
+    },
+  });
+
+  const overview = await service.getOverview('runtime-1');
+
+  assert.equal(overview.runtimeTaskSurface, true);
+  assert.equal(overview.taskBoard.supported, true);
+  assert.equal(overview.taskFlows.supported, true);
+  assert.equal(overview.taskBoard.items[0]?.id, 'task-run-custom-1');
+  assert.equal(overview.taskFlows.items[0]?.lookupKey, 'custom-gateway-flow');
+  assert.deepEqual(taskCalls, ['runtime-1']);
+  assert.deepEqual(flowCalls, ['runtime-1']);
+});
+
 await runTest('taskRuntimeService skips runtime task loading for non-OpenClaw instances', async () => {
   const calls: string[] = [];
   const service = createTaskRuntimeService({
-    getInstanceDetail: async () => createDetail('custom'),
+    getInstanceDetail: async () => createDetail({ runtimeKind: 'custom' }),
     listRuntimeTasks: async (instanceId) => {
       calls.push(`task:${instanceId}`);
       return [];
@@ -206,7 +268,7 @@ await runTest('taskRuntimeService skips runtime task loading for non-OpenClaw in
 
   const overview = await service.getOverview('runtime-1');
 
-  assert.equal(overview.openClawRuntime, false);
+  assert.equal(overview.runtimeTaskSurface, false);
   assert.equal(overview.taskBoard.supported, false);
   assert.equal(overview.taskFlows.supported, false);
   assert.deepEqual(calls, []);
@@ -220,7 +282,7 @@ await runTest('taskRuntimeService degrades gracefully when the runtime does not 
     httpStatus: 404,
   });
   const service = createTaskRuntimeService({
-    getInstanceDetail: async () => createDetail('openclaw'),
+    getInstanceDetail: async () => createDetail({ runtimeKind: 'openclaw' }),
     listRuntimeTasks: async () => {
       throw unsupportedError;
     },
@@ -231,7 +293,7 @@ await runTest('taskRuntimeService degrades gracefully when the runtime does not 
 
   const overview = await service.getOverview('runtime-1');
 
-  assert.equal(overview.openClawRuntime, true);
+  assert.equal(overview.runtimeTaskSurface, true);
   assert.equal(overview.taskBoard.supported, false);
   assert.equal(overview.taskFlows.supported, false);
   assert.match(String(overview.taskBoard.message), /tasks\.list is not available/i);
@@ -241,7 +303,7 @@ await runTest('taskRuntimeService degrades gracefully when the runtime does not 
 await runTest('taskRuntimeService delegates Task Flow detail lookup for OpenClaw instances', async () => {
   const detailCalls: Array<{ instanceId: string; lookup: string }> = [];
   const service = createTaskRuntimeService({
-    getInstanceDetail: async () => createDetail('openclaw'),
+    getInstanceDetail: async () => createDetail({ runtimeKind: 'openclaw' }),
     getTaskFlowDetail: async (instanceId, lookup) => {
       detailCalls.push({ instanceId, lookup });
       return {
@@ -328,7 +390,7 @@ await runTest('taskRuntimeService delegates Task Flow detail lookup for OpenClaw
 await runTest('taskRuntimeService delegates detached runtime task detail lookup for OpenClaw instances', async () => {
   const detailCalls: Array<{ instanceId: string; lookup: string }> = [];
   const service = createTaskRuntimeService({
-    getInstanceDetail: async () => createDetail('openclaw'),
+    getInstanceDetail: async () => createDetail({ runtimeKind: 'openclaw' }),
     getRuntimeTaskDetail: async (instanceId, lookup) => {
       detailCalls.push({ instanceId, lookup });
       return {
@@ -378,7 +440,7 @@ await runTest('taskRuntimeService delegates detached runtime task detail lookup 
 await runTest('taskRuntimeService skips Task Flow detail lookup for non-OpenClaw instances', async () => {
   const detailCalls: Array<{ instanceId: string; lookup: string }> = [];
   const service = createTaskRuntimeService({
-    getInstanceDetail: async () => createDetail('custom'),
+    getInstanceDetail: async () => createDetail({ runtimeKind: 'custom' }),
     getTaskFlowDetail: async (instanceId, lookup) => {
       detailCalls.push({ instanceId, lookup });
       return null;
@@ -394,7 +456,7 @@ await runTest('taskRuntimeService skips Task Flow detail lookup for non-OpenClaw
 await runTest('taskRuntimeService skips detached runtime task detail lookup for non-OpenClaw instances', async () => {
   const detailCalls: Array<{ instanceId: string; lookup: string }> = [];
   const service = createTaskRuntimeService({
-    getInstanceDetail: async () => createDetail('custom'),
+    getInstanceDetail: async () => createDetail({ runtimeKind: 'custom' }),
     getRuntimeTaskDetail: async (instanceId, lookup) => {
       detailCalls.push({ instanceId, lookup });
       return null;

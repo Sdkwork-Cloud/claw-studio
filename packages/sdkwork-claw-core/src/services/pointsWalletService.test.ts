@@ -75,7 +75,7 @@ function createAuthenticatedStubService() {
           code: '2000',
           data: 200,
         }),
-        createRecharge: async (body: { points: number; paymentMethod?: string }) => {
+        rechargePoints: async (body: { points: number; paymentMethod?: string }) => {
           calls.push(`recharge:${body.points}:${body.paymentMethod ?? ''}`);
           return {
             code: '2000',

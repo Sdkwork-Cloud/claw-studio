@@ -18,7 +18,7 @@ function createInstance(overrides: Partial<StudioInstanceRecord> = {}): StudioIn
   return {
     id: 'local-built-in',
     name: 'Local Built-In',
-    description: 'Bundled OpenClaw runtime.',
+    description: 'Packaged local OpenClaw kernel.',
     runtimeKind: 'openclaw',
     deploymentMode: 'local-managed',
     transportKind: 'openclawGatewayWs',
@@ -62,6 +62,18 @@ await runTest('isBuiltInLocalInstance only accepts the default built-in managed 
   assert.equal(
     isBuiltInLocalInstance(
       createInstance({
+        id: 'local-phoenixclaw',
+        name: 'Local PhoenixClaw',
+        runtimeKind: 'phoenixclaw',
+        transportKind: 'phoenixSocket',
+        typeLabel: 'PhoenixClaw Runtime',
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    isBuiltInLocalInstance(
+      createInstance({
         id: 'custom-local-managed',
         isBuiltIn: false,
         isDefault: false,
@@ -70,6 +82,31 @@ await runTest('isBuiltInLocalInstance only accepts the default built-in managed 
     false,
   );
 });
+
+await runTest(
+  'mapInstanceNode keeps built-in local managed instances classified as the local primary node',
+  () => {
+    const node = mapInstanceNode(
+      createInstance({
+        id: 'local-phoenixclaw',
+        name: 'Local PhoenixClaw',
+        description: 'Managed future kernel with external runtimes.',
+        runtimeKind: 'phoenixclaw',
+        transportKind: 'phoenixSocket',
+        version: '2026.4.13',
+        typeLabel: 'PhoenixClaw Runtime',
+        port: 9540,
+        baseUrl: 'http://127.0.0.1:9540',
+        websocketUrl: null,
+      }),
+      null,
+    );
+
+    assert.equal(node.kind, 'localPrimary');
+    assert.equal(node.management, 'managed');
+    assert.equal(node.topologyKind, 'localManagedNative');
+  },
+);
 
 await runTest('mapInstanceNode keeps explicit remote instances attached', () => {
   const node = mapInstanceNode(

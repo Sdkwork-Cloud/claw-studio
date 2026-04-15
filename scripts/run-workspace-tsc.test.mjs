@@ -1,11 +1,55 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const modulePath = path.resolve(import.meta.dirname, 'run-workspace-tsc.mjs');
 const moduleSource = readFileSync(modulePath, 'utf8');
 const runner = await import(pathToFileURL(modulePath).href);
+
+const tempWorkspaceRoot = mkdtempSync(
+  path.join(os.tmpdir(), 'claw-run-workspace-tsc-'),
+);
+writeFileSync(
+  path.join(tempWorkspaceRoot, 'package.json'),
+  JSON.stringify({
+    name: '@sdkwork/claw-workspace-test',
+    private: true,
+    devDependencies: {
+      typescript: '~6.0.2',
+    },
+  }),
+);
+
+function createFallbackTypescriptPackage(worktreeName, version) {
+  const fallbackTypescriptPackageDir = path.join(
+    tempWorkspaceRoot,
+    '.worktrees',
+    worktreeName,
+    'node_modules',
+    '.pnpm',
+    `typescript@${version}`,
+    'node_modules',
+    'typescript',
+  );
+  mkdirSync(path.join(fallbackTypescriptPackageDir, 'lib'), { recursive: true });
+  writeFileSync(
+    path.join(fallbackTypescriptPackageDir, 'package.json'),
+    JSON.stringify({ name: 'typescript', version }),
+  );
+  writeFileSync(
+    path.join(fallbackTypescriptPackageDir, 'lib', '_tsc.js'),
+    'console.log("tsc");\n',
+  );
+  writeFileSync(
+    path.join(fallbackTypescriptPackageDir, 'lib', 'lib.es2022.d.ts'),
+    '/// <reference no-default-lib="true"/>\n',
+  );
+}
+
+createFallbackTypescriptPackage('older', '5.8.3');
+createFallbackTypescriptPackage('preferred', '6.0.2');
 
 assert.equal(typeof runner.createWorkspaceTscPlan, 'function');
 assert.equal(typeof runner.runWorkspaceTsc, 'function');
@@ -32,6 +76,7 @@ const plan = runner.createWorkspaceTscPlan({
   argv: ['--noEmit'],
   cwd: 'D:\\workspace\\claw-studio',
   execPath: 'node.exe',
+  rootDir: tempWorkspaceRoot,
 });
 
 assert.equal(plan.command, 'node.exe');
@@ -39,8 +84,20 @@ assert.equal(plan.cwd, 'D:\\workspace\\claw-studio');
 assert.equal(plan.args.at(-1), '--noEmit');
 assert.match(
   String(plan.args[0] ?? ''),
-  /typescript[\\/]lib[\\/](?:_)?tsc\.js$/,
-  'run-workspace-tsc must resolve the workspace TypeScript CLI before spawning it, including the TypeScript 6 _tsc.js entrypoint',
+  /node_modules[\\/]typescript[\\/]lib[\\/](?:_)?tsc\.js$/,
+  'run-workspace-tsc must execute TypeScript from a stable workspace-local package link instead of invoking a deep fallback path directly',
+);
+assert.match(
+  String(plan.args[0] ?? ''),
+  /node_modules[\\/]typescript[\\/]lib[\\/]_tsc\.js$/,
+  'run-workspace-tsc must keep the TypeScript 6 _tsc.js entrypoint when creating the workspace-local fallback link',
+);
+assert.equal(
+  JSON.parse(
+    readFileSync(path.join(tempWorkspaceRoot, 'node_modules', 'typescript', 'package.json'), 'utf8'),
+  ).version,
+  '6.0.2',
+  'run-workspace-tsc must link the TypeScript package that matches the current workspace version contract',
 );
 
 assert.equal(
@@ -48,6 +105,7 @@ assert.equal(
     argv: ['--noEmit'],
     cwd: 'D:\\workspace\\claw-studio',
     execPath: 'node.exe',
+    rootDir: tempWorkspaceRoot,
     spawnSyncImpl(command, args, options) {
       assert.equal(command, 'node.exe');
       assert.equal(args.at(-1), '--noEmit');
@@ -63,6 +121,7 @@ assert.equal(
 assert.throws(
   () =>
     runner.runWorkspaceTsc({
+      rootDir: tempWorkspaceRoot,
       spawnSyncImpl() {
         return {
           error: new Error('spawn EPERM'),
@@ -76,6 +135,7 @@ assert.throws(
 assert.throws(
   () =>
     runner.runWorkspaceTsc({
+      rootDir: tempWorkspaceRoot,
       spawnSyncImpl() {
         return {
           signal: 'SIGTERM',
@@ -87,3 +147,4 @@ assert.throws(
 );
 
 console.log('ok - workspace tsc runner surfaces spawn failures and wraps the CLI entrypoint');
+rmSync(tempWorkspaceRoot, { recursive: true, force: true });

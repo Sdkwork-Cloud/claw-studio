@@ -351,6 +351,68 @@ await runTest('openClawGatewayClient keeps remote OpenClaw instances on HTTP fet
   }
 });
 
+await runTest('openClawGatewayClient accepts any instance that exposes the OpenClaw gateway transport even when runtimeKind is custom', async () => {
+  const requests: OpenClawInvokeRequest[] = [];
+  const baseDetail = createInstanceDetail();
+  const client = createOpenClawGatewayClient({
+    getInstanceDetail: async () => ({
+      ...baseDetail,
+      instance: {
+        ...baseDetail.instance,
+        id: 'custom-gateway-runtime',
+        name: 'Custom Gateway Runtime',
+        runtimeKind: 'custom',
+      },
+      connectivity: {
+        ...baseDetail.connectivity,
+        primaryTransport: 'openclawGatewayWs',
+      },
+    }),
+    fetchImpl: async (_input, init) => {
+      requests.push(parseInvokeRequest(init));
+      return createJsonResponse({
+        ok: true,
+        result: {
+          items: [
+            {
+              id: 'gateway-task-1',
+              name: 'Gateway Task',
+              description: 'Gateway task on a custom runtime kind.',
+              enabled: true,
+              createdAtMs: 100,
+              updatedAtMs: 200,
+              schedule: {
+                kind: 'cron',
+                expr: '0 * * * *',
+              },
+              sessionTarget: 'isolated',
+              wakeMode: 'now',
+              payload: {
+                kind: 'agentTurn',
+                message: 'Route by transport, not runtime kind.',
+              },
+              delivery: {
+                mode: 'announce',
+              },
+              state: {
+                nextRunAtMs: 1742432400000,
+              },
+            },
+          ],
+        },
+      });
+    },
+  });
+
+  const jobs = await client.listWorkbenchCronJobs('custom-gateway-runtime');
+
+  assert.equal(requests[0]?.tool, 'cron');
+  assert.equal(requests[0]?.action, 'list');
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0]?.id, 'gateway-task-1');
+  assert.equal(jobs[0]?.name, 'Gateway Task');
+});
+
 await runTest('getInvokeHttpRequestInfo exposes validated request metadata', async () => {
   const requests: OpenClawInvokeRequest[] = [];
   const client = createOpenClawGatewayClient({

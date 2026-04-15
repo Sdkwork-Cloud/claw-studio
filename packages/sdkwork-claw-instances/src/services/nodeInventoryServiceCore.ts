@@ -158,11 +158,45 @@ function resolveSessionHealth(
   return health;
 }
 
-function resolveSessionNodeIds(node: Pick<NodeInventoryRecord, 'id' | 'source' | 'instanceId'>) {
-  if (node.source === 'kernel') {
-    return ['local-built-in', node.id];
+function normalizeRuntimeId(runtimeId: string | null | undefined) {
+  return String(runtimeId ?? '').trim().toLowerCase();
+}
+
+function findMatchingBuiltInKernelInstance(
+  snapshot: Pick<KernelPlatformSnapshot, 'runtimeId'>,
+  instances: StudioInstanceRecord[],
+) {
+  return instances.find((instance) => (
+    isBuiltInLocalInstance(instance)
+    && normalizeRuntimeId(instance.runtimeKind) === normalizeRuntimeId(snapshot.runtimeId)
+  )) ?? null;
+}
+
+function resolveFallbackKernelNodeId(
+  snapshot: Pick<KernelPlatformSnapshot, 'runtimeId'>,
+) {
+  const runtimeId = normalizeRuntimeId(snapshot.runtimeId);
+  if (!runtimeId || runtimeId === 'openclaw') {
+    return 'local-built-in';
   }
 
+  return `local-built-in-${runtimeId}`;
+}
+
+function resolveKernelNodeDetailPath(
+  snapshot: Pick<KernelPlatformSnapshot, 'runtimeId'>,
+  matchingBuiltInInstance: Pick<StudioInstanceRecord, 'id'> | null,
+) {
+  if (matchingBuiltInInstance) {
+    return `/instances/${matchingBuiltInInstance.id}`;
+  }
+
+  return normalizeRuntimeId(snapshot.runtimeId) === 'openclaw'
+    ? '/kernel'
+    : '/instances';
+}
+
+function resolveSessionNodeIds(node: Pick<NodeInventoryRecord, 'id' | 'source' | 'instanceId'>) {
   return [node.id, node.instanceId].filter((value): value is string => Boolean(value));
 }
 
@@ -196,10 +230,15 @@ function applyNodeSession(
 function mapKernelNode(
   snapshot: KernelPlatformSnapshot,
   hostStatus: HostPlatformSnapshot | null,
+  matchingBuiltInInstance: StudioInstanceRecord | null,
 ): NodeInventoryRecord {
+  const fallbackNodeId = resolveFallbackKernelNodeId(snapshot);
+  const nodeId = matchingBuiltInInstance?.id ?? fallbackNodeId;
+  const nodeName = matchingBuiltInInstance?.name?.trim() || `Local ${snapshot.runtimeId} Kernel`;
+
   return {
-    id: 'local-built-in',
-    name: 'Local Built-In Kernel',
+    id: nodeId,
+    name: nodeName,
     kind: 'localPrimary',
     management: snapshot.controlMode === 'attached' ? 'attached' : 'managed',
     topologyKind: snapshot.topologyKind,
@@ -207,15 +246,16 @@ function mapKernelNode(
     health: mapKernelHealth(snapshot),
     endpoint: snapshot.baseUrl,
     host: snapshot.raw.provenance.platform,
-    version: snapshot.openclawVersion ?? null,
+    version: snapshot.runtimeVersion ?? null,
     source: 'kernel',
+    instanceId: matchingBuiltInInstance?.id,
     hostPlatformMode: hostStatus?.mode ?? null,
     sessionId: null,
     sessionState: null,
     compatibilityState: null,
     desiredStateRevision: null,
     desiredStateHash: null,
-    detailPath: '/kernel',
+    detailPath: resolveKernelNodeDetailPath(snapshot, matchingBuiltInInstance),
   };
 }
 
@@ -255,12 +295,16 @@ export function createNodeInventoryService(
       ]);
 
       const nodes: NodeInventoryRecord[] = [];
+      const matchingBuiltInKernelInstance = snapshot
+        ? findMatchingBuiltInKernelInstance(snapshot, instances)
+        : null;
+
       if (snapshot) {
-        nodes.push(mapKernelNode(snapshot, hostStatus));
+        nodes.push(mapKernelNode(snapshot, hostStatus, matchingBuiltInKernelInstance));
       }
 
       for (const instance of instances) {
-        if (snapshot && isBuiltInLocalInstance(instance)) {
+        if (matchingBuiltInKernelInstance && instance.id === matchingBuiltInKernelInstance.id) {
           continue;
         }
         nodes.push({

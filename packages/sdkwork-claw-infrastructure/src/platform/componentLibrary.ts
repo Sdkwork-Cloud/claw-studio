@@ -1,5 +1,6 @@
 import type {
   ComponentPlatformAPI,
+  KnownRuntimeBundledComponentId,
   RuntimeBundledComponentId,
   RuntimeDesktopComponentCapabilityInfo,
   RuntimeDesktopComponentCatalogInfo,
@@ -13,14 +14,10 @@ import type {
 } from './contracts/components.ts';
 import { getComponentPlatform } from './registry.ts';
 
-export const BUNDLED_COMPONENT_IDS: RuntimeBundledComponentId[] = [
-  'openclaw',
-  'zeroclaw',
-  'ironclaw',
-];
+export const BUNDLED_COMPONENT_IDS: KnownRuntimeBundledComponentId[] = [];
 
-export function isBundledComponentId(value: string): value is RuntimeBundledComponentId {
-  return BUNDLED_COMPONENT_IDS.includes(value as RuntimeBundledComponentId);
+export function isBundledComponentId(value: string): value is KnownRuntimeBundledComponentId {
+  return BUNDLED_COMPONENT_IDS.includes(value as KnownRuntimeBundledComponentId);
 }
 
 export class DesktopComponentLibrary {

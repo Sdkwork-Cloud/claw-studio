@@ -279,5 +279,107 @@
     "operatorsDescription": "能力卡片持续展示 Agent 关注方向、自动化适配度与执行范围。",
     "delivery": "交付模型",
     "deliveryDescription": "持续关注通道准备度，确保审批、告警与摘要在需要时可以稳定发出。"
+  },
+  "usage": {
+    "page": {
+      "eyebrow": "用量工作台",
+      "title": "网关用量",
+      "description": "在统一工作台中查看网关会话用量、成本、兼容性回退状态以及逐会话明细。",
+      "loading": "正在加载用量工作台",
+      "emptyTitle": "当前没有可用的兼容网关",
+      "emptyDescription": "请先添加或启动一个具备网关能力的实例，再查看用量与成本证据。",
+      "noSnapshot": "暂无可用的用量快照"
+    },
+    "actions": {
+      "openInstances": "打开实例"
+    },
+    "filters": {
+      "instance": "实例",
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "timeZone": "时区",
+      "timeZoneLocal": "本地时间",
+      "timeZoneUtc": "UTC",
+      "search": "搜索会话",
+      "searchPlaceholder": "按会话、模型、Agent 或渠道筛选",
+      "query": "查询筛选",
+      "queryPlaceholder": "例如 provider:anthropic tool:grep minTokens:1000",
+      "applyQuery": "应用查询",
+      "clearQuery": "清空查询",
+      "sort": "会话排序",
+      "sortRecent": "最近活跃",
+      "sortTokens": "Token 最多",
+      "sortCost": "成本最高",
+      "sortMessages": "消息最多",
+      "sortErrors": "错误最多",
+      "selectedDays": "已选择 {{count}} 天",
+      "selectedSessions": "已选择 {{count}} 个会话",
+      "visibleColumns": "显示列",
+      "logRoles": "日志角色",
+      "logTools": "日志工具",
+      "logHasTools": "仅显示含工具的条目",
+      "logQuery": "日志搜索",
+      "logQueryPlaceholder": "筛选日志内容",
+      "clearLogFilters": "清空日志筛选",
+      "refresh": "刷新",
+      "invalidRange": "结束日期不能早于开始日期。"
+    },
+    "summary": {
+      "updatedAt": "更新时间",
+      "compatibility": "兼容性"
+    },
+    "compatibility": {
+      "dateInterpretation": "已启用日期解析",
+      "legacyNoDateInterpretation": "传统网关回退"
+    },
+    "sections": {
+      "sessions": "会话列表",
+      "sessionsDescription": "先查看会话级别的体量、成本集中度和错误分布，再进入单个会话深挖。",
+      "dailyBreakdown": "每日拆分",
+      "dailyBreakdownDescription": "对比每日用量与成本总量，并结合消息量和错误活动一起观察。",
+      "sessionDetail": "会话详情",
+      "sessionDetailDescription": "持续展示当前会话的上下文、模型选择、提供方与时间证据。",
+      "sessionTimeline": "会话时间线",
+      "sessionTimelineDescription": "查看所选会话时间线上的 Token 与成本变化。",
+      "sessionLogs": "会话日志",
+      "sessionLogsDescription": "查看所选网关返回的原始会话用量日志流。"
+    },
+    "metrics": {
+      "totalTokens": "总 Token",
+      "totalCost": "总成本",
+      "sessionCount": "会话数",
+      "errorCount": "错误数"
+    },
+    "labels": {
+      "gateway": "网关",
+      "version": "版本",
+      "noVersion": "未知",
+      "sessionKey": "会话",
+      "sessionId": "会话 ID",
+      "model": "模型",
+      "provider": "提供方",
+      "agent": "Agent",
+      "channel": "渠道",
+      "messages": "消息",
+      "toolCalls": "工具调用",
+      "errors": "错误",
+      "tokens": "Token",
+      "cost": "成本",
+      "inputTokens": "输入 Token",
+      "missingCostEntries": "缺失成本项",
+      "lastActivity": "最后活跃",
+      "duration": "耗时",
+      "logTime": "时间",
+      "cumulativeTokens": "累计 Token",
+      "cumulativeCost": "累计成本",
+      "noSessions": "当前筛选条件下没有匹配的会话。",
+      "noDailyBreakdown": "所选范围内暂无每日用量数据。",
+      "noSessionSelected": "请选择一个会话以查看详情、时间线和日志。",
+      "refineSessionSelection": "请只选择一个会话以查看详情、时间线和日志。",
+      "noTimeline": "所选会话暂无时间线数据。",
+      "noLogs": "所选会话暂无日志数据。",
+      "noLogTools": "当前日志流中未检测到工具调用。",
+      "noMatchingLogs": "当前日志筛选条件下没有匹配的条目。"
+    }
   }
 }

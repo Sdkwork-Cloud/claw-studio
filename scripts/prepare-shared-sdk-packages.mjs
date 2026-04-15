@@ -95,11 +95,27 @@ function latestMtimeMs(targetPath) {
   }, stat.mtimeMs);
 }
 
+function resolveSpawnCommand(command) {
+  if (process.platform !== 'win32') {
+    return command;
+  }
+
+  if (path.extname(command)) {
+    return command;
+  }
+
+  if (command === 'pnpm') {
+    return 'pnpm.cmd';
+  }
+
+  return command;
+}
+
 function run(command, args, workspaceRoot) {
-  const result = spawnSync(command, args, {
+  const result = spawnSync(resolveSpawnCommand(command), args, {
     cwd: workspaceRoot,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    shell: false,
   });
 
   if (result.status !== 0) {

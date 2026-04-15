@@ -217,16 +217,16 @@ function toUniqueIds(values: string[]) {
   );
 }
 
-function ensureWritableOpenClawDetail(
+function ensureWritableApplyDetail(
   detail: StudioInstanceDetailRecord | null,
   configPath: string | null,
 ): ProviderConfigApplyInstance {
-  if (!detail || detail.instance.runtimeKind !== 'openclaw') {
-    throw new Error('Only OpenClaw instances support provider quick apply.');
+  if (!detail) {
+    throw new Error('The selected instance does not expose provider quick apply.');
   }
 
   if (!detail.lifecycle.configWritable || !configPath) {
-    throw new Error('The selected OpenClaw instance does not expose a writable config file.');
+    throw new Error('The selected instance does not expose a writable config file.');
   }
 
   return {
@@ -810,14 +810,13 @@ class ProviderConfigCenterService {
   private async resolveApplyInstance(instanceId: string) {
     const detail = await this.dependencies.studioApi.getInstanceDetail(instanceId);
     const configPath = this.dependencies.openClawConfigService.resolveInstanceConfigPath(detail);
-    return ensureWritableOpenClawDetail(detail, configPath);
+    return ensureWritableApplyDetail(detail, configPath);
   }
 
   async listApplyInstances() {
     const instances = await this.dependencies.studioApi.listInstances();
-    const openClawInstances = instances.filter((instance) => instance.runtimeKind === 'openclaw');
     const resolved = await Promise.all(
-      openClawInstances.map(async (instance) => {
+      instances.map(async (instance) => {
         try {
           return await this.resolveApplyInstance(instance.id);
         } catch {

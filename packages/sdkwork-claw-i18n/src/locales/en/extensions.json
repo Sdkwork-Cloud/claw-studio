@@ -9,7 +9,7 @@
     "summary": {
       "eyebrow": "Built-in OpenClaw Runtime",
       "title": "Manage bundled plugins inside your local runtime",
-      "description": "Review the bundled OpenClaw extension catalog, install plugins into the local kernel plugins directory, and remove installed plugins without leaving Claw Studio.",
+      "description": "Review the built-in OpenClaw extension catalog, install plugins into the local kernel plugins directory, and remove installed plugins without leaving Claw Studio.",
       "metrics": {
         "bundled": "Bundled",
         "installed": "Installed",
@@ -37,7 +37,7 @@
       "uninstall": "Uninstall"
     },
     "errors": {
-      "runtimeUnavailable": "The bundled OpenClaw runtime is unavailable in the current host."
+      "runtimeUnavailable": "The built-in OpenClaw runtime is unavailable in the current host."
     },
     "toasts": {
       "installSuccess": "Extension installed successfully",

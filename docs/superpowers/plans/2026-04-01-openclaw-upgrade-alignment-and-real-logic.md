@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Supersession Note (2026-04-13):** This implementation plan is preserved for historical alignment context. The current source of truth is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`, with current OpenClaw packaging and activation execution aligned to `docs/superpowers/plans/2026-04-13-openclaw-external-node-hard-cut-implementation-plan.md`. Any steps below that assume a bundled OpenClaw runtime, bundled Node.js, or OpenClaw-only runtime authority are historical only and must not be resumed as the active path.
+
 **Goal:** Align Claw Studio to the latest bundled OpenClaw runtime, remove stale mock-driven behavior from built-in instance flows, and verify the built-in/browser/native surfaces all resolve against real runtime or workbench state.
 
 **Architecture:** Keep `scripts/prepare-openclaw-runtime.mjs` as the OpenClaw version source of truth, then make every feature read/write through one of three real surfaces only: managed OpenClaw config files, backend-authored workbench snapshots, or platform-native/browser workbench persistence. Contract tests should assert those real seams explicitly and reject legacy mock fallbacks for runtime-facing features.

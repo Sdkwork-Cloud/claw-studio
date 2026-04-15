@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -30,8 +30,6 @@ const tauriWindowsConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tau
 const tauriLinuxConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.linux.conf.json');
 const tauriMacosConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json');
 const windowsInstallerHooksPath = 'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh';
-const linuxPostInstallHooksPath = './linux-postinstall-openclaw.sh';
-const windowsDesktopBinaryName = 'sdkwork-claw-desktop.exe';
 const bundledSyncDevCommand = 'node ../../scripts/sync-bundled-components.mjs --dev --no-fetch';
 const bundledSyncBuildCommand = 'node ../../scripts/sync-bundled-components.mjs --no-fetch --release';
 const staleTargetGuardCommand = 'node ../../scripts/ensure-tauri-target-clean.mjs src-tauri';
@@ -255,13 +253,13 @@ for (const [platformLabel, platformConfig] of [
 }
 
 const linuxDebPostInstallScript = tauriLinuxConfig.bundle?.linux?.deb?.postInstallScript;
-if (linuxDebPostInstallScript !== linuxPostInstallHooksPath) {
-  fail(`Desktop Linux deb bundle must use postInstallScript "${linuxPostInstallHooksPath}".`);
+if (typeof linuxDebPostInstallScript !== 'undefined') {
+  fail('Desktop Linux deb bundle must not wire a legacy OpenClaw postInstallScript.');
 }
 
 const linuxRpmPostInstallScript = tauriLinuxConfig.bundle?.linux?.rpm?.postInstallScript;
-if (linuxRpmPostInstallScript !== linuxPostInstallHooksPath) {
-  fail(`Desktop Linux rpm bundle must use postInstallScript "${linuxPostInstallHooksPath}".`);
+if (typeof linuxRpmPostInstallScript !== 'undefined') {
+  fail('Desktop Linux rpm bundle must not wire a legacy OpenClaw postInstallScript.');
 }
 
 const macosBundleFiles = tauriMacosConfig.bundle?.macOS?.files;
@@ -277,72 +275,21 @@ if (typeof windowsTauriResources !== 'undefined') {
   fail('Desktop Windows Tauri config must not duplicate bundle.resources when the Windows overlay already owns bundled resource mapping.');
 }
 
-const windowsNsisInstallerHooks = tauriWindowsConfig.bundle?.windows?.nsis?.installerHooks;
-if (windowsNsisInstallerHooks !== './installer-hooks.nsh') {
-  fail(
-    `Desktop Windows Tauri config must wire NSIS installer hooks through "./installer-hooks.nsh", received "${windowsNsisInstallerHooks ?? ''}".`,
-  );
+if (typeof tauriWindowsConfig.bundle?.windows?.nsis?.installerHooks !== 'undefined') {
+  fail('Desktop NSIS packaging must not wire legacy OpenClaw installer hooks.');
+}
+if (existsSync(path.join(rootDir, windowsInstallerHooksPath))) {
+  fail('Legacy Windows OpenClaw installer hooks must be removed after the external-runtime hard cut.');
 }
 
-const windowsInstallerHooksSource = readText(windowsInstallerHooksPath);
-if (!windowsInstallerHooksSource.includes('!macro NSIS_HOOK_POSTINSTALL')) {
-  fail('Desktop NSIS installer hooks must define NSIS_HOOK_POSTINSTALL.');
+if (typeof tauriLinuxConfig.bundle?.linux?.deb?.postInstallScript !== 'undefined') {
+  fail('Desktop Linux deb packaging must not wire a legacy OpenClaw postinstall script.');
 }
-
-if (!windowsInstallerHooksSource.includes('--prepare-bundled-openclaw-runtime')) {
-  fail('Desktop NSIS installer hooks must prewarm the bundled OpenClaw runtime during install.');
+if (typeof tauriLinuxConfig.bundle?.linux?.rpm?.postInstallScript !== 'undefined') {
+  fail('Desktop Linux rpm packaging must not wire a legacy OpenClaw postinstall script.');
 }
-if (!windowsInstallerHooksSource.includes('--prepare-bundled-openclaw-runtime --install-root "$INSTDIR"')) {
-  fail('Desktop NSIS installer hooks must forward $INSTDIR into the embedded OpenClaw prewarm CLI.');
-}
-if (!windowsInstallerHooksSource.includes(`"$INSTDIR\\${windowsDesktopBinaryName}" --prepare-bundled-openclaw-runtime`)) {
-  fail(
-    `Desktop NSIS installer hooks must invoke ${windowsDesktopBinaryName} for bundled OpenClaw prewarm instead of relying on the product name.`,
-  );
-}
-
-if (!windowsInstallerHooksSource.includes('Abort "Embedded OpenClaw runtime prewarm failed during install')) {
-  fail('Desktop NSIS installer hooks must abort the installer when bundled OpenClaw prewarm fails.');
-}
-
-if (windowsInstallerHooksSource.includes('runtime prewarm deferred to first app launch')) {
-  fail('Desktop NSIS installer hooks must not silently defer bundled OpenClaw runtime prewarm to first launch.');
-}
-
-if (!windowsInstallerHooksSource.includes('--register-openclaw-cli')) {
-  fail('Desktop NSIS installer hooks must invoke the embedded OpenClaw registration flow during install.');
-}
-if (!windowsInstallerHooksSource.includes('--register-openclaw-cli --install-root "$INSTDIR"')) {
-  fail('Desktop NSIS installer hooks must forward $INSTDIR into the embedded OpenClaw CLI registration flow.');
-}
-if (!windowsInstallerHooksSource.includes(`"$INSTDIR\\${windowsDesktopBinaryName}" --register-openclaw-cli`)) {
-  fail(
-    `Desktop NSIS installer hooks must invoke ${windowsDesktopBinaryName} for bundled OpenClaw CLI registration instead of relying on the product name.`,
-  );
-}
-
-if (
-  windowsInstallerHooksSource.indexOf('--prepare-bundled-openclaw-runtime')
-  > windowsInstallerHooksSource.indexOf('--register-openclaw-cli')
-) {
-  fail('Desktop NSIS installer hooks must prewarm the bundled OpenClaw runtime before CLI registration.');
-}
-
-const linuxPostInstallHooksSource = readText('packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh');
-if (linuxPostInstallHooksSource.includes('--prepare-bundled-openclaw-runtime || true')) {
-  fail('Desktop Linux postinstall hook must fail the package install when bundled OpenClaw prewarm fails.');
-}
-if (!linuxPostInstallHooksSource.includes('RPM_INSTALL_PREFIX')) {
-  fail('Desktop Linux postinstall hook must honor RPM relocatable install prefixes during bundled OpenClaw prewarm.');
-}
-if (!linuxPostInstallHooksSource.includes('Unable to resolve Claw Studio install root')) {
-  fail('Desktop Linux postinstall hook must surface a clear install-root failure when packaged OpenClaw resources are missing.');
-}
-if (!linuxPostInstallHooksSource.includes('Unable to locate the installed Claw Studio binary')) {
-  fail('Desktop Linux postinstall hook must surface a clear binary discovery failure when the packaged desktop binary is missing.');
-}
-if (!linuxPostInstallHooksSource.includes('--prepare-bundled-openclaw-runtime --install-root "$install_root"')) {
-  fail('Desktop Linux postinstall hook must forward the resolved install root into the embedded OpenClaw prewarm CLI.');
+if (existsSync(path.join(rootDir, 'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh'))) {
+  fail('Legacy Linux OpenClaw postinstall hook must be removed after the external-runtime hard cut.');
 }
 
 const tauriBuildScriptSource = readText('packages/sdkwork-claw-desktop/src-tauri/build.rs');

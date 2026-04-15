@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION } from '../../../sdkwork-claw-types/src/openclawRelease.ts';
 import {
+  DEFAULT_REQUIRED_OPENCLAW_NODE_VERSION,
   type StudioInstanceDetailRecord,
 } from '@sdkwork/claw-types';
 import {
@@ -210,7 +210,7 @@ function createKernelStatus(callId: number) {
       runtimeId: 'openclaw',
       installKey: `install-${callId}`,
       openclawVersion: `2026.04.${String(callId).padStart(2, '0')}`,
-      nodeVersion: DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION,
+      nodeVersion: DEFAULT_REQUIRED_OPENCLAW_NODE_VERSION,
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',

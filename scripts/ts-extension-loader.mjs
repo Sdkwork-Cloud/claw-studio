@@ -5,6 +5,7 @@ import { isSharedSdkSourceMode } from './shared-sdk-mode.mjs';
 
 const FILE_SUFFIXES = ['.ts', '.tsx', '.js', '.mjs', '.cjs'];
 const INDEX_SUFFIXES = ['index.ts', 'index.tsx', 'index.js', 'index.mjs', 'index.cjs'];
+const WORKSPACE_PACKAGE_EXPORT_CONDITIONS = ['node', 'import', 'default', 'browser'];
 const WORKSPACE_ROOT = path.resolve(import.meta.dirname, '..');
 const WORKSPACE_PACKAGES_ROOT = path.resolve(WORKSPACE_ROOT, 'packages');
 const EXTRA_WORKSPACE_PACKAGE_SOURCE_SPECS = [
@@ -18,7 +19,10 @@ const EXTRA_WORKSPACE_PACKAGE_SOURCE_SPECS = [
       './hooks': 'src/hooks/index.ts',
       './im': 'src/im/index.ts',
       './preferences': 'src/preferences/index.ts',
-      './runtime': 'src/runtime/index.ts',
+      './runtime': path.resolve(
+        WORKSPACE_ROOT,
+        'scripts/shims/core-pc-react-runtime-node.ts',
+      ),
     },
   },
 ];
@@ -39,6 +43,40 @@ const SHARED_SDK_SOURCE_SPECS = [
   },
 ];
 let workspacePackageSourceEntries = null;
+
+function resolvePackageExportTarget(exportValue) {
+  if (typeof exportValue === 'string') {
+    return exportValue;
+  }
+
+  if (!exportValue || typeof exportValue !== 'object' || Array.isArray(exportValue)) {
+    return null;
+  }
+
+  for (const condition of WORKSPACE_PACKAGE_EXPORT_CONDITIONS) {
+    const target = resolvePackageExportTarget(exportValue[condition]);
+    if (target) {
+      return target;
+    }
+  }
+
+  return null;
+}
+
+function resolveWorkspacePackageRootExportPath(packageRoot, packageJson) {
+  const exportsField = packageJson?.exports;
+  const rootExport = typeof exportsField === 'string'
+    ? exportsField
+    : exportsField && typeof exportsField === 'object' && !Array.isArray(exportsField)
+      ? exportsField['.']
+      : null;
+  const exportTarget = resolvePackageExportTarget(rootExport);
+  if (!exportTarget) {
+    return null;
+  }
+
+  return findFirstExistingPath(createCandidatePaths(path.resolve(packageRoot, exportTarget)));
+}
 
 function isResolvableLocalSpecifier(specifier) {
   return specifier.startsWith('./')
@@ -85,6 +123,12 @@ function findFirstExistingPath(candidatePaths) {
   return null;
 }
 
+function resolveExtraWorkspaceEntryPath(packageRoot, entryPath) {
+  return path.isAbsolute(entryPath)
+    ? entryPath
+    : path.join(packageRoot, entryPath);
+}
+
 function getWorkspacePackageSourceEntries() {
   if (workspacePackageSourceEntries) {
     return workspacePackageSourceEntries;
@@ -114,7 +158,12 @@ function getWorkspacePackageSourceEntries() {
     try {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
       if (typeof packageJson.name === 'string' && packageJson.name.startsWith('@sdkwork/')) {
-        entries.set(packageJson.name, path.join(WORKSPACE_PACKAGES_ROOT, directoryEntry.name, 'src'));
+        const packageRoot = path.join(WORKSPACE_PACKAGES_ROOT, directoryEntry.name);
+        entries.set(packageJson.name, {
+          sourceRoot: path.join(packageRoot, 'src'),
+          rootEntryPath: resolveWorkspacePackageRootExportPath(packageRoot, packageJson)
+            ?? findFirstExistingPath(createCandidatePaths(path.join(packageRoot, 'src', 'index'))),
+        });
       }
     } catch {
       // Ignore malformed package manifests in the test loader cache.
@@ -129,7 +178,7 @@ function getWorkspacePackageSourceEntries() {
 
     const rootEntryPath = spec.entryBySubpath['.'];
     if (typeof rootEntryPath === 'string') {
-      entries.set(spec.packageName, path.join(spec.packageRoot, rootEntryPath));
+      entries.set(spec.packageName, resolveExtraWorkspaceEntryPath(spec.packageRoot, rootEntryPath));
     }
   }
 
@@ -156,7 +205,7 @@ function resolveExtraWorkspacePackageSourceAliasPath(specifier) {
     return null;
   }
 
-  return path.join(spec.packageRoot, relativeEntryPath);
+  return resolveExtraWorkspaceEntryPath(spec.packageRoot, relativeEntryPath);
 }
 
 export function resolveSharedSdkSourceAliasPath(specifier, env = process.env) {
@@ -191,15 +240,17 @@ export function resolveWorkspacePackageSourceAliasPath(specifier) {
     return null;
   }
 
-  const packageSourceRoot = getWorkspacePackageSourceEntries().get(match[1]);
-  if (!packageSourceRoot) {
+  const packageSourceEntry = getWorkspacePackageSourceEntries().get(match[1]);
+  if (!packageSourceEntry) {
     return null;
   }
 
-  const subpath = match[2]
-    ? match[2].replace(/^\/+/, '')
-    : 'index';
-  return findFirstExistingPath(createCandidatePaths(path.join(packageSourceRoot, subpath)));
+  if (!match[2]) {
+    return packageSourceEntry.rootEntryPath;
+  }
+
+  const subpath = match[2].replace(/^\/+/, '');
+  return findFirstExistingPath(createCandidatePaths(path.join(packageSourceEntry.sourceRoot, subpath)));
 }
 
 export async function resolve(specifier, context, nextResolve) {

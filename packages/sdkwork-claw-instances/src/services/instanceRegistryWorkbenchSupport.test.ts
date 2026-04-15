@@ -33,6 +33,10 @@ await runTest(
       typeof registryWorkbenchSupportModule?.buildRegistryBackedDetail,
       'function',
     );
+    assert.equal(
+      typeof registryWorkbenchSupportModule?.resolveRegistryKernelId,
+      'function',
+    );
   },
 );
 
@@ -138,5 +142,176 @@ await runTest(
     assert.equal(detail?.connectivity.endpoints[0]?.auth, 'token');
     assert.equal(detail?.observability.logAvailable, true);
     assert.deepEqual(detail?.observability.logPreview, ['remote fallback log']);
+  },
+);
+
+await runTest(
+  'buildRegistryBackedDetail infers Hermes runtime metadata and external-runtime notes from registry metadata',
+  () => {
+    const detail = registryWorkbenchSupportModule?.buildRegistryBackedDetail(
+      {
+        id: 'hermes-wsl2',
+        name: 'Hermes via WSL2',
+        type: 'Hermes Agent',
+        iconType: 'server',
+        status: 'online',
+        version: '2026.4.13',
+        uptime: '1h',
+        ip: '127.0.0.1',
+        cpu: 8,
+        memory: 18,
+        totalMemory: '64GB',
+        isBuiltIn: false,
+        deploymentMode: 'local-external',
+        baseUrl: 'http://127.0.0.1:9540',
+      } as any,
+      {
+        port: '9540',
+        sandbox: true,
+        autoUpdate: false,
+        logLevel: 'info',
+        corsOrigins: '*',
+      },
+      undefined,
+      'hermes fallback log',
+    );
+
+    assert.equal(detail?.instance.runtimeKind, 'hermes');
+    assert.equal(detail?.instance.transportKind, 'customHttp');
+    assert.deepEqual(detail?.instance.capabilities, [
+      'chat',
+      'health',
+      'files',
+      'memory',
+      'tools',
+      'models',
+    ]);
+    assert.match(detail?.officialRuntimeNotes[0]?.title || '', /WSL2|Linux/i);
+    assert.match(detail?.officialRuntimeNotes[1]?.content || '', /Python|uv/i);
+  },
+);
+
+await runTest(
+  'buildRegistryBackedDetail preserves explicit future-kernel runtime and transport identifiers instead of collapsing them to custom defaults',
+  () => {
+    const detail = registryWorkbenchSupportModule?.buildRegistryBackedDetail(
+      {
+        id: 'future-kernel',
+        name: 'Future Kernel',
+        type: 'PhoenixClaw Runtime',
+        iconType: 'server',
+        status: 'online',
+        version: '2026.4.20',
+        uptime: '30m',
+        ip: 'future.example.com',
+        cpu: 6,
+        memory: 14,
+        totalMemory: '48GB',
+        isBuiltIn: false,
+        runtimeKind: 'phoenixclaw',
+        deploymentMode: 'remote',
+        transportKind: 'phoenixSocket',
+        baseUrl: 'https://future.example.com/api',
+        websocketUrl: 'wss://future.example.com/ws',
+      } as any,
+      {
+        port: '8443',
+        sandbox: true,
+        autoUpdate: false,
+        logLevel: 'info',
+        corsOrigins: '*',
+      },
+      'future-token',
+      '',
+    );
+
+    assert.equal(detail?.instance.runtimeKind, 'phoenixclaw');
+    assert.equal(detail?.instance.transportKind, 'phoenixSocket');
+    assert.equal(detail?.instance.deploymentMode, 'remote');
+    assert.deepEqual(detail?.instance.capabilities, ['chat', 'health', 'models']);
+    assert.equal(detail?.officialRuntimeNotes.length, 0);
+  },
+);
+
+await runTest(
+  'buildRegistryBackedDetail infers future-kernel identity from registry type metadata and preserves websocket-only transport fallback',
+  () => {
+    const detail = registryWorkbenchSupportModule?.buildRegistryBackedDetail(
+      {
+        id: 'future-kernel-inferred',
+        name: 'Future Kernel Inferred',
+        type: 'Phoenix Claw Runtime',
+        iconType: 'server',
+        status: 'online',
+        version: '2026.4.20',
+        uptime: '30m',
+        ip: 'future.example.com',
+        cpu: 6,
+        memory: 14,
+        totalMemory: '48GB',
+        isBuiltIn: false,
+        deploymentMode: 'remote',
+        websocketUrl: 'wss://future.example.com/ws',
+      } as any,
+      {
+        port: '8443',
+        sandbox: true,
+        autoUpdate: false,
+        logLevel: 'info',
+        corsOrigins: '*',
+      },
+      'future-token',
+      '',
+    );
+
+    assert.equal(detail?.instance.runtimeKind, 'phoenixclaw');
+    assert.equal(detail?.instance.transportKind, 'customWs');
+    assert.equal(detail?.connectivity.primaryTransport, 'customWs');
+    assert.equal(detail?.connectivity.endpoints[0]?.kind, 'websocket');
+    assert.equal(detail?.officialRuntimeNotes.length, 0);
+  },
+);
+
+await runTest(
+  'resolveRegistryKernelId infers a future kernel id from a branded kernel descriptor even when it does not end with claw',
+  () => {
+    const runtimeKind = registryWorkbenchSupportModule?.resolveRegistryKernelId({
+      id: 'future-kernel-generic',
+      name: 'Future Kernel Generic',
+      type: 'Nova Kernel Runtime',
+      iconType: 'server',
+      status: 'online',
+      version: '2026.4.20',
+      uptime: '10m',
+      ip: 'future.example.com',
+      cpu: 4,
+      memory: 8,
+      totalMemory: '16GB',
+      isBuiltIn: false,
+    } as any);
+
+    assert.equal(runtimeKind, 'nova');
+  },
+);
+
+await runTest(
+  'resolveRegistryKernelId does not misclassify deployment or platform adjectives as a kernel id',
+  () => {
+    const runtimeKind = registryWorkbenchSupportModule?.resolveRegistryKernelId({
+      id: 'future-kernel-unknown',
+      name: 'Unknown Runtime',
+      type: 'Remote Linux Service',
+      iconType: 'server',
+      status: 'offline',
+      version: '2026.4.20',
+      uptime: '0m',
+      ip: 'future.example.com',
+      cpu: 0,
+      memory: 0,
+      totalMemory: '0GB',
+      isBuiltIn: false,
+    } as any);
+
+    assert.equal(runtimeKind, 'custom');
   },
 );

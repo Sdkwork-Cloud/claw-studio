@@ -4,6 +4,7 @@ import type {
   ManageOpenClawGatewayRecord,
   ManageOpenClawRuntimeRecord,
   RuntimeAppInfo,
+  RuntimeDesktopBundledComponentsInfo,
   RuntimeDesktopLocalAiProxyInfo,
   RuntimePathsInfo,
   StudioInstanceRecord,
@@ -13,6 +14,7 @@ import type {
   DesktopHostedRuntimeReadinessEvidence,
   DesktopHostedRuntimeReadinessSnapshot,
 } from '../desktopHostedBridge';
+import { resolveBuiltInOpenClawInstance } from '../builtInOpenClawInstanceSelection.ts';
 
 export const DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH =
   'diagnostics/desktop-startup-evidence.json';
@@ -77,6 +79,17 @@ export interface DesktopStartupEvidenceLocalAiProxy {
   logPath: string | null;
 }
 
+export interface DesktopStartupEvidenceBundledComponents {
+  packageProfileId: string;
+  includedKernelIds: string[];
+  defaultEnabledKernelIds: string[];
+  componentCount: number;
+  defaultStartupComponentIds: string[];
+  autoUpgradeEnabled: boolean;
+  approvalMode: string;
+  components: RuntimeDesktopBundledComponentsInfo['components'];
+}
+
 export interface DesktopStartupEvidenceDocument {
   version: 1;
   status: DesktopStartupEvidenceStatus;
@@ -85,6 +98,7 @@ export interface DesktopStartupEvidenceDocument {
   durationMs: number;
   recordedAt: string;
   app: RuntimeAppInfo | null;
+  bundledComponents: DesktopStartupEvidenceBundledComponents | null;
   paths: DesktopStartupEvidencePaths | null;
   descriptor: DesktopStartupEvidenceDescriptor | null;
   hostPlatformStatus: HostPlatformStatusRecord | null;
@@ -168,6 +182,27 @@ function normalizeOptionalString(
   return normalized || null;
 }
 
+export function sanitizeDesktopStartupBundledComponents(
+  bundledComponents: RuntimeDesktopBundledComponentsInfo | null | undefined,
+): DesktopStartupEvidenceBundledComponents | null {
+  if (!bundledComponents) {
+    return null;
+  }
+
+  return {
+    packageProfileId: bundledComponents.packageProfileId,
+    includedKernelIds: [...bundledComponents.includedKernelIds],
+    defaultEnabledKernelIds: [...bundledComponents.defaultEnabledKernelIds],
+    componentCount: bundledComponents.componentCount,
+    defaultStartupComponentIds: [...bundledComponents.defaultStartupComponentIds],
+    autoUpgradeEnabled: bundledComponents.autoUpgradeEnabled,
+    approvalMode: bundledComponents.approvalMode,
+    components: bundledComponents.components.map((component) => ({
+      ...component,
+    })),
+  };
+}
+
 export function sanitizeDesktopStartupLocalAiProxy(
   localAiProxy: RuntimeDesktopLocalAiProxyInfo | null | undefined,
 ): DesktopStartupEvidenceLocalAiProxy | null {
@@ -219,6 +254,7 @@ export function buildDesktopStartupEvidenceDocument({
   runId,
   durationMs,
   appInfo = null,
+  bundledComponents = null,
   appPaths = null,
   readinessSnapshot = null,
   localAiProxy = null,
@@ -230,15 +266,18 @@ export function buildDesktopStartupEvidenceDocument({
   runId: number;
   durationMs: number;
   appInfo?: RuntimeAppInfo | null;
+  bundledComponents?: RuntimeDesktopBundledComponentsInfo | null;
   appPaths?: RuntimePathsInfo | null;
   readinessSnapshot?: DesktopHostedRuntimeReadinessSnapshot | null;
   localAiProxy?: RuntimeDesktopLocalAiProxyInfo | null;
   error?: unknown;
   recordedAt?: string;
 }): DesktopStartupEvidenceDocument {
-  const builtInInstance =
-    readinessSnapshot?.instances.find((instance) => instance.id === 'local-built-in')
-    ?? null;
+  const builtInInstance = resolveBuiltInOpenClawInstance(readinessSnapshot?.instances, {
+    preferredInstanceId: readinessSnapshot?.evidence?.builtInInstanceId ?? null,
+    gatewayBaseUrl: readinessSnapshot?.openClawGateway?.baseUrl ?? null,
+    gatewayWebsocketUrl: readinessSnapshot?.openClawGateway?.websocketUrl ?? null,
+  });
 
   return {
     version: 1,
@@ -248,6 +287,7 @@ export function buildDesktopStartupEvidenceDocument({
     durationMs: Math.max(0, Math.trunc(durationMs)),
     recordedAt,
     app: appInfo ?? null,
+    bundledComponents: sanitizeDesktopStartupBundledComponents(bundledComponents),
     paths: sanitizeDesktopStartupPaths(appPaths),
     descriptor: sanitizeDesktopStartupDescriptor(readinessSnapshot?.descriptor),
     hostPlatformStatus: readinessSnapshot?.hostPlatformStatus ?? null,

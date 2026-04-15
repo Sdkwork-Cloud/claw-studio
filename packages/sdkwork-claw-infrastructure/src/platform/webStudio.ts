@@ -41,6 +41,9 @@ import type {
   StudioPlatformAPI,
   StudioUpdateInstanceInput,
 } from './contracts/studio.ts';
+import {
+  assertValidStudioCreateInstanceKernelPolicy,
+} from './contracts/studioKernelPolicy.ts';
 
 const INSTANCE_STORAGE_KEY = 'claw-studio:studio:instances:v1';
 const CONVERSATION_STORAGE_KEY = 'claw-studio:studio:conversations:v1';
@@ -462,7 +465,7 @@ function createDefaultBuiltInInstance(): StudioInstanceRecord {
   return {
     id: DEFAULT_INSTANCE_ID,
     name: 'Local Built-In',
-    description: 'Bundled local OpenClaw runtime managed by Claw Studio.',
+    description: 'Packaged local OpenClaw kernel managed by Claw Studio.',
     runtimeKind: 'openclaw',
     deploymentMode: 'local-managed',
     transportKind: 'openclawGatewayWs',
@@ -489,8 +492,20 @@ function createDefaultBuiltInInstance(): StudioInstanceRecord {
   };
 }
 
+function isManagedBuiltInOpenClawInstance(instance: StudioInstanceRecord) {
+  return (
+    instance.runtimeKind === 'openclaw' &&
+    instance.isBuiltIn === true &&
+    instance.deploymentMode === 'local-managed' &&
+    instance.transportKind === 'openclawGatewayWs'
+  );
+}
+
 function normalizeBuiltInInstance(instance: StudioInstanceRecord): StudioInstanceRecord {
   const baseline = createDefaultBuiltInInstance();
+  const resolvedName = instance.name?.trim() || baseline.name;
+  const resolvedDescription = instance.description?.trim() || baseline.description;
+  const resolvedTypeLabel = instance.typeLabel?.trim() || baseline.typeLabel;
   const resolvedPort =
     instance.port ??
     (instance.config?.port ? Number.parseInt(instance.config.port, 10) : baseline.port) ??
@@ -507,8 +522,8 @@ function normalizeBuiltInInstance(instance: StudioInstanceRecord): StudioInstanc
   return {
     ...baseline,
     ...instance,
-    name: baseline.name,
-    description: baseline.description,
+    name: resolvedName,
+    description: resolvedDescription,
     runtimeKind: 'openclaw',
     deploymentMode: 'local-managed',
     transportKind: 'openclawGatewayWs',
@@ -517,7 +532,7 @@ function normalizeBuiltInInstance(instance: StudioInstanceRecord): StudioInstanc
     isDefault: true,
     iconType: 'server',
     version: DEFAULT_BUNDLED_OPENCLAW_VERSION,
-    typeLabel: baseline.typeLabel,
+    typeLabel: resolvedTypeLabel,
     host: '127.0.0.1',
     port: resolvedPort,
     baseUrl: resolvedBaseUrl,
@@ -549,11 +564,7 @@ function normalizeBuiltInInstance(instance: StudioInstanceRecord): StudioInstanc
 }
 
 function isManagedOpenClawWorkbenchInstance(instance: StudioInstanceRecord) {
-  return (
-    instance.runtimeKind === 'openclaw' &&
-    instance.isBuiltIn === true &&
-    instance.deploymentMode === 'local-managed'
-  );
+  return isManagedBuiltInOpenClawInstance(instance);
 }
 
 function formatWorkbenchFileSize(content: string) {
@@ -1126,9 +1137,9 @@ function readInstances(): StudioInstanceRegistryDocument {
     const parsed = JSON.parse(raw) as Partial<StudioInstanceRegistryDocument>;
     const storedInstances = Array.isArray(parsed.instances) ? parsed.instances : [];
     const instances = storedInstances.map((instance) =>
-      instance.id === DEFAULT_INSTANCE_ID ? normalizeBuiltInInstance(instance) : instance,
+      isManagedBuiltInOpenClawInstance(instance) ? normalizeBuiltInInstance(instance) : instance,
     );
-    if (!instances.some((instance) => instance.id === DEFAULT_INSTANCE_ID)) {
+    if (!instances.some(isManagedBuiltInOpenClawInstance)) {
       instances.unshift(createDefaultBuiltInInstance());
     }
 
@@ -1418,6 +1429,115 @@ function resolveConfiguredOpenClawHttpEndpoints(instance: StudioInstanceRecord) 
     );
 }
 
+interface WebStudioRuntimeDetailAdapter {
+  defaultCapabilities?: StudioInstanceCapability[];
+  buildConnectivityEndpoints?(instance: StudioInstanceRecord): StudioInstanceConnectivityEndpoint[];
+  buildArtifacts?(instance: StudioInstanceRecord): StudioInstanceArtifactRecord[];
+  buildOfficialRuntimeNotes?(instance: StudioInstanceRecord): StudioInstanceRuntimeNote[];
+}
+
+function resolveWebStudioRuntimeLabel(runtimeKind: string | undefined) {
+  const normalized = String(runtimeKind ?? '').trim();
+  if (!normalized) {
+    return 'custom';
+  }
+
+  if (normalized === 'openclaw') {
+    return 'OpenClaw';
+  }
+
+  if (normalized === 'zeroclaw') {
+    return 'ZeroClaw';
+  }
+
+  if (normalized === 'ironclaw') {
+    return 'IronClaw';
+  }
+
+  return normalized;
+}
+
+const WEB_STUDIO_RUNTIME_DETAIL_ADAPTERS: Record<string, WebStudioRuntimeDetailAdapter> = {
+  openclaw: {
+    defaultCapabilities: ['chat', 'health', 'files', 'memory', 'tasks', 'tools', 'models'],
+    buildConnectivityEndpoints(instance) {
+      return instance.baseUrl ? resolveConfiguredOpenClawHttpEndpoints(instance) : [];
+    },
+    buildOfficialRuntimeNotes() {
+      return [
+        {
+          title: 'Gateway-first transport',
+          content: 'OpenClaw centers its runtime around the Gateway WebSocket and can optionally expose OpenAI-compatible HTTP endpoints when enabled.',
+          sourceUrl: 'https://docs.openclaw.ai/gateway/openai-http-api',
+        },
+      ];
+    },
+  },
+  zeroclaw: {
+    buildConnectivityEndpoints(instance) {
+      return instance.baseUrl
+        ? [buildEndpoint(instance, 'dashboard', 'Gateway Dashboard', 'dashboard', instance.baseUrl, 'derived')]
+        : [];
+    },
+    buildArtifacts(instance) {
+      return instance.baseUrl
+        ? [
+            {
+              id: 'dashboard-endpoint',
+              label: 'Dashboard',
+              kind: 'dashboard',
+              status: 'remote',
+              location: instance.baseUrl,
+              readonly: true,
+              detail: 'ZeroClaw dashboard surface derived from the configured gateway URL.',
+              source: 'derived',
+            },
+          ]
+        : [];
+    },
+    buildOfficialRuntimeNotes() {
+      return [
+        {
+          title: 'Gateway and dashboard',
+          content: 'ZeroClaw ships as a single Rust binary and exposes a gateway/dashboard surface that can be run locally or remotely.',
+          sourceUrl: 'https://github.com/zeroclaw-labs/zeroclaw',
+        },
+      ];
+    },
+  },
+  ironclaw: {
+    buildConnectivityEndpoints(instance) {
+      return instance.baseUrl
+        ? [buildEndpoint(instance, 'gateway-sse', 'Realtime Gateway', 'sse', instance.baseUrl, 'derived')]
+        : [];
+    },
+    buildOfficialRuntimeNotes() {
+      return [
+        {
+          title: 'Database-first runtime',
+          content: 'IronClaw expects PostgreSQL plus pgvector and emphasizes persistent storage, routines, and realtime gateway streaming.',
+          sourceUrl: 'https://github.com/nearai/ironclaw',
+        },
+      ];
+    },
+  },
+};
+
+function resolveWebStudioDefaultCapabilities(
+  runtimeKind: string | undefined,
+): StudioInstanceCapability[] {
+  const normalizedRuntimeKind = String(runtimeKind ?? '').trim();
+  const configuredCapabilities = normalizedRuntimeKind
+    ? WEB_STUDIO_RUNTIME_DETAIL_ADAPTERS[normalizedRuntimeKind]?.defaultCapabilities
+    : undefined;
+
+  if (Array.isArray(configuredCapabilities) && configuredCapabilities.length > 0) {
+    return [...configuredCapabilities];
+  }
+
+  return ['chat', 'health'];
+}
+
 function buildConnectivityEndpoints(instance: StudioInstanceRecord): StudioInstanceConnectivityEndpoint[] {
   const endpoints: StudioInstanceConnectivityEndpoint[] = [];
 
@@ -1427,15 +1547,9 @@ function buildConnectivityEndpoints(instance: StudioInstanceRecord): StudioInsta
   if (instance.websocketUrl) {
     endpoints.push(buildEndpoint(instance, 'gateway-ws', 'Gateway WebSocket', 'websocket', instance.websocketUrl, 'config'));
   }
-  if (instance.runtimeKind === 'openclaw' && instance.baseUrl) {
-    endpoints.push(...resolveConfiguredOpenClawHttpEndpoints(instance));
-  }
-  if (instance.runtimeKind === 'zeroclaw' && instance.baseUrl) {
-    endpoints.push(buildEndpoint(instance, 'dashboard', 'Gateway Dashboard', 'dashboard', instance.baseUrl, 'derived'));
-  }
-  if (instance.runtimeKind === 'ironclaw' && instance.baseUrl) {
-    endpoints.push(buildEndpoint(instance, 'gateway-sse', 'Realtime Gateway', 'sse', instance.baseUrl, 'derived'));
-  }
+  endpoints.push(
+    ...(WEB_STUDIO_RUNTIME_DETAIL_ADAPTERS[instance.runtimeKind]?.buildConnectivityEndpoints?.(instance) ?? []),
+  );
 
   return endpoints;
 }
@@ -1685,19 +1799,6 @@ function buildArtifacts(
     });
   }
 
-  if (instance.runtimeKind === 'zeroclaw' && instance.baseUrl) {
-    artifacts.push({
-      id: 'dashboard-endpoint',
-      label: 'Dashboard',
-      kind: 'dashboard',
-      status: 'remote',
-      location: instance.baseUrl,
-      readonly: true,
-      detail: 'ZeroClaw dashboard surface derived from the configured gateway URL.',
-      source: 'derived',
-    });
-  }
-
   if (instance.config.workspacePath) {
     artifacts.push({
       id: 'workspace',
@@ -1742,42 +1843,26 @@ function buildArtifacts(
     source: 'storage',
   });
 
+  artifacts.push(
+    ...(WEB_STUDIO_RUNTIME_DETAIL_ADAPTERS[instance.runtimeKind]?.buildArtifacts?.(instance) ?? []),
+  );
+
   return artifacts;
 }
 
 function buildOfficialRuntimeNotes(instance: StudioInstanceRecord): StudioInstanceRuntimeNote[] {
-  if (instance.runtimeKind === 'openclaw') {
-    return [
-      {
-        title: 'Gateway-first transport',
-        content: 'OpenClaw centers its runtime around the Gateway WebSocket and can optionally expose OpenAI-compatible HTTP endpoints when enabled.',
-        sourceUrl: 'https://docs.openclaw.ai/gateway/openai-http-api',
-      },
-    ];
+  const adapterNotes =
+    WEB_STUDIO_RUNTIME_DETAIL_ADAPTERS[instance.runtimeKind]?.buildOfficialRuntimeNotes?.(instance);
+  if (adapterNotes) {
+    return adapterNotes;
   }
-  if (instance.runtimeKind === 'zeroclaw') {
-    return [
-      {
-        title: 'Gateway and dashboard',
-        content: 'ZeroClaw ships as a single Rust binary and exposes a gateway/dashboard surface that can be run locally or remotely.',
-        sourceUrl: 'https://github.com/zeroclaw-labs/zeroclaw',
-      },
-    ];
-  }
-  if (instance.runtimeKind === 'ironclaw') {
-    return [
-      {
-        title: 'Database-first runtime',
-        content: 'IronClaw expects PostgreSQL plus pgvector and emphasizes persistent storage, routines, and realtime gateway streaming.',
-        sourceUrl: 'https://github.com/nearai/ironclaw',
-      },
-    ];
-  }
+
+  const runtimeLabel = resolveWebStudioRuntimeLabel(instance.runtimeKind);
 
   return [
     {
-      title: 'Custom runtime',
-      content: 'This instance uses a custom runtime binding. Connectivity and capability surfaces depend on the configured metadata.',
+      title: `${runtimeLabel} runtime`,
+      content: `This instance uses the ${runtimeLabel} runtime binding. Connectivity and capability surfaces depend on the configured metadata.`,
     },
   ];
 }
@@ -1855,6 +1940,7 @@ function withConversationDerivedFields(
 }
 
 function buildInstanceRecord(input: StudioCreateInstanceInput): StudioInstanceRecord {
+  assertValidStudioCreateInstanceKernelPolicy(input);
   const createdAt = now();
   const baseUrl = input.baseUrl ?? input.config?.baseUrl ?? null;
   const websocketUrl = input.websocketUrl ?? input.config?.websocketUrl ?? null;
@@ -1868,10 +1954,7 @@ function buildInstanceRecord(input: StudioCreateInstanceInput): StudioInstanceRe
     websocketUrl,
     port: port != null ? String(port) : input.config?.port,
   });
-  const capabilities: StudioInstanceCapability[] =
-    input.runtimeKind === 'openclaw'
-      ? ['chat', 'health', 'files', 'memory', 'tasks', 'tools', 'models']
-      : ['chat', 'health'];
+  const capabilities = resolveWebStudioDefaultCapabilities(input.runtimeKind);
 
   return {
     id: createInstanceId(),

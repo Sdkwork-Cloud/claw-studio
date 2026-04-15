@@ -5,30 +5,114 @@ import type {
 import type { Instance, InstanceConfig } from '../types/index.ts';
 import { isNonEmptyString } from './openClawSupport.ts';
 
-function resolveRegistryRuntimeKind(
-  instance: Instance,
-): StudioInstanceRecord['runtimeKind'] {
-  if (
-    instance.runtimeKind === 'openclaw' ||
-    instance.runtimeKind === 'zeroclaw' ||
-    instance.runtimeKind === 'ironclaw' ||
-    instance.runtimeKind === 'custom'
-  ) {
-    return instance.runtimeKind;
+const RUNTIME_KIND_DESCRIPTOR_PATTERN =
+  /\b(runtime|kernel|agent|gateway|daemon|service|server)\b/;
+const RUNTIME_KIND_NOISE_TOKENS = new Set([
+  'agent',
+  'app',
+  'built',
+  'builtin',
+  'daemon',
+  'desktop',
+  'external',
+  'gateway',
+  'host',
+  'in',
+  'instance',
+  'kernel',
+  'linux',
+  'local',
+  'mac',
+  'macos',
+  'managed',
+  'remote',
+  'runtime',
+  'server',
+  'service',
+  'studio',
+  'windows',
+  'wsl',
+  'wsl2',
+]);
+
+function buildHermesOfficialRuntimeNotes(): StudioInstanceDetailRecord['officialRuntimeNotes'] {
+  return [
+    {
+      title: 'Windows WSL2 or remote Linux',
+      content: 'Windows hosts must run Hermes through WSL2 or a remote Linux environment.',
+      sourceUrl: 'https://github.com/nousresearch/hermes-agent',
+    },
+    {
+      title: 'External runtimes',
+      content: 'Python and uv must be installed externally. Node.js remains external and optional for some Hermes capabilities.',
+      sourceUrl: 'https://hermes-agent.nousresearch.com/docs/getting-started/installation/',
+    },
+  ];
+}
+
+function inferRuntimeKindFromType(
+  type: string,
+): StudioInstanceRecord['runtimeKind'] | null {
+  const normalizedType = type.trim().toLowerCase();
+  const compactType = normalizedType.replace(/[^a-z0-9]+/g, '');
+  if (!compactType) {
+    return null;
   }
 
-  const type = instance.type.toLowerCase();
-  if (type.includes('openclaw')) {
+  if (compactType.includes('openclaw')) {
     return 'openclaw';
   }
-  if (type.includes('zeroclaw')) {
+  if (compactType.includes('hermes')) {
+    return 'hermes';
+  }
+  if (compactType.includes('zeroclaw')) {
     return 'zeroclaw';
   }
-  if (type.includes('ironclaw')) {
+  if (compactType.includes('ironclaw')) {
     return 'ironclaw';
   }
 
+  const genericRuntimeMatch = compactType.match(/([a-z0-9]+claw|hermes)/);
+  if (genericRuntimeMatch?.[1]) {
+    return genericRuntimeMatch[1] as StudioInstanceRecord['runtimeKind'];
+  }
+
+  if (!RUNTIME_KIND_DESCRIPTOR_PATTERN.test(normalizedType)) {
+    return null;
+  }
+
+  const genericKernelCandidate = normalizedType
+    .split(/[^a-z0-9]+/g)
+    .map((token) => token.trim())
+    .filter((token) => token && !RUNTIME_KIND_NOISE_TOKENS.has(token))
+    .join('');
+
+  if (!genericKernelCandidate || genericKernelCandidate === 'custom') {
+    return null;
+  }
+
+  return genericKernelCandidate as StudioInstanceRecord['runtimeKind'];
+}
+
+export function resolveRegistryKernelId(
+  instance: Instance,
+): StudioInstanceRecord['runtimeKind'] {
+  if (isNonEmptyString(instance.runtimeKind)) {
+    return instance.runtimeKind.trim() as StudioInstanceRecord['runtimeKind'];
+  }
+
+  const inferredRuntimeKind = inferRuntimeKindFromType(instance.type);
+  if (inferredRuntimeKind) {
+    return inferredRuntimeKind;
+  }
+
   return 'custom';
+}
+
+export function resolveRegistryRuntimeKind(
+  instance: Instance,
+): StudioInstanceRecord['runtimeKind'] {
+  return resolveRegistryKernelId(instance);
 }
 
 function resolveRegistryDeploymentMode(
@@ -49,16 +133,12 @@ function resolveRegistryTransportKind(
   instance: Instance,
   runtimeKind: StudioInstanceRecord['runtimeKind'],
 ): StudioInstanceRecord['transportKind'] {
-  if (
-    instance.transportKind === 'openclawGatewayWs' ||
-    instance.transportKind === 'zeroclawHttp' ||
-    instance.transportKind === 'ironclawWeb' ||
-    instance.transportKind === 'openaiHttp' ||
-    instance.transportKind === 'customHttp' ||
-    instance.transportKind === 'customWs'
-  ) {
-    return instance.transportKind;
+  if (isNonEmptyString(instance.transportKind)) {
+    return instance.transportKind.trim() as StudioInstanceRecord['transportKind'];
   }
+
+  const hasBaseUrl = isNonEmptyString(instance.baseUrl);
+  const hasWebsocketUrl = isNonEmptyString(instance.websocketUrl);
 
   switch (runtimeKind) {
     case 'openclaw':
@@ -67,7 +147,12 @@ function resolveRegistryTransportKind(
       return 'zeroclawHttp';
     case 'ironclaw':
       return 'ironclawWeb';
+    case 'hermes':
+      return 'customHttp';
     default:
+      if (hasWebsocketUrl && !hasBaseUrl) {
+        return 'customWs';
+      }
       return 'customHttp';
   }
 }
@@ -150,6 +235,10 @@ function defaultCapabilitiesForRuntime(
     return ['chat', 'health', 'files', 'memory', 'tasks', 'tools', 'models'];
   }
 
+  if (runtimeKind === 'hermes') {
+    return ['chat', 'health', 'files', 'memory', 'tools', 'models'];
+  }
+
   if (runtimeKind === 'custom') {
     return ['chat', 'health'];
   }
@@ -230,7 +319,7 @@ export function buildRegistryBackedDetail(
       : instance.status === 'offline'
         ? 'offline'
         : 'attention';
-  const runtimeKind = resolveRegistryRuntimeKind(instance);
+  const runtimeKind = resolveRegistryKernelId(instance);
   const deploymentMode = resolveRegistryDeploymentMode(instance);
   const transportKind = resolveRegistryTransportKind(instance, runtimeKind);
   const baseUrl = isNonEmptyString(instance.baseUrl) ? instance.baseUrl : null;
@@ -384,6 +473,6 @@ export function buildRegistryBackedDetail(
       detail: 'Registry-backed detail projection.',
       source: 'runtime',
     })),
-    officialRuntimeNotes: [],
+    officialRuntimeNotes: runtimeKind === 'hermes' ? buildHermesOfficialRuntimeNotes() : [],
   };
 }

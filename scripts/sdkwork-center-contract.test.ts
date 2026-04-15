@@ -32,6 +32,8 @@ runTest('sdkwork-claw-center is implemented locally instead of re-exporting claw
   const indexSource = read('packages/sdkwork-claw-center/src/index.ts');
   const uploadPageSource = read('packages/sdkwork-claw-center/src/pages/ClawUpload.tsx');
   const centerCheckRunnerSource = read('scripts/run-sdkwork-center-check.mjs');
+  const registryPresentationSource = read('packages/sdkwork-claw-center/src/services/clawRegistryPresentation.ts');
+  const clawServiceSource = read('packages/sdkwork-claw-center/src/services/clawService.ts');
 
   assert.ok(exists('packages/sdkwork-claw-center/src/pages/ClawCenter.tsx'));
   assert.ok(exists('packages/sdkwork-claw-center/src/pages/ClawDetail.tsx'));
@@ -50,6 +52,8 @@ runTest('sdkwork-claw-center is implemented locally instead of re-exporting claw
     /packages\/sdkwork-claw-center\/src\/services\/clawRegistryPresentation\.test\.ts/,
   );
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-claw-center/);
+  assert.doesNotMatch(registryPresentationSource, /runtimeKind === 'openclaw'/);
+  assert.doesNotMatch(clawServiceSource, /runtimeKind === 'openclaw'/);
   assert.match(indexSource, /ClawCenter/);
   assert.match(indexSource, /ClawDetail/);
   assert.match(indexSource, /ClawUpload/);
@@ -59,6 +63,7 @@ runTest('sdkwork-claw-center is implemented locally instead of re-exporting claw
   assert.match(uploadPageSource, /navigate\(`\/instances\/\$\{instance\.id\}`\)/);
   assert.match(uploadPageSource, /clawUpload\.summary\.gatewayReady/);
 });
+
 runTest('claw registry center keeps a search-first workbench and adaptive maximum page width', () => {
   const centerPageSource = read('packages/sdkwork-claw-center/src/pages/ClawCenter.tsx');
   const detailPageSource = read('packages/sdkwork-claw-center/src/pages/ClawDetail.tsx');
@@ -99,32 +104,42 @@ runTest('claw center locales stay valid json and include search workbench copy i
   const zhLocale = readJson<{ clawCenter: Record<string, any> }>('packages/sdkwork-claw-i18n/src/locales/zh.json');
 
   assert.equal(enLocale.clawCenter.actions.copyContent, 'Copy Content');
-  assert.equal(enLocale.clawCenter.actions.quickRegister, 'One-Click Register');
+  assert.equal(enLocale.clawCenter.actions.quickRegister, 'OpenClaw Networking');
   assert.equal(enLocale.clawCenter.labels.matchReasons, 'Matched On');
   assert.equal(enLocale.clawCenter.sections.latestClaw, 'Latest Claw');
   assert.equal(enLocale.clawCenter.sections.popularClaw, 'Popular Claw');
   assert.equal(enLocale.clawCenter.sections.recommendedClaw, 'Recommended Claw');
 
-  assert.equal(zhLocale.clawCenter.actions.copyContent, '复制内容');
-  assert.equal(zhLocale.clawCenter.actions.quickRegister, '一键注册');
-  assert.equal(zhLocale.clawCenter.labels.matchReasons, '命中原因');
-  assert.equal(zhLocale.clawCenter.sections.latestClaw, '最新 Claw');
-  assert.equal(zhLocale.clawCenter.sections.popularClaw, '热门 Claw');
-  assert.equal(zhLocale.clawCenter.sections.recommendedClaw, '推荐 Claw');
+  assert.equal(zhLocale.clawCenter.actions.copyContent, '\u590d\u5236\u5185\u5bb9');
+  assert.equal(zhLocale.clawCenter.actions.quickRegister, 'OpenClaw \u8054\u7f51');
+  assert.equal(zhLocale.clawCenter.labels.matchReasons, '\u5339\u914d\u547d\u4e2d');
+  assert.equal(zhLocale.clawCenter.sections.latestClaw, '\u6700\u65b0 Claw');
+  assert.equal(zhLocale.clawCenter.sections.popularClaw, '\u70ed\u95e8 Claw');
+  assert.equal(zhLocale.clawCenter.sections.recommendedClaw, '\u63a8\u8350 Claw');
 });
 
-runTest('claw networking surface uses registry-focused copy and clean capability formatting', () => {
+runTest('openclaw networking surface keeps explicit OpenClaw gateway copy and clean capability formatting', () => {
   const uploadPageSource = read('packages/sdkwork-claw-center/src/pages/ClawUpload.tsx');
-  const enLocale = read('packages/sdkwork-claw-i18n/src/locales/en.json');
-  const zhLocale = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
+  const enLocale = readJson<any>('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const zhLocale = readJson<any>('packages/sdkwork-claw-i18n/src/locales/zh.json');
 
-  assert.doesNotMatch(uploadPageSource, /join\(' 路 '\)/);
-  assert.doesNotMatch(enLocale, /"openApiRouter"/);
-  assert.match(enLocale, /"clawUpload": "Claw Networking"/);
-  assert.match(enLocale, /"title": "Go to Claw Networking"/);
-  assert.match(enLocale, /"eyebrow": "Registry Linked"/);
-  assert.doesNotMatch(zhLocale, /"openApiRouter"/);
-  assert.match(zhLocale, /"clawUpload": "Claw联网"/);
-  assert.match(zhLocale, /"title": "前往 Claw联网"/);
-  assert.match(zhLocale, /"eyebrow": "注册中心已连接"/);
+  assert.doesNotMatch(uploadPageSource, /join\(' ç’º?'\)/);
+  assert.equal(enLocale.sidebar.clawUpload, 'OpenClaw Networking');
+  assert.equal(enLocale.commandPalette.commands.upload.title, 'Go to OpenClaw Networking');
+  assert.equal(
+    enLocale.commandPalette.commands.upload.subtitle,
+    'Inspect local OpenClaw gateway endpoints and registry-linked connectivity',
+  );
+  assert.equal(enLocale.clawUpload.eyebrow, 'OpenClaw Linked');
+  assert.equal(enLocale.clawUpload.title, 'OpenClaw Networking');
+  assert.match(enLocale.clawUpload.description, /OpenClaw-only networking view/);
+  assert.equal(zhLocale.sidebar.clawUpload, 'OpenClaw \u8054\u7f51');
+  assert.equal(zhLocale.commandPalette.commands.upload.title, '\u524d\u5f80 OpenClaw \u8054\u7f51');
+  assert.equal(
+    zhLocale.commandPalette.commands.upload.subtitle,
+    '\u67e5\u770b\u672c\u5730 OpenClaw \u7f51\u5173\u7aef\u70b9\u4e0e\u6ce8\u518c\u8868\u5173\u8054\u8fde\u901a\u6027',
+  );
+  assert.equal(zhLocale.clawUpload.eyebrow, 'OpenClaw \u5df2\u5173\u8054');
+  assert.equal(zhLocale.clawUpload.title, 'OpenClaw \u8054\u7f51');
+  assert.match(zhLocale.clawUpload.description, /\u4ec5\u7528\u4e8e OpenClaw \u8054\u7f51\u89c6\u56fe/);
 });

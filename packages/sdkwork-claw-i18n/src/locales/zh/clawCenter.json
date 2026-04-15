@@ -10,7 +10,7 @@
   "allCategories": "全部分类",
   "actions": {
     "quickConnect": "一键快速联网",
-    "quickRegister": "一键注册",
+    "quickRegister": "OpenClaw 联网",
     "copyCommand": "复制 ACP 命令",
     "copyContent": "复制内容",
     "quickConnectNow": "立即联网",
@@ -40,7 +40,7 @@
     "matchCount": "撮合数",
     "activeAgents": "智能体",
     "bestFor": "适用场景",
-    "matchReasons": "命中原因"
+    "matchReasons": "匹配命中"
   },
   "sections": {
     "categories": "分类列表",

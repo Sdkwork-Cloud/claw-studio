@@ -43,7 +43,7 @@ await runTest('assessOpenClawUpgradeReadiness reports ready when local upgrade i
       stableVersion: '2026.4.2',
       nodeVersion: '22.16.0',
       packageName: 'openclaw',
-      runtimeSupplementalPackages: ['@buape/carbon@0.0.0-beta-20260327000044'],
+      runtimeSupplementalPackages: [],
     });
     createJson(path.join(tempRoot, 'packages', 'sdkwork-claw-desktop', 'src-tauri', 'resources', 'openclaw', 'manifest.json'), {
       schemaVersion: 1,
@@ -101,7 +101,7 @@ await runTest('assessOpenClawUpgradeReadiness reports missing local upgrade inpu
       stableVersion: '2026.4.2',
       nodeVersion: '22.16.0',
       packageName: 'openclaw',
-      runtimeSupplementalPackages: ['@buape/carbon@0.0.0-beta-20260327000044'],
+      runtimeSupplementalPackages: [],
     });
     createJson(path.join(tempRoot, 'packages', 'sdkwork-claw-desktop', 'src-tauri', 'resources', 'openclaw', 'manifest.json'), {
       schemaVersion: 1,
@@ -137,15 +137,136 @@ await runTest('assessOpenClawUpgradeReadiness reports missing local upgrade inpu
     assert.equal(result.localTarballPresent, false);
     assert.equal(result.localUpstreamVersion, '2026.4.2');
     assert.deepEqual(result.blockers, [
-      'Local bundled OpenClaw upstream checkout is still at 2026.4.2 instead of 2026.4.5.',
-      'Local bundled OpenClaw upstream checkout does not contain git tag v2026.4.5.',
-      'Local bundled OpenClaw upstream checkout has uncommitted changes and should not be hard-reset in place.',
-      'No local openclaw-2026.4.5.tgz tarball is available for an offline bundled runtime upgrade.',
+      'Local OpenClaw upstream checkout is still at 2026.4.2 instead of 2026.4.5.',
+      'Local OpenClaw upstream checkout does not contain git tag v2026.4.5.',
+      'Local OpenClaw upstream checkout has uncommitted changes and should not be hard-reset in place.',
+      'No local openclaw-2026.4.5.tgz tarball is available for an offline packaged OpenClaw upgrade.',
     ]);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
 });
+
+await runTest(
+  'assessOpenClawUpgradeReadiness reports legacy source runtime residue as an upgrade blocker',
+  async () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'openclaw-upgrade-readiness-legacy-source-'));
+
+    try {
+      createJson(path.join(tempRoot, 'config', 'openclaw-release.json'), {
+        stableVersion: '2026.4.9',
+        nodeVersion: '22.16.0',
+        packageName: 'openclaw',
+        runtimeSupplementalPackages: [],
+      });
+      createJson(
+        path.join(
+          tempRoot,
+          'packages',
+          'sdkwork-claw-desktop',
+          'src-tauri',
+          'resources',
+          'openclaw',
+          'manifest.json',
+        ),
+        {
+          schemaVersion: 1,
+          runtimeId: 'openclaw',
+          openclawVersion: '2026.4.9',
+          nodeVersion: '22.16.0',
+          platform: 'windows',
+          arch: 'x64',
+        },
+      );
+      createJson(
+        path.join(
+          tempRoot,
+          'packages',
+          'sdkwork-claw-desktop',
+          'src-tauri',
+          'resources',
+          'openclaw',
+          'runtime',
+          'package',
+          'node_modules',
+          'openclaw',
+          'package.json',
+        ),
+        {
+          name: 'openclaw',
+          version: '2026.4.9',
+        },
+      );
+      createJson(path.join(tempRoot, '.cache', 'bundled-components', 'upstreams', 'openclaw', 'package.json'), {
+        name: 'openclaw',
+        version: '2026.4.11',
+      });
+      createGitHeadRepo(path.join(tempRoot, '.cache', 'bundled-components', 'upstreams', 'openclaw'), {
+        head: '89abcdef0123456789abcdef0123456789abcdef',
+        tags: {
+          'v2026.4.11': '89abcdef0123456789abcdef0123456789abcdef',
+        },
+      });
+      createText(
+        path.join(tempRoot, '.cache', 'bundled-components', 'upstreams', 'openclaw', '.git', 'status.fake'),
+        '',
+      );
+      createText(path.join(tempRoot, 'openclaw-2026.4.11.tgz'), 'tarball');
+      createJson(
+        path.join(
+          tempRoot,
+          'packages',
+          'sdkwork-claw-desktop',
+          'src-tauri',
+          'resources',
+          'openclaw-runtime',
+          'manifest.json',
+        ),
+        {
+          schemaVersion: 1,
+          runtimeId: 'openclaw',
+          openclawVersion: '2026.3.28',
+          nodeVersion: '22.16.0',
+          platform: 'windows',
+          arch: 'x64',
+        },
+      );
+      createJson(
+        path.join(
+          tempRoot,
+          'packages',
+          'sdkwork-claw-desktop',
+          'src-tauri',
+          'resources',
+          'openclaw-runtime',
+          'runtime',
+          'package',
+          'node_modules',
+          'openclaw',
+          'package.json',
+        ),
+        {
+          name: 'openclaw',
+          version: '2026.3.28',
+        },
+      );
+
+      const result = await assessOpenClawUpgradeReadiness({
+        workspaceRootDir: tempRoot,
+        targetVersion: '2026.4.11',
+      });
+
+      assert.equal(result.readyToUpgrade, false);
+      assert.equal(result.legacySourceRuntimeDirPresent, true);
+      assert.equal(result.legacySourceRuntimeVersion, '2026.3.28');
+      assert.deepEqual(result.blockers, [
+        'Legacy desktop source runtime residue is still present at packages/sdkwork-claw-desktop/src-tauri/resources/openclaw-runtime (detected version 2026.3.28). Remove it before upgrading the packaged OpenClaw runtime.',
+      ]);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  },
+);
 
 await runTest(
   'assessOpenClawUpgradeReadiness distinguishes current baseline alignment from future upgrade readiness',
@@ -157,7 +278,7 @@ await runTest(
         stableVersion: '2026.4.2',
         nodeVersion: '22.16.0',
         packageName: 'openclaw',
-        runtimeSupplementalPackages: ['@buape/carbon@0.0.0-beta-20260327000044'],
+        runtimeSupplementalPackages: [],
       });
       createJson(
         path.join(
@@ -240,7 +361,7 @@ await runTest(
       assert.equal(result.versionSourcesAligned, true);
       assert.equal(result.readyToUpgrade, false);
       assert.deepEqual(result.blockers, [
-        'Local bundled OpenClaw upstream checkout does not contain git tag v2026.4.2.',
+        'Local OpenClaw upstream checkout does not contain git tag v2026.4.2.',
       ]);
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });

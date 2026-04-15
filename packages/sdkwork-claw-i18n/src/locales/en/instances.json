@@ -25,7 +25,7 @@
     "onboarding": {
       "builtInBadge": "Recommended",
       "builtInTitle": "Install built-in OpenClaw",
-      "builtInDescription": "Use the guided install flow to pick the best supported host method and keep the bundled OpenClaw runtime under Claw Studio control.",
+      "builtInDescription": "Use the guided install flow to pick the best supported host method and keep the built-in OpenClaw runtime under Claw Studio control.",
       "builtInAction": "Open guided install",
       "associateBadge": "Local install",
       "associateTitle": "Associate installed OpenClaw",
@@ -141,7 +141,7 @@
     }
   },
   "nodes": {
-    "description": "Cluster governance starts here. The local built-in OpenClaw kernel is listed beside attached or managed nodes so rollout, diagnostics, and topology drift can converge on one product model.",
+    "description": "Cluster governance starts here. Local primary kernels are listed beside attached or managed nodes so rollout, diagnostics, and topology drift can converge on one product model.",
     "actions": {
       "refresh": "Refresh",
       "ensureLocalNode": "Ensure Local Node",
@@ -326,14 +326,71 @@
       "failedToStop": "Failed to stop instance",
       "started": "Instance started successfully",
       "failedToStart": "Failed to start instance",
-      "retriedBundledStartup": "Bundled OpenClaw startup retried successfully",
-      "failedToRetryBundledStartup": "Failed to retry bundled OpenClaw startup",
+      "retriedBundledStartup": "Built-in OpenClaw startup retried successfully",
+      "failedToRetryBundledStartup": "Failed to retry built-in OpenClaw startup",
       "failedToOpenDiagnosticPath": "Failed to open the diagnostic location",
       "uninstalled": "Instance uninstalled successfully",
       "failedToUninstall": "Failed to uninstall instance",
       "failedToOpenOpenClawConsole": "Failed to open the OpenClaw console"
     },
     "confirmUninstall": "Are you sure you want to uninstall this instance? This action cannot be undone.",
+    "modules": {
+      "hermes": {
+        "eyebrow": "Hermes Kernel",
+        "description": "Hermes runs as an externally managed kernel. This detail module tracks transport posture, external runtime policy, data-access shape, and the machine-facing evidence required to keep Hermes support predictable across supported local, WSL2, and remote Linux deployments.",
+        "metrics": {
+          "runtime": "Runtime",
+          "deployment": "Deployment",
+          "transport": "Transport",
+          "health": "Health"
+        },
+        "runtimePolicies": {
+          "title": "Runtime Policies",
+          "windows": {
+            "title": "Windows uses WSL2 or remote Linux",
+            "detail": "Native Windows local Hermes execution is out of scope. Windows hosts must attach Hermes through WSL2 or a remote Linux machine."
+          },
+          "python": {
+            "title": "Python and uv stay external",
+            "detail": "The desktop package never bundles Python or uv. Doctor and deployment flows must rely on externally installed runtimes."
+          },
+          "node": {
+            "title": "Node.js stays external",
+            "detail": "Node.js is not bundled. Hermes may use it for capability-scoped workflows, but installation and upgrades remain external."
+          }
+        },
+        "readiness": {
+          "title": "Readiness Posture",
+          "deploymentTarget": {
+            "label": "Deployment target",
+            "configured": "This instance already reports a supported Hermes deployment posture. Hermes may run as a local-external runtime on Linux, macOS, or Windows WSL2, or as a remote Linux deployment.",
+            "required": "Hermes must stay external. Use a local-external runtime on Linux, macOS, or Windows WSL2, or attach a remote Linux deployment instead of a native Windows or app-managed local target."
+          },
+          "endpointExposure": {
+            "label": "Connectivity endpoints",
+            "configured": "The shared base detail already exposes at least one published Hermes endpoint for operator access.",
+            "required": "No Hermes endpoint has been published yet. Keep endpoint verification in the Hermes module boundary until connectivity is visible."
+          },
+          "observability": {
+            "label": "Observability evidence",
+            "configured": "Shared observability data is available for this instance, so runtime evidence can be reviewed without leaving the detail module.",
+            "optional": "No log evidence is exposed yet. Hermes can still run, but diagnostics remain limited until observability is surfaced."
+          }
+        },
+        "endpointsTitle": "Connectivity Endpoints",
+        "emptyEndpoints": "This Hermes instance has not published any connectivity endpoints yet.",
+        "openEndpoint": "Open Endpoint",
+        "capabilitiesTitle": "Capability Posture",
+        "notesTitle": "Operational Notes",
+        "emptyNotes": "No additional Hermes notes are available for this instance yet.",
+        "dataAccessTitle": "Data Access Surfaces",
+        "artifactsTitle": "Managed Artifacts"
+      },
+      "unsupported": {
+        "eyebrow": "Unsupported Kernel",
+        "description": "No registered detail module is available for {{kernel}} yet. This route now requires each kernel to provide its own detail implementation instead of reusing the OpenClaw page."
+      }
+    },
     "instanceWorkbench": {
       "sidebar": {
         "title": "Instance Workbench",
@@ -1017,22 +1074,22 @@
           "notes": "Management Notes",
           "alerts": {
             "bundledStartupFailure": {
-              "title": "Bundled OpenClaw Startup Failed",
-              "description": "The desktop shell is available, but the last bundled OpenClaw startup attempt did not complete. Review the failure reason below before retrying or debugging the managed runtime.",
+              "title": "Built-in OpenClaw Startup Failed",
+              "description": "The desktop shell is available, but the last built-in OpenClaw startup attempt did not complete. Review the failure reason below before retrying or debugging the managed runtime.",
               "recommendedActionLabel": "Recommended Next Step",
               "actions": {
                 "gatewayReadinessTimeout": "The desktop shell is already running, but the bundled gateway never started accepting connections within the readiness window. Read the gateway log first, then the desktop main log, to see whether boot is still progressing, stalled during provider initialization, or blocked by another local service before retrying.",
-                "runtimeAccessDenied": "Windows denied access while Claw Studio was finalizing the bundled runtime files. Read the desktop main log and gateway log, then close stale OpenClaw or Claw Studio processes and release antivirus or indexer locks before retrying.",
-                "checkLogsAndRetry": "Read the gateway log and desktop main log to identify the last activation stage and supervisor error before retrying the bundled runtime."
+                "runtimeAccessDenied": "Windows denied access while Claw Studio was finalizing the built-in runtime files. Read the desktop main log and gateway log, then close stale OpenClaw or Claw Studio processes and release antivirus or indexer locks before retrying.",
+                "checkLogsAndRetry": "Read the gateway log and desktop main log to identify the last activation stage and supervisor error before retrying the built-in runtime."
               },
               "diagnostics": {
                 "lastActivationStage": {
                   "label": "Last Activation Stage",
-                  "description": "The final bundled OpenClaw startup stage recorded by the desktop shell before the current failure or stall."
+                  "description": "The final built-in OpenClaw startup stage recorded by the desktop shell before the current failure or stall."
                 },
                 "gatewayLogPath": {
                   "label": "Gateway Log",
-                  "description": "Inspect the bundled OpenClaw gateway log for boot output, provider initialization, and bind or listen failures."
+                  "description": "Inspect the built-in OpenClaw gateway log for boot output, provider initialization, and bind or listen failures."
                 },
                 "desktopMainLogPath": {
                   "label": "Desktop Main Log",
@@ -1109,7 +1166,7 @@
         "saveFile": "Save File",
         "savingFile": "Saving...",
         "selectFile": "Select a file from the explorer to preview or edit it.",
-        "readonlyNotice": "This artifact is currently exposed in preview mode to avoid drifting from the bundled OpenClaw runtime state.",
+        "readonlyNotice": "This artifact is currently exposed in preview mode to avoid drifting from the built-in OpenClaw runtime state.",
         "fileSaved": "File saved",
         "fileSaveFailed": "Failed to save file",
         "on": "On",

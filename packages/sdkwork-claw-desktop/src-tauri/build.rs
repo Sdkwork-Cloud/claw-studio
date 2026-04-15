@@ -159,7 +159,7 @@ fn ensure_generated_bundled_placeholder(directory: &Path) {
                 }
 
                 match entry.file_type() {
-                    Ok(file_type) => file_type.is_file(),
+                    Ok(file_type) => file_type.is_file() || file_type.is_dir(),
                     Err(_) => true,
                 }
             }),

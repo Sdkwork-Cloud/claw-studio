@@ -12,6 +12,11 @@ import {
   type CronTaskCreateInput,
   type OpenClawCronTaskPayload,
 } from './cronTaskPayload.ts';
+import {
+  canManageTasks,
+  hasWorkbench,
+  resolveTaskCrudSurface,
+} from './taskSurfaceSupport.ts';
 import type {
   TaskActionType,
   TaskDeliveryMode,
@@ -100,11 +105,11 @@ export interface ITaskService {
   deleteTask(id: string, instanceId?: string): Promise<void>;
 }
 
-type OpenClawTaskRouteMode = 'backend' | 'gateway';
+type TaskRouteMode = 'backend' | 'gateway';
 
-type OpenClawTaskRoute = {
+type TaskRoute = {
   instanceId: string;
-  mode: OpenClawTaskRouteMode;
+  mode: TaskRouteMode;
 };
 
 const TASK_MANAGEMENT_UNAVAILABLE_ERROR =
@@ -237,18 +242,6 @@ function toCreateTaskInput(task: Task, data: UpdateTaskDTO = {}): CreateTaskDTO 
   };
 }
 
-function hasWorkbench(detail: StudioInstanceDetailRecord | null | undefined) {
-  return Boolean(detail?.workbench);
-}
-
-function isOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
-  return detail?.instance.runtimeKind === 'openclaw';
-}
-
-function canManageTasks(detail: StudioInstanceDetailRecord | null | undefined) {
-  return Boolean(detail) && (hasWorkbench(detail) || isOpenClawDetail(detail));
-}
-
 function mergeTaskCollections(
   backendTasks: Task[],
   gatewayTasks: Task[],
@@ -276,7 +269,7 @@ function mergeTaskCollections(
 }
 
 export class TaskService implements ITaskService {
-  private readonly taskRouteById = new Map<string, OpenClawTaskRoute>();
+  private readonly taskRouteById = new Map<string, TaskRoute>();
 
   private clearTasksForInstance(instanceId: string) {
     for (const [taskId, route] of [...this.taskRouteById.entries()]) {
@@ -322,7 +315,7 @@ export class TaskService implements ITaskService {
     return {
       instanceId: resolvedInstanceId,
       mode: 'backend',
-    } satisfies OpenClawTaskRoute;
+    } satisfies TaskRoute;
   }
 
   private async getTaskWorkbenchDetail(
@@ -399,20 +392,22 @@ export class TaskService implements ITaskService {
 
   async getTasks(instanceId: string): Promise<Task[]> {
     const detail = await this.getTaskWorkbenchDetail(instanceId);
-    if (!detail) {
+    const taskCrudSurface = resolveTaskCrudSurface(detail);
+    if (taskCrudSurface === 'unsupported') {
       this.clearTasksForInstance(instanceId);
       return [];
     }
 
-    if (hasWorkbench(detail)) {
-      const backendTasks = normalizeUniqueById(detail.workbench!.cronTasks.tasks.map(mapStudioTask));
+    if (taskCrudSurface === 'backendWorkbench') {
+      const workbench = detail?.workbench;
+      if (!workbench) {
+        this.clearTasksForInstance(instanceId);
+        return [];
+      }
+
+      const backendTasks = normalizeUniqueById(workbench.cronTasks.tasks.map(mapStudioTask));
       this.rememberTasks(instanceId, backendTasks);
       return backendTasks.map(cloneTaskRecord);
-    }
-
-    if (!isOpenClawDetail(detail)) {
-      this.clearTasksForInstance(instanceId);
-      return [];
     }
 
     const gatewayTasks = normalizeUniqueById(
@@ -429,7 +424,7 @@ export class TaskService implements ITaskService {
 
   async createTask(instanceId: string, task: Omit<Task, 'id'>): Promise<Task> {
     const detail = await this.requireTaskWorkbenchDetail(instanceId);
-    if (!hasWorkbench(detail) && isOpenClawDetail(detail)) {
+    if (resolveTaskCrudSurface(detail) === 'gateway') {
       const createdJob = await openClawGatewayClient.addCronJob(
         instanceId,
         buildOpenClawCronTaskPayload(task) as never,

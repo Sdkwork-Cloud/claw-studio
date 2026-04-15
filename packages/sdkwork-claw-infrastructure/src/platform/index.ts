@@ -47,6 +47,7 @@ export type {
 } from './contracts/kernel.ts';
 export type {
   ComponentPlatformAPI,
+  KnownRuntimeBundledComponentId,
   RuntimeBundledComponentId,
   RuntimeDesktopComponentCapabilityInfo,
   RuntimeDesktopComponentCatalogInfo,

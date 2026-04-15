@@ -18,9 +18,14 @@ import {
 } from './release/desktop-targets.mjs';
 import {
   DEFAULT_RELEASE_PROFILE_ID,
+  resolveReleaseProfile,
   resolveDesktopBundleTargets,
   serializeBundleTargets,
 } from './release/release-profiles.mjs';
+import {
+  DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
+  resolveKernelPackageProfile,
+} from './release/kernel-package-profiles.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,9 +40,32 @@ const desktopTauriBundleOverlayConfig = path.join(
 );
 const desktopPackageName = '@sdkwork/claw-desktop';
 
-function shouldRunOpenClawBundlePreflight(phase) {
+export function resolveSpawnCommand(command, platform = process.platform) {
+  if (platform !== 'win32') {
+    return command;
+  }
+
+  if (path.extname(command)) {
+    return command;
+  }
+
+  if (command === 'pnpm') {
+    return 'pnpm.cmd';
+  }
+
+  return command;
+}
+
+function shouldRunOpenClawBundlePreflight({
+  phase,
+  packageProfileId,
+} = {}) {
   const normalizedPhase = String(phase ?? 'all').trim().toLowerCase() || 'all';
-  return normalizedPhase === 'bundle' || normalizedPhase === 'all';
+  if (!(normalizedPhase === 'bundle' || normalizedPhase === 'all')) {
+    return false;
+  }
+
+  return resolveKernelPackageProfile(packageProfileId).includedKernelIds.includes('openclaw');
 }
 
 function resolveDesktopPlatformTauriConfigPath(platform) {
@@ -54,6 +82,7 @@ function resolveDesktopPlatformTauriConfigPath(platform) {
 
 function resolveReleasePhasePlan({
   profileId,
+  packageProfileId,
   phase,
   requestedTargetTriple,
   releaseMode,
@@ -70,6 +99,8 @@ function resolveReleasePhasePlan({
           'scripts/sync-bundled-components.mjs',
           '--no-fetch',
           ...(releaseMode ? ['--release'] : []),
+          '--package-profile',
+          packageProfileId,
         ],
       };
     case 'prepare-target':
@@ -162,6 +193,8 @@ function resolveReleasePhasePlan({
         '--',
         '--profile',
         profileId,
+        '--package-profile',
+        packageProfileId,
         '--vite-mode',
         normalizeViteMode(viteMode, 'production'),
         ...(resolvedBundleTargets.length > 0
@@ -183,6 +216,7 @@ function resolveReleasePhasePlan({
 
 export function createDesktopReleaseBuildPlan({
   profileId = DEFAULT_RELEASE_PROFILE_ID,
+  packageProfileId = '',
   platform = process.platform,
   hostArch = process.arch,
   env = process.env,
@@ -204,11 +238,18 @@ export function createDesktopReleaseBuildPlan({
     viteMode ?? rustToolchainEnv.SDKWORK_VITE_MODE,
     'production',
   );
+  const resolvedPackageProfileId = resolveKernelPackageProfile(
+    String(packageProfileId ?? '').trim()
+      || resolveReleaseProfile(profileId).defaultPackageProfileId
+      || DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
+  ).profileId;
+  rustToolchainEnv.SDKWORK_KERNEL_PACKAGE_PROFILE_ID = resolvedPackageProfileId;
 
   const normalizedPhase = String(phase ?? 'all').trim().toLowerCase() || 'all';
   const effectiveReleaseMode = releaseMode || normalizedPhase === 'sync';
   const plan = resolveReleasePhasePlan({
     profileId,
+    packageProfileId: resolvedPackageProfileId,
     phase: normalizedPhase,
     requestedTargetTriple,
     releaseMode: effectiveReleaseMode,
@@ -219,22 +260,34 @@ export function createDesktopReleaseBuildPlan({
   });
 
   return {
-    command: plan.command,
+    command: resolveSpawnCommand(plan.command, platform),
     args: plan.args,
     cwd: rootDir,
     env: withSupportedWindowsCmakeGenerator(rustToolchainEnv, platform),
     bundleTargets: plan.bundleTargets ?? [],
+    shell: false,
   };
 }
 
 export function buildDesktopReleaseBuildPreflightPlan({
+  profileId = DEFAULT_RELEASE_PROFILE_ID,
+  packageProfileId = '',
   platform = process.platform,
   hostArch = process.arch,
   env = process.env,
   targetTriple = '',
   phase = 'all',
 } = {}) {
-  if (!shouldRunOpenClawBundlePreflight(phase)) {
+  const resolvedPackageProfileId = resolveKernelPackageProfile(
+    String(packageProfileId ?? '').trim()
+      || resolveReleaseProfile(profileId).defaultPackageProfileId
+      || DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
+  ).profileId;
+
+  if (!shouldRunOpenClawBundlePreflight({
+    phase,
+    packageProfileId: resolvedPackageProfileId,
+  })) {
     return null;
   }
 
@@ -258,6 +311,7 @@ export function buildDesktopReleaseBuildPreflightPlan({
       withRustToolchainPath(targetEnv, { platform }),
       platform,
     ),
+    shell: false,
   };
 }
 
@@ -462,6 +516,7 @@ function readOptionValue(argv, index, flag) {
 export function parseArgs(argv) {
   const options = {
     profileId: DEFAULT_RELEASE_PROFILE_ID,
+    packageProfileId: '',
     targetTriple: '',
     phase: 'all',
     releaseMode: false,
@@ -480,6 +535,12 @@ export function parseArgs(argv) {
 
     if (token === '--target') {
       options.targetTriple = readOptionValue(argv, index, '--target');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--package-profile') {
+      options.packageProfileId = readOptionValue(argv, index, '--package-profile');
       index += 1;
       continue;
     }
@@ -517,6 +578,7 @@ function runCli() {
   const options = parseArgs(process.argv.slice(2));
   const plan = createDesktopReleaseBuildPlan({
     profileId: options.profileId,
+    packageProfileId: options.packageProfileId,
     phase: options.phase,
     targetTriple: options.targetTriple,
     releaseMode: options.releaseMode,
@@ -524,6 +586,8 @@ function runCli() {
     bundleTargets: options.bundleTargets,
   });
   const preflightPlan = buildDesktopReleaseBuildPreflightPlan({
+    profileId: options.profileId,
+    packageProfileId: options.packageProfileId,
     phase: options.phase,
     targetTriple: options.targetTriple,
     platform: process.platform,
@@ -535,7 +599,7 @@ function runCli() {
       cwd: preflightPlan.cwd,
       env: preflightPlan.env,
       stdio: 'inherit',
-      shell: false,
+      shell: preflightPlan.shell,
     });
     if (preflightResult.error) {
       console.error(
@@ -557,7 +621,7 @@ function runCli() {
     cwd: plan.cwd,
     env: plan.env,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    shell: plan.shell,
   });
 
   child.on('error', (error) => {

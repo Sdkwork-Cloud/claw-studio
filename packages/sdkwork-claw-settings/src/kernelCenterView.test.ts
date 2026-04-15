@@ -70,9 +70,9 @@ function createDashboard(
       plannedKeys: [],
     },
     provenance: {
-      installSourceLabel: 'Unknown',
+      installSource: null,
       platformLabel: 'unknown/unknown',
-      openclawVersion: null,
+      runtimeVersion: null,
       nodeVersion: null,
       configPath: null,
       runtimeHomeDir: null,

@@ -304,11 +304,16 @@ export function createRegistrySearchSuggestions(entries: ClawRegistryEntry[], li
   return dedupeValues(suggestions).slice(0, limit);
 }
 
-function isGatewayReadyOpenClawInstance(candidate: ClawRegistryQuickConnectCandidate) {
+export function supportsRegistryQuickConnectInstance(
+  candidate: ClawRegistryQuickConnectCandidate,
+) {
+  return candidate.transportKind === 'openclawGatewayWs';
+}
+
+export function isRegistryGatewayReadyInstance(candidate: ClawRegistryQuickConnectCandidate) {
   return (
-    candidate.runtimeKind === 'openclaw' &&
+    supportsRegistryQuickConnectInstance(candidate) &&
     candidate.status === 'online' &&
-    candidate.transportKind === 'openclawGatewayWs' &&
     Boolean(candidate.baseUrl || candidate.websocketUrl)
   );
 }
@@ -316,7 +321,7 @@ function isGatewayReadyOpenClawInstance(candidate: ClawRegistryQuickConnectCandi
 export function resolveRegistryQuickConnectAction(
   candidates: ClawRegistryQuickConnectCandidate[],
 ): ClawRegistryQuickConnectAction {
-  const gatewayReady = candidates.find(isGatewayReadyOpenClawInstance);
+  const gatewayReady = candidates.find(isRegistryGatewayReadyInstance);
   if (gatewayReady) {
     return {
       kind: 'chat',
@@ -325,12 +330,12 @@ export function resolveRegistryQuickConnectAction(
     };
   }
 
-  const openClawInstance = candidates.find((candidate) => candidate.runtimeKind === 'openclaw');
-  if (openClawInstance) {
+  const quickConnectInstance = candidates.find(supportsRegistryQuickConnectInstance);
+  if (quickConnectInstance) {
     return {
       kind: 'instance',
-      to: `/instances/${openClawInstance.id}`,
-      instanceId: openClawInstance.id,
+      to: `/instances/${quickConnectInstance.id}`,
+      instanceId: quickConnectInstance.id,
     };
   }
 

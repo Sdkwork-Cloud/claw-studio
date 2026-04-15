@@ -359,6 +359,37 @@ await runTest('lifecycle operations delegate to the studio bridge when the insta
   assert.deepEqual(calls, ['start', 'stop', 'restart']);
 });
 
+await runTest(
+  'instance service rejects local-managed Hermes instances before calling the studio bridge',
+  async () => {
+    let createCalls = 0;
+    const service = createInstanceService({
+      studioApi: {
+        createInstance: async () => {
+          createCalls += 1;
+          throw new Error('studio bridge should not be called');
+        },
+      },
+    });
+
+    await assert.rejects(
+      () =>
+        service.create({
+          name: 'Hermes Local Managed',
+          type: 'Hermes Agent',
+          runtimeKind: 'hermes',
+          deploymentMode: 'local-managed',
+          transportKind: 'customHttp',
+          host: '127.0.0.1',
+          port: 19540,
+          baseUrl: 'http://127.0.0.1:19540',
+        }),
+      /local-external or remote deployment/i,
+    );
+    assert.equal(createCalls, 0);
+  },
+);
+
 await runTest('updateInstanceFileContent routes built-in managed OpenClaw writes through the studio bridge', async () => {
   const calls: Array<[string, string, string]> = [];
   const service = createInstanceService({

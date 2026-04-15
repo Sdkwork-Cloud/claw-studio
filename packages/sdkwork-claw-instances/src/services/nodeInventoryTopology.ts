@@ -31,7 +31,6 @@ export function isLoopbackHost(host?: string | null) {
 
 export function isBuiltInLocalInstance(instance: StudioInstanceRecord) {
   return (
-    instance.runtimeKind === 'openclaw' &&
     instance.isBuiltIn &&
     instance.isDefault &&
     instance.deploymentMode === 'local-managed'
@@ -42,12 +41,21 @@ export function mapInstanceNode(
   instance: StudioInstanceRecord,
   hostStatus: HostPlatformSnapshot | null,
 ): NodeInventoryInstanceTopologyRecord {
+  const builtInLocal = isBuiltInLocalInstance(instance);
   const explicitRemote = instance.deploymentMode === 'remote';
   const localHost = isLoopbackHost(instance.host);
-  const attachedRemote = explicitRemote || (!localHost && !isBuiltInLocalInstance(instance));
-  const kind: NodeInventoryKind = attachedRemote ? 'attachedRemote' : 'localExternal';
-  const management: NodeInventoryManagement = attachedRemote ? 'attached' : 'attached';
-  const topologyKind = attachedRemote ? 'remoteAttachedNode' : 'localExternal';
+  const attachedRemote = explicitRemote || (!localHost && !builtInLocal);
+  const kind: NodeInventoryKind = builtInLocal
+    ? 'localPrimary'
+    : attachedRemote
+      ? 'attachedRemote'
+      : 'localExternal';
+  const management: NodeInventoryManagement = builtInLocal ? 'managed' : 'attached';
+  const topologyKind = builtInLocal
+    ? 'localManagedNative'
+    : attachedRemote
+      ? 'remoteAttachedNode'
+      : 'localExternal';
 
   return {
     id: instance.id,

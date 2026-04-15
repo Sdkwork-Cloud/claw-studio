@@ -10,18 +10,14 @@ const rootDir = path.resolve(import.meta.dirname, '..', '..');
 function buildInstallerContract(platform) {
   if (platform === 'windows') {
     return {
-      version: 1,
+      version: 2,
       platform: 'windows',
       delivery: 'archive-only-resources',
-      installMode: 'postinstall-prewarm',
+      installMode: 'first-launch-archive-extract',
       bundledResourceRoot: 'resources/openclaw/',
       runtimeArchive: 'resources/openclaw/runtime.zip',
       sourceConfigPath: 'packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json',
-      installerHookPath: 'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh',
-      prepareCommand: '--prepare-bundled-openclaw-runtime',
-      prepareFailureMode: 'abort-install',
-      cliRegistrationCommand: '--register-openclaw-cli',
-      cliRegistrationFailureMode: 'best-effort',
+      requiredExternalRuntimes: ['nodejs'],
     };
   }
 
@@ -31,7 +27,6 @@ function buildInstallerContract(platform) {
 function buildInstallReadyLayout({
   mode,
   installKey,
-  nodeEntryRelativePath = 'runtime/package/node_modules/node/bin/node',
   cliEntryRelativePath = 'runtime/package/node_modules/openclaw/openclaw.mjs',
 } = {}) {
   return {
@@ -41,8 +36,35 @@ function buildInstallReadyLayout({
     requiresArchiveExtractionOnFirstLaunch: false,
     manifestRelativePath: 'manifest.json',
     runtimeSidecarRelativePath: 'runtime/.sdkwork-openclaw-runtime.json',
-    nodeEntryRelativePath,
     cliEntryRelativePath,
+  };
+}
+
+function buildHermesExternalRuntimePolicy() {
+  return {
+    packagingPolicy: 'external-runtime-only',
+    launcherKinds: ['externalWslOrRemote'],
+    platformSupport: {
+      windows: 'wsl2OrRemoteOnly',
+      macos: 'native',
+      linux: 'native',
+    },
+    runtimeRequirements: ['python', 'uv'],
+    optionalRuntimeRequirements: ['nodejs'],
+  };
+}
+
+function buildOpenClawExternalRuntimePolicy() {
+  return {
+    packagingPolicy: 'external-runtime-only',
+    launcherKinds: ['externalLocal'],
+    platformSupport: {
+      windows: 'native',
+      macos: 'native',
+      linux: 'native',
+    },
+    runtimeRequirements: ['nodejs'],
+    optionalRuntimeRequirements: [],
   };
 }
 
@@ -50,6 +72,9 @@ function buildDesktopStartupSmokeReport({
   manifestPath,
   capturedEvidenceRelativePath = 'desktop/windows/x64/diagnostics/desktop-startup-evidence.json',
   target = 'x86_64-pc-windows-msvc',
+  packageProfileId = 'openclaw-only',
+  includedKernelIds = ['openclaw'],
+  defaultEnabledKernelIds = ['openclaw'],
   artifactRelativePaths = [
     'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
   ],
@@ -102,6 +127,9 @@ function buildDesktopStartupSmokeReport({
     verifiedAt: '2026-04-06T12:13:14.000Z',
     manifestPath,
     capturedEvidenceRelativePath,
+    packageProfileId,
+    includedKernelIds,
+    defaultEnabledKernelIds,
     descriptorBrowserBaseUrl: 'http://127.0.0.1:19797',
     builtInInstanceId: 'local-built-in',
     builtInInstanceStatus: 'online',
@@ -115,13 +143,16 @@ function writePassingDesktopStartupSmokeFixture({
   windowsDir,
   manifestPath,
   artifactRelativePath = 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
+  packageProfileId = 'openclaw-only',
+  includedKernelIds = ['openclaw'],
+  defaultEnabledKernelIds = ['openclaw'],
 } = {}) {
   const diagnosticsDir = path.join(windowsDir, 'diagnostics');
   mkdirSync(diagnosticsDir, { recursive: true });
   writeFileSync(
     path.join(diagnosticsDir, 'desktop-startup-evidence.json'),
     `${JSON.stringify({
-      version: 1,
+      version: 2,
       status: 'passed',
       phase: 'shell-mounted',
       runId: 2,
@@ -152,6 +183,9 @@ function writePassingDesktopStartupSmokeFixture({
     path.join(windowsDir, 'desktop-startup-smoke-report.json'),
     `${JSON.stringify(buildDesktopStartupSmokeReport({
       manifestPath,
+      packageProfileId,
+      includedKernelIds,
+      defaultEnabledKernelIds,
       artifactRelativePaths: [artifactRelativePath],
     }), null, 2)}\n`,
     'utf8',
@@ -381,9 +415,24 @@ test('release asset finalizer writes a global checksum manifest and release mani
       `${JSON.stringify({
         profileId: 'claw-studio',
         releaseTag: 'release-2026-03-31-03',
+        packageProfileId: 'openclaw-only',
+        includedKernelIds: ['openclaw'],
+        defaultEnabledKernelIds: ['openclaw'],
+        requiredExternalRuntimes: ['nodejs'],
+        optionalExternalRuntimes: [],
+        launcherKinds: ['externalLocal'],
+        kernelPlatformSupport: {
+          openclaw: {
+            windows: 'native',
+            macos: 'native',
+            linux: 'native',
+          },
+        },
         platform: 'windows',
         arch: 'x64',
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         artifacts: [
           {
             name: 'Claw.Studio_0.1.0_x64-setup.exe',
@@ -449,13 +498,20 @@ test('release asset finalizer writes a global checksum manifest and release mani
           'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
         ],
         requiredCompanionArtifactRelativePaths: [],
-        installReadyLayout: {
-          ...buildInstallReadyLayout({
-            mode: 'simulated-prewarm',
-            installKey: '2026.4.2-windows-x64',
-          }),
+        kernelInstallReadiness: {
+          openclaw: {
+            externalRuntimePolicy: buildOpenClawExternalRuntimePolicy(),
+            installReadyLayout: {
+              ...buildInstallReadyLayout({
+                mode: 'archive-extract-ready',
+                installKey: '2026.4.2-windows-x64',
+              }),
+            },
+          },
         },
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         installPlanSummaries: [
           {
             relativePath: 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
@@ -537,8 +593,35 @@ test('release asset finalizer writes a global checksum manifest and release mani
     );
 
     assert.deepEqual(
-      desktopArtifact?.openClawInstallerContract,
-      buildInstallerContract('windows'),
+      desktopArtifact?.kernelInstallContracts,
+      {
+        openclaw: buildInstallerContract('windows'),
+      },
+    );
+    assert.deepEqual(desktopArtifact?.kernelInstallReadiness, {
+      openclaw: {
+        externalRuntimePolicy: buildOpenClawExternalRuntimePolicy(),
+        installReadyLayout: buildInstallReadyLayout({
+          mode: 'archive-extract-ready',
+          installKey: '2026.4.2-windows-x64',
+        }),
+      },
+    });
+    assert.equal(desktopArtifact?.packageProfileId, 'openclaw-only');
+    assert.deepEqual(desktopArtifact?.includedKernelIds, ['openclaw']);
+    assert.deepEqual(desktopArtifact?.defaultEnabledKernelIds, ['openclaw']);
+    assert.deepEqual(desktopArtifact?.requiredExternalRuntimes, ['nodejs']);
+    assert.deepEqual(desktopArtifact?.optionalExternalRuntimes, []);
+    assert.deepEqual(desktopArtifact?.launcherKinds, ['externalLocal']);
+    assert.deepEqual(
+      desktopArtifact?.kernelPlatformSupport,
+      {
+        openclaw: {
+          windows: 'native',
+          macos: 'native',
+          linux: 'native',
+        },
+      },
     );
     assert.deepEqual(
       desktopArtifact?.desktopInstallerSmoke,
@@ -551,11 +634,16 @@ test('release asset finalizer writes a global checksum manifest and release mani
           'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
         ],
         requiredCompanionArtifactRelativePaths: [],
-        installReadyLayout: {
-          ...buildInstallReadyLayout({
-            mode: 'simulated-prewarm',
-            installKey: '2026.4.2-windows-x64',
-          }),
+        kernelInstallReadiness: {
+          openclaw: {
+            externalRuntimePolicy: buildOpenClawExternalRuntimePolicy(),
+            installReadyLayout: {
+              ...buildInstallReadyLayout({
+                mode: 'archive-extract-ready',
+                installKey: '2026.4.2-windows-x64',
+              }),
+            },
+          },
         },
         installPlanSummaries: [
           {
@@ -567,10 +655,249 @@ test('release asset finalizer writes a global checksum manifest and release mani
         ],
       },
     );
-    assert.equal('openClawInstallerContract' in webArtifact, false);
+    assert.equal('kernelInstallContracts' in webArtifact, false);
+    assert.equal('packageProfileId' in webArtifact, false);
     assert.equal('desktopInstallerSmoke' in webArtifact, false);
     assert.match(checksums, /desktop\/windows\/x64\/Claw\.Studio_0\.1\.0_x64-setup\.exe/);
     assert.match(checksums, /web\/claw-studio-web-assets-release-2026-03-31-03\.tar\.gz/);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset finalizer accepts hermes-only desktop artifacts without OpenClaw installer metadata', async () => {
+  const finalizerPath = path.join(rootDir, 'scripts', 'release', 'finalize-release-assets.mjs');
+  const finalizer = await import(pathToFileURL(finalizerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-finalize-hermes-desktop-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const windowsDir = path.join(releaseAssetsDir, 'desktop', 'windows', 'x64');
+  const installerRelativePath = 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe';
+
+  try {
+    mkdirSync(windowsDir, { recursive: true });
+    writeFileSync(path.join(releaseAssetsDir, installerRelativePath), 'windows-installer', 'utf8');
+    writeFileSync(
+      path.join(windowsDir, 'release-asset-manifest.json'),
+      `${JSON.stringify({
+        profileId: 'claw-studio',
+        productName: 'Claw Studio',
+        releaseTag: 'release-2026-04-08-01',
+        packageProfileId: 'hermes-only',
+        includedKernelIds: ['hermes'],
+        defaultEnabledKernelIds: ['hermes'],
+        requiredExternalRuntimes: ['python', 'uv'],
+        optionalExternalRuntimes: ['nodejs'],
+        launcherKinds: ['externalWslOrRemote'],
+        kernelPlatformSupport: {
+          hermes: {
+            windows: 'wsl2OrRemoteOnly',
+            macos: 'native',
+            linux: 'native',
+          },
+        },
+        platform: 'windows',
+        arch: 'x64',
+        artifacts: [
+          {
+            name: 'Claw.Studio_0.1.0_x64-setup.exe',
+            relativePath: installerRelativePath,
+            platform: 'windows',
+            arch: 'x64',
+            kind: 'installer',
+            sha256: 'placeholder',
+            size: 17,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(windowsDir, 'installer-smoke-report.json'),
+      `${JSON.stringify({
+        platform: 'windows',
+        arch: 'x64',
+        target: 'x86_64-pc-windows-msvc',
+        manifestPath: path.join(windowsDir, 'release-asset-manifest.json'),
+        verifiedAt: '2026-04-08T11:22:33.000Z',
+        installableArtifactRelativePaths: [installerRelativePath],
+        requiredCompanionArtifactRelativePaths: [],
+        installPlanSummaries: [
+          {
+            relativePath: installerRelativePath,
+            format: 'nsis',
+            platform: 'windows',
+            stepCount: 1,
+          },
+        ],
+        kernelInstallReadiness: {
+          hermes: {
+            externalRuntimePolicy: buildHermesExternalRuntimePolicy(),
+          },
+        },
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writePassingDesktopStartupSmokeFixture({
+      windowsDir,
+      manifestPath: path.join(windowsDir, 'release-asset-manifest.json'),
+      artifactRelativePath: installerRelativePath,
+      packageProfileId: 'hermes-only',
+      includedKernelIds: ['hermes'],
+      defaultEnabledKernelIds: ['hermes'],
+    });
+
+    finalizer.finalizeReleaseAssets({
+      profileId: 'claw-studio',
+      releaseTag: 'release-2026-04-08-01',
+      repository: 'Sdkwork-Cloud/claw-studio',
+      releaseAssetsDir,
+    });
+
+    const manifest = JSON.parse(
+      readFileSync(path.join(releaseAssetsDir, 'release-manifest.json'), 'utf8'),
+    );
+    const desktopArtifact = manifest.artifacts.find(
+      (artifact) => artifact.relativePath === installerRelativePath,
+    );
+
+    assert.equal('kernelInstallContracts' in desktopArtifact, false);
+    assert.deepEqual(desktopArtifact?.kernelInstallReadiness, {
+      hermes: {
+        externalRuntimePolicy: buildHermesExternalRuntimePolicy(),
+      },
+    });
+    assert.equal(desktopArtifact?.packageProfileId, 'hermes-only');
+    assert.deepEqual(desktopArtifact?.includedKernelIds, ['hermes']);
+    assert.deepEqual(desktopArtifact?.defaultEnabledKernelIds, ['hermes']);
+    assert.deepEqual(desktopArtifact?.requiredExternalRuntimes, ['python', 'uv']);
+    assert.deepEqual(desktopArtifact?.optionalExternalRuntimes, ['nodejs']);
+    assert.deepEqual(desktopArtifact?.launcherKinds, ['externalWslOrRemote']);
+    assert.deepEqual(
+      desktopArtifact?.kernelPlatformSupport,
+      {
+        hermes: {
+          windows: 'wsl2OrRemoteOnly',
+          macos: 'native',
+          linux: 'native',
+        },
+      },
+    );
+    assert.deepEqual(
+      desktopArtifact?.desktopInstallerSmoke,
+      {
+        reportRelativePath: 'desktop/windows/x64/installer-smoke-report.json',
+        manifestRelativePath: 'desktop/windows/x64/release-asset-manifest.json',
+        verifiedAt: '2026-04-08T11:22:33.000Z',
+        target: 'x86_64-pc-windows-msvc',
+        installableArtifactRelativePaths: [installerRelativePath],
+        requiredCompanionArtifactRelativePaths: [],
+        kernelInstallReadiness: {
+          hermes: {
+            externalRuntimePolicy: buildHermesExternalRuntimePolicy(),
+          },
+        },
+        installPlanSummaries: [
+          {
+            relativePath: installerRelativePath,
+            format: 'nsis',
+            platform: 'windows',
+            stepCount: 1,
+          },
+        ],
+      },
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset finalizer rejects hermes-only desktop artifacts when Hermes external-runtime readiness evidence is missing', async () => {
+  const finalizerPath = path.join(rootDir, 'scripts', 'release', 'finalize-release-assets.mjs');
+  const finalizer = await import(pathToFileURL(finalizerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-finalize-hermes-readiness-missing-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const windowsDir = path.join(releaseAssetsDir, 'desktop', 'windows', 'x64');
+  const installerRelativePath = 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe';
+
+  try {
+    mkdirSync(windowsDir, { recursive: true });
+    writeFileSync(path.join(releaseAssetsDir, installerRelativePath), 'windows-installer', 'utf8');
+    writeFileSync(
+      path.join(windowsDir, 'release-asset-manifest.json'),
+      `${JSON.stringify({
+        profileId: 'claw-studio',
+        productName: 'Claw Studio',
+        releaseTag: 'release-2026-04-08-01',
+        packageProfileId: 'hermes-only',
+        includedKernelIds: ['hermes'],
+        defaultEnabledKernelIds: ['hermes'],
+        requiredExternalRuntimes: ['python', 'uv'],
+        optionalExternalRuntimes: ['nodejs'],
+        launcherKinds: ['externalWslOrRemote'],
+        kernelPlatformSupport: {
+          hermes: {
+            windows: 'wsl2OrRemoteOnly',
+            macos: 'native',
+            linux: 'native',
+          },
+        },
+        platform: 'windows',
+        arch: 'x64',
+        artifacts: [
+          {
+            name: 'Claw.Studio_0.1.0_x64-setup.exe',
+            relativePath: installerRelativePath,
+            platform: 'windows',
+            arch: 'x64',
+            kind: 'installer',
+            sha256: 'placeholder',
+            size: 17,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(windowsDir, 'installer-smoke-report.json'),
+      `${JSON.stringify({
+        platform: 'windows',
+        arch: 'x64',
+        target: 'x86_64-pc-windows-msvc',
+        manifestPath: path.join(windowsDir, 'release-asset-manifest.json'),
+        verifiedAt: '2026-04-08T11:22:33.000Z',
+        installableArtifactRelativePaths: [installerRelativePath],
+        requiredCompanionArtifactRelativePaths: [],
+        installPlanSummaries: [
+          {
+            relativePath: installerRelativePath,
+            format: 'nsis',
+            platform: 'windows',
+            stepCount: 1,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writePassingDesktopStartupSmokeFixture({
+      windowsDir,
+      manifestPath: path.join(windowsDir, 'release-asset-manifest.json'),
+      artifactRelativePath: installerRelativePath,
+      packageProfileId: 'hermes-only',
+      includedKernelIds: ['hermes'],
+      defaultEnabledKernelIds: ['hermes'],
+    });
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-08-01',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /Hermes Agent external-runtime readiness/i,
+    );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -598,7 +925,9 @@ test('release asset finalizer rejects desktop release assets when installer smok
         releaseTag: 'release-2026-04-05-02',
         platform: 'windows',
         arch: 'x64',
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         artifacts: [
           {
             name: 'Claw.Studio_0.1.0_x64-setup.exe',
@@ -633,7 +962,9 @@ test('release asset finalizer rejects desktop release assets when installer smok
         installableArtifactRelativePaths: [
           'desktop/windows/x64/another-installer.exe',
         ],
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
       }, null, 2)}\n`,
       'utf8',
     );
@@ -674,7 +1005,12 @@ test('release asset finalizer rejects desktop release assets when startup smoke 
         releaseTag: 'release-2026-04-06-07',
         platform: 'windows',
         arch: 'x64',
-        openClawInstallerContract: buildInstallerContract('windows'),
+        packageProfileId: 'openclaw-only',
+        includedKernelIds: ['openclaw'],
+        defaultEnabledKernelIds: ['openclaw'],
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         artifacts: [
           {
             name: 'Claw.Studio_0.1.0_x64-setup.exe',
@@ -701,11 +1037,18 @@ test('release asset finalizer rejects desktop release assets when startup smoke 
           'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
         ],
         requiredCompanionArtifactRelativePaths: [],
-        installReadyLayout: buildInstallReadyLayout({
-          mode: 'simulated-prewarm',
-          installKey: '2026.4.2-windows-x64',
-        }),
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallReadiness: {
+          openclaw: {
+            externalRuntimePolicy: buildOpenClawExternalRuntimePolicy(),
+            installReadyLayout: buildInstallReadyLayout({
+              mode: 'archive-extract-ready',
+              installKey: '2026.4.2-windows-x64',
+            }),
+          },
+        },
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         installPlanSummaries: [
           {
             relativePath: 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
@@ -732,7 +1075,7 @@ test('release asset finalizer rejects desktop release assets when startup smoke 
     writeFileSync(
       path.join(windowsDir, 'diagnostics', 'desktop-startup-evidence.json'),
       `${JSON.stringify({
-        version: 1,
+        version: 2,
         status: 'passed',
         phase: 'shell-mounted',
         runId: 2,
@@ -834,7 +1177,12 @@ test('release asset finalizer lifts desktop startup smoke metadata onto desktop 
         releaseTag: 'release-2026-04-06-08',
         platform: 'windows',
         arch: 'x64',
-        openClawInstallerContract: buildInstallerContract('windows'),
+        packageProfileId: 'openclaw-only',
+        includedKernelIds: ['openclaw'],
+        defaultEnabledKernelIds: ['openclaw'],
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         artifacts: [
           {
             name: 'Claw.Studio_0.1.0_x64-setup.exe',
@@ -859,11 +1207,18 @@ test('release asset finalizer lifts desktop startup smoke metadata onto desktop 
         verifiedAt: '2026-04-05T11:22:33.000Z',
         installableArtifactRelativePaths: [artifactRelativePath],
         requiredCompanionArtifactRelativePaths: [],
-        installReadyLayout: buildInstallReadyLayout({
-          mode: 'simulated-prewarm',
-          installKey: '2026.4.2-windows-x64',
-        }),
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallReadiness: {
+          openclaw: {
+            externalRuntimePolicy: buildOpenClawExternalRuntimePolicy(),
+            installReadyLayout: buildInstallReadyLayout({
+              mode: 'archive-extract-ready',
+              installKey: '2026.4.2-windows-x64',
+            }),
+          },
+        },
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         installPlanSummaries: [
           {
             relativePath: artifactRelativePath,
@@ -878,7 +1233,7 @@ test('release asset finalizer lifts desktop startup smoke metadata onto desktop 
     writeFileSync(
       path.join(diagnosticsDir, 'desktop-startup-evidence.json'),
       `${JSON.stringify({
-        version: 1,
+        version: 2,
         status: 'passed',
         phase: 'shell-mounted',
         runId: 2,
@@ -937,6 +1292,9 @@ test('release asset finalizer lifts desktop startup smoke metadata onto desktop 
         target: 'x86_64-pc-windows-msvc',
         status: 'passed',
         phase: 'shell-mounted',
+        packageProfileId: 'openclaw-only',
+        includedKernelIds: ['openclaw'],
+        defaultEnabledKernelIds: ['openclaw'],
         descriptorBrowserBaseUrl: 'http://127.0.0.1:19797',
         builtInInstanceId: 'local-built-in',
         builtInInstanceStatus: 'online',
@@ -981,6 +1339,140 @@ test('release asset finalizer lifts desktop startup smoke metadata onto desktop 
           },
         ],
       },
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset finalizer rejects desktop startup smoke metadata when packaged kernel context drifts from manifest', async () => {
+  const finalizerPath = path.join(rootDir, 'scripts', 'release', 'finalize-release-assets.mjs');
+  const finalizer = await import(pathToFileURL(finalizerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-finalize-desktop-startup-package-context-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const windowsDir = path.join(releaseAssetsDir, 'desktop', 'windows', 'x64');
+  const diagnosticsDir = path.join(windowsDir, 'diagnostics');
+  const manifestPath = path.join(windowsDir, 'release-asset-manifest.json');
+  const artifactRelativePath = 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe';
+
+  try {
+    mkdirSync(windowsDir, { recursive: true });
+    mkdirSync(diagnosticsDir, { recursive: true });
+    writeFileSync(
+      path.join(windowsDir, 'Claw.Studio_0.1.0_x64-setup.exe'),
+      'windows-installer',
+      'utf8',
+    );
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-08',
+        platform: 'windows',
+        arch: 'x64',
+        packageProfileId: 'openclaw-only',
+        includedKernelIds: ['openclaw'],
+        defaultEnabledKernelIds: ['openclaw'],
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
+        artifacts: [
+          {
+            name: 'Claw.Studio_0.1.0_x64-setup.exe',
+            relativePath: artifactRelativePath,
+            platform: 'windows',
+            arch: 'x64',
+            kind: 'installer',
+            sha256: 'placeholder',
+            size: 17,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(windowsDir, 'installer-smoke-report.json'),
+      `${JSON.stringify({
+        platform: 'windows',
+        arch: 'x64',
+        target: 'x86_64-pc-windows-msvc',
+        manifestPath,
+        verifiedAt: '2026-04-05T11:22:33.000Z',
+        installableArtifactRelativePaths: [artifactRelativePath],
+        requiredCompanionArtifactRelativePaths: [],
+        kernelInstallReadiness: {
+          openclaw: {
+            externalRuntimePolicy: buildOpenClawExternalRuntimePolicy(),
+            installReadyLayout: buildInstallReadyLayout({
+              mode: 'archive-extract-ready',
+              installKey: '2026.4.2-windows-x64',
+            }),
+          },
+        },
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
+        installPlanSummaries: [
+          {
+            relativePath: artifactRelativePath,
+            format: 'nsis',
+            platform: 'windows',
+            stepCount: 3,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(diagnosticsDir, 'desktop-startup-evidence.json'),
+      `${JSON.stringify({
+        version: 2,
+        status: 'passed',
+        phase: 'shell-mounted',
+        runId: 2,
+        durationMs: 1842,
+        recordedAt: '2026-04-06T12:13:14.000Z',
+        descriptor: {
+          browserBaseUrl: 'http://127.0.0.1:19797',
+        },
+        builtInInstance: {
+          id: 'local-built-in',
+          status: 'online',
+        },
+        localAiProxy: {
+          lifecycle: 'running',
+          messageCaptureEnabled: true,
+          observabilityDbPath: 'C:/Users/test/AppData/Roaming/Claw Studio/store/local-ai-proxy-observability.sqlite3',
+          snapshotPath: 'C:/Users/test/AppData/Roaming/Claw Studio/state/local-ai-proxy.snapshot.json',
+          logPath: 'C:/Users/test/AppData/Roaming/Claw Studio/logs/local-ai-proxy.log',
+        },
+        readinessEvidence: {
+          ready: true,
+          gatewayWebsocketDialable: true,
+        },
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(windowsDir, 'desktop-startup-smoke-report.json'),
+      `${JSON.stringify(buildDesktopStartupSmokeReport({
+        manifestPath,
+        packageProfileId: 'hermes-only',
+        includedKernelIds: ['hermes'],
+        defaultEnabledKernelIds: ['hermes'],
+      }), null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-08',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /package profile|included kernels|default enabled kernels/i,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
@@ -1033,7 +1525,9 @@ test('release asset finalizer rejects desktop manifests whose OpenClaw installer
         installableArtifactRelativePaths: [
           'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
         ],
-        openClawInstallerContract: expectedInstallerContract,
+        kernelInstallContracts: {
+          openclaw: expectedInstallerContract,
+        },
       }, null, 2)}\n`,
       'utf8',
     );
@@ -1055,9 +1549,11 @@ test('release asset finalizer rejects desktop manifests whose OpenClaw installer
         releaseTag: 'release-2026-04-05-03',
         platform: 'windows',
         arch: 'x64',
-        openClawInstallerContract: {
-          ...expectedInstallerContract,
-          prepareFailureMode: 'defer-install',
+        kernelInstallContracts: {
+          openclaw: {
+            ...expectedInstallerContract,
+            prepareFailureMode: 'defer-install',
+          },
         },
         artifacts: [
           {
@@ -1110,7 +1606,9 @@ test('release asset finalizer rejects desktop smoke reports that are missing ins
         releaseTag: 'release-2026-04-05-04',
         platform: 'windows',
         arch: 'x64',
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         artifacts: [
           {
             name: 'Claw.Studio_0.1.0_x64-setup.exe',
@@ -1137,7 +1635,9 @@ test('release asset finalizer rejects desktop smoke reports that are missing ins
           'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
         ],
         requiredCompanionArtifactRelativePaths: [],
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         installPlanSummaries: [
           {
             relativePath: 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
@@ -1172,13 +1672,20 @@ test('release asset finalizer rejects desktop smoke reports that are missing ins
           'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
         ],
         requiredCompanionArtifactRelativePaths: [],
-        installReadyLayout: {
-          ...buildInstallReadyLayout({
-            mode: '',
-            installKey: '2026.4.2-windows-x64',
-          }),
+        kernelInstallReadiness: {
+          openclaw: {
+            externalRuntimePolicy: buildOpenClawExternalRuntimePolicy(),
+            installReadyLayout: {
+              ...buildInstallReadyLayout({
+                mode: '',
+                installKey: '2026.4.2-windows-x64',
+              }),
+            },
+          },
         },
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         installPlanSummaries: [
           {
             relativePath: 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
@@ -1227,7 +1734,9 @@ test('release asset finalizer rejects desktop smoke reports whose install-ready 
         releaseTag: 'release-2026-04-05-05',
         platform: 'windows',
         arch: 'x64',
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         artifacts: [
           {
             name: 'Claw.Studio_0.1.0_x64-setup.exe',
@@ -1254,13 +1763,20 @@ test('release asset finalizer rejects desktop smoke reports whose install-ready 
           'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
         ],
         requiredCompanionArtifactRelativePaths: [],
-        installReadyLayout: {
-          ...buildInstallReadyLayout({
-            mode: 'staged-layout',
-            installKey: '2026.4.2-windows-x64',
-          }),
+        kernelInstallReadiness: {
+          openclaw: {
+            externalRuntimePolicy: buildOpenClawExternalRuntimePolicy(),
+            installReadyLayout: {
+              ...buildInstallReadyLayout({
+                mode: 'staged-layout',
+                installKey: '2026.4.2-windows-x64',
+              }),
+            },
+          },
         },
-        openClawInstallerContract: buildInstallerContract('windows'),
+        kernelInstallContracts: {
+          openclaw: buildInstallerContract('windows'),
+        },
         installPlanSummaries: [
           {
             relativePath: 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
@@ -1280,7 +1796,7 @@ test('release asset finalizer rejects desktop smoke reports whose install-ready 
         repository: 'Sdkwork-Cloud/claw-studio',
         releaseAssetsDir,
       }),
-      /install-ready|installReadyLayout|simulated-prewarm/i,
+      /install-ready|installReadyLayout|archive-extract-ready/i,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

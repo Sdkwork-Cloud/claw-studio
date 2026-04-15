@@ -42,8 +42,8 @@
       "subtitle": "Download AI models"
     },
     "upload": {
-      "title": "Go to Claw Networking",
-      "subtitle": "Manage OpenClaw registry connectivity and gateway access"
+      "title": "Go to OpenClaw Networking",
+      "subtitle": "Inspect local OpenClaw gateway endpoints and registry-linked connectivity"
     },
     "instances": {
       "title": "Go to Instances",
@@ -51,7 +51,7 @@
     },
     "kernel": {
       "title": "Go to Kernel Center",
-      "subtitle": "Inspect the built-in OpenClaw host, endpoint, and provenance"
+      "subtitle": "Inspect kernel authority, endpoints, and runtime provenance"
     },
     "nodes": {
       "title": "Go to Nodes",

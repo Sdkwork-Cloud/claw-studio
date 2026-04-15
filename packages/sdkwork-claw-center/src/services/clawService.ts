@@ -14,7 +14,11 @@ import type {
   ClawRegistryEntry,
   ClawRegistryQuickConnectState,
 } from '../types';
-import { resolveRegistryQuickConnectAction } from './clawRegistryPresentation.ts';
+import {
+  isRegistryGatewayReadyInstance,
+  resolveRegistryQuickConnectAction,
+  supportsRegistryQuickConnectInstance,
+} from './clawRegistryPresentation.ts';
 
 export interface IClawService {
   getRegistryEntries(): Promise<ClawRegistryEntry[]>;
@@ -536,18 +540,16 @@ class ClawService implements IClawService {
 
   async getQuickConnectState(): Promise<ClawRegistryQuickConnectState> {
     const instances = await studio.listInstances().catch(() => []);
-    const openClawInstances = instances.filter((instance) => instance.runtimeKind === 'openclaw');
-    const gatewayReadyInstanceCount = openClawInstances.filter(
-      (instance) =>
-        instance.status === 'online' &&
-        instance.transportKind === 'openclawGatewayWs' &&
-        Boolean(instance.baseUrl || instance.websocketUrl),
+    const candidates = instances.map(mapQuickConnectCandidate);
+    const quickConnectInstances = candidates.filter(supportsRegistryQuickConnectInstance);
+    const gatewayReadyInstanceCount = quickConnectInstances.filter(
+      isRegistryGatewayReadyInstance,
     ).length;
-    const action = resolveRegistryQuickConnectAction(instances.map(mapQuickConnectCandidate));
+    const action = resolveRegistryQuickConnectAction(candidates);
 
     return {
       action,
-      availableInstanceCount: openClawInstances.length,
+      availableInstanceCount: quickConnectInstances.length,
       gatewayReadyInstanceCount,
       recommendedInstanceId: action.instanceId,
     };

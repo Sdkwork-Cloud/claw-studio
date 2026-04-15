@@ -51,17 +51,17 @@ pnpm exec node scripts/openclaw-upgrade-readiness.mjs <target-version>
 ```
 
 Interpret the readiness output before touching `config/openclaw-release.json` or
-the bundled manifest files:
+the packaged OpenClaw manifest files:
 
-- `versionSourcesAligned: true` means the configured release source, bundled
+- `versionSourcesAligned: true` means the configured release source, packaged
   manifest, generated manifest, prepared runtime, and local upstream checkout
   all agree on the same OpenClaw version baseline.
 - `readyToUpgrade: true` means the local checkout, local tag, and local offline
   asset inputs are present for a real upgrade attempt.
-- `readyToUpgrade: false` means do not change bundled runtime version sources
+- `readyToUpgrade: false` means do not change packaged OpenClaw runtime version sources
   yet.
 - `versionSourcesAligned: true` and `readyToUpgrade: false` can both be correct
-  at the same time. That state means the current bundled baseline is internally
+  at the same time. That state means the current packaged baseline is internally
   consistent, but the workspace is not prepared for a future retargeting step
   yet.
 - If `localUpstreamDirtyCheck` is `unavailable` in the Node diagnostic, run
@@ -134,6 +134,15 @@ pnpm release:smoke:kubernetes
 
 These commands collect family-specific assets into `artifacts/release` so they can be reviewed locally or aggregated for final release processing.
 
+When you need to switch desktop kernel packaging without editing scripts, pass an explicit package profile through the local wrapper:
+
+```bash
+pnpm release:package:desktop -- --package-profile dual-kernel
+pnpm release:smoke:desktop -- --package-profile hermes-only
+```
+
+The same local wrapper also accepts `SDKWORK_RELEASE_PACKAGE_PROFILE` so repeated local verification can stay pinned to `openclaw-only`, `hermes-only`, or `dual-kernel` without rewriting each command line.
+
 Local prerequisite notes:
 
 - `pnpm release:package:desktop` only collects installers and app bundles that already exist; run `pnpm release:desktop` or `pnpm tauri:build` first.
@@ -152,6 +161,7 @@ Local prerequisite notes:
 The local wrapper defaults `release:plan`, `release:package:*`, and `release:finalize` to `artifacts/release`. CI still aggregates assets under `release-assets/`. Override the local defaults with environment variables such as:
 
 - `SDKWORK_RELEASE_TAG`
+- `SDKWORK_RELEASE_PACKAGE_PROFILE`
 - `SDKWORK_RELEASE_OUTPUT_DIR`
 - `SDKWORK_RELEASE_ASSETS_DIR`
 - `SDKWORK_RELEASE_TARGET`
@@ -196,14 +206,24 @@ Each unified release produces two top-level inventory files under the active rel
 - `sha256`: final artifact checksum
 - `size`: final artifact size in bytes
 
-Desktop artifacts carry additional machine-readable metadata because install-time OpenClaw preparation is a release contract, not a best-effort implementation detail:
+Desktop artifacts carry additional machine-readable metadata because install-time kernel preparation is a release contract whenever a packaged kernel requires it. The current first-party installer contract is OpenClaw:
 
-- `openClawInstallerContract`: the normalized desktop OpenClaw install contract stamped from the current source of truth and persisted from packaging through finalization
+- `kernelInstallContracts`: normalized per-kernel install contracts stamped from current source-of-truth installers and persisted from packaging through finalization. Current desktop artifacts use `kernelInstallContracts.openclaw` when the package profile includes OpenClaw.
 - `desktopInstallerSmoke`: the aggregated desktop installer smoke summary lifted from `installer-smoke-report.json`
-- `desktopInstallerSmoke.installReadyLayout`: normalized first-launch readiness proof showing how the packaged installer leaves OpenClaw ready for startup reuse
+- `desktopInstallerSmoke.kernelInstallReadiness`: normalized per-kernel install-readiness evidence lifted from `installer-smoke-report.json`
+- `desktopInstallerSmoke.kernelInstallReadiness.<kernelId>.externalRuntimePolicy`: normalized per-kernel external runtime policy evidence showing that packaged kernels still depend on external language runtimes instead of bundled Node.js, Python, or `uv`
+- `desktopInstallerSmoke.kernelInstallReadiness.openclaw.installReadyLayout`: normalized first-launch readiness proof showing how the packaged installer leaves the included OpenClaw payload ready for startup reuse when `kernelInstallContracts.openclaw` is present
 - `desktopStartupSmoke`: the aggregated launched-session desktop runtime smoke summary lifted from `desktop-startup-smoke-report.json` when that evidence has been captured for the artifact
 - `desktopStartupSmoke.capturedEvidenceRelativePath`: the preserved path of the captured `diagnostics/desktop-startup-evidence.json` launch record inside the release asset directory
+- `desktopStartupSmoke.packageProfileId`: the packaged kernel profile asserted by launched-session startup smoke and revalidated against the desktop partial manifest during finalization
+- `desktopStartupSmoke.includedKernelIds`: the ordered packaged kernel set asserted by launched-session startup smoke and revalidated against the desktop partial manifest during finalization
+- `desktopStartupSmoke.defaultEnabledKernelIds`: the default-enabled packaged kernel set asserted by launched-session startup smoke and revalidated against the desktop partial manifest during finalization
 - `desktopStartupSmoke.localAiProxyRuntime`: the normalized local AI proxy runtime summary lifted from launched-session startup smoke, including `lifecycle`, `messageCaptureEnabled`, `observabilityDbPath`, `snapshotPath`, and `logPath`
+
+`desktopInstallerSmoke.kernelInstallReadiness.<kernelId>.externalRuntimePolicy` is shared multi-kernel evidence, not an OpenClaw-only extension. Current first-party expectations are:
+
+- `openclaw`: `runtimeRequirements` includes external `nodejs`
+- `hermes`: `runtimeRequirements` includes external `python` and `uv`, with optional external `nodejs`
 
 Server artifacts also carry aggregated runtime evidence because a packaged server bundle is not considered releasable until the extracted archive actually boots:
 
@@ -215,26 +235,25 @@ Deployment artifacts also carry aggregated deployment evidence because packaging
 - `deploymentSmoke`: the aggregated deployment smoke summary lifted from `release-smoke-report.json` for `container` and `kubernetes` artifacts
 - `deploymentSmoke.checks`: ordered deployment checks proving packaged container runtime-profile, Docker Compose credential and persistence contracts, Compose startup, container health, and runtime readiness for `container`, plus rendered chart image-reference, readiness, Secret wiring, and persistent-storage validation for `kubernetes`
 
-The persisted `desktopInstallerSmoke.installReadyLayout` object is intentionally stronger than `{ mode, installKey }`. It must prove all of the following:
+The persisted `desktopInstallerSmoke.kernelInstallReadiness.openclaw.installReadyLayout` object is intentionally stronger than `{ mode, installKey }`. It must prove all of the following:
 
 - `reuseOnFirstLaunch` is `true`
 - `requiresArchiveExtractionOnFirstLaunch` is `false`
 - `manifestRelativePath` is `manifest.json`
 - `runtimeSidecarRelativePath` is `runtime/.sdkwork-openclaw-runtime.json`
-- `nodeEntryRelativePath` matches the bundled manifest's Node entrypoint
-- `cliEntryRelativePath` matches the bundled manifest's OpenClaw CLI entrypoint
+- `cliEntryRelativePath` matches the packaged manifest's OpenClaw CLI entrypoint
 
 Release verification treats any field loss or drift in that object as a release-breaking regression, because it would weaken the audit trail for "prepare during install, reuse on first launch".
 
 The `installReadyLayout.mode` contract is platform-specific and is treated as release-breaking when it drifts:
 
-- Windows and Linux desktop installers must produce `simulated-prewarm`
+- Windows and Linux desktop installers must produce `archive-extract-ready`
 - macOS desktop installers must produce `staged-layout`
 
 The desktop install contract also anchors installer-time OpenClaw preparation to a platform-specific canonical install root:
 
 - Windows NSIS hooks invoke the embedded OpenClaw prepare and CLI registration actions with `--install-root "$INSTDIR"`
-- Linux postinstall resolves the packaged install root from the bundled OpenClaw manifest and forwards it as `--install-root "$install_root"`
+- Linux postinstall resolves the packaged install root from the packaged OpenClaw manifest and forwards it as `--install-root "$install_root"`
 - macOS projects a preexpanded managed runtime layout into the app bundle instead of relying on a postinstall extraction hook
 
 Family-specific packagers emit partial manifests first. The finalization step then merges them, recomputes final checksums, and also infers the same `family`, `platform`, `arch`, and `accelerator` metadata from fallback asset paths when a partial family manifest is missing. That keeps `server`, `container`, and `kubernetes` assets machine-readable even under degraded packaging conditions.
@@ -383,7 +402,7 @@ The finalization step emits the final inventory and checksums after all family o
 pnpm release:finalize
 ```
 
-Finalization now requires `desktop-startup-smoke-report.json` beside every desktop partial manifest. It lifts that launched-session evidence onto the matching desktop artifact as `desktopStartupSmoke` and rejects desktop release assets when the packaged launch report or its captured `diagnostics/desktop-startup-evidence.json` evidence is missing, stale, or no longer matches the current artifact set. The finalizer also requires the `local-ai-proxy-runtime` startup-smoke check to pass and the emitted `desktopStartupSmoke.localAiProxyRuntime` summary to match the captured launch evidence.
+Finalization now requires `desktop-startup-smoke-report.json` beside every desktop partial manifest. It lifts that launched-session evidence onto the matching desktop artifact as `desktopStartupSmoke` and rejects desktop release assets when the packaged launch report or its captured `diagnostics/desktop-startup-evidence.json` evidence is missing, stale, or no longer matches the current artifact set. The finalizer also requires the packaged kernel context in startup smoke (`packageProfileId`, `includedKernelIds`, and `defaultEnabledKernelIds`) to match the desktop partial manifest, requires the `local-ai-proxy-runtime` startup-smoke check to pass, and requires the emitted `desktopStartupSmoke.localAiProxyRuntime` summary to match the captured launch evidence.
 
 ## GPU Variant Model
 

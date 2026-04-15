@@ -1,5 +1,7 @@
 # Bundled OpenClaw Runtime Implementation Plan
 
+> **Supersession Note (2026-04-13):** This plan is preserved as historical context only. It predates the approved multi-kernel platform and the hard cut away from bundled Node.js. Current implementation must follow `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`; references below to a bundled OpenClaw runtime or bundled language runtime model are no longer valid for new work.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Bundle OpenClaw directly inside the desktop application, activate it on startup, stop it on app exit, and expose a stable `openclaw` CLI backed by the bundled runtime.

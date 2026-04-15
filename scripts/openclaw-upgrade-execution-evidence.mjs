@@ -187,7 +187,7 @@ export async function buildOpenClawUpgradeExecutionEvidence({
     if (finalInspection?.stale === true) {
       pushBlocker(
         blockers,
-        'Tauri target cache still contains stale bundled OpenClaw or permission references after cleanup.',
+        'Tauri target cache still contains stale packaged OpenClaw or permission references after cleanup.',
       );
       phases.push(
         createPhase(

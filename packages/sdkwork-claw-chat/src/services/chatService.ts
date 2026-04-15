@@ -269,12 +269,12 @@ class ChatService implements IChatService {
     const { activeInstance, route } = await resolveActiveInstanceRoute();
 
     if (!activeInstance) {
-      yield 'Error: Select or start an OpenClaw-compatible instance to chat.';
+      yield 'Error: Select or start an AI-compatible instance to chat.';
       return;
     }
 
     if (route.mode === 'instanceOpenClawGatewayWs') {
-      yield `\n\n**${activeInstance.name}** uses the native OpenClaw Gateway WebSocket flow. Claw Studio now drives that route through the chat session store instead of the generic HTTP stream service.`;
+      yield `\n\n**${activeInstance.name}** uses the native gateway WebSocket flow. Claw Studio now drives that route through the chat session store instead of the generic HTTP stream service.`;
       return;
     }
 

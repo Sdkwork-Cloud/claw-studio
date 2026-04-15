@@ -55,18 +55,16 @@ runTest('sdkwork-claw-tasks is implemented locally instead of re-exporting claw-
 
 runTest('sdkwork-claw-tasks routes cron CRUD through the shared manager and the real runtime bridges', () => {
   const serviceSource = read('packages/sdkwork-claw-core/src/services/taskService.ts');
+  const runtimeServiceSource = read('packages/sdkwork-claw-core/src/services/taskRuntimeService.ts');
+  const managerSource = read('packages/sdkwork-claw-commons/src/components/CronTasksManager.tsx');
   const pageSource = read('packages/sdkwork-claw-tasks/src/pages/Tasks.tsx');
 
   assert.match(serviceSource, /studio\.getInstanceDetail\(instanceId\)/);
-  assert.match(serviceSource, /function hasWorkbench\(detail: StudioInstanceDetailRecord \| null \| undefined\)/);
-  assert.match(serviceSource, /function isOpenClawDetail\(detail: StudioInstanceDetailRecord \| null \| undefined\)/);
-  assert.match(serviceSource, /return detail\?\.instance\.runtimeKind === 'openclaw';/);
-  assert.match(serviceSource, /function canManageTasks\(detail: StudioInstanceDetailRecord \| null \| undefined\)/);
-  assert.match(
-    serviceSource,
-    /return Boolean\(detail\) && \(hasWorkbench\(detail\) \|\| isOpenClawDetail\(detail\)\);/,
-  );
+  assert.match(serviceSource, /from '\.\/taskSurfaceSupport\.ts'/);
+  assert.match(serviceSource, /resolveTaskCrudSurface\(detail\)/);
   assert.match(serviceSource, /return canManageTasks\(detail\) \? detail : null;/);
+  assert.doesNotMatch(serviceSource, /isOpenClawDetail/);
+  assert.doesNotMatch(serviceSource, /runtimeKind === 'openclaw'/);
   assert.match(serviceSource, /studio\.createInstanceTask\(/);
   assert.match(serviceSource, /studio\.updateInstanceTask\(/);
   assert.match(serviceSource, /studio\.cloneInstanceTask\(/);
@@ -82,6 +80,16 @@ runTest('sdkwork-claw-tasks routes cron CRUD through the shared manager and the 
   assert.match(serviceSource, /openClawGatewayClient\.removeCronJob\(/);
   assert.doesNotMatch(serviceSource, /fetch\('/);
   assert.doesNotMatch(serviceSource, /const tasksData/);
+
+  assert.match(runtimeServiceSource, /from '\.\/taskSurfaceSupport\.ts'/);
+  assert.match(runtimeServiceSource, /supportsRuntimeTaskSurface\(detail\)/);
+  assert.match(runtimeServiceSource, /runtimeTaskSurface: false/);
+  assert.match(runtimeServiceSource, /runtimeTaskSurface: true/);
+  assert.doesNotMatch(runtimeServiceSource, /openClawRuntime/);
+  assert.doesNotMatch(runtimeServiceSource, /runtimeKind === 'openclaw'/);
+
+  assert.match(managerSource, /taskRuntimeOverview\.runtimeTaskSurface/);
+  assert.doesNotMatch(managerSource, /taskRuntimeOverview\.openClawRuntime/);
 
   assert.match(pageSource, /CronTasksManager/);
   assert.match(pageSource, /useInstanceStore/);

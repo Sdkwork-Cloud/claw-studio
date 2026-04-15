@@ -2,6 +2,8 @@
 
 **Date:** 2026-03-27
 
+> **Supersession Note (2026-04-13):** This document is preserved for historical platform exploration context. The current source of truth is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`, with active OpenClaw packaging and activation requirements aligned to `docs/superpowers/plans/2026-04-13-openclaw-external-node-hard-cut-implementation-plan.md`. The platform direction below remains useful, but references to a default built-in or bundled OpenClaw runtime, bundled Node.js, or app-shipped runtime ownership are historical only and must not drive new implementation.
+
 ## Goal
 
 Define the target architecture for a product-grade `Claw Studio` that:

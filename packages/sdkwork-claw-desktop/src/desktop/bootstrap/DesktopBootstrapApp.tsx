@@ -39,6 +39,7 @@ import {
   type DesktopKernelInfo,
 } from '../tauriBridge';
 import { DesktopProviders } from '../providers/DesktopProviders';
+import { resolveBuiltInOpenClawInstance } from '../builtInOpenClawInstanceSelection.ts';
 import { DesktopStartupScreen } from './DesktopStartupScreen';
 import { DesktopTrayRouteBridge } from './DesktopTrayRouteBridge';
 import { connectDesktopRuntimeDuringStartup } from './desktopRuntimeConnection';
@@ -65,6 +66,7 @@ import {
 import {
   resolveBackgroundRuntimeReadinessRecoveryToastCopy,
   retryBackgroundRuntimeReadinessRecovery,
+  type BackgroundRuntimeReadinessRecoveryMode,
 } from './desktopBackgroundRuntimeReadinessRecovery';
 import {
   BACKGROUND_RUNTIME_READINESS_TOAST_ID,
@@ -74,7 +76,6 @@ import {
 } from './desktopBackgroundRuntimeReadinessToast';
 
 const APP_STORAGE_KEY = 'claw-studio-app-storage';
-const BUILT_IN_OPENCLAW_INSTANCE_ID = 'local-built-in';
 const SPLASH_MINIMUM_VISIBLE_MS = 180;
 const SPLASH_EXIT_DURATION_MS = 120;
 const STARTUP_LOG_PREFIX = '[desktop-startup]';
@@ -89,8 +90,37 @@ type StartupLogLevel = 'info' | 'warn' | 'error';
 interface DesktopStartupEvidenceContext {
   appInfo: DesktopAppInfo | null;
   appPaths: DesktopAppPaths | null;
+  bundledComponents: DesktopKernelInfo['bundledComponents'] | null;
   readinessSnapshot: DesktopHostedRuntimeReadinessSnapshot | null;
   localAiProxy: DesktopKernelInfo['localAiProxy'] | null;
+}
+
+function resolveBuiltInOpenClawInstanceFromSnapshot(
+  readinessSnapshot: DesktopHostedRuntimeReadinessSnapshot | null | undefined,
+) {
+  return resolveBuiltInOpenClawInstance(readinessSnapshot?.instances, {
+    preferredInstanceId: readinessSnapshot?.evidence?.builtInInstanceId ?? null,
+    gatewayBaseUrl: readinessSnapshot?.openClawGateway?.baseUrl ?? null,
+    gatewayWebsocketUrl: readinessSnapshot?.openClawGateway?.websocketUrl ?? null,
+  });
+}
+
+function resolveBuiltInOpenClawInstanceIdFromSnapshot(
+  readinessSnapshot: DesktopHostedRuntimeReadinessSnapshot | null | undefined,
+) {
+  return resolveBuiltInOpenClawInstanceFromSnapshot(readinessSnapshot)?.id ?? null;
+}
+
+function resolveBackgroundRuntimeReadinessRecoveryMode(
+  includedKernelIds: readonly string[] | null | undefined,
+): BackgroundRuntimeReadinessRecoveryMode {
+  if (!includedKernelIds?.length) {
+    return 'managed-openclaw';
+  }
+
+  return includedKernelIds.includes('openclaw')
+    ? 'managed-openclaw'
+    : 'generic-hosted-runtime';
 }
 
 function resolveErrorMessage(error: unknown, language: StartupAppearanceSnapshot['language']) {
@@ -261,6 +291,8 @@ export function DesktopBootstrapApp({
   const backgroundRuntimeReadinessNotificationSignatureRef = useRef('');
   const backgroundRuntimeReadinessRecoveryPendingRef = useRef(false);
   const backgroundRuntimeReadinessRecoveryInFlightRef = useRef(false);
+  const backgroundRuntimeReadinessRecoveryModeRef =
+    useRef<BackgroundRuntimeReadinessRecoveryMode>('managed-openclaw');
   const runtimeReadinessFailureRef = useRef(false);
 
   const stage = useMemo(
@@ -288,6 +320,7 @@ export function DesktopBootstrapApp({
       phase,
       appInfo,
       appPaths,
+      bundledComponents,
       readinessSnapshot,
       localAiProxy,
       error,
@@ -297,6 +330,7 @@ export function DesktopBootstrapApp({
       phase: DesktopStartupEvidencePhase;
       appInfo?: DesktopAppInfo | null;
       appPaths?: DesktopAppPaths | null;
+      bundledComponents?: DesktopKernelInfo['bundledComponents'] | null;
       readinessSnapshot?: DesktopHostedRuntimeReadinessSnapshot | null;
       localAiProxy?: DesktopKernelInfo['localAiProxy'] | null;
       error?: unknown;
@@ -313,6 +347,7 @@ export function DesktopBootstrapApp({
         runId,
         durationMs: Date.now() - startedAtRef.current,
         appInfo: appInfo ?? context?.appInfo ?? null,
+        bundledComponents: bundledComponents ?? context?.bundledComponents ?? null,
         appPaths: appPaths ?? context?.appPaths ?? null,
         readinessSnapshot: readinessSnapshot ?? context?.readinessSnapshot ?? null,
         localAiProxy: localAiProxy ?? context?.localAiProxy ?? null,
@@ -334,6 +369,8 @@ export function DesktopBootstrapApp({
           evidencePath: DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH,
           status: document.status,
           phase: document.phase,
+          packageProfileId: document.bundledComponents?.packageProfileId ?? null,
+          includedKernelIds: document.bundledComponents?.includedKernelIds ?? [],
           descriptorBrowserBaseUrl: document.descriptor?.browserBaseUrl ?? null,
           builtInInstanceStatus: document.builtInInstance?.status ?? null,
           localAiProxyLifecycle: document.localAiProxy?.lifecycle ?? null,
@@ -479,8 +516,15 @@ export function DesktopBootstrapApp({
     };
   }, [milestones.hasShellMounted, shouldRenderShell, status]);
 
-  const openBuiltInOpenClawDetails = useEffectEvent(() => {
-    openDesktopShellRoute(`${ROUTE_PATHS.INSTANCES}/${BUILT_IN_OPENCLAW_INSTANCE_ID}`);
+  const openBackgroundRuntimeDetails = useEffectEvent(() => {
+    const builtInInstanceId = resolveBuiltInOpenClawInstanceIdFromSnapshot(
+      startupEvidenceContextRef.current?.readinessSnapshot,
+    );
+    openDesktopShellRoute(
+      builtInInstanceId
+        ? `${ROUTE_PATHS.INSTANCES}/${builtInInstanceId}`
+        : ROUTE_PATHS.INSTANCES,
+    );
   });
 
   const clearBackgroundRuntimeReadinessFailureState = useEffectEvent((options?: {
@@ -507,7 +551,10 @@ export function DesktopBootstrapApp({
       return;
     }
 
-    const retryCopy = resolveBackgroundRuntimeReadinessRecoveryToastCopy(appearance.language);
+    const recoveryMode = backgroundRuntimeReadinessRecoveryModeRef.current;
+    const retryCopy = resolveBackgroundRuntimeReadinessRecoveryToastCopy(appearance.language, {
+      recoveryMode,
+    });
     backgroundRuntimeReadinessRecoveryInFlightRef.current = true;
     backgroundRuntimeReadinessRecoveryPendingRef.current = true;
 
@@ -519,20 +566,27 @@ export function DesktopBootstrapApp({
       cancel: {
         label: retryCopy.detailsActionLabel,
         onClick: () => {
-          openBuiltInOpenClawDetails();
+          openBackgroundRuntimeDetails();
         },
       },
     });
 
     try {
+      const builtInInstanceId = resolveBuiltInOpenClawInstanceIdFromSnapshot(
+        startupEvidenceContextRef.current?.readinessSnapshot,
+      );
+
       logStartup(
         'info',
-        'Retrying bundled OpenClaw background startup from the desktop shell.',
+        recoveryMode === 'managed-openclaw'
+          ? 'Retrying built-in OpenClaw background startup from the desktop shell.'
+          : 'Retrying hosted desktop runtime readiness from the desktop shell.',
         undefined,
         runId,
       );
       await retryBackgroundRuntimeReadinessRecovery({
-        instanceId: BUILT_IN_OPENCLAW_INSTANCE_ID,
+        recoveryMode,
+        instanceId: builtInInstanceId,
         clearFailureState: () => {
           clearBackgroundRuntimeReadinessFailureState({ dismissToast: false });
         },
@@ -548,7 +602,7 @@ export function DesktopBootstrapApp({
         cancel: {
           label: retryCopy.detailsActionLabel,
           onClick: () => {
-            openBuiltInOpenClawDetails();
+            openBackgroundRuntimeDetails();
           },
         },
       });
@@ -556,7 +610,9 @@ export function DesktopBootstrapApp({
       backgroundRuntimeReadinessRecoveryPendingRef.current = false;
       logStartup(
         'warn',
-        'Retrying bundled OpenClaw background startup failed before readiness probing resumed.',
+        recoveryMode === 'managed-openclaw'
+          ? 'Retrying built-in OpenClaw background startup failed before readiness probing resumed.'
+          : 'Retrying hosted desktop runtime readiness failed before readiness probing resumed.',
         {
           error,
         },
@@ -569,7 +625,7 @@ export function DesktopBootstrapApp({
         cancel: {
           label: retryCopy.detailsActionLabel,
           onClick: () => {
-            openBuiltInOpenClawDetails();
+            openBackgroundRuntimeDetails();
           },
         },
       });
@@ -605,14 +661,14 @@ export function DesktopBootstrapApp({
       cancel: {
         label: toastPlan.detailsActionLabel,
         onClick: () => {
-          openBuiltInOpenClawDetails();
+          openBackgroundRuntimeDetails();
         },
       },
     });
   }, [
     appearance.language,
     backgroundRuntimeReadinessNotification,
-    openBuiltInOpenClawDetails,
+    openBackgroundRuntimeDetails,
     retryBackgroundRuntimeReadiness,
     shouldRenderShell,
     status,
@@ -655,37 +711,52 @@ export function DesktopBootstrapApp({
   const connectDesktopRuntime = useEffectEvent(async () => {
     const runId = bootRunIdRef.current;
     const isCurrentRun = () => bootRunIdRef.current === runId;
-    const captureLocalAiProxyEvidence = async (captureRunId = runId) => {
+    let desktopKernelInfoPromise: Promise<DesktopKernelInfo | null> | null = null;
+    const captureDesktopKernelInfo = async (captureRunId = runId) => {
       if (!isTauriRuntime()) {
         return null;
       }
 
+      if (!desktopKernelInfoPromise) {
+        desktopKernelInfoPromise = (async () => {
+          try {
+            const kernelInfo = await getDesktopKernelInfo();
+            const localAiProxy = kernelInfo?.localAiProxy ?? null;
+
+            if (localAiProxy) {
+              logStartup('info', 'Desktop kernel info captured local ai proxy startup evidence.', {
+                lifecycle: localAiProxy.lifecycle,
+                messageCaptureEnabled: localAiProxy.messageCaptureEnabled,
+                observabilityDbPath: localAiProxy.observabilityDbPath ?? null,
+                snapshotPath: localAiProxy.snapshotPath ?? null,
+                logPath: localAiProxy.logPath ?? null,
+              }, captureRunId);
+            } else {
+              logStartup(
+                'warn',
+                'Desktop kernel info did not expose local ai proxy startup evidence.',
+                undefined,
+                captureRunId,
+              );
+            }
+
+            return kernelInfo;
+          } catch (error) {
+            logStartup('warn', 'Desktop kernel info probe failed while capturing local ai proxy startup evidence.', {
+              error,
+            }, captureRunId);
+            return null;
+          }
+        })();
+      }
+
+      return desktopKernelInfoPromise;
+    };
+    const captureLocalAiProxyEvidence = async (captureRunId = runId) => {
       try {
-        const kernelInfo = await getDesktopKernelInfo();
-        const localAiProxy = kernelInfo?.localAiProxy ?? null;
-
-        if (localAiProxy) {
-          logStartup('info', 'Desktop kernel info captured local ai proxy startup evidence.', {
-            lifecycle: localAiProxy.lifecycle,
-            messageCaptureEnabled: localAiProxy.messageCaptureEnabled,
-            observabilityDbPath: localAiProxy.observabilityDbPath ?? null,
-            snapshotPath: localAiProxy.snapshotPath ?? null,
-            logPath: localAiProxy.logPath ?? null,
-          }, captureRunId);
-        } else {
-          logStartup(
-            'warn',
-            'Desktop kernel info did not expose local ai proxy startup evidence.',
-            undefined,
-            captureRunId,
-          );
-        }
-
-        return localAiProxy;
-      } catch (error) {
-        logStartup('warn', 'Desktop kernel info probe failed while capturing local ai proxy startup evidence.', {
-          error,
-        }, captureRunId);
+        const kernelInfo = await captureDesktopKernelInfo(captureRunId);
+        return kernelInfo?.localAiProxy ?? null;
+      } catch {
         return null;
       }
     };
@@ -702,8 +773,14 @@ export function DesktopBootstrapApp({
       isTauriRuntime,
       getAppInfo,
       getAppPaths,
-      probeHostedRuntimeReadiness: () =>
-        probeDesktopHostedRuntimeReadiness({
+      probeHostedRuntimeReadiness: async () => {
+        const kernelInfo = await captureDesktopKernelInfo(runId);
+        const recoveryMode = resolveBackgroundRuntimeReadinessRecoveryMode(
+          kernelInfo?.bundledComponents.includedKernelIds,
+        );
+        backgroundRuntimeReadinessRecoveryModeRef.current = recoveryMode;
+        return probeDesktopHostedRuntimeReadiness({
+          requiresManagedOpenClawEvidence: recoveryMode === 'managed-openclaw',
           onRetry: ({ attempt, elapsedMs, error }) => {
             if (!isCurrentRun()) {
               return;
@@ -715,9 +792,7 @@ export function DesktopBootstrapApp({
             }
 
             if (isDesktopHostedRuntimeReadinessError(error)) {
-              const builtInInstance = error.snapshot.instances.find(
-                (instance) => instance.id === BUILT_IN_OPENCLAW_INSTANCE_ID,
-              );
+              const builtInInstance = resolveBuiltInOpenClawInstanceFromSnapshot(error.snapshot);
               logStartup('warn', 'Hosted desktop runtime readiness is still converging.', {
                 attempt,
                 elapsedMs,
@@ -751,7 +826,8 @@ export function DesktopBootstrapApp({
               runId,
             );
           },
-        }),
+        });
+      },
       captureLocalAiProxyEvidence: () => captureLocalAiProxyEvidence(runId),
       onBaseContext: async ({ appInfo, appPaths }) => {
         if (!isCurrentRun()) {
@@ -764,9 +840,11 @@ export function DesktopBootstrapApp({
           return;
         }
 
+        const kernelInfo = await captureDesktopKernelInfo(runId);
         startupEvidenceContextRef.current = {
           appInfo,
           appPaths,
+          bundledComponents: kernelInfo?.bundledComponents ?? null,
           readinessSnapshot: null,
           localAiProxy: null,
         };
@@ -799,9 +877,7 @@ export function DesktopBootstrapApp({
           return;
         }
 
-        const builtInInstance = readinessSnapshot.instances.find(
-          (instance) => instance.id === BUILT_IN_OPENCLAW_INSTANCE_ID,
-        );
+        const builtInInstance = resolveBuiltInOpenClawInstanceFromSnapshot(readinessSnapshot);
         const shouldNotifyRecoveryReady = backgroundRuntimeReadinessRecoveryPendingRef.current;
         backgroundRuntimeReadinessRecoveryPendingRef.current = false;
         setBackgroundRuntimeReadinessNotification(null);
@@ -809,6 +885,8 @@ export function DesktopBootstrapApp({
         startupEvidenceContextRef.current = {
           appInfo,
           appPaths,
+          bundledComponents:
+            startupEvidenceContextRef.current?.bundledComponents ?? null,
           readinessSnapshot,
           localAiProxy,
         };
@@ -843,12 +921,19 @@ export function DesktopBootstrapApp({
           phase: 'runtime-ready',
           appInfo,
           appPaths,
+          bundledComponents:
+            startupEvidenceContextRef.current?.bundledComponents ?? null,
           readinessSnapshot,
           localAiProxy,
           runId,
         });
         if (shouldNotifyRecoveryReady) {
-          const recoveryCopy = resolveBackgroundRuntimeReadinessRecoveryToastCopy(appearance.language);
+          const recoveryCopy = resolveBackgroundRuntimeReadinessRecoveryToastCopy(
+            appearance.language,
+            {
+              recoveryMode: backgroundRuntimeReadinessRecoveryModeRef.current,
+            },
+          );
           toast.success(recoveryCopy.readyTitle, {
             id: BACKGROUND_RUNTIME_READINESS_TOAST_ID,
             description: recoveryCopy.readyDescription,
@@ -856,7 +941,7 @@ export function DesktopBootstrapApp({
             cancel: {
               label: recoveryCopy.detailsActionLabel,
               onClick: () => {
-                openBuiltInOpenClawDetails();
+                openBackgroundRuntimeDetails();
               },
             },
           });
@@ -880,16 +965,19 @@ export function DesktopBootstrapApp({
 
         if (isDesktopHostedRuntimeReadinessError(error)) {
           const readinessError = error;
-          const builtInInstance = readinessError.snapshot.instances.find(
-            (instance) => instance.id === BUILT_IN_OPENCLAW_INSTANCE_ID,
+          const builtInInstance = resolveBuiltInOpenClawInstanceFromSnapshot(
+            readinessError.snapshot,
           );
           setBackgroundRuntimeReadinessNotification({
             runId,
             message: readinessError.message,
+            recoveryMode: backgroundRuntimeReadinessRecoveryModeRef.current,
           });
           startupEvidenceContextRef.current = {
             appInfo,
             appPaths,
+            bundledComponents:
+              startupEvidenceContextRef.current?.bundledComponents ?? null,
             readinessSnapshot: readinessError.snapshot,
             localAiProxy,
           };
@@ -926,6 +1014,8 @@ export function DesktopBootstrapApp({
             phase: 'runtime-readiness-failed',
             appInfo,
             appPaths,
+            bundledComponents:
+              startupEvidenceContextRef.current?.bundledComponents ?? null,
             readinessSnapshot: readinessError.snapshot,
             localAiProxy,
             error: readinessError,
@@ -937,6 +1027,7 @@ export function DesktopBootstrapApp({
         setBackgroundRuntimeReadinessNotification({
           runId,
           message: resolveErrorMessage(error, appearance.language),
+          recoveryMode: backgroundRuntimeReadinessRecoveryModeRef.current,
         });
         logStartup(
           'warn',
@@ -951,6 +1042,8 @@ export function DesktopBootstrapApp({
           phase: 'runtime-readiness-failed',
           appInfo,
           appPaths,
+          bundledComponents:
+            startupEvidenceContextRef.current?.bundledComponents ?? null,
           localAiProxy,
           error,
           runId,
@@ -975,6 +1068,7 @@ export function DesktopBootstrapApp({
     backgroundRuntimeReadinessNotificationSignatureRef.current = '';
     backgroundRuntimeReadinessRecoveryPendingRef.current = false;
     backgroundRuntimeReadinessRecoveryInFlightRef.current = false;
+    backgroundRuntimeReadinessRecoveryModeRef.current = 'managed-openclaw';
     runtimeReadinessFailureRef.current = false;
     toast.dismiss(BACKGROUND_RUNTIME_READINESS_TOAST_ID);
     setBackgroundRuntimeReadinessNotification(null);

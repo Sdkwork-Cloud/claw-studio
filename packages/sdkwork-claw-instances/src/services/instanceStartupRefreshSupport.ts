@@ -6,20 +6,17 @@ export const BUILT_IN_OPENCLAW_STARTUP_REFRESH_INTERVAL_MS = 1500;
 
 function isPendingBuiltInOpenClawStartup(instance: Pick<
   Instance,
-  'isBuiltIn' | 'runtimeKind' | 'deploymentMode' | 'status'
+  'isBuiltIn' | 'deploymentMode' | 'status'
 >) {
   return (
     instance.isBuiltIn === true &&
-    instance.runtimeKind === 'openclaw' &&
     instance.deploymentMode === 'local-managed' &&
     instance.status === 'starting'
   );
 }
 
 export function hasPendingBuiltInOpenClawStartup(
-  instances: Array<
-    Pick<Instance, 'isBuiltIn' | 'runtimeKind' | 'deploymentMode' | 'status'>
-  >,
+  instances: Array<Pick<Instance, 'isBuiltIn' | 'deploymentMode' | 'status'>>,
 ) {
   return instances.some((instance) => isPendingBuiltInOpenClawStartup(instance));
 }
@@ -37,7 +34,7 @@ export function hasPendingBuiltInOpenClawWorkbenchStartup(
 
 export function shouldRefreshInstancesForBuiltInOpenClawStatusChange(
   instances: Array<
-    Pick<Instance, 'id' | 'isBuiltIn' | 'runtimeKind' | 'deploymentMode' | 'status'>
+    Pick<Instance, 'id' | 'isBuiltIn' | 'deploymentMode' | 'status'>
   >,
   event: Pick<RuntimeBuiltInOpenClawStatusChangedEvent, 'instanceId'>,
 ) {

@@ -4,6 +4,8 @@ Date: 2026-04-03
 Status: In progress. Phase 1 private export/import, managed-runtime rebasing, runtime-diagnostic plus legacy fallback path rebasing, route-catalog restore, and post-restore verification are implemented; template and marketplace phases remain pending.
 Scope: Claw Studio managed OpenClaw backup, restore, template sharing, and install-from-mirror
 
+> **Supersession Note (2026-04-13):** This document is preserved for historical mirror and backup design context. The current kernel-platform source of truth is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`, and active OpenClaw runtime packaging and activation assumptions follow `docs/superpowers/plans/2026-04-13-openclaw-external-node-hard-cut-implementation-plan.md`. Mirror and restore concepts below can still inform future work, but references to bundled OpenClaw runtime ownership or bundled language-runtime assumptions are historical only.
+
 ## 1. Problem
 
 OpenClaw already has:

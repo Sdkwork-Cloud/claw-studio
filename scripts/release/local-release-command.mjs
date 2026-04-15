@@ -8,7 +8,12 @@ import { fileURLToPath } from 'node:url';
 import { runServerBuild } from '../run-claw-server-build.mjs';
 import {
   DEFAULT_RELEASE_PROFILE_ID,
+  resolveReleaseProfile,
 } from './release-profiles.mjs';
+import {
+  DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
+  resolveKernelPackageProfile,
+} from './kernel-package-profiles.mjs';
 import { createReleasePlan } from './resolve-release-plan.mjs';
 import {
   packageContainerAssets,
@@ -56,6 +61,7 @@ const serverBuildTargetDir = path.join(
 
 const LOCAL_RELEASE_TAG = 'release-local';
 const RELEASE_PROFILE_ENV_VAR = 'SDKWORK_RELEASE_PROFILE';
+const RELEASE_PACKAGE_PROFILE_ENV_VAR = 'SDKWORK_RELEASE_PACKAGE_PROFILE';
 const RELEASE_TAG_ENV_VAR = 'SDKWORK_RELEASE_TAG';
 const RELEASE_GIT_REF_ENV_VAR = 'SDKWORK_RELEASE_GIT_REF';
 const RELEASE_OUTPUT_DIR_ENV_VAR = 'SDKWORK_RELEASE_OUTPUT_DIR';
@@ -184,6 +190,7 @@ export function parseArgs(argv) {
         : '',
     ),
     profileId: '',
+    packageProfileId: '',
     releaseTag: '',
     gitRef: '',
     outputDir: '',
@@ -209,6 +216,12 @@ export function parseArgs(argv) {
 
     if (token === '--profile') {
       options.profileId = readOptionValue(tokens, index, '--profile');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--package-profile') {
+      options.packageProfileId = readOptionValue(tokens, index, '--package-profile');
       index += 1;
       continue;
     }
@@ -310,6 +323,14 @@ export function resolveLocalReleaseContext({
     env?.[RELEASE_PROFILE_ENV_VAR],
     DEFAULT_RELEASE_PROFILE_ID,
   );
+  const packageProfileId = resolveKernelPackageProfile(
+    firstNonEmpty(
+      cliOverrides.packageProfileId,
+      env?.[RELEASE_PACKAGE_PROFILE_ENV_VAR],
+      resolveReleaseProfile(profileId).defaultPackageProfileId,
+      DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
+    ),
+  ).profileId;
   const releaseTag = firstNonEmpty(
     cliOverrides.releaseTag,
     env?.[RELEASE_TAG_ENV_VAR],
@@ -401,6 +422,7 @@ export function resolveLocalReleaseContext({
     return {
       mode: normalizedMode,
       profileId,
+      packageProfileId,
       releaseTag,
       gitRef,
       outputDir,
@@ -443,6 +465,7 @@ export function resolveLocalReleaseContext({
     return {
       mode: normalizedMode,
       profileId,
+      packageProfileId,
       releaseTag,
       gitRef,
       outputDir,
@@ -462,6 +485,7 @@ export function resolveLocalReleaseContext({
   return {
     mode: normalizedMode,
     profileId,
+    packageProfileId,
     releaseTag,
     gitRef,
     outputDir,
@@ -504,10 +528,12 @@ export async function runLocalReleaseCommand(options = {}) {
     options.smokeDesktopPackagedLaunchFn ?? smokeDesktopPackagedLaunch;
   const smokeServerReleaseAssetsFn = options.smokeServerReleaseAssetsFn ?? smokeServerReleaseAssets;
   const smokeDeploymentReleaseAssetsFn = options.smokeDeploymentReleaseAssetsFn ?? smokeDeploymentReleaseAssets;
+  const createReleasePlanFn = options.createReleasePlanFn ?? createReleasePlan;
 
   if (context.mode === 'plan') {
-    const plan = createReleasePlan({
+    const plan = createReleasePlanFn({
       profileId: context.profileId,
+      packageProfileId: context.packageProfileId,
       releaseTag: context.releaseTag,
       gitRef: context.gitRef,
     });

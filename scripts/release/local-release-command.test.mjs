@@ -128,6 +128,39 @@ test('local release helper resolves usable defaults for root release commands', 
   assert.equal(parsedKubernetesSmokeContext.arch, 'arm64');
   assert.equal(parsedKubernetesSmokeContext.target, 'aarch64-unknown-linux-gnu');
   assert.equal(parsedKubernetesSmokeContext.accelerator, 'cpu');
+
+  const parsedDesktopPackageOptions = helper.parseArgs([
+    'package',
+    'desktop',
+    '--package-profile',
+    'dual-kernel',
+  ]);
+  assert.equal(parsedDesktopPackageOptions.packageProfileId, 'dual-kernel');
+
+  const envPackageProfileContext = helper.resolveLocalReleaseContext({
+    mode: 'package:desktop',
+    env: {
+      SDKWORK_RELEASE_PACKAGE_PROFILE: 'hermes-only',
+    },
+    platform: 'win32',
+    arch: 'x64',
+  });
+
+  assert.equal(envPackageProfileContext.packageProfileId, 'hermes-only');
+
+  const cliPackageProfileContext = helper.resolveLocalReleaseContext({
+    mode: 'package:desktop',
+    env: {
+      SDKWORK_RELEASE_PACKAGE_PROFILE: 'openclaw-only',
+    },
+    platform: 'win32',
+    arch: 'x64',
+    cliOverrides: {
+      packageProfileId: 'dual-kernel',
+    },
+  });
+
+  assert.equal(cliPackageProfileContext.packageProfileId, 'dual-kernel');
 });
 
 test('local release helper auto-builds missing server prerequisites for local server and container packaging', async () => {
@@ -357,6 +390,7 @@ test('local release helper automatically runs desktop smoke after packaging desk
     env: {},
     platform: 'linux',
     arch: 'x64',
+    packageProfileId: 'dual-kernel',
     releaseAssetsDir: 'D:/synthetic/release-assets',
     packageDesktopAssetsFn(context) {
       callOrder.push({
@@ -393,10 +427,70 @@ test('local release helper automatically runs desktop smoke after packaging desk
   assert.equal(callOrder[1].context.platform, 'linux');
   assert.equal(callOrder[1].context.arch, 'x64');
   assert.equal(callOrder[1].context.target, 'x86_64-unknown-linux-gnu');
+  assert.equal(callOrder[1].context.packageProfileId, 'dual-kernel');
   assert.equal(callOrder[2].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
   assert.equal(callOrder[2].context.platform, 'linux');
   assert.equal(callOrder[2].context.arch, 'x64');
   assert.equal(callOrder[2].context.target, 'x86_64-unknown-linux-gnu');
+  assert.equal(callOrder[2].context.packageProfileId, 'dual-kernel');
+});
+
+test('local release helper forwards the resolved package profile into plan generation', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'release', 'local-release-command.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  const planCalls = [];
+  const stdoutChunks = [];
+  const originalWrite = process.stdout.write;
+
+  process.stdout.write = (chunk, encoding, callback) => {
+    stdoutChunks.push(String(chunk));
+    if (typeof callback === 'function') {
+      callback();
+    }
+    return true;
+  };
+
+  try {
+    const context = await helper.runLocalReleaseCommand({
+      mode: 'plan',
+      env: {},
+      platform: 'win32',
+      arch: 'x64',
+      packageProfileId: 'dual-kernel',
+      createReleasePlanFn(options) {
+        planCalls.push(options);
+        return {
+          profileId: options.profileId,
+          packageProfileId: options.packageProfileId,
+          releaseTag: options.releaseTag,
+          gitRef: options.gitRef,
+          desktopMatrix: [],
+          serverMatrix: [],
+          containerMatrix: [],
+          kubernetesMatrix: [],
+          release: {
+            manifestFileName: 'release-manifest.json',
+            globalChecksumsFileName: 'SHA256SUMS.txt',
+          },
+        };
+      },
+    });
+
+    assert.equal(context.mode, 'plan');
+    assert.equal(context.packageProfileId, 'dual-kernel');
+    assert.deepEqual(planCalls, [
+      {
+        profileId: 'claw-studio',
+        packageProfileId: 'dual-kernel',
+        releaseTag: 'release-local',
+        gitRef: 'refs/tags/release-local',
+      },
+    ]);
+    assert.match(stdoutChunks.join(''), /"packageProfileId": "dual-kernel"/);
+  } finally {
+    process.stdout.write = originalWrite;
+  }
 });
 
 test('local release helper automatically runs server smoke after packaging server release assets', async () => {

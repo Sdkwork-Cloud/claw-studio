@@ -27,7 +27,11 @@ test('isTauriRuntime treats the injected Tauri internals as a desktop runtime si
   Object.defineProperty(globals, 'window', {
     configurable: true,
     value: {
-      __TAURI_INTERNALS__: {},
+      __TAURI_INTERNALS__: {
+        invoke() {
+          return Promise.resolve(null);
+        },
+      },
     },
   });
   delete globals.isTauri;

@@ -94,9 +94,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json', 'desktop Windows Tauri config'],
   ['packages/sdkwork-claw-desktop/src-tauri/tauri.linux.conf.json', 'desktop Linux Tauri config'],
   ['packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json', 'desktop macOS Tauri config'],
-  ['packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh', 'desktop Linux OpenClaw postinstall hook'],
-  ['packages/sdkwork-claw-desktop/src-tauri/generated', 'desktop generated bundled resource root'],
-  ['packages/sdkwork-claw-desktop/src-tauri/resources/openclaw/.gitkeep', 'bundled openclaw runtime placeholder'],
+  ['packages/sdkwork-claw-desktop/src-tauri/generated', 'desktop generated resource root'],
+  ['packages/sdkwork-claw-desktop/src-tauri/resources/openclaw/.gitkeep', 'packaged OpenClaw runtime placeholder'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/mod.rs', 'desktop framework module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/error.rs', 'desktop framework error module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/context.rs', 'desktop framework context module'],
@@ -130,8 +129,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/notifications.rs', 'desktop notifications service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/payments.rs', 'desktop payments service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/integrations.rs', 'desktop integrations service module'],
-  ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime.rs', 'desktop bundled openclaw runtime service module'],
-  ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/path_registration.rs', 'desktop bundled openclaw path registration service module'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime.rs', 'desktop packaged OpenClaw runtime service module'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/path_registration.rs', 'desktop packaged OpenClaw path registration service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/permissions.rs', 'desktop permissions service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/process.rs', 'desktop process service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/jobs.rs', 'desktop jobs service module'],
@@ -161,8 +160,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/capture_screenshot.rs', 'desktop capture screenshot command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/state/mod.rs', 'desktop state module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/platform/mod.rs', 'desktop platform module'],
-  ['scripts/prepare-openclaw-runtime.mjs', 'bundled openclaw runtime prepare script'],
-  ['scripts/prepare-openclaw-runtime.test.mjs', 'bundled openclaw runtime prepare test'],
+  ['scripts/prepare-openclaw-runtime.mjs', 'packaged OpenClaw runtime prepare script'],
+  ['scripts/prepare-openclaw-runtime.test.mjs', 'packaged OpenClaw runtime prepare test'],
   ['scripts/verify-desktop-build-assets.mjs', 'desktop bundled asset verification script'],
   ['scripts/ensure-tauri-dev-binary-unlocked.mjs', 'tauri dev binary unlock guard script'],
   ['scripts/ensure-tauri-dev-binary-unlocked.test.mjs', 'tauri dev binary unlock guard test'],
@@ -1597,7 +1596,7 @@ assertNotIncludes(
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
   'pub mod openclaw_runtime;',
-  'bundled openclaw runtime service export',
+  'packaged OpenClaw runtime service export',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
@@ -1622,7 +1621,7 @@ assertIncludes(
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
   'generated/bundled/',
-  'generated bundled asset resource packaging',
+  'generated desktop asset resource packaging',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
@@ -1632,7 +1631,7 @@ assertIncludes(
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
   'resources/openclaw/',
-  'bundled openclaw runtime resource declaration',
+  'packaged OpenClaw runtime resource declaration',
 );
 assertNotIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
@@ -1644,10 +1643,10 @@ assertIncludes(
   'generated/release/openclaw-resource/',
   'Linux packaged OpenClaw archive bridge resource mapping',
 );
-assertIncludes(
+assertNotIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/tauri.linux.conf.json',
   './linux-postinstall-openclaw.sh',
-  'Linux packaged OpenClaw postinstall hook wiring',
+  'legacy Linux OpenClaw postinstall hook wiring',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json',
@@ -1659,86 +1658,24 @@ assertIncludes(
   'generated/release/macos-install-root/',
   'macOS preexpanded OpenClaw managed runtime layout mapping',
 );
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  'SDKWORK_CLAW_INSTALL_ROOT',
-  'Linux postinstall explicit install-root environment override',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  'RPM_INSTALL_PREFIX',
-  'Linux postinstall RPM relocatable install-root override',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  '--install-root',
-  'Linux postinstall explicit install-root CLI override',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  '/usr/lib64/*/resources/openclaw/manifest.json',
-  'Linux postinstall lib64 packaged manifest discovery',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  'dirname "$(dirname "$(dirname "$manifest_path")")"',
-  'Linux postinstall install-root resolution from bundled OpenClaw manifest',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  'command -v claw-studio',
-  'Linux postinstall packaged binary fallback lookup',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  '--prepare-bundled-openclaw-runtime',
-  'Linux postinstall OpenClaw prewarm invocation',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  '--prepare-bundled-openclaw-runtime --install-root "$install_root"',
-  'Linux postinstall resolved install-root forwarding into the embedded OpenClaw prewarm CLI',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  'candidate="$(command -v claw-studio 2>/dev/null || true)"',
-  'Linux postinstall primary packaged binary lookup',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  'Unable to resolve Claw Studio install root from the packaged OpenClaw manifest.',
-  'Linux postinstall install-root failure surface',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  'Unable to locate the installed Claw Studio binary under $install_root.',
-  'Linux postinstall binary discovery failure surface',
-);
-assertNotIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh',
-  '--prepare-bundled-openclaw-runtime || true',
-  'Linux postinstall prewarm soft-failure fallback',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh',
-  '--prepare-bundled-openclaw-runtime --install-root "$INSTDIR"',
-  'Windows NSIS explicit install-root forwarding into the embedded OpenClaw prewarm CLI',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh',
-  'Abort "Embedded OpenClaw runtime prewarm failed during install',
-  'Windows NSIS prewarm failure abort',
-);
-assertNotIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh',
-  'runtime prewarm deferred to first app launch',
-  'Windows NSIS runtime prewarm deferral',
-);
-assertIncludes(
-  'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh',
-  '--register-openclaw-cli --install-root "$INSTDIR"',
-  'Windows NSIS explicit install-root forwarding into the embedded OpenClaw CLI registration flow',
-);
+const tauriWindowsBundleConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json');
+if (typeof tauriWindowsBundleConfig?.bundle?.windows?.nsis?.installerHooks !== 'undefined') {
+  failures.push('Desktop Windows Tauri config must not wire legacy OpenClaw installer hooks.');
+}
+if (existsSync(path.join(rootDir, 'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh'))) {
+  failures.push('Legacy Windows OpenClaw installer hooks must be removed after the external-runtime hard cut.');
+}
+
+const tauriLinuxBundleConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.linux.conf.json');
+if (typeof tauriLinuxBundleConfig?.bundle?.linux?.deb?.postInstallScript !== 'undefined') {
+  failures.push('Desktop Linux deb packaging must not wire a legacy OpenClaw postinstall script.');
+}
+if (typeof tauriLinuxBundleConfig?.bundle?.linux?.rpm?.postInstallScript !== 'undefined') {
+  failures.push('Desktop Linux rpm packaging must not wire a legacy OpenClaw postinstall script.');
+}
+if (existsSync(path.join(rootDir, 'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh'))) {
+  failures.push('Legacy Linux OpenClaw postinstall hook must be removed after the external-runtime hard cut.');
+}
 assertIncludes(
   'scripts/sync-bundled-components.mjs',
   "desktopWebDistBundleSourceRoot",
@@ -1762,7 +1699,7 @@ assertIncludes(
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
   'pub mod path_registration;',
-  'bundled openclaw path registration service export',
+  'packaged OpenClaw path registration service export',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/mod.rs',

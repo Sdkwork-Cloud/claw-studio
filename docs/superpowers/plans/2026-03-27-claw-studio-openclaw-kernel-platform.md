@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Supersession Note (2026-04-13):** This implementation plan is preserved for historical sequencing context. The current source of truth is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`, with current package-profile and OpenClaw external-runtime execution aligned to `docs/superpowers/plans/2026-04-13-multi-kernel-package-profile-foundation-implementation-plan.md` and `docs/superpowers/plans/2026-04-13-openclaw-external-node-hard-cut-implementation-plan.md`. Any plan steps below that assume a bundled OpenClaw runtime or bundled Node.js are historical only and must not be resumed as the active path.
+
 **Goal:** Turn Claw Studio into a cross-platform OpenClaw-powered product with a default built-in kernel, native silent service hosting, topology-aware lifecycle management, rollback-safe upgrades, and cluster-ready node governance.
 
 **Architecture:** Introduce a native `Kernel Host` boundary above the current direct Tauri child-process model. Normalize install methods into kernel topologies, move lifecycle and endpoint truth into the host layer, then add slot-based upgrades and node/cluster control on top of the same contract.

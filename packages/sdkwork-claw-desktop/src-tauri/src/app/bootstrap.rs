@@ -701,7 +701,7 @@ fn finalize_openclaw_activation(
         context
             .services
             .path_registration
-            .install_openclaw_shims(&context.paths, &runtime)?;
+            .install_openclaw_shims(&context.paths)?;
         context
             .services
             .path_registration
@@ -996,11 +996,11 @@ mod tests {
             .expect("tray setup should ensure the tray exists");
         let activate_runtime_index = production_source
             .find("spawn_bundled_openclaw_activation(context.clone(), resource_root);")
-            .expect("tray setup should still schedule the bundled runtime activation");
+            .expect("tray setup should still schedule the built-in OpenClaw activation");
 
         assert!(
             ensure_tray_index < activate_runtime_index,
-            "tray readiness should happen before bundled runtime activation so the app remains reachable while background startup is slow"
+            "tray readiness should happen before built-in OpenClaw activation so the app remains reachable while background startup is slow"
         );
     }
 
@@ -1335,7 +1335,8 @@ mod tests {
         )
         .expect("active json");
         let openclaw_config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_config_file).expect("openclaw config file"),
+            &fs::read_to_string(&managed_openclaw_config_path(&paths))
+                .expect("openclaw config file"),
         )
         .expect("openclaw config json");
         assert_eq!(
@@ -1550,22 +1551,20 @@ mod tests {
             .expect("complete shutdown");
     }
 
-    #[cfg(windows)]
-    fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
-            .map(|entry| entry.join("node.exe"))
-            .find(|candidate| candidate.exists())
-            .expect("node.exe should be available on PATH for bundled gateway tests")
-    }
-
     fn reserve_available_loopback_port() -> u16 {
         std::net::TcpListener::bind("127.0.0.1:0")
             .expect("reserve loopback port")
             .local_addr()
             .expect("loopback addr")
             .port()
+    }
+
+    fn managed_openclaw_config_path(
+        paths: &crate::framework::paths::AppPaths,
+    ) -> std::path::PathBuf {
+        crate::framework::services::kernel_runtime_authority::KernelRuntimeAuthorityService::new()
+            .active_openclaw_config_path(paths)
+            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
     }
 
     fn seed_managed_openclaw_gateway_port(paths: &crate::framework::paths::AppPaths, port: u16) {
@@ -1706,19 +1705,21 @@ setInterval(() => {}, 1000);
             .join("node_modules")
             .join("openclaw")
             .join("openclaw.mjs");
-        let node_path = resolve_test_node_executable();
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(&cli_path, bundled_gateway_fixture_cli_source()).expect("cli file");
 
         let manifest = BundledOpenClawManifest {
-            schema_version: 1,
+            schema_version: 2,
             runtime_id: "openclaw".to_string(),
             openclaw_version: bundled_openclaw_version().to_string(),
-            node_version: "22.16.0".to_string(),
+            required_external_runtimes: vec!["nodejs".to_string()],
+            required_external_runtime_versions: std::collections::BTreeMap::from([(
+                "nodejs".to_string(),
+                "22.16.0".to_string(),
+            )]),
             platform: normalized_openclaw_platform().to_string(),
             arch: normalized_openclaw_arch().to_string(),
-            node_relative_path: node_path.to_string_lossy().into_owned(),
             cli_relative_path: "runtime/package/node_modules/openclaw/openclaw.mjs".to_string(),
         };
 
@@ -1738,31 +1739,26 @@ setInterval(() => {}, 1000);
 
         let resource_root = root.join("bundled-openclaw");
         let runtime_root = resource_root.join("runtime");
-        let node_path = runtime_root.join("node").join("node");
         let cli_path = runtime_root
             .join("package")
             .join("node_modules")
             .join("openclaw")
             .join("openclaw.mjs");
 
-        fs::create_dir_all(node_path.parent().expect("node parent")).expect("node dir");
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
-        fs::write(&node_path, "#!/bin/sh\nexec node \"$@\"\n").expect("node shim");
-        let mut permissions = fs::metadata(&node_path)
-            .expect("node metadata")
-            .permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&node_path, permissions).expect("node permissions");
         fs::write(&cli_path, bundled_gateway_fixture_cli_source()).expect("cli file");
 
         let manifest = BundledOpenClawManifest {
-            schema_version: 1,
+            schema_version: 2,
             runtime_id: "openclaw".to_string(),
             openclaw_version: bundled_openclaw_version().to_string(),
-            node_version: "22.16.0".to_string(),
+            required_external_runtimes: vec!["nodejs".to_string()],
+            required_external_runtime_versions: std::collections::BTreeMap::from([(
+                "nodejs".to_string(),
+                "22.16.0".to_string(),
+            )]),
             platform: normalized_openclaw_platform().to_string(),
             arch: normalized_openclaw_arch().to_string(),
-            node_relative_path: "runtime/node/node".to_string(),
             cli_relative_path: "runtime/package/node_modules/openclaw/openclaw.mjs".to_string(),
         };
 
@@ -1787,25 +1783,18 @@ setInterval(() => {}, 1000);
             .to_string();
         files.push(runtime_integrity_file(runtime_root, &cli_relative_path));
 
-        if manifest.node_relative_path.starts_with("runtime/") {
-            files.push(runtime_integrity_file(
-                runtime_root,
-                manifest.node_relative_path.trim_start_matches("runtime/"),
-            ));
-        }
-
         fs::write(
             runtime_root.join(".sdkwork-openclaw-runtime.json"),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&serde_json::json!({
-                    "schemaVersion": 1,
+                    "schemaVersion": manifest.schema_version,
                     "runtimeId": manifest.runtime_id,
                     "openclawVersion": manifest.openclaw_version,
-                    "nodeVersion": manifest.node_version,
+                    "requiredExternalRuntimes": manifest.required_external_runtimes,
+                    "requiredExternalRuntimeVersions": manifest.required_external_runtime_versions,
                     "platform": manifest.platform,
                     "arch": manifest.arch,
-                    "nodeRelativePath": manifest.node_relative_path,
                     "cliRelativePath": manifest.cli_relative_path,
                     "runtimeIntegrity": {
                         "schemaVersion": 1,
@@ -1860,19 +1849,21 @@ setInterval(() => {}, 1000);
             .join("node_modules")
             .join("openclaw")
             .join("openclaw.mjs");
-        let node_path = resolve_test_node_executable();
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(&cli_path, "process.exit(1);\n").expect("cli file");
 
         let manifest = BundledOpenClawManifest {
-            schema_version: 1,
+            schema_version: 2,
             runtime_id: "openclaw".to_string(),
             openclaw_version: bundled_openclaw_version().to_string(),
-            node_version: "22.16.0".to_string(),
+            required_external_runtimes: vec!["nodejs".to_string()],
+            required_external_runtime_versions: std::collections::BTreeMap::from([(
+                "nodejs".to_string(),
+                "22.16.0".to_string(),
+            )]),
             platform: normalized_openclaw_platform().to_string(),
             arch: normalized_openclaw_arch().to_string(),
-            node_relative_path: node_path.to_string_lossy().into_owned(),
             cli_relative_path: "runtime/package/node_modules/openclaw/openclaw.mjs".to_string(),
         };
 
@@ -1892,31 +1883,26 @@ setInterval(() => {}, 1000);
 
         let resource_root = root.join("bundled-openclaw-failing");
         let runtime_root = resource_root.join("runtime");
-        let node_path = runtime_root.join("node").join("node");
         let cli_path = runtime_root
             .join("package")
             .join("node_modules")
             .join("openclaw")
             .join("openclaw.mjs");
 
-        fs::create_dir_all(node_path.parent().expect("node parent")).expect("node dir");
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
-        fs::write(&node_path, "#!/bin/sh\nexec node \"$@\"\n").expect("node shim");
-        let mut permissions = fs::metadata(&node_path)
-            .expect("node metadata")
-            .permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&node_path, permissions).expect("node permissions");
         fs::write(&cli_path, "process.exit(1);\n").expect("cli file");
 
         let manifest = BundledOpenClawManifest {
-            schema_version: 1,
+            schema_version: 2,
             runtime_id: "openclaw".to_string(),
             openclaw_version: bundled_openclaw_version().to_string(),
-            node_version: "22.16.0".to_string(),
+            required_external_runtimes: vec!["nodejs".to_string()],
+            required_external_runtime_versions: std::collections::BTreeMap::from([(
+                "nodejs".to_string(),
+                "22.16.0".to_string(),
+            )]),
             platform: normalized_openclaw_platform().to_string(),
             arch: normalized_openclaw_arch().to_string(),
-            node_relative_path: "runtime/node/node".to_string(),
             cli_relative_path: "runtime/package/node_modules/openclaw/openclaw.mjs".to_string(),
         };
 

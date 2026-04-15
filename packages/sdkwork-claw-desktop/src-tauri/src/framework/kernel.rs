@@ -204,6 +204,9 @@ pub struct DesktopBundledComponentInfo {
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopBundledComponentsInfo {
+    pub package_profile_id: String,
+    pub included_kernel_ids: Vec<String>,
+    pub default_enabled_kernel_ids: Vec<String>,
     pub component_count: usize,
     pub default_startup_component_ids: Vec<String>,
     pub auto_upgrade_enabled: bool,

@@ -49,6 +49,17 @@ function createWorkbench(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function createManagedFutureKernelLikeInstance(overrides: Record<string, unknown> = {}) {
+  return createInstance({
+    id: 'local-built-in-phoenixclaw',
+    name: 'Managed PhoenixClaw',
+    type: 'PhoenixClaw',
+    runtimeKind: 'phoenixclaw',
+    transportKind: 'phoenixSocket',
+    ...overrides,
+  });
+}
+
 await runTest('instance startup refresh support exposes the built-in polling interval contract', () => {
   assert.equal(BUILT_IN_OPENCLAW_STARTUP_REFRESH_INTERVAL_MS, 1500);
 });
@@ -57,6 +68,21 @@ await runTest('instance startup refresh support polls the registry while built-i
   assert.equal(
     hasPendingBuiltInOpenClawStartup([
       createInstance(),
+      createInstance({
+        id: 'remote-openclaw',
+        isBuiltIn: false,
+        deploymentMode: 'remote',
+        status: 'online',
+      }),
+    ] as any),
+    true,
+  );
+});
+
+await runTest('instance startup refresh support also polls the registry for future built-in local-managed kernels that are still starting', () => {
+  assert.equal(
+    hasPendingBuiltInOpenClawStartup([
+      createManagedFutureKernelLikeInstance(),
       createInstance({
         id: 'remote-openclaw',
         isBuiltIn: false,
@@ -96,6 +122,19 @@ await runTest('instance startup refresh support polls the workbench while the bu
   );
 });
 
+await runTest('instance startup refresh support also polls the workbench for future built-in local-managed kernels that are still starting', () => {
+  assert.equal(
+    hasPendingBuiltInOpenClawWorkbenchStartup(
+      createWorkbench({
+        detail: {
+          instance: createManagedFutureKernelLikeInstance(),
+        },
+      }) as any,
+    ),
+    true,
+  );
+});
+
 await runTest('instance startup refresh support refreshes the list when the built-in OpenClaw changes status in the background', () => {
   assert.equal(
     shouldRefreshInstancesForBuiltInOpenClawStatusChange(
@@ -128,6 +167,21 @@ await runTest('instance startup refresh support refreshes the list when the buil
       } as any,
     ),
     false,
+  );
+});
+
+await runTest('instance startup refresh support also refreshes the list for future built-in local-managed kernel status changes', () => {
+  assert.equal(
+    shouldRefreshInstancesForBuiltInOpenClawStatusChange(
+      [
+        createManagedFutureKernelLikeInstance(),
+      ] as any,
+      {
+        instanceId: 'local-built-in-phoenixclaw',
+        status: 'online',
+      } as any,
+    ),
+    true,
   );
 });
 
@@ -172,5 +226,23 @@ await runTest('instance startup refresh support only refreshes the active workbe
       } as any,
     ),
     false,
+  );
+});
+
+await runTest('instance startup refresh support also refreshes the active workbench for future built-in local-managed kernel events', () => {
+  assert.equal(
+    shouldRefreshWorkbenchForBuiltInOpenClawStatusChange(
+      'local-built-in-phoenixclaw',
+      createWorkbench({
+        detail: {
+          instance: createManagedFutureKernelLikeInstance(),
+        },
+      }) as any,
+      {
+        instanceId: 'local-built-in-phoenixclaw',
+        status: 'online',
+      } as any,
+    ),
+    true,
   );
 });

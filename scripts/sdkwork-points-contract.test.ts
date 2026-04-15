@@ -26,6 +26,25 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
+runTest('sdkwork-claw-points parity checks use the shared Node TypeScript runner for points wallet coverage', () => {
+  const workspacePackageJson = read('package.json');
+  const pointsCheckRunner = read('scripts/run-sdkwork-points-check.mjs');
+  const nodeTypeScriptRunner = read('scripts/run-node-typescript-check.mjs');
+
+  assert.match(
+    workspacePackageJson,
+    /"check:sdkwork-points"\s*:\s*"node scripts\/run-sdkwork-points-check\.mjs"/,
+  );
+  assert.ok(exists('scripts/run-sdkwork-points-check.mjs'));
+  assert.ok(exists('scripts/run-node-typescript-check.mjs'));
+  assert.match(nodeTypeScriptRunner, /--experimental-transform-types/);
+  assert.match(nodeTypeScriptRunner, /--disable-warning=ExperimentalWarning/);
+  assert.match(pointsCheckRunner, /runNodeTypeScriptChecks/);
+  assert.match(pointsCheckRunner, /pointsWalletService\.test\.ts/);
+  assert.match(pointsCheckRunner, /sdkwork-points-contract\.test\.ts/);
+  assert.doesNotMatch(pointsCheckRunner, /tsx/);
+});
+
 runTest('sdkwork-claw-points stays a dedicated feature package wired to claw-core and react-query', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>(
     'packages/sdkwork-claw-points/package.json',

@@ -1,5 +1,7 @@
 # OpenClaw Built-In Runtime Design
 
+> **Supersession Note (2026-04-13):** This design is preserved for historical context. The built-in OpenClaw product direction it introduced is still relevant, but the current source of truth is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`. Any references below that imply bundled language runtimes or pre-hard-cut desktop assumptions must be read as historical only.
+
 ## Goal
 
 Make Claw Studio's built-in OpenClaw integration product-grade:

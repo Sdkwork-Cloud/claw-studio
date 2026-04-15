@@ -2,6 +2,8 @@
 
 **Date:** 2026-04-12
 
+> **Supersession Note (2026-04-13):** This document is preserved for historical implementation context. The current source of truth is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`, with OpenClaw runtime packaging and activation aligned to `docs/superpowers/plans/2026-04-13-openclaw-external-node-hard-cut-implementation-plan.md`. The authority and adapter direction remains relevant, but references below to a bundled OpenClaw runtime or bundled Node assumptions are historical and must not drive new implementation.
+
 ## Goal
 
 Stabilize bundled `OpenClaw` startup on real machines, remove legacy version residue from the managed runtime path, establish a complete upgrade and migration mechanism for bundled `OpenClaw`, and refactor the desktop host so the runtime lifecycle path can evolve into a multi-kernel architecture instead of remaining permanently hard-coded to `openclaw`.

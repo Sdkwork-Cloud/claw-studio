@@ -39,7 +39,7 @@
   },
   "error": {
     "title": "Unable to load installable OpenClaw instances",
-    "description": "The agent catalog is available, but config-backed OpenClaw instance discovery failed. Retry after the bundled runtimes, local bridge, and runtime metadata are available again.",
+    "description": "The agent catalog is available, but config-backed OpenClaw instance discovery failed. Retry after the managed runtime services, local bridge, and runtime metadata are available again.",
     "retry": "Retry instance discovery"
   },
   "empty": {

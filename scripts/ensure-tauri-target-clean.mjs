@@ -12,10 +12,10 @@ const BUNDLED_OPENCLAW_MANIFEST_KEYS = [
   'schemaVersion',
   'runtimeId',
   'openclawVersion',
-  'nodeVersion',
+  'requiredExternalRuntimes',
+  'requiredExternalRuntimeVersions',
   'platform',
   'arch',
-  'nodeRelativePath',
   'cliRelativePath',
 ];
 
@@ -127,7 +127,7 @@ function inspectBundledOpenClawTargetResources(srcTauriDir, targetDir, { env = p
       issues: [
         {
           entryPath: sourceManifestPath,
-          reason: `failed to resolve expected bundled OpenClaw manifest: ${error instanceof Error ? error.message : String(error)}`,
+          reason: `failed to resolve expected packaged OpenClaw manifest: ${error instanceof Error ? error.message : String(error)}`,
         },
       ],
     };
@@ -147,7 +147,7 @@ function inspectBundledOpenClawTargetResources(srcTauriDir, targetDir, { env = p
         if (matchesLegacyBundledOpenClawResourceDir(targetDir, entryPath)) {
           issues.push({
             entryPath,
-            reason: 'legacy bundled OpenClaw runtime resource directory is still present',
+            reason: 'legacy packaged OpenClaw runtime resource directory is still present',
           });
         }
         pending.push(entryPath);
@@ -169,7 +169,7 @@ function inspectBundledOpenClawTargetResources(srcTauriDir, targetDir, { env = p
       } catch (error) {
         issues.push({
           entryPath,
-          reason: `failed to parse bundled OpenClaw manifest: ${error instanceof Error ? error.message : String(error)}`,
+          reason: `failed to parse packaged OpenClaw manifest: ${error instanceof Error ? error.message : String(error)}`,
         });
         continue;
       }
@@ -177,7 +177,7 @@ function inspectBundledOpenClawTargetResources(srcTauriDir, targetDir, { env = p
       if (manifestKind === 'legacy') {
         issues.push({
           entryPath,
-          reason: 'legacy bundled OpenClaw runtime manifest is still present under target resources',
+          reason: 'legacy packaged OpenClaw runtime manifest is still present under target resources',
         });
         continue;
       }
@@ -185,7 +185,7 @@ function inspectBundledOpenClawTargetResources(srcTauriDir, targetDir, { env = p
       if (!bundledOpenClawManifestMatches(sourceManifest, targetManifest)) {
         issues.push({
           entryPath,
-          reason: 'bundled OpenClaw target manifest does not match the expected bundled runtime manifest for the current release target',
+          reason: 'packaged OpenClaw target manifest does not match the expected packaged OpenClaw manifest for the current release target',
         });
       }
     }
@@ -344,7 +344,7 @@ function runCli() {
     }
     if (result.bundledOpenClawIssues.length > 0) {
       issueParts.push(
-        `${result.bundledOpenClawIssues.length} stale bundled OpenClaw resource issue${result.bundledOpenClawIssues.length === 1 ? '' : 's'}`,
+        `${result.bundledOpenClawIssues.length} stale packaged OpenClaw resource issue${result.bundledOpenClawIssues.length === 1 ? '' : 's'}`,
       );
     }
 

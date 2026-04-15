@@ -4,9 +4,15 @@ use super::{
     OPENCLAW_LOCAL_PROXY_PROVIDER_AUTH, OPENCLAW_LOCAL_PROXY_PROVIDER_GEMINI_API,
     OPENCLAW_LOCAL_PROXY_PROVIDER_ID, OPENCLAW_LOCAL_PROXY_PROVIDER_OPENAI_API,
 };
-use crate::framework::{paths::AppPaths, FrameworkError, Result};
+use crate::framework::{
+    paths::AppPaths, services::kernel_runtime_authority::KernelRuntimeAuthorityService,
+    FrameworkError, Result,
+};
 use serde_json::{json, Value};
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 pub(super) fn project_managed_openclaw_provider(
     paths: &AppPaths,
@@ -20,7 +26,7 @@ pub(super) fn project_managed_openclaw_provider(
         )
     })?;
     let default_model_id = resolve_default_route_model_id(route)?;
-    let mut root = read_openclaw_config_root(&paths.openclaw_config_file)?;
+    let mut root = read_openclaw_config_root(&readable_managed_openclaw_config_path(paths))?;
     let overwrite_defaults =
         should_overwrite_managed_provider_defaults(&root, OPENCLAW_LOCAL_PROXY_PROVIDER_ID);
     let provider_root = ensure_json_object_mut(
@@ -70,7 +76,7 @@ pub(super) fn project_managed_openclaw_provider(
         );
     }
 
-    write_openclaw_config_root(&paths.openclaw_config_file, &root)
+    write_openclaw_config_root(&authority_managed_openclaw_config_path(paths), &root)
 }
 
 fn resolve_projected_openclaw_provider_api(route: &LocalAiProxyRouteSnapshot) -> &'static str {
@@ -124,6 +130,21 @@ fn write_openclaw_config_root(path: &Path, root: &Value) -> Result<()> {
     }
     fs::write(path, format!("{}\n", serde_json::to_string_pretty(root)?))?;
     Ok(())
+}
+
+fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    let authority_path = authority_managed_openclaw_config_path(paths);
+    if authority_path.exists() || !paths.openclaw_config_file.exists() {
+        authority_path
+    } else {
+        paths.openclaw_config_file.clone()
+    }
+}
+
+fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    KernelRuntimeAuthorityService::new()
+        .active_openclaw_config_path(paths)
+        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
 }
 
 fn resolve_default_route_model_id(route: &LocalAiProxyRouteSnapshot) -> Result<String> {

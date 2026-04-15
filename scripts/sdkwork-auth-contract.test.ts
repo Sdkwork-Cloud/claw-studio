@@ -339,6 +339,8 @@ runTest('sdkwork-claw-auth parity checks use the shared Node TypeScript runner f
   const workspacePackageJson = read('package.json');
   const authCheckRunner = read('scripts/run-sdkwork-auth-check.mjs');
   const nodeTypeScriptRunner = read('scripts/run-node-typescript-check.mjs');
+  const authStoreSource = read('packages/sdkwork-claw-core/src/stores/authStore.ts');
+  const useAuthStoreSource = read('packages/sdkwork-claw-core/src/stores/useAuthStore.ts');
 
   assert.match(
     workspacePackageJson,
@@ -353,4 +355,6 @@ runTest('sdkwork-claw-auth parity checks use the shared Node TypeScript runner f
   assert.match(authCheckRunner, /appAuthService\.test\.ts/);
   assert.match(authCheckRunner, /useAuthStore\.test\.ts/);
   assert.doesNotMatch(authCheckRunner, /tsx/);
+  assert.doesNotMatch(authStoreSource, /zustand/);
+  assert.doesNotMatch(useAuthStoreSource, /zustand/);
 });

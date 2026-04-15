@@ -13,14 +13,12 @@
   "stableVersion": "<新版本号>",
   "nodeVersion": "<对应 Node 版本>",
   "packageName": "openclaw",
-  "runtimeSupplementalPackages": [
-    "@buape/carbon@<对应版本>"
-  ]
+  "runtimeSupplementalPackages": []
 }
 ```
 
-> **注意**: 如果 `runtimeSupplementalPackages` 中存在 `0.x.x` 版本的依赖，构建时会收到
-> 不稳定版本警告。请在上游发布稳定版本后及时更新。
+> **注意**: 默认保持 `runtimeSupplementalPackages` 为空。只有 OpenClaw 在稳定依赖图之外
+> 还需要额外 npm 包时，才在这里显式追加精确版本。
 
 ### 2. 更新 Desktop 端 Rust 测试 fixtures
 
@@ -51,7 +49,7 @@ node scripts/prepare-openclaw-runtime.mjs
 
 脚本会自动：
 - 下载新版本的 OpenClaw 包和 Node 运行时
-- 安装补充依赖（如 `@buape/carbon`）
+- 按配置安装额外补充依赖（默认无需额外 supplemental package）
 - 校验完整性并写入 manifest
 
 ### 5. 验证构建
@@ -81,7 +79,7 @@ pnpm tauri:build
 ## 版本命名规则
 
 - `stableVersion`: 遵循 `YYYY.M.P` 格式（如 `2026.4.9`）
-- `runtimeSupplementalPackages`: 使用 npm 包全名 + 精确版本（如 `@buape/carbon@0.0.0-beta-20260327000044`）
+- `runtimeSupplementalPackages`: 仅在确有额外补充依赖时填写，使用 npm 包全名 + 精确版本（如 `@scope/pkg@1.2.3`）；默认建议保持 `[]`
 
 ## 环境变量覆盖
 
@@ -97,8 +95,8 @@ pnpm tauri:build
 
 ### Q: 构建时出现 "unstable version" 警告？
 
-`@buape/carbon` 当前使用 `0.0.0-beta` 预发布版本。这是已知的上游限制，不影响功能。
-等上游发布 `>=1.0.0` 稳定版后更新 `config/openclaw-release.json` 即可消除警告。
+默认配置已经不再把 `@buape/carbon` 作为 supplemental package。
+如果你仍看到这类警告，通常说明本地或分支中的 `runtimeSupplementalPackages` 被改成了包含 `0.x.x` 依赖的自定义配置；将其改回空数组或改成稳定版本即可。
 
 ### Q: 升级后 Desktop 端启动失败？
 

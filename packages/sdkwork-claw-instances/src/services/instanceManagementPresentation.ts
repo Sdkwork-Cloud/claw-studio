@@ -2,6 +2,7 @@ import type { StudioInstanceDataAccessEntry } from '@sdkwork/claw-types';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
 import {
   buildBundledOpenClawStartupAlert,
+  isBundledOpenClawActivationDetailNote,
   type BundledOpenClawStartupAlert,
   type BundledOpenClawStartupAlertDiagnostic,
 } from './bundledOpenClawStartupAlert.ts';
@@ -190,10 +191,7 @@ function buildManagementScopeEntry(
     };
   }
 
-  if (
-    workbench.detail.instance.runtimeKind === 'openclaw' &&
-    (workbenchManaged || lifecycleControllable || hasRemoteManagementSurface)
-  ) {
+  if (workbenchManaged || lifecycleControllable || hasRemoteManagementSurface) {
     return {
       id: 'managementScope',
       labelKey: 'instances.detail.instanceWorkbench.overview.management.labels.managementScope',
@@ -221,7 +219,10 @@ function buildNotes(
       return true;
     }
 
-    return note !== `Last bundled OpenClaw start error: ${alert.message}`;
+    return (
+      note !== `Last built-in OpenClaw start error: ${alert.message}` &&
+      !isBundledOpenClawActivationDetailNote(note)
+    );
   });
 
   return [

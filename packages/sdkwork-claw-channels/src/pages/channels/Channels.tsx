@@ -3,11 +3,44 @@ import { useTranslation } from 'react-i18next';
 import { useInstanceStore } from '@sdkwork/claw-core';
 import { openExternalUrl } from '@sdkwork/claw-infrastructure';
 import {
+  Building2,
+  Hash,
+  MessageCircle,
+  MessageSquare,
+  Send,
+  Smile,
+  Webhook,
+  Zap,
+} from 'lucide-react';
+import {
   ChannelWorkspace,
   getChannelOfficialLink,
   type ChannelWorkspaceItem,
 } from '@sdkwork/claw-ui';
 import { Channel, channelService } from '../../services';
+
+function resolveChannelWorkspaceIcon(iconName?: string): React.ReactNode | undefined {
+  switch (iconName) {
+    case 'MessageCircle':
+      return <MessageCircle className="h-6 w-6 text-[#00D1B2]" />;
+    case 'Smile':
+      return <Smile className="h-6 w-6 text-[#12B7F5]" />;
+    case 'Zap':
+      return <Zap className="h-6 w-6 text-[#008CEE]" />;
+    case 'Building2':
+      return <Building2 className="h-6 w-6 text-[#2B82E4]" />;
+    case 'Send':
+      return <Send className="h-6 w-6 text-[#229ED9]" />;
+    case 'MessageSquare':
+      return <MessageSquare className="h-6 w-6 text-[#5865F2]" />;
+    case 'Hash':
+      return <Hash className="h-6 w-6 text-[#E01E5A]" />;
+    case 'Webhook':
+      return <Webhook className="h-6 w-6 text-primary-500" />;
+    default:
+      return undefined;
+  }
+}
 
 function buildInitialFormData(channel: Channel | null) {
   if (!channel) {
@@ -40,6 +73,7 @@ export function Channels() {
     () =>
       channels.map((channel) => ({
         ...channel,
+        icon: resolveChannelWorkspaceIcon(channel.icon),
         setupSteps: [...channel.setupGuide],
         values: channel.fields.reduce<Record<string, string>>((accumulator, field) => {
           accumulator[field.key] = field.value || '';

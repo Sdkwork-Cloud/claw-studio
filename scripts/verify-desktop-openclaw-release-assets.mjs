@@ -2,6 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +21,7 @@ import {
   buildDesktopInstallReadyLayout,
   resolveDesktopOpenClawInstallKeyFromManifest,
 } from './release/desktop-install-ready-layout.mjs';
+import { detectLegacyOpenClawSourceRuntimeResidue } from './cleanup-legacy-openclaw-source-runtime.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(import.meta.dirname, '..');
@@ -46,13 +48,8 @@ function assertManifestMatchesTarget(manifest, target, contextLabel) {
     `${contextLabel} must target ${target.archId}`,
   );
   assert.equal(
-    manifest.nodeRelativePath,
-    target.bundledNodePath,
-    `${contextLabel} must expose the target-specific bundled Node entrypoint`,
-  );
-  assert.equal(
     manifest.cliRelativePath,
-    target.bundledCliPath,
+    target.cliRelativePath,
     `${contextLabel} must expose the target-specific OpenClaw CLI entrypoint`,
   );
   assert.notEqual(
@@ -61,9 +58,24 @@ function assertManifestMatchesTarget(manifest, target, contextLabel) {
     `${contextLabel} must include an OpenClaw version`,
   );
   assert.notEqual(
-    String(manifest.nodeVersion ?? '').trim(),
+    JSON.stringify(manifest.requiredExternalRuntimes ?? []),
+    JSON.stringify([]),
+    `${contextLabel} must include at least one required external runtime`,
+  );
+  assert.deepEqual(
+    manifest.requiredExternalRuntimes,
+    ['nodejs'],
+    `${contextLabel} must require external Node.js instead of a packaged runtime`,
+  );
+  assert.notEqual(
+    String(manifest.requiredExternalRuntimeVersions?.nodejs ?? '').trim(),
     '',
-    `${contextLabel} must include a bundled Node version`,
+    `${contextLabel} must include an external Node version requirement`,
+  );
+  assert.equal(
+    Object.hasOwn(manifest, 'nodeVersion'),
+    false,
+    `${contextLabel} must not expose a legacy top-level nodeVersion field`,
   );
 }
 
@@ -72,7 +84,7 @@ function assertRuntimeSidecarMatchesManifest(sidecarManifest, expectedManifest, 
     assert.deepEqual(
       sidecarManifest?.[fieldName],
       expectedValue,
-      `${contextLabel} must preserve ${fieldName} from the bundled source manifest`,
+      `${contextLabel} must preserve ${fieldName} from the prepared source manifest`,
     );
   }
 
@@ -125,6 +137,24 @@ async function ensurePathMissing(absolutePath, description) {
   }
 
   throw new Error(`${description} must remain archive-only and must not exist at ${absolutePath}`);
+}
+
+async function assertLegacySourceRuntimeResidueMissing(workspaceRootDir) {
+  const {
+    legacySourceRuntimeDir,
+    legacySourceRuntimeDirPresent,
+    legacySourceRuntimeVersion,
+  } = await detectLegacyOpenClawSourceRuntimeResidue({ workspaceRootDir });
+  if (!legacySourceRuntimeDirPresent) {
+    return;
+  }
+
+  const versionSuffix = legacySourceRuntimeVersion
+    ? ` (detected version ${legacySourceRuntimeVersion})`
+    : '';
+  throw new Error(
+    `Legacy source runtime residue must be removed before verifying desktop OpenClaw release assets: ${legacySourceRuntimeDir}${versionSuffix}`,
+  );
 }
 
 function findZipEndOfCentralDirectory(buffer) {
@@ -227,9 +257,9 @@ async function verifyPackagedRuntimeArchive({
     'packaged OpenClaw runtime archive must contain the runtime sidecar manifest',
   );
   assert.equal(
-    entryNames.has(manifest.nodeRelativePath),
-    true,
-    'packaged OpenClaw runtime archive must contain the bundled Node entrypoint',
+    [...entryNames].some((entryName) => String(entryName ?? '').replaceAll('\\', '/').startsWith('runtime/node/')),
+    false,
+    'packaged OpenClaw runtime archive must not contain a bundled Node payload',
   );
   assert.equal(
     entryNames.has(manifest.cliRelativePath),
@@ -246,7 +276,7 @@ async function verifyPackagedRuntimeArchive({
   assertRuntimeSidecarMatchesManifest(
     runtimeSidecarManifest,
     manifest,
-    'packaged OpenClaw runtime sidecar manifest must match the bundled source manifest',
+    'packaged OpenClaw runtime sidecar manifest must match the prepared source manifest',
   );
 }
 
@@ -285,7 +315,7 @@ async function verifyMaterializedInstallRoot({
   assert.deepEqual(
     installManifest,
     manifest,
-    `${contextLabel} manifest must match the bundled source manifest`,
+    `${contextLabel} manifest must match the prepared source manifest`,
   );
 
   const runtimeSidecarManifest = await readJsonFile(
@@ -295,12 +325,12 @@ async function verifyMaterializedInstallRoot({
   assertRuntimeSidecarMatchesManifest(
     runtimeSidecarManifest,
     manifest,
-    `${contextLabel} runtime sidecar manifest must match the bundled source manifest`,
+    `${contextLabel} runtime sidecar manifest must match the prepared source manifest`,
   );
 
-  await ensurePathExists(
-    path.join(installDir, manifest.nodeRelativePath),
-    `${contextLabel} bundled Node entrypoint`,
+  await ensurePathMissing(
+    path.join(installDir, 'runtime', 'node'),
+    `${contextLabel} bundled Node payload`,
   );
   await ensurePathExists(
     path.join(installDir, manifest.cliRelativePath),
@@ -378,7 +408,7 @@ async function verifyArchiveInstallReadyLayout({
 
   return buildDesktopInstallReadyLayout({
     manifest,
-    mode: 'simulated-prewarm',
+    mode: 'archive-extract-ready',
   });
 }
 
@@ -394,13 +424,15 @@ export async function verifyDesktopOpenClawReleaseAssets({
   ),
   archiveFileName = BUNDLED_RESOURCE_RUNTIME_ARCHIVE_FILENAME,
 } = {}) {
+  await assertLegacySourceRuntimeResidueMissing(workspaceRootDir);
+
   const sourceInspection = await inspectPreparedOpenClawRuntime({
     resourceDir,
     runtimeSupplementalPackages,
   });
   if (!sourceInspection.reusable) {
     throw new Error(
-      `Bundled OpenClaw source runtime is not reusable (${sourceInspection.reason}) at ${resourceDir}: ${sourceInspection.error ?? sourceInspection.manifestReadError ?? 'unknown error'}`,
+      `Prepared OpenClaw source runtime is not reusable (${sourceInspection.reason}) at ${resourceDir}: ${sourceInspection.error ?? sourceInspection.manifestReadError ?? 'unknown error'}`,
     );
   }
 
@@ -408,7 +440,7 @@ export async function verifyDesktopOpenClawReleaseAssets({
   assertManifestMatchesTarget(
     manifest,
     target,
-    'bundled OpenClaw source manifest',
+    'prepared OpenClaw source manifest',
   );
 
   const packagedManifest = await readJsonFile(
@@ -418,7 +450,7 @@ export async function verifyDesktopOpenClawReleaseAssets({
   assert.deepEqual(
     packagedManifest,
     manifest,
-    'packaged OpenClaw release manifest must match the bundled source manifest',
+    'packaged OpenClaw release manifest must match the prepared source manifest',
   );
 
   await ensurePathExists(

@@ -18,7 +18,10 @@ function runTest(name: string, fn: () => Promise<void> | void) {
     });
 }
 
-function createGatewaySnapshotInstance(instanceId: string): StudioInstanceRecord {
+function createGatewaySnapshotInstance(
+  instanceId: string,
+  overrides: Partial<StudioInstanceRecord> = {},
+): StudioInstanceRecord {
   return {
     id: instanceId,
     name: 'Local Built-In Snapshot',
@@ -58,27 +61,29 @@ function createGatewaySnapshotInstance(instanceId: string): StudioInstanceRecord
     createdAt: 1,
     updatedAt: 1,
     lastSeenAt: 1,
+    ...overrides,
   };
 }
 
-function createStartingDetail(instanceId: string): StudioInstanceDetailRecord {
-  return {
-    instance: {
-      ...createGatewaySnapshotInstance(instanceId),
-      status: 'starting',
-      baseUrl: null,
-      websocketUrl: null,
-      config: {
-        ...createGatewaySnapshotInstance(instanceId).config,
-        baseUrl: null,
-        websocketUrl: null,
-      },
-    },
+function createStartingDetail(
+  instanceId: string,
+  overrides: Partial<StudioInstanceDetailRecord['instance']> = {},
+): StudioInstanceDetailRecord {
+  const instance = createGatewaySnapshotInstance(instanceId, {
+    status: 'starting',
+    baseUrl: null,
+    websocketUrl: null,
     config: {
       ...createGatewaySnapshotInstance(instanceId).config,
       baseUrl: null,
       websocketUrl: null,
     },
+    ...overrides,
+  });
+
+  return {
+    instance,
+    config: instance.config,
     logs: '',
     health: {
       score: 50,
@@ -160,6 +165,54 @@ await runTest(
 
     try {
       const conversations = await listInstanceConversations('authority-mismatch-instance');
+      assert.deepEqual(conversations, []);
+      assert.deepEqual(listCalls, []);
+    } finally {
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'studioConversationGateway also blocks snapshot conversation reads for non-openclaw local-managed gateway instances while authoritative chat routing is not ready',
+  async () => {
+    const originalBridge = getPlatformBridge();
+    const listCalls: string[] = [];
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(instanceId) {
+          return createGatewaySnapshotInstance(instanceId, {
+            runtimeKind: 'custom',
+            name: 'Custom Local Gateway',
+          });
+        },
+        async getInstanceDetail(instanceId) {
+          return createStartingDetail(instanceId, {
+            runtimeKind: 'custom',
+            name: 'Custom Local Gateway',
+          });
+        },
+        async listConversations(instanceId) {
+          listCalls.push(instanceId);
+          return [
+            {
+              id: 'conversation-custom-1',
+              title: 'Should stay hidden',
+              createdAt: 1,
+              updatedAt: 1,
+              model: 'openai/gpt-4.1',
+              messages: [],
+              instanceId,
+            },
+          ];
+        },
+      },
+    });
+
+    try {
+      const conversations = await listInstanceConversations('authority-mismatch-custom-instance');
       assert.deepEqual(conversations, []);
       assert.deepEqual(listCalls, []);
     } finally {

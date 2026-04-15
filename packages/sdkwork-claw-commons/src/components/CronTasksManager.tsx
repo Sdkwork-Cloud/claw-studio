@@ -142,7 +142,7 @@ function removePendingId(ids: string[], id: string) {
 
 function createEmptyTaskRuntimeOverview(): TaskRuntimeOverview {
   return {
-    openClawRuntime: false,
+    runtimeTaskSurface: false,
     taskBoard: {
       supported: false,
       message: null,
@@ -1687,7 +1687,7 @@ export function CronTasksManager({
   }
 
   function renderTaskRuntimeSection() {
-    if (!activeInstanceId || !taskRuntimeOverview.openClawRuntime) {
+    if (!activeInstanceId || !taskRuntimeOverview.runtimeTaskSurface) {
       return null;
     }
 

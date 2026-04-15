@@ -32,6 +32,8 @@ runNodeTypeScriptChecks([
   'packages/sdkwork-claw-instances/src/services/instanceOnboardingService.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceFileWorkbench.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceMemoryWorkbenchPresentation.test.ts',
+  'packages/sdkwork-claw-instances/src/services/instanceRegistryWorkbenchSupport.test.ts',
+  'packages/sdkwork-claw-instances/src/services/instanceDetailModuleCatalog.test.ts',
   'packages/sdkwork-claw-instances/src/services/openClawProviderRequestDraft.test.ts',
   'packages/sdkwork-claw-instances/src/services/openClawConfigSchemaSupport.test.ts',
   'packages/sdkwork-claw-instances/src/services/openClawManagementCapabilities.test.ts',

@@ -437,7 +437,7 @@ class DefaultInstanceEffectiveModelCatalogService
     });
 
     const route = resolveInstanceChatRoute(instance);
-    if (route.mode !== 'instanceOpenClawGatewayWs' || instance.runtimeKind !== 'openclaw') {
+    if (route.mode !== 'instanceOpenClawGatewayWs') {
       return {
         channels: groupEntriesToChannels(routerCatalog, {
           useModelRefAsId: false,

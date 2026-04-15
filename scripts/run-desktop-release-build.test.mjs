@@ -31,6 +31,10 @@ test('desktop release build helper rejects missing CLI option values instead of 
     () => helper.parseArgs(['--bundles']),
     /Missing value for --bundles/,
   );
+  assert.throws(
+    () => helper.parseArgs(['--package-profile']),
+    /Missing value for --package-profile/,
+  );
 });
 
 test('desktop release build cli wraps the entrypoint with a top-level error handler', () => {
@@ -75,6 +79,25 @@ test('desktop release build helper creates an OpenClaw release-asset preflight f
   });
   assert.equal(allPreflight.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'macos');
   assert.equal(allPreflight.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
+
+  assert.equal(
+    helper.buildDesktopReleaseBuildPreflightPlan({
+      phase: 'bundle',
+      packageProfileId: 'hermes-only',
+    }),
+    null,
+    'run-desktop-release-build must skip the OpenClaw release-asset preflight when the selected package profile excludes OpenClaw',
+  );
+
+  const dualKernelPreflight = helper.buildDesktopReleaseBuildPreflightPlan({
+    phase: 'bundle',
+    packageProfileId: 'dual-kernel',
+  });
+  assert.deepEqual(
+    dualKernelPreflight.args,
+    ['scripts/verify-desktop-openclaw-release-assets.mjs'],
+    'run-desktop-release-build must keep the OpenClaw release-asset preflight for package profiles that still include OpenClaw',
+  );
 });
 
 test('desktop release build all-phase plan forwards bundle customization flags into the desktop package script', async () => {
@@ -86,6 +109,7 @@ test('desktop release build all-phase plan forwards bundle customization flags i
   const plan = helper.createDesktopReleaseBuildPlan({
     phase: 'all',
     profileId: 'claw-studio',
+    packageProfileId: 'dual-kernel',
     viteMode: 'test',
     bundleTargets: ['nsis', 'msi'],
     targetTriple: 'aarch64-pc-windows-msvc',
@@ -93,7 +117,7 @@ test('desktop release build all-phase plan forwards bundle customization flags i
     hostArch: 'x64',
   });
 
-  assert.equal(plan.command, 'pnpm');
+  assert.equal(plan.command, 'pnpm.cmd');
   assert.deepEqual(
     plan.args,
     [
@@ -104,6 +128,8 @@ test('desktop release build all-phase plan forwards bundle customization flags i
       '--',
       '--profile',
       'claw-studio',
+      '--package-profile',
+      'dual-kernel',
       '--vite-mode',
       'test',
       '--bundles',
@@ -113,6 +139,54 @@ test('desktop release build all-phase plan forwards bundle customization flags i
     ],
     'run-desktop-release-build must forward profile, vite mode, bundle target list, and target triple when phase=all delegates into the desktop package build script',
   );
+  assert.equal(
+    plan.env.SDKWORK_KERNEL_PACKAGE_PROFILE_ID,
+    'dual-kernel',
+    'run-desktop-release-build must expose the resolved kernel package profile to nested desktop package scripts through environment state',
+  );
+  assert.equal(plan.shell, false);
+});
+
+test('desktop release build sync-phase plan forwards explicit package profile selection into bundled sync', async () => {
+  const modulePath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const helper = await import(pathToFileURL(modulePath).href);
+
+  const plan = helper.createDesktopReleaseBuildPlan({
+    phase: 'sync',
+    profileId: 'claw-studio',
+    packageProfileId: 'hermes-only',
+    releaseMode: true,
+    platform: 'linux',
+    hostArch: 'x64',
+  });
+
+  assert.equal(plan.command, process.execPath);
+  assert.match(plan.args.join(' '), /sync-bundled-components\.mjs/);
+  assert.deepEqual(
+    plan.args.slice(-2),
+    ['--package-profile', 'hermes-only'],
+    'run-desktop-release-build must pass explicit kernel package profile selection into sync-bundled-components for direct sync phases',
+  );
+  assert.equal(plan.env.SDKWORK_KERNEL_PACKAGE_PROFILE_ID, 'hermes-only');
+});
+
+test('desktop release build helper resolves Windows pnpm invocations without cmd shell wrapping', async () => {
+  const modulePath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const helper = await import(pathToFileURL(modulePath).href);
+
+  assert.equal(typeof helper.resolveSpawnCommand, 'function');
+  assert.equal(helper.resolveSpawnCommand('pnpm', 'win32'), 'pnpm.cmd');
+  assert.equal(helper.resolveSpawnCommand('pnpm', 'linux'), 'pnpm');
+
+  const windowsPlan = helper.createDesktopReleaseBuildPlan({
+    phase: 'all',
+    platform: 'win32',
+    hostArch: 'x64',
+    env: {},
+  });
+
+  assert.equal(windowsPlan.command, 'pnpm.cmd');
+  assert.equal(windowsPlan.shell, false);
 });
 
 test('desktop release build cli runs the OpenClaw release-asset preflight before spawning the bundle command', () => {
@@ -130,5 +204,10 @@ test('desktop release build cli runs the OpenClaw release-asset preflight before
     source,
     /spawnSync\(\s*preflightPlan\.command,\s*preflightPlan\.args,/s,
     'run-desktop-release-build must execute the OpenClaw release-asset preflight synchronously before spawning the build command',
+  );
+  assert.match(
+    source,
+    /shell:\s*plan\.shell/u,
+    'run-desktop-release-build must use the resolved plan shell setting instead of reintroducing a Windows-only cmd shell wrapper at spawn time',
   );
 });

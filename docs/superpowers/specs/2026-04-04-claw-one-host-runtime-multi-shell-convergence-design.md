@@ -2,6 +2,8 @@
 
 **Date:** 2026-04-04
 
+> **Supersession Note (2026-04-13):** This document is preserved for historical host-runtime convergence context. The current source of truth for kernel-platform architecture is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`. The one-host direction below remains relevant, but references to bundled OpenClaw runtime lifecycle, bundled Node.js, or OpenClaw-only host assumptions are historical only and must not drive new implementation without translation through the current multi-kernel and external-runtime contracts.
+
 ## Goal
 
 Define the durable architecture baseline that unifies `desktop`, `server`, `docker`, and `kubernetes` around one canonical Rust host runtime, one authoritative `/claw/*` API surface, and one browser application artifact.

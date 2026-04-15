@@ -1,5 +1,4 @@
 import type {
-  EmailLoginForm,
   LoginForm,
   LoginVO,
   OAuthAuthUrlForm,
@@ -25,7 +24,7 @@ import {
   readAppSdkSessionTokens,
   resolveAppSdkAccessToken,
 } from '../sdk/useAppSdkClient.ts';
-import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import { type AppSdkEnvelope, unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
 
 export type AppAuthVerifyType = 'EMAIL' | 'PHONE';
 export type AppAuthScene = 'LOGIN' | 'REGISTER' | 'RESET_PASSWORD';
@@ -65,6 +64,15 @@ export interface AppAuthEmailLoginInput {
   code: string;
   deviceId?: string;
   deviceType?: AppAuthOAuthDeviceType;
+  deviceName?: string;
+  appVersion?: string;
+}
+
+interface AppSdkEmailLoginForm {
+  email: string;
+  code: string;
+  deviceId?: string;
+  deviceType?: string;
   deviceName?: string;
   appVersion?: string;
 }
@@ -213,6 +221,8 @@ function persistSession(session: AppAuthSession): AppAuthSession {
   return session;
 }
 
+type AppSdkLoginResponse = LoginVO | AppSdkEnvelope<LoginVO> | null | undefined;
+
 function resolveAppSdkApiUrl(pathname: string): string {
   const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
   const apiPath = `/app/v3/api${normalizedPath}`;
@@ -271,9 +281,9 @@ export const appAuthService: IAppAuthService = {
   async loginWithEmail(input: AppAuthEmailLoginInput): Promise<AppAuthSession> {
     const client = getAppSdkClientWithSession();
     const authClient = client.auth as typeof client.auth & {
-      emailLogin?: (body: EmailLoginForm) => Promise<unknown>;
+      emailLogin?: (body: AppSdkEmailLoginForm) => Promise<AppSdkLoginResponse>;
     };
-    const request: EmailLoginForm = {
+    const request: AppSdkEmailLoginForm = {
       email: input.email.trim(),
       code: input.code.trim(),
       deviceId: readOptionalString(input.deviceId),
@@ -284,7 +294,7 @@ export const appAuthService: IAppAuthService = {
     const loginData = unwrapAppSdkResponse<LoginVO>(
       authClient.emailLogin
         ? await authClient.emailLogin(request)
-        : await postAppSdkAuthFallback('/auth/email/login', request),
+        : await postAppSdkAuthFallback<AppSdkEnvelope<LoginVO>>('/auth/email/login', request),
       'Failed to complete email code login.',
     );
     return persistSession(mapSession(loginData));

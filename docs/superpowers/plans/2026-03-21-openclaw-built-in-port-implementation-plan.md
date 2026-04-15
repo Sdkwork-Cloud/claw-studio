@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Supersession Note (2026-04-13):** This implementation plan is preserved for historical OpenClaw port-behavior execution context. The current source of truth is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`, with active OpenClaw runtime packaging and activation aligned to `docs/superpowers/plans/2026-04-13-openclaw-external-node-hard-cut-implementation-plan.md`. Any steps below that assume a built-in or bundled runtime contract must now be interpreted through the current managed OpenClaw packaged payload plus external Node.js standard and must not be resumed without that translation.
+
 **Goal:** Make the built-in OpenClaw runtime start on the user-configured port when available and automatically fall back to a nearby free port when that port is occupied.
 
 **Architecture:** Keep the change inside the desktop Tauri boundary by making `studio.rs` own the saved built-in instance port, `openclaw_runtime.rs` own preferred-port resolution plus conflict fallback, and the bootstrap/supervisor flow refresh the configured runtime from the latest built-in config before start or restart.

@@ -3,7 +3,7 @@ import { loadTaskStudioSnapshot } from './cronTasksManagerData.ts';
 
 function createTaskRuntimeOverview() {
   return {
-    openClawRuntime: false,
+    runtimeTaskSurface: false,
     taskBoard: {
       supported: false,
       message: null,

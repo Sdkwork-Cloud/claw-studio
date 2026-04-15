@@ -751,6 +751,7 @@ export function AgentWorkbenchPanel({
           files={snapshot.files}
           agent={snapshot.agent}
           runtimeKind={workbench.detail.instance.runtimeKind}
+          transportKind={workbench.detail.instance.transportKind}
           isBuiltIn={workbench.detail.instance.isBuiltIn}
           isLoading={isFilesLoading}
           onReload={onReload}

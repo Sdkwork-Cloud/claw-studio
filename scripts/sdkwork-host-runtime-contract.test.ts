@@ -13,6 +13,16 @@ function readJson<T>(relPath: string): T {
   return JSON.parse(read(relPath)) as T;
 }
 
+function extractTypeAlias(source: string, aliasName: string) {
+  const match = source.match(
+    new RegExp(`export type ${aliasName} =[\\s\\S]*?;`),
+  );
+
+  assert.ok(match, `Unable to locate type alias ${aliasName}`);
+
+  return match[0];
+}
+
 function extractDesktopLockImporter() {
   const lockSource = read('pnpm-lock.yaml').replace(/\r\n/g, '\n');
   const match = lockSource.match(
@@ -95,6 +105,14 @@ runTest('built-in OpenClaw hosts derive a real version label instead of the bund
   assert.match(desktopStudioSource, /resolve_built_in_openclaw_display_version/);
 });
 
+runTest('desktop kernel host service descriptions do not treat OpenClaw as mandatory product infrastructure', () => {
+  const serviceManagerSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/kernel_host/service_manager.rs',
+  );
+
+  assert.doesNotMatch(serviceManagerSource, /required by Claw Studio/);
+});
+
 runTest('sdkwork-claw-desktop contains the Tauri runtime package surface', () => {
   const pkg = readJson<{
     scripts?: Record<string, string>;
@@ -169,6 +187,141 @@ runTest('shared host runtime contracts freeze endpoint governance and canonical 
   assert.match(serverBrowserBridgeSource, /acceleratorProfile:\s*config\.acceleratorProfile/);
 });
 
+runTest('shared kernel-platform types keep runtime, transport, console, and activation ids extensible for future kernels', () => {
+  const typesSource = read('packages/sdkwork-claw-types/src/index.ts');
+  const studioContractSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/contracts/studio.ts',
+  );
+  const runtimeContractSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
+  );
+  const desktopStudioSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio.rs',
+  );
+  const desktopBridgeSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/desktopHostedBridge.ts',
+  );
+  const desktopBootstrapAppSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopBootstrapApp.tsx',
+  );
+  const knownRuntimeKindAlias = extractTypeAlias(typesSource, 'KnownStudioRuntimeKind');
+  const runtimeKindAlias = extractTypeAlias(typesSource, 'StudioRuntimeKind');
+  const knownTransportKindAlias = extractTypeAlias(
+    typesSource,
+    'KnownStudioInstanceTransportKind',
+  );
+  const transportKindAlias = extractTypeAlias(
+    typesSource,
+    'StudioInstanceTransportKind',
+  );
+  const knownConsoleKindAlias = extractTypeAlias(
+    typesSource,
+    'KnownStudioInstanceConsoleKind',
+  );
+  const consoleKindAlias = extractTypeAlias(
+    typesSource,
+    'StudioInstanceConsoleKind',
+  );
+  const knownActivationStageAlias = extractTypeAlias(
+    typesSource,
+    'KnownStudioInstanceActivationStage',
+  );
+  const activationStageAlias = extractTypeAlias(
+    typesSource,
+    'StudioInstanceActivationStage',
+  );
+
+  assert.match(
+    knownRuntimeKindAlias,
+    /export type KnownStudioRuntimeKind =[\s\S]*'openclaw'[\s\S]*'hermes'[\s\S]*'zeroclaw'[\s\S]*'ironclaw'[\s\S]*'custom'[\s\S]*;/,
+  );
+  assert.match(
+    runtimeKindAlias,
+    /export type StudioRuntimeKind =[\s\S]*KnownStudioRuntimeKind[\s\S]*\(string & \{\}\)[\s\S]*;/,
+  );
+  assert.match(
+    knownTransportKindAlias,
+    /export type KnownStudioInstanceTransportKind =[\s\S]*'openclawGatewayWs'[\s\S]*'zeroclawHttp'[\s\S]*'ironclawWeb'[\s\S]*'openaiHttp'[\s\S]*'customHttp'[\s\S]*'customWs'[\s\S]*;/,
+  );
+  assert.match(
+    transportKindAlias,
+    /export type StudioInstanceTransportKind =[\s\S]*KnownStudioInstanceTransportKind[\s\S]*\(string & \{\}\)[\s\S]*;/,
+  );
+  assert.match(
+    knownConsoleKindAlias,
+    /export type KnownStudioInstanceConsoleKind =[\s\S]*'openclawControlUi'[\s\S]*;/,
+  );
+  assert.match(
+    consoleKindAlias,
+    /export type StudioInstanceConsoleKind =[\s\S]*KnownStudioInstanceConsoleKind[\s\S]*\(string & \{\}\)[\s\S]*;/,
+  );
+  assert.doesNotMatch(typesSource, /StudioBuiltInOpenClawActivationStage/);
+  assert.match(
+    knownActivationStageAlias,
+    /export type KnownStudioInstanceActivationStage =[\s\S]*'resolveRequirements'[\s\S]*'prepareInstall'[\s\S]*'validateInstall'[\s\S]*'activateInstall'[\s\S]*'prepareConfig'[\s\S]*'startProcess'[\s\S]*'verifyEndpoint'[\s\S]*'projectInstance'[\s\S]*'ready'[\s\S]*;/,
+  );
+  assert.match(
+    activationStageAlias,
+    /export type StudioInstanceActivationStage =[\s\S]*KnownStudioInstanceActivationStage[\s\S]*\(string & \{\}\)[\s\S]*;/,
+  );
+  assert.match(studioContractSource, /runtimeKind: StudioRuntimeKind;/);
+  assert.match(studioContractSource, /transportKind: StudioInstanceTransportKind;/);
+  assert.match(studioContractSource, /getInstanceDetail\(id: string\): Promise<StudioInstanceDetailRecord \| null>;/);
+  assert.match(
+    runtimeContractSource,
+    /export interface RuntimeDesktopBundledComponentsInfo \{[\s\S]*packageProfileId:\s*string;[\s\S]*includedKernelIds:\s*string\[];[\s\S]*defaultEnabledKernelIds:\s*string\[];[\s\S]*\}/,
+  );
+  assert.match(
+    desktopBridgeSource,
+    /requiresManagedOpenClawEvidence\?: boolean;/,
+  );
+  assert.match(
+    desktopBridgeSource,
+    /requiresManagedOpenClawEvidence = true/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /function resolveBackgroundRuntimeReadinessRecoveryMode\([\s\S]*includedKernelIds[\s\S]*return includedKernelIds\.includes\('openclaw'\)[\s\S]*'managed-openclaw'[\s\S]*'generic-hosted-runtime'/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /const recoveryMode = resolveBackgroundRuntimeReadinessRecoveryMode\([\s\S]*kernelInfo\?\.bundledComponents\.includedKernelIds[\s\S]*requiresManagedOpenClawEvidence:\s*recoveryMode === 'managed-openclaw'/,
+  );
+  assert.match(
+    desktopStudioSource,
+    /pub enum StudioRuntimeKind \{[\s\S]*Openclaw,[\s\S]*Hermes,[\s\S]*Zeroclaw,[\s\S]*Ironclaw,[\s\S]*Custom,[\s\S]*Other\(String\),[\s\S]*\}/,
+  );
+  assert.match(
+    desktopStudioSource,
+    /pub enum StudioInstanceTransportKind \{[\s\S]*OpenclawGatewayWs,[\s\S]*ZeroclawHttp,[\s\S]*IronclawWeb,[\s\S]*OpenaiHttp,[\s\S]*CustomHttp,[\s\S]*CustomWs,[\s\S]*Other\(String\),[\s\S]*\}/,
+  );
+  assert.match(desktopStudioSource, /impl Serialize for StudioRuntimeKind/);
+  assert.match(desktopStudioSource, /impl<'de> Deserialize<'de> for StudioRuntimeKind/);
+  assert.match(desktopStudioSource, /impl Serialize for StudioInstanceTransportKind/);
+  assert.match(
+    desktopStudioSource,
+    /impl<'de> Deserialize<'de> for StudioInstanceTransportKind/,
+  );
+  assert.match(desktopStudioSource, /StudioRuntimeKind::Hermes => vec!\[StudioInstanceRuntimeNote \{/);
+  assert.match(
+    desktopStudioSource,
+    /StudioRuntimeKind::Hermes => vec!\[[\s\S]*StudioInstanceCapability::Chat,[\s\S]*StudioInstanceCapability::Health,[\s\S]*StudioInstanceCapability::Files,[\s\S]*StudioInstanceCapability::Memory,[\s\S]*StudioInstanceCapability::Tools,[\s\S]*StudioInstanceCapability::Models,[\s\S]*\]/,
+  );
+  assert.doesNotMatch(desktopStudioSource, /StudioBuiltInOpenClawActivationStage/);
+  assert.match(desktopStudioSource, /pub enum StudioInstanceActivationStage/);
+  assert.match(
+    desktopStudioSource,
+    /pub enum StudioInstanceActivationStage \{[\s\S]*PrepareInstall,[\s\S]*PrepareConfig,[\s\S]*VerifyEndpoint,[\s\S]*Ready,[\s\S]*\}/,
+  );
+  assert.doesNotMatch(desktopStudioSource, /GatewayConfigured/);
+  assert.doesNotMatch(desktopStudioSource, /PrepareRuntimeActivation/);
+  assert.match(desktopStudioSource, /pub last_activation_stage: Option<StudioInstanceActivationStage>/);
+  assert.match(
+    desktopStudioSource,
+    /Last built-in OpenClaw activation detail stage:/,
+  );
+});
+
 runTest('desktop and server hosts keep OpenClaw detail parity for built-in, local-external, and remote shapes', () => {
   const desktopStudioSource = read(
     'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio.rs',
@@ -190,6 +343,13 @@ runTest('desktop and server hosts keep OpenClaw detail parity for built-in, loca
     desktopStudioSource,
     /remote_openclaw_instance_detail_does_not_reuse_built_in_local_workbench/,
   );
+  assert.match(
+    desktopStudioSource,
+    /fn hermes_remote_instance_detail_reports_external_runtime_constraints_and_generic_connectivity\(\)/,
+  );
+  assert.match(desktopStudioSource, /Remote Hermes Agent/);
+  assert.match(desktopStudioSource, /runtime_kind: StudioRuntimeKind::Hermes/);
+  assert.match(desktopStudioSource, /transport_kind: StudioInstanceTransportKind::CustomHttp/);
 
   assert.match(serverStudioSource, /"consoleAccess": console_access\.unwrap_or\(Value::Null\)/);
   assert.match(
@@ -270,6 +430,9 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   const desktopBackgroundRuntimeReadinessToastSource = read(
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/desktopBackgroundRuntimeReadinessToast.ts',
   );
+  const desktopBackgroundRuntimeReadinessRecoverySource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/desktopBackgroundRuntimeReadinessRecovery.ts',
+  );
   const desktopStartupEvidenceSource = read(
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/desktopStartupEvidence.ts',
   );
@@ -290,6 +453,14 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   assert.match(
     desktopStartupEvidenceSource,
     /export const DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH =\s*'diagnostics\/desktop-startup-evidence\.json';/,
+  );
+  assert.match(
+    desktopStartupEvidenceSource,
+    /export interface DesktopStartupEvidenceBundledComponents \{[\s\S]*packageProfileId:\s*string;[\s\S]*includedKernelIds:\s*string\[];[\s\S]*defaultEnabledKernelIds:\s*string\[];[\s\S]*\}/,
+  );
+  assert.match(
+    desktopStartupEvidenceSource,
+    /export interface DesktopStartupEvidenceDocument \{[\s\S]*bundledComponents:\s*DesktopStartupEvidenceBundledComponents \| null;/,
   );
   assert.match(desktopStartupEvidenceSource, /sanitizeDesktopStartupDescriptor/);
   assert.doesNotMatch(desktopStartupEvidenceSource, /browserSessionToken:/);
@@ -327,6 +498,18 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   assert.match(connectDesktopRuntimeBody, /getAppPaths,/);
   assert.match(
     connectDesktopRuntimeBody,
+    /let desktopKernelInfoPromise: Promise<DesktopKernelInfo \| null> \| null = null;/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /const captureDesktopKernelInfo = async \(captureRunId = runId\) => \{/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /const captureLocalAiProxyEvidence = async \(captureRunId = runId\) => \{/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
     /const captureLocalAiProxyEvidence = async \(captureRunId = runId\) => \{/,
   );
   assert.match(
@@ -337,9 +520,17 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
     connectDesktopRuntimeBody,
     /const localAiProxy = kernelInfo\?\.localAiProxy \?\? null;/,
   );
-  assert.doesNotMatch(
+  assert.match(
     connectDesktopRuntimeBody,
-    /kernelInfo\?\.(?!localAiProxy\b)/,
+    /const kernelInfo = await captureDesktopKernelInfo\(runId\);[\s\S]*const recoveryMode = resolveBackgroundRuntimeReadinessRecoveryMode\([\s\S]*kernelInfo\?\.bundledComponents\.includedKernelIds[\s\S]*requiresManagedOpenClawEvidence:\s*recoveryMode === 'managed-openclaw'/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /interface DesktopStartupEvidenceContext \{[\s\S]*bundledComponents:[\s\S]*DesktopKernelInfo\['bundledComponents'\] \| null;/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /buildDesktopStartupEvidenceDocument\(\{[\s\S]*bundledComponents:\s*bundledComponents \?\? context\?\.bundledComponents \?\? null,/,
   );
   assert.match(
     connectDesktopRuntimeBody,
@@ -471,6 +662,18 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     desktopBootstrapAppSource,
+    /function resolveBuiltInOpenClawInstanceFromSnapshot\(/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /function resolveBuiltInOpenClawInstanceIdFromSnapshot\(/,
+  );
+  assert.doesNotMatch(
+    desktopBootstrapAppSource,
+    /const BUILT_IN_OPENCLAW_INSTANCE_ID = 'local-built-in';/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
     /clearFailureState:\s*\(\)\s*=>\s*\{\s*clearBackgroundRuntimeReadinessFailureState\(\{\s*dismissToast:\s*false\s*}\);/,
   );
   assert.match(
@@ -491,7 +694,11 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     desktopBootstrapAppSource,
-    /openDesktopShellRoute\(`\$\{ROUTE_PATHS\.INSTANCES\}\/\$\{BUILT_IN_OPENCLAW_INSTANCE_ID\}`\);/,
+    /const builtInInstanceId = resolveBuiltInOpenClawInstanceIdFromSnapshot\(\s*startupEvidenceContextRef\.current\?\.readinessSnapshot,\s*\);[\s\S]*openDesktopShellRoute\(\s*builtInInstanceId\s*\?\s*`\$\{ROUTE_PATHS\.INSTANCES\}\/\$\{builtInInstanceId\}`\s*:\s*ROUTE_PATHS\.INSTANCES,\s*\);/,
+  );
+  assert.match(
+    desktopBackgroundRuntimeReadinessRecoverySource,
+    /if \(recoveryMode === 'managed-openclaw'\) \{[\s\S]*if \(!instanceId\) \{[\s\S]*'The managed OpenClaw instance could not be resolved for retry\.'/,
   );
   assert.match(
     desktopBootstrapAppSource,
@@ -544,7 +751,18 @@ runTest('desktop hosted readiness probe validates live OpenClaw authority instea
     desktopHostedBridgeSource,
     /manage\.openclaw\.gateway\.invoke/,
   );
-  assert.match(desktopHostedBridgeSource, /local-built-in/);
+  assert.match(
+    desktopHostedBridgeSource,
+    /resolveBuiltInOpenClawInstance/,
+  );
+  assert.match(
+    desktopHostedBridgeSource,
+    /gatewayBaseUrl:\s*openClawGatewayBaseUrl,\s*[\s\S]*gatewayWebsocketUrl:\s*openClawGatewayWebsocketUrl,/,
+  );
+  assert.doesNotMatch(
+    desktopHostedBridgeSource,
+    /instances\.find\(\(instance\)\s*=>\s*normalizeRequiredString\(instance\.id\)\s*===\s*'local-built-in'\)/,
+  );
   assert.match(
     desktopHostedBridgeSource,
     /Desktop hosted runtime did not expose the built-in OpenClaw instance baseUrl\./,
@@ -807,7 +1025,7 @@ runTest('sdkwork-claw-desktop keeps browser mocks out of desktop business bridge
   );
 });
 
-runTest('sdkwork-claw-desktop seeds a real bundled OpenClaw version in runtime defaults', () => {
+runTest('sdkwork-claw-desktop keeps generic component defaults separate from bundled kernel versions', () => {
   const componentDefaultsSource = read(
     'packages/sdkwork-claw-desktop/src-tauri/src/framework/components.rs',
   );
@@ -815,11 +1033,20 @@ runTest('sdkwork-claw-desktop seeds a real bundled OpenClaw version in runtime d
     'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/components.rs',
   );
 
-  assert.match(
+  assert.doesNotMatch(
     componentDefaultsSource,
-    /PackagedComponentDefinition\s*\{\s*id:\s*"openclaw"\.to_string\(\),[\s\S]*?bundled_version:\s*bundled_openclaw_version\(\)\.to_string\(\)/,
+    /id:\s*"openclaw"\.to_string\(\)|id:\s*"zeroclaw"\.to_string\(\)|id:\s*"ironclaw"\.to_string\(\)/,
   );
   assert.doesNotMatch(componentResourcesSource, /source_component_resource_dir\(\)/);
+  assert.match(componentResourcesSource, /bundle_manifest:/);
+  assert.match(
+    componentResourcesSource,
+    /filter\(\|kernel_id\| included_kernel_ids\.contains\(kernel_id\)\)/,
+  );
+  assert.match(
+    componentResourcesSource,
+    /if normalized\.is_empty\(\) \{\s*normalized = included_kernel_ids\.clone\(\);\s*\}/,
+  );
 });
 
 await runAsyncTest('sdkwork-claw-desktop recognizes Tauri v2 runtimes even when withGlobalTauri is disabled', async () => {
@@ -892,7 +1119,7 @@ await runAsyncTest('sdkwork-claw-desktop waits for a late Tauri runtime before i
             {
               id: 'local-built-in',
               name: 'Local Built-In',
-              description: 'Bundled local OpenClaw runtime managed by Claw Studio.',
+              description: 'Packaged local OpenClaw kernel managed by Claw Studio.',
               runtimeKind: 'openclaw',
               deploymentMode: 'local-managed',
               transportKind: 'openclawGatewayWs',

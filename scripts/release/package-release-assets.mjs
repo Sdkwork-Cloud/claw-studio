@@ -31,6 +31,14 @@ import {
   resolveReleaseProfile,
 } from './release-profiles.mjs';
 import {
+  DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
+  resolveKernelPackageProfile,
+} from './kernel-package-profiles.mjs';
+import {
+  normalizeKernelInstallContracts,
+  writeKernelInstallContract,
+} from './kernel-install-contracts.mjs';
+import {
   resolveCliPath,
 } from './path-inputs.mjs';
 
@@ -135,6 +143,18 @@ export function normalizeDeploymentAccelerator(accelerator = DEFAULT_DEPLOYMENT_
   return normalizedAccelerator;
 }
 
+function resolveEffectiveKernelPackageProfile({
+  profileId = DEFAULT_RELEASE_PROFILE_ID,
+  packageProfileId = '',
+} = {}) {
+  const releaseProfile = resolveReleaseProfile(profileId);
+  return resolveKernelPackageProfile(
+    String(packageProfileId ?? '').trim()
+      || releaseProfile.defaultPackageProfileId
+      || DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
+  );
+}
+
 export function buildServerArchiveBaseName({
   releaseTag,
   platform,
@@ -225,6 +245,42 @@ function resolveExistingServerBinaryPath({
 
 function buildArchiveExtension(format) {
   return format === 'zip' ? 'zip' : 'tar.gz';
+}
+
+function resolveSpawnCommand(command, platform = process.platform) {
+  if (platform !== 'win32') {
+    return command;
+  }
+
+  if (path.extname(command)) {
+    return command;
+  }
+
+  if (command === 'tar') {
+    return 'tar.exe';
+  }
+
+  if (command === 'powershell') {
+    return 'powershell.exe';
+  }
+
+  return command;
+}
+
+export function createTarArchivePlan({
+  archivePath,
+  workingDirectory,
+  entryName,
+  platform = process.platform,
+  cwd = rootDir,
+} = {}) {
+  return {
+    command: resolveSpawnCommand('tar', platform),
+    args: ['-czf', archivePath, '-C', workingDirectory, entryName],
+    cwd,
+    stdio: 'inherit',
+    shell: false,
+  };
 }
 
 function createDirectoryArchive({
@@ -494,6 +550,7 @@ export function parseArgs(argv) {
   const [mode, ...rest] = argv;
   const options = {
     profileId: DEFAULT_RELEASE_PROFILE_ID,
+    packageProfileId: '',
     mode,
     platform: process.platform,
     arch: process.arch,
@@ -517,6 +574,12 @@ export function parseArgs(argv) {
 
     if (token === '--platform') {
       options.platform = readOptionValue(rest, index, '--platform');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--package-profile') {
+      options.packageProfileId = readOptionValue(rest, index, '--package-profile');
       index += 1;
       continue;
     }
@@ -664,7 +727,7 @@ function runZipCommand(archivePath, workingDirectory, entryName) {
   const zipResult =
     process.platform === 'win32'
       ? spawnSync(
-          'powershell',
+          resolveSpawnCommand('powershell'),
           [
             '-NoLogo',
             '-NoProfile',
@@ -738,6 +801,7 @@ function packageMacosAppArchives({
 
 export function packageDesktopAssets({
   profileId = DEFAULT_RELEASE_PROFILE_ID,
+  packageProfileId = '',
   releaseTag = '',
   platform,
   arch,
@@ -748,6 +812,10 @@ export function packageDesktopAssets({
   workspaceRootDir = rootDir,
 }) {
   const releaseProfile = resolveReleaseProfile(profileId);
+  const kernelPackageProfile = resolveEffectiveKernelPackageProfile({
+    profileId,
+    packageProfileId,
+  });
   const targetSpec = resolveDesktopReleaseTarget({
     targetTriple: target,
     platform,
@@ -755,10 +823,16 @@ export function packageDesktopAssets({
   });
   const platformId = normalizePlatformId(targetSpec.platform);
   const archId = normalizeDesktopArch(targetSpec.arch);
-  const openClawInstallerContract = readDesktopOpenClawInstallerContract({
-    workspaceRootDir,
-    platform: platformId,
-  });
+  const kernelInstallContracts = kernelPackageProfile.includedKernelIds.includes('openclaw')
+    ? writeKernelInstallContract(
+        null,
+        'openclaw',
+        readDesktopOpenClawInstallerContract({
+          workspaceRootDir,
+          platform: platformId,
+        }),
+      )
+    : null;
   const desktopBundleRoot = resolveExistingDesktopBundleRoot({
     targetTriple: targetSpec.targetTriple,
     targetDir,
@@ -840,7 +914,8 @@ export function packageDesktopAssets({
     releaseTag,
     platform: platformId,
     arch: archId,
-    openClawInstallerContract,
+    kernelPackageProfile,
+    kernelInstallContracts,
     artifacts: emittedArtifacts,
   });
 }
@@ -1158,10 +1233,15 @@ export function packageKubernetesAssets({
 }
 
 function runTarCommand(archivePath, workingDirectory, entryName) {
-  const result = spawnSync('tar', ['-czf', archivePath, '-C', workingDirectory, entryName], {
-    cwd: rootDir,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
+  const tarPlan = createTarArchivePlan({
+    archivePath,
+    workingDirectory,
+    entryName,
+  });
+  const result = spawnSync(tarPlan.command, tarPlan.args, {
+    cwd: tarPlan.cwd,
+    stdio: tarPlan.stdio,
+    shell: tarPlan.shell,
   });
 
   if (result.error) {
@@ -1249,7 +1329,8 @@ function writeReleaseAssetManifest({
   releaseTag = '',
   platform,
   arch,
-  openClawInstallerContract,
+  kernelPackageProfile,
+  kernelInstallContracts,
   artifacts,
 }) {
   writeFileSync(
@@ -1260,8 +1341,19 @@ function writeReleaseAssetManifest({
       releaseTag: String(releaseTag ?? '').trim(),
       platform,
       arch,
-      ...(openClawInstallerContract
-        ? { openClawInstallerContract }
+      ...(kernelPackageProfile
+        ? {
+            packageProfileId: kernelPackageProfile.profileId,
+            includedKernelIds: kernelPackageProfile.includedKernelIds,
+            defaultEnabledKernelIds: kernelPackageProfile.defaultEnabledKernelIds,
+            requiredExternalRuntimes: kernelPackageProfile.requiredExternalRuntimes,
+            optionalExternalRuntimes: kernelPackageProfile.optionalExternalRuntimes,
+            launcherKinds: kernelPackageProfile.launcherKinds,
+            kernelPlatformSupport: kernelPackageProfile.kernelPlatformSupport,
+          }
+        : {}),
+      ...(normalizeKernelInstallContracts(kernelInstallContracts)
+        ? { kernelInstallContracts: normalizeKernelInstallContracts(kernelInstallContracts) }
         : {}),
       artifacts,
     }, null, 2)}\n`,

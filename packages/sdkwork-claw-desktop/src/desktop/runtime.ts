@@ -1,10 +1,41 @@
-import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { RuntimeEventUnsubscribe } from '@sdkwork/claw-infrastructure';
 import type { DesktopCommandName, DesktopEventName } from './catalog';
 
 type DesktopBridgeRuntime = 'desktop' | 'web';
+
+type DesktopWindowEventUnsubscribe = () => void;
+
+interface DesktopWindowLike {
+  minimize(): Promise<void>;
+  maximize(): Promise<void>;
+  unmaximize(): Promise<void>;
+  isFullscreen(): Promise<boolean>;
+  setFullscreen(next: boolean): Promise<void>;
+  isMaximized(): Promise<boolean>;
+  isMinimized(): Promise<boolean>;
+  unminimize(): Promise<void>;
+  isVisible(): Promise<boolean>;
+  show(): Promise<void>;
+  hide(): Promise<void>;
+  setFocus(): Promise<void>;
+  onResized(listener: () => void): Promise<DesktopWindowEventUnsubscribe>;
+  onMoved(listener: () => void): Promise<DesktopWindowEventUnsubscribe>;
+}
+
+interface TauriCoreModuleLike {
+  invoke<T>(command: string, payload?: Record<string, unknown>): Promise<T>;
+}
+
+interface TauriEventModuleLike {
+  listen<T>(
+    event: string,
+    listener: (nextEvent: { payload: T }) => void,
+  ): Promise<RuntimeEventUnsubscribe>;
+}
+
+interface TauriWindowModuleLike {
+  getCurrentWindow(): DesktopWindowLike;
+}
 
 interface DesktopBridgeErrorOptions {
   operation: string;
@@ -73,8 +104,69 @@ interface TauriInternalsLike {
   invoke?: unknown;
 }
 
+let tauriCoreModulePromise: Promise<TauriCoreModuleLike | null> | null = null;
+let tauriCoreModule: TauriCoreModuleLike | null = null;
+let tauriEventModulePromise: Promise<TauriEventModuleLike | null> | null = null;
+let tauriEventModule: TauriEventModuleLike | null = null;
+let tauriWindowModulePromise: Promise<TauriWindowModuleLike | null> | null = null;
+let tauriWindowModule: TauriWindowModuleLike | null = null;
+
 const TAURI_RUNTIME_WAIT_TIMEOUT_MS = 600;
 const TAURI_RUNTIME_WAIT_POLL_MS = 20;
+
+async function loadTauriCoreModule(): Promise<TauriCoreModuleLike | null> {
+  tauriCoreModulePromise ??= import('@tauri-apps/api/core')
+    .then((module) => {
+      tauriCoreModule = {
+        invoke: module.invoke,
+      };
+      return tauriCoreModule;
+    })
+    .catch(() => {
+      tauriCoreModule = null;
+      return null;
+    });
+
+  return tauriCoreModulePromise;
+}
+
+async function loadTauriEventModule(): Promise<TauriEventModuleLike | null> {
+  tauriEventModulePromise ??= import('@tauri-apps/api/event')
+    .then((module) => {
+      tauriEventModule = {
+        listen: module.listen,
+      };
+      return tauriEventModule;
+    })
+    .catch(() => {
+      tauriEventModule = null;
+      return null;
+    });
+
+  return tauriEventModulePromise;
+}
+
+async function loadTauriWindowModule(): Promise<TauriWindowModuleLike | null> {
+  tauriWindowModulePromise ??= import('@tauri-apps/api/window')
+    .then((module) => {
+      tauriWindowModule = {
+        getCurrentWindow: module.getCurrentWindow,
+      };
+      return tauriWindowModule;
+    })
+    .catch(() => {
+      tauriWindowModule = null;
+      return null;
+    });
+
+  return tauriWindowModulePromise;
+}
+
+function primeTauriModules() {
+  void loadTauriCoreModule();
+  void loadTauriEventModule();
+  void loadTauriWindowModule();
+}
 
 function resolveTauriInternals() {
   if (typeof window === 'undefined') {
@@ -93,12 +185,13 @@ export function isTauriRuntime() {
     return false;
   }
 
-  if (isTauri()) {
-    return true;
+  const tauriInternals = resolveTauriInternals();
+  const detected = Boolean(tauriInternals && typeof tauriInternals.invoke === 'function');
+  if (detected) {
+    primeTauriModules();
   }
 
-  const tauriInternals = resolveTauriInternals();
-  return Boolean(tauriInternals && typeof tauriInternals.invoke === 'function');
+  return detected;
 }
 
 function sleep(ms: number) {
@@ -133,12 +226,33 @@ export async function waitForTauriRuntime(options?: {
   return isTauriRuntime();
 }
 
-export function getDesktopWindow() {
+export function getDesktopWindow(): DesktopWindowLike | null {
   if (!isTauriRuntime()) {
     return null;
   }
 
-  return getCurrentWindow();
+  void loadTauriWindowModule();
+  return tauriWindowModule?.getCurrentWindow() ?? null;
+}
+
+async function invokeTauriCommand<T>(
+  command: DesktopCommandName,
+  payload?: Record<string, unknown>,
+): Promise<T> {
+  const tauriCore = await loadTauriCoreModule();
+  if (tauriCore) {
+    return tauriCore.invoke<T>(command, payload);
+  }
+
+  const tauriInternals = resolveTauriInternals();
+  if (tauriInternals && typeof tauriInternals.invoke === 'function') {
+    return (tauriInternals.invoke as (
+      command: string,
+      payload?: Record<string, unknown>,
+    ) => Promise<T>)(command, payload);
+  }
+
+  throw createDesktopUnavailableError(command, command);
 }
 
 export async function invokeDesktopCommand<T>(
@@ -152,7 +266,7 @@ export async function invokeDesktopCommand<T>(
   }
 
   try {
-    return await invoke<T>(command, payload);
+    return await invokeTauriCommand<T>(command, payload);
   } catch (cause) {
     throw new DesktopBridgeError({
       operation,
@@ -173,7 +287,12 @@ export async function listenDesktopEvent<T>(
   }
 
   try {
-    return await listen<T>(event, (nextEvent) => {
+    const tauriEvent = await loadTauriEventModule();
+    if (!tauriEvent) {
+      return () => {};
+    }
+
+    return await tauriEvent.listen<T>(event, (nextEvent) => {
       listener(nextEvent.payload);
     });
   } catch (cause) {

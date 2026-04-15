@@ -52,7 +52,7 @@
     "data": "Data & Privacy"
   },
   "kernelCenter": {
-    "description": "The built-in OpenClaw kernel is treated as mandatory product infrastructure. This surface shows the actual host owner, active endpoint, storage profile, and runtime provenance without hiding fallback behavior.",
+    "description": "This surface shows kernel authority ownership, active endpoints, storage profile, and runtime provenance without hiding fallback behavior.",
     "actions": {
       "refresh": "Refresh",
       "ensureRunning": "Ensure Running",
@@ -115,7 +115,7 @@
       "manual": "Manual Start"
     },
     "installSources": {
-      "bundled": "Bundled",
+      "bundled": "Packaged",
       "external": "External",
       "remote": "Remote",
       "unknown": "Unknown"
@@ -196,7 +196,7 @@
       "websocketUrl": "WebSocket URL",
       "preferredPort": "Preferred Port",
       "activePort": "Active Port",
-      "openclawVersion": "OpenClaw Version",
+      "runtimeVersion": "Runtime Version",
       "nodeVersion": "Node.js Version",
       "activeProfile": "Active Profile",
       "profilePath": "Profile Path",

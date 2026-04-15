@@ -1,5 +1,6 @@
 use crate::framework::{
-    services::openclaw_runtime::ActivatedOpenClawRuntime, FrameworkError, Result,
+    services::openclaw_runtime::{load_manifest, ActivatedOpenClawRuntime},
+    FrameworkError, Result,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -112,15 +113,26 @@ pub struct OpenClawMirrorManagedPluginAssetRecord {
 pub fn build_managed_runtime_snapshot(
     runtime: &ActivatedOpenClawRuntime,
 ) -> Result<OpenClawMirrorRuntimeSnapshot> {
-    let (openclaw_version, platform, arch) = split_install_key(&runtime.install_key);
+    let manifest = load_manifest(&runtime.install_dir.join("manifest.json")).ok();
+    let (fallback_openclaw_version, fallback_platform, fallback_arch) =
+        split_install_key(&runtime.install_key);
 
     Ok(OpenClawMirrorRuntimeSnapshot {
         runtime_id: OPENCLAW_MIRROR_RUNTIME_ID.to_string(),
         install_key: Some(runtime.install_key.clone()),
-        openclaw_version,
+        openclaw_version: manifest
+            .as_ref()
+            .map(|manifest| manifest.openclaw_version.clone())
+            .or(fallback_openclaw_version),
         node_version: None,
-        platform,
-        arch,
+        platform: manifest
+            .as_ref()
+            .map(|manifest| manifest.platform.clone())
+            .unwrap_or(fallback_platform),
+        arch: manifest
+            .as_ref()
+            .map(|manifest| manifest.arch.clone())
+            .unwrap_or(fallback_arch),
         home_dir: normalize_path(&runtime.home_dir),
         state_dir: normalize_path(&runtime.state_dir),
         workspace_dir: normalize_path(&runtime.workspace_dir),
@@ -591,16 +603,31 @@ fn normalize_path(path: &Path) -> String {
 }
 
 fn split_install_key(install_key: &str) -> (Option<String>, String, String) {
-    let segments = install_key.split('-').collect::<Vec<_>>();
-    if segments.len() < 3 {
+    let trimmed = install_key.trim();
+    if trimmed.is_empty() {
         return (None, "unknown".to_string(), "unknown".to_string());
     }
 
-    let openclaw_version = Some(segments[0].to_string());
-    let platform = segments[1].to_string();
-    let arch = segments[2..].join("-");
+    let mut segments = trimmed.rsplitn(3, '-');
+    let arch = segments.next().unwrap_or("unknown").to_string();
+    let platform = segments.next().unwrap_or("unknown").to_string();
+    let openclaw_version = segments
+        .next()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .filter(|value| looks_like_openclaw_version_label(value))
+        .map(str::to_string);
 
     (openclaw_version, platform, arch)
+}
+
+fn looks_like_openclaw_version_label(value: &str) -> bool {
+    let trimmed = value.trim();
+    !trimmed.is_empty()
+        && trimmed.chars().any(|character| character.is_ascii_digit())
+        && trimmed
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_'))
 }
 
 #[cfg(test)]
@@ -674,6 +701,58 @@ mod tests {
         assert!(snapshot.state_dir.ends_with(".openclaw"));
         assert!(snapshot.workspace_dir.ends_with(".openclaw/workspace"));
         assert!(snapshot.config_path.ends_with(".openclaw/openclaw.json"));
+    }
+
+    #[test]
+    fn openclaw_mirror_manifest_prefers_manifest_version_over_install_key_parsing() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        seed_managed_openclaw_tree(&paths);
+        let mut runtime = create_runtime(&paths);
+        runtime.install_key = "openclaw-nightly-windows-x64".to_string();
+        runtime.install_dir = paths.openclaw_runtime_dir.join(&runtime.install_key);
+        runtime.runtime_dir = runtime.install_dir.join("runtime");
+        fs::create_dir_all(&runtime.install_dir).expect("create install dir");
+        fs::write(
+            runtime.install_dir.join("manifest.json"),
+            r#"{
+  "schemaVersion": 2,
+  "runtimeId": "openclaw",
+  "openclawVersion": "2026.4.11",
+  "requiredExternalRuntimes": ["nodejs"],
+  "requiredExternalRuntimeVersions": {
+    "nodejs": "22.16.0"
+  },
+  "platform": "windows",
+  "arch": "x64",
+  "cliRelativePath": "runtime/package/node_modules/openclaw/openclaw.mjs"
+}"#,
+        )
+        .expect("write manifest");
+
+        let snapshot = build_managed_runtime_snapshot(&runtime).expect("runtime snapshot");
+
+        assert_eq!(snapshot.openclaw_version.as_deref(), Some("2026.4.11"));
+        assert_eq!(snapshot.platform, "windows");
+        assert_eq!(snapshot.arch, "x64");
+    }
+
+    #[test]
+    fn openclaw_mirror_manifest_does_not_infer_version_from_non_version_install_key_without_manifest() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        seed_managed_openclaw_tree(&paths);
+        let mut runtime = create_runtime(&paths);
+        runtime.install_key = "openclaw-nightly-windows-x64".to_string();
+        runtime.install_dir = paths.openclaw_runtime_dir.join(&runtime.install_key);
+        runtime.runtime_dir = runtime.install_dir.join("runtime");
+        fs::create_dir_all(&runtime.install_dir).expect("create install dir");
+
+        let snapshot = build_managed_runtime_snapshot(&runtime).expect("runtime snapshot");
+
+        assert_eq!(snapshot.openclaw_version, None);
+        assert_eq!(snapshot.platform, "windows");
+        assert_eq!(snapshot.arch, "x64");
     }
 
     #[test]

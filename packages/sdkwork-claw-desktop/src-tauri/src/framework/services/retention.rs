@@ -179,12 +179,12 @@ fn protected_runtime_versions(
     let mut versions = BTreeSet::new();
 
     if let Some(entry) = active.runtimes.get(runtime_name) {
-        if let Some(active_version) = &entry.active_version {
-            versions.insert(active_version.clone());
+        if let Some(active_install_key) = entry.active_runtime_install_key() {
+            versions.insert(active_install_key.to_string());
         }
 
-        if let Some(fallback_version) = &entry.fallback_version {
-            versions.insert(fallback_version.clone());
+        if let Some(fallback_install_key) = entry.fallback_runtime_install_key() {
+            versions.insert(fallback_install_key.to_string());
         }
     }
 
@@ -315,6 +315,7 @@ mod tests {
             ActiveStateEntry {
                 active_version: Some("1.0.4".to_string()),
                 fallback_version: Some("1.0.3".to_string()),
+                ..ActiveStateEntry::default()
             },
         );
 
@@ -358,6 +359,7 @@ mod tests {
             ActiveStateEntry {
                 active_version: Some("1.0.4".to_string()),
                 fallback_version: Some("1.0.3".to_string()),
+                ..ActiveStateEntry::default()
             },
         );
 
@@ -404,6 +406,7 @@ mod tests {
             ActiveStateEntry {
                 active_version: Some("1.0.11".to_string()),
                 fallback_version: None,
+                ..ActiveStateEntry::default()
             },
         );
 
@@ -446,6 +449,7 @@ mod tests {
             ActiveStateEntry {
                 active_version: Some("3.11.3".to_string()),
                 fallback_version: Some("3.11.2".to_string()),
+                ..ActiveStateEntry::default()
             },
         );
 
@@ -488,6 +492,7 @@ mod tests {
             ActiveStateEntry {
                 active_version: Some("22.0.3".to_string()),
                 fallback_version: None,
+                ..ActiveStateEntry::default()
             },
         );
 
@@ -513,5 +518,54 @@ mod tests {
         assert!(package_dir.join("22.0.2.pkg").exists());
         assert!(package_dir.join("22.0.0.pkg").exists());
         assert!(!package_dir.join("22.0.1.pkg").exists());
+    }
+
+    #[test]
+    fn prunes_runtime_packages_using_explicit_install_keys_when_version_labels_differ() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let package_dir = paths
+            .machine_store_dir
+            .join("runtimes")
+            .join("openclaw")
+            .join("packages");
+        std::fs::create_dir_all(&package_dir).expect("package dir");
+        for version in [
+            "2026.4.8-windows-x64",
+            "2026.4.9-windows-x64",
+            "openclaw-nightly-windows-x64",
+        ] {
+            std::fs::write(package_dir.join(format!("{version}.pkg")), version).expect("package");
+        }
+
+        let mut active = ActiveState::default();
+        active.runtimes.insert(
+            "openclaw".to_string(),
+            ActiveStateEntry {
+                active_version: Some("2026.4.11-beta.1".to_string()),
+                fallback_version: Some("2026.4.9".to_string()),
+                active_install_key: Some("openclaw-nightly-windows-x64".to_string()),
+                fallback_install_key: Some("2026.4.9-windows-x64".to_string()),
+                active_version_label: Some("2026.4.11-beta.1".to_string()),
+                fallback_version_label: Some("2026.4.9".to_string()),
+            },
+        );
+
+        let retention = RetentionState {
+            runtimes: crate::framework::layout::RetentionBucket {
+                historical_packages: 0,
+                ..crate::framework::layout::RetentionBucket::default()
+            },
+            ..RetentionState::default()
+        };
+
+        let removed = RetentionService::new()
+            .prune_runtime_packages(&paths, &active, &retention, &PinnedState::default())
+            .expect("pruned packages");
+
+        assert_eq!(removed.len(), 1);
+        assert!(package_dir.join("openclaw-nightly-windows-x64.pkg").exists());
+        assert!(package_dir.join("2026.4.9-windows-x64.pkg").exists());
+        assert!(!package_dir.join("2026.4.8-windows-x64.pkg").exists());
     }
 }

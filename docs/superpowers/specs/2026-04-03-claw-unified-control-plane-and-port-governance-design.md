@@ -2,6 +2,8 @@
 
 **Date:** 2026-04-03
 
+> **Supersession Note (2026-04-13):** This document is preserved for historical control-plane convergence context. The current source of truth for kernel-platform architecture is `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`. The control-plane direction below remains useful, but any references to bundled OpenClaw runtime ownership, bundled Node.js, or single-kernel packaging assumptions are historical only and must be translated through the current multi-kernel and external-runtime standards before implementation.
+
 ## Goal
 
 Define the next architecture baseline that makes `desktop`, `server`, `container`, and `kubernetes` behave as different host shells over one canonical Rust control plane.

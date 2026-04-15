@@ -19,9 +19,6 @@ use super::{
     supervisor::{ManagedServiceLifecycle, SupervisorService},
 };
 
-const CODEX_APP_SERVER_LISTEN_URL: &str = "ws://127.0.0.1:46110";
-const OPENCLAW_GATEWAY_URL: &str = "ws://127.0.0.1:18789";
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComponentControlAction {
     Start,
@@ -240,10 +237,7 @@ fn startup_mode_label(mode: &PackagedComponentStartupMode) -> &'static str {
 }
 
 fn resolved_component_service_ids(definition: &PackagedComponentDefinition) -> Vec<String> {
-    match definition.id.as_str() {
-        "openclaw" => vec!["openclaw_gateway".to_string()],
-        _ => definition.service_ids.clone(),
-    }
+    definition.service_ids.clone()
 }
 
 fn component_runtime_status(
@@ -295,131 +289,25 @@ fn generic_component_runtime_status(services: &[DesktopComponentServiceBindingIn
 }
 
 fn component_source_url(definition: &PackagedComponentDefinition) -> Option<String> {
-    definition.source_url.clone().or_else(|| {
-        Some(match definition.id.as_str() {
-            "codex" => "https://github.com/openai/codex".to_string(),
-            "openclaw" => "https://github.com/openclaw/openclaw".to_string(),
-            "zeroclaw" => "https://github.com/zeroclaw-labs/zeroclaw".to_string(),
-            "ironclaw" => "https://github.com/nearai/ironclaw".to_string(),
-            _ => return None,
-        })
-    })
+    definition.source_url.clone()
 }
 
 fn component_docs(
-    definition: &PackagedComponentDefinition,
+    _definition: &PackagedComponentDefinition,
 ) -> Vec<DesktopComponentDocumentationRef> {
-    match definition.id.as_str() {
-        "codex" => vec![
-            repo_doc(definition, "Overview", "README.md"),
-            repo_doc(definition, "CLI entry", "codex-rs/cli/src/main.rs"),
-        ],
-        "openclaw" => vec![
-            repo_doc(definition, "Overview", "README.md"),
-            repo_doc(definition, "CLI entry", "openclaw.mjs"),
-        ],
-        "zeroclaw" => vec![
-            repo_doc(definition, "Overview", "README.md"),
-            repo_doc(definition, "CLI entry", "src/main.rs"),
-            repo_doc(definition, "Reference docs", "docs/reference/README.md"),
-        ],
-        "ironclaw" => vec![
-            repo_doc(definition, "Overview", "README.md"),
-            repo_doc(definition, "CLI entry", "src/main.rs"),
-            repo_doc(definition, "LLM providers", "docs/LLM_PROVIDERS.md"),
-        ],
-        _ => Vec::new(),
-    }
-}
-
-fn repo_doc(
-    definition: &PackagedComponentDefinition,
-    label: &str,
-    relative_path: &str,
-) -> DesktopComponentDocumentationRef {
-    let location = component_source_url(definition)
-        .map(|repository| {
-            let base = repository.trim_end_matches(".git");
-            if let Some(commit) = definition.commit.as_deref() {
-                format!("{base}/blob/{commit}/{relative_path}")
-            } else {
-                format!("{base}/blob/main/{relative_path}")
-            }
-        })
-        .unwrap_or_else(|| relative_path.to_string());
-
-    DesktopComponentDocumentationRef {
-        label: label.to_string(),
-        location,
-    }
+    Vec::new()
 }
 
 fn component_endpoints(
-    definition: &PackagedComponentDefinition,
+    _definition: &PackagedComponentDefinition,
 ) -> Vec<DesktopComponentEndpointInfo> {
-    match definition.id.as_str() {
-        "codex" => vec![DesktopComponentEndpointInfo {
-            id: "app-server".to_string(),
-            label: "Codex App Server".to_string(),
-            transport: "websocket".to_string(),
-            target: CODEX_APP_SERVER_LISTEN_URL.to_string(),
-            description:
-                "Desktop-managed Codex app-server websocket for IDE or local client integration."
-                    .to_string(),
-        }],
-        "openclaw" => vec![DesktopComponentEndpointInfo {
-            id: "gateway".to_string(),
-            label: "OpenClaw Gateway".to_string(),
-            transport: "websocket".to_string(),
-            target: OPENCLAW_GATEWAY_URL.to_string(),
-            description: "OpenClaw gateway control plane websocket.".to_string(),
-        }],
-        _ => Vec::new(),
-    }
+    Vec::new()
 }
 
 fn component_capabilities(
-    definition: &PackagedComponentDefinition,
+    _definition: &PackagedComponentDefinition,
 ) -> Vec<DesktopComponentCapabilityInfo> {
-    match definition.id.as_str() {
-        "codex" => vec![
-            capability("interactive-cli", "Interactive CLI", "cli", "Local coding assistant CLI with TUI and session resume support.", &["codex"]),
-            capability("non-interactive-exec", "Batch Exec", "cli", "Non-interactive exec and review workflows.", &["codex exec", "codex review"]),
-            capability("mcp-and-app-server", "MCP / App Server", "rpc", "MCP server mode plus websocket app-server transport.", &["codex mcp", "codex app-server"]),
-        ],
-        "openclaw" => vec![
-            capability("gateway", "Gateway Control Plane", "websocket", "Gateway daemon and websocket control plane for channels and clients.", &["openclaw gateway --port 18789"]),
-            capability("assistant-cli", "Assistant CLI", "cli", "Agent, onboarding, doctor, and message-send command surface.", &["openclaw onboard", "openclaw agent", "openclaw message send", "openclaw doctor"]),
-            capability("web-and-channel-surface", "Web and Channel Surface", "http", "Gateway-served control UI, WebChat, and channel integrations.", &["docs.openclaw.ai/web", "docs.openclaw.ai/channels"]),
-        ],
-        "zeroclaw" => vec![
-            capability("agent-runtime", "Agent Runtime", "cli", "Interactive or single-shot agent execution.", &["zeroclaw agent"]),
-            capability("gateway", "Gateway / Webhook Surface", "http", "Gateway-hosted webhook and health endpoints for channels.", &["zeroclaw gateway", "GET /health"]),
-            capability("ops", "Operations Surface", "cli", "Onboard, service control, self-test, and doctor flows.", &["zeroclaw onboard", "zeroclaw service", "zeroclaw self-test"]),
-        ],
-        "ironclaw" => vec![
-            capability("assistant-runtime", "Assistant Runtime", "cli", "Primary agent run loop with REPL, routines, and workers.", &["ironclaw run", "ironclaw status"]),
-            capability("webhook-and-web-gateway", "Webhook / Web Gateway", "http", "Webhook server, HTTP channel, and web gateway support.", &["WebhookServer", "GatewayChannel", "HttpChannel"]),
-            capability("ops-and-extensions", "Ops / Extension Surface", "cli", "Setup, service, MCP, tools, skills, and registry commands.", &["ironclaw onboard", "ironclaw service", "ironclaw mcp", "ironclaw tools"]),
-        ],
-        _ => Vec::new(),
-    }
-}
-
-fn capability(
-    key: &str,
-    label: &str,
-    kind: &str,
-    description: &str,
-    entrypoints: &[&str],
-) -> DesktopComponentCapabilityInfo {
-    DesktopComponentCapabilityInfo {
-        key: key.to_string(),
-        label: label.to_string(),
-        kind: kind.to_string(),
-        description: description.to_string(),
-        entrypoints: entrypoints.iter().map(|entry| entry.to_string()).collect(),
-    }
+    Vec::new()
 }
 
 #[cfg(test)]
@@ -429,7 +317,7 @@ mod tests {
     use crate::framework::services::supervisor::SupervisorService;
 
     #[test]
-    fn component_host_catalog_exposes_openclaw_endpoints_and_docs() {
+    fn component_host_catalog_uses_empty_defaults_until_support_components_are_registered() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let supervisor = SupervisorService::new();
@@ -438,74 +326,26 @@ mod tests {
             .component_catalog(&paths, &supervisor)
             .expect("component catalog");
 
-        assert_eq!(
-            catalog.default_startup_component_ids,
-            vec!["openclaw".to_string()]
-        );
-        let openclaw = catalog
-            .components
-            .iter()
-            .find(|component| component.id == "openclaw")
-            .expect("openclaw component");
-        assert_eq!(openclaw.runtime_status, "stopped");
-        assert_eq!(openclaw.service_ids, vec!["openclaw_gateway".to_string()]);
-        assert!(openclaw
-            .docs
-            .iter()
-            .any(|doc| doc.label == "Overview" && doc.location.contains("README.md")));
-        assert!(openclaw
-            .endpoints
-            .iter()
-            .any(|endpoint| endpoint.id == "gateway" && endpoint.target == "ws://127.0.0.1:18789"));
+        assert!(catalog.default_startup_component_ids.is_empty());
+        assert!(catalog.components.is_empty());
     }
 
     #[test]
-    fn component_host_control_can_start_and_stop_manual_components() {
+    fn component_host_control_rejects_unknown_components_when_no_support_components_are_registered() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let supervisor = SupervisorService::new();
         let service = ComponentHostService::new();
 
-        let started = service
+        let error = service
             .control_component(
                 &paths,
                 &supervisor,
-                "openclaw",
+                "missing-component",
                 ComponentControlAction::Start,
             )
-            .expect("start openclaw");
-        let snapshot = supervisor.snapshot().expect("snapshot after start");
-        let openclaw = snapshot
-            .services
-            .iter()
-            .find(|managed_service| managed_service.id == "openclaw_gateway")
-            .expect("openclaw state");
+            .expect_err("unknown component should be rejected");
 
-        assert_eq!(started.outcome, "started");
-        assert_eq!(
-            openclaw.lifecycle,
-            crate::framework::services::supervisor::ManagedServiceLifecycle::Starting
-        );
-
-        let stopped = service
-            .control_component(
-                &paths,
-                &supervisor,
-                "openclaw",
-                ComponentControlAction::Stop,
-            )
-            .expect("stop openclaw");
-        let snapshot = supervisor.snapshot().expect("snapshot after stop");
-        let openclaw = snapshot
-            .services
-            .iter()
-            .find(|managed_service| managed_service.id == "openclaw_gateway")
-            .expect("openclaw state");
-
-        assert_eq!(stopped.outcome, "stopped");
-        assert_eq!(
-            openclaw.lifecycle,
-            crate::framework::services::supervisor::ManagedServiceLifecycle::Stopped
-        );
+        assert!(error.to_string().contains("component not found"));
     }
 }

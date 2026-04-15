@@ -14,6 +14,11 @@ test('desktop openclaw runtime check includes upgrade execution evidence contrac
     /node scripts\/openclaw-upgrade-execution-evidence\.test\.mjs/,
     'check:desktop-openclaw-runtime must execute the upgrade execution evidence test',
   );
+  assert.match(
+    packageJson.scripts['check:desktop-openclaw-runtime'],
+    /node scripts\/openclaw-upgrade-execution-evidence\.mjs/,
+    'check:desktop-openclaw-runtime must execute the real upgrade execution evidence probe against the current workspace',
+  );
 });
 
 test('upgrade execution evidence summarizes release sync, target clean, prepare, and verify phases', async () => {
@@ -85,7 +90,7 @@ test('upgrade execution evidence summarizes release sync, target clean, prepare,
         packagedResourceDir:
           'D:/synthetic/workspace/packages/sdkwork-claw-desktop/src-tauri/generated/release/openclaw-resource',
         installReadyLayout: {
-          mode: 'simulated-prewarm',
+          mode: 'archive-extract-ready',
         },
       };
     },
@@ -170,7 +175,7 @@ test('upgrade execution evidence turns target clean drift into execution blocker
       packagedResourceDir:
         'D:/synthetic/workspace/packages/sdkwork-claw-desktop/src-tauri/generated/release/openclaw-resource',
       installReadyLayout: {
-        mode: 'simulated-prewarm',
+        mode: 'archive-extract-ready',
       },
     }),
   });
@@ -178,7 +183,7 @@ test('upgrade execution evidence turns target clean drift into execution blocker
   assert.equal(result.executionReady, false);
   assert.match(
     result.blockers.join('\n'),
-    /Tauri target cache still contains stale bundled OpenClaw or permission references after cleanup\./,
+    /Tauri target cache still contains stale packaged OpenClaw or permission references after cleanup\./,
   );
   assert.deepEqual(
     result.phases.map((entry) => ({ id: entry.id, status: entry.status })),

@@ -1,26 +1,17 @@
-import React from 'react';
 import { openClawConfigService } from '@sdkwork/claw-core';
 import { getPlatformBridge } from '@sdkwork/claw-infrastructure';
-import {
-  Building2,
-  Hash,
-  MessageCircle,
-  MessageSquare,
-  Send,
-  Smile,
-  Webhook,
-  Zap,
-} from 'lucide-react';
 import type {
   ListParams,
   PaginatedResult,
   StudioInstanceDetailRecord,
 } from '@sdkwork/claw-types';
 
+export type ChannelFieldInputType = 'text' | 'password' | 'number' | 'url';
+
 export interface ChannelField {
   key: string;
   label: string;
-  type?: React.HTMLInputTypeAttribute;
+  type?: ChannelFieldInputType;
   placeholder: string;
   value?: string;
   helpText?: string;
@@ -34,7 +25,7 @@ export interface Channel {
   id: string;
   name: string;
   description: string;
-  icon: React.ReactNode;
+  icon?: string;
   status: 'connected' | 'disconnected' | 'not_configured';
   enabled: boolean;
   configurationMode?: 'required' | 'none';
@@ -104,31 +95,8 @@ const channelIconNameMap: Record<string, string> = {
   googlechat: 'Webhook',
 };
 
-const getIconComponent = (iconName: string) => {
-  switch (iconName) {
-    case 'MessageCircle':
-      return React.createElement(MessageCircle, { className: 'h-6 w-6 text-[#00D1B2]' });
-    case 'Smile':
-      return React.createElement(Smile, { className: 'h-6 w-6 text-[#12B7F5]' });
-    case 'Zap':
-      return React.createElement(Zap, { className: 'h-6 w-6 text-[#008CEE]' });
-    case 'Building2':
-      return React.createElement(Building2, { className: 'h-6 w-6 text-[#2B82E4]' });
-    case 'Send':
-      return React.createElement(Send, { className: 'h-6 w-6 text-[#229ED9]' });
-    case 'MessageSquare':
-      return React.createElement(MessageSquare, { className: 'h-6 w-6 text-[#5865F2]' });
-    case 'Hash':
-      return React.createElement(Hash, { className: 'h-6 w-6 text-[#E01E5A]' });
-    case 'Webhook':
-      return React.createElement(Webhook, { className: 'h-6 w-6 text-primary-500' });
-    default:
-      return React.createElement(MessageCircle, { className: 'h-6 w-6 text-gray-500' });
-  }
-};
-
-function resolveChannelIcon(channelId: string, iconName?: string) {
-  return getIconComponent(iconName || channelIconNameMap[channelId] || 'MessageCircle');
+function resolveChannelIconName(channelId: string, iconName?: string) {
+  return iconName || channelIconNameMap[channelId] || 'MessageCircle';
 }
 
 function normalizeChannelValues(value: unknown) {
@@ -178,7 +146,7 @@ function mapManagedChannel(
     id: channel.id,
     name: channel.name,
     description: channel.description,
-    icon: resolveChannelIcon(channel.id),
+    icon: resolveChannelIconName(channel.id),
     status: channel.status,
     enabled: channel.enabled,
     configurationMode: channel.configurationMode,
@@ -218,7 +186,7 @@ function mapWorkbenchChannel(
     id: definition.id,
     name: current?.name || definition.name,
     description: current?.description || definition.description,
-    icon: resolveChannelIcon(definition.id),
+    icon: resolveChannelIconName(definition.id),
     status,
     enabled,
     configurationMode,
@@ -239,7 +207,7 @@ function mapUnknownWorkbenchChannel(current: WorkbenchChannelRecord): Channel {
     id: current.id,
     name: current.name,
     description: current.description,
-    icon: resolveChannelIcon(current.id),
+    icon: resolveChannelIconName(current.id),
     status: current.status,
     enabled: current.enabled,
     configurationMode: current.configurationMode || 'required',

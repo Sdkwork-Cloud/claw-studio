@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Supersession Note (2026-04-13):** This plan is preserved for historical implementation context. The desktop-first startup behavior remains relevant, but current implementation should follow `docs/superpowers/specs/2026-04-13-multi-kernel-platform-design.md`. References below to bundled OpenClaw startup are historical and now map to the built-in packaged OpenClaw path with external runtime requirements.
+
 **Goal:** Decouple bundled OpenClaw startup from Tauri desktop entry so the shell becomes available immediately and the built-in instance converges asynchronously with truthful status.
 
 **Architecture:** Keep the bundled runtime and supervisor activation pipeline intact, move its first boot invocation out of blocking `setup()` into a background task, and update built-in instance projection in `studio.rs` so async activation can mark `Starting`, `Online`, and `Error` without changing manual lifecycle semantics.

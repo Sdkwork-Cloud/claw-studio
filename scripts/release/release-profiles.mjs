@@ -80,6 +80,7 @@ const DEPLOYMENT_ACCELERATOR_MATRIX = Object.freeze([
 const CLAW_STUDIO_RELEASE_PROFILE = Object.freeze({
   id: 'claw-studio',
   productName: 'Claw Studio',
+  defaultPackageProfileId: 'openclaw-only',
   desktop: {
     matrix: Object.freeze(
       NATIVE_RELEASE_TARGET_MATRIX.map((entry) => Object.freeze({

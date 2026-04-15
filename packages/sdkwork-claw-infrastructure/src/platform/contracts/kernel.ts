@@ -129,7 +129,7 @@ export interface RuntimeDesktopKernelHostServiceInfo {
 export interface RuntimeDesktopKernelProvenanceInfo {
   runtimeId: string;
   installKey?: string | null;
-  openclawVersion?: string | null;
+  runtimeVersion?: string | null;
   nodeVersion?: string | null;
   platform: string;
   arch: string;

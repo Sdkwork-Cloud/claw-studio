@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { DEFAULT_BUNDLED_OPENCLAW_VERSION } from '../../../sdkwork-claw-types/src/openclawRelease.ts';
+import { DEFAULT_BUNDLED_OPENCLAW_VERSION } from '@sdkwork/claw-types';
 import { resolveInstanceChatRoute } from './instanceChatRouteService.ts';
 
 function runTest(name: string, fn: () => void | Promise<void>) {
@@ -415,6 +415,99 @@ await runTest(
         corsOrigins: '*',
         baseUrl: 'https://openclaw.example.com',
         websocketUrl: 'wss://openclaw.example.com/ws',
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    assert.equal(route.mode, 'unsupported');
+    assert.match(route.reason ?? '', /not online|offline|start|running/i);
+  },
+);
+
+await runTest(
+  'online custom gateway transport instances resolve to the gateway websocket route without depending on runtimeKind',
+  () => {
+    const route = resolveInstanceChatRoute({
+      id: 'custom-gateway-online',
+      name: 'Custom Gateway Online',
+      runtimeKind: 'custom',
+      deploymentMode: 'remote',
+      transportKind: 'openclawGatewayWs',
+      status: 'online',
+      isBuiltIn: false,
+      isDefault: false,
+      iconType: 'server',
+      version: 'custom',
+      typeLabel: 'Custom Gateway',
+      host: 'custom.example.com',
+      port: 443,
+      baseUrl: 'https://custom.example.com/v1/chat/completions',
+      websocketUrl: 'wss://custom.example.com/ws',
+      cpu: 0,
+      memory: 0,
+      totalMemory: 'Unknown',
+      uptime: '-',
+      capabilities: ['chat'],
+      storage: {
+        provider: 'remoteApi',
+        namespace: 'claw-studio',
+      },
+      config: {
+        port: '443',
+        sandbox: true,
+        autoUpdate: false,
+        logLevel: 'info',
+        corsOrigins: '*',
+        baseUrl: 'https://custom.example.com/v1/chat/completions',
+        websocketUrl: 'wss://custom.example.com/ws',
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    assert.equal(route.mode, 'instanceOpenClawGatewayWs');
+    assert.equal(route.endpoint, 'https://custom.example.com/v1/chat/completions');
+    assert.equal(route.websocketUrl, 'wss://custom.example.com');
+  },
+);
+
+await runTest(
+  'offline custom gateway transport instances do not publish a gateway route before runtime readiness converges',
+  () => {
+    const route = resolveInstanceChatRoute({
+      id: 'custom-gateway-offline',
+      name: 'Custom Gateway Offline',
+      runtimeKind: 'custom',
+      deploymentMode: 'remote',
+      transportKind: 'openclawGatewayWs',
+      status: 'offline',
+      isBuiltIn: false,
+      isDefault: false,
+      iconType: 'server',
+      version: 'custom',
+      typeLabel: 'Custom Gateway',
+      host: 'custom.example.com',
+      port: 443,
+      baseUrl: 'https://custom.example.com',
+      websocketUrl: 'wss://custom.example.com/ws',
+      cpu: 0,
+      memory: 0,
+      totalMemory: 'Unknown',
+      uptime: '-',
+      capabilities: ['chat'],
+      storage: {
+        provider: 'remoteApi',
+        namespace: 'claw-studio',
+      },
+      config: {
+        port: '443',
+        sandbox: true,
+        autoUpdate: false,
+        logLevel: 'info',
+        corsOrigins: '*',
+        baseUrl: 'https://custom.example.com',
+        websocketUrl: 'wss://custom.example.com/ws',
       },
       createdAt: 1,
       updatedAt: 1,

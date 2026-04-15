@@ -357,6 +357,134 @@ await runTest(
 );
 
 await runTest(
+  'instance effective model catalog uses gateway runtime models for non-OpenClaw gateway transport instances',
+  async () => {
+    let gatewayModelCalls = 0;
+    const service = createInstanceEffectiveModelCatalogService({
+      getInstance: async () =>
+        ({
+          id: 'instance-custom-gateway-runtime-models',
+          runtimeKind: 'custom',
+          transportKind: 'openclawGatewayWs',
+          deploymentMode: 'remote',
+          status: 'online',
+          baseUrl: 'http://127.0.0.1:28195',
+          websocketUrl: 'ws://127.0.0.1:28189',
+        }) as any,
+      getInstanceDetail: async () => null,
+      listRouterChannels: async () => [
+        { id: 'general', name: 'General' },
+        { id: 'coding', name: 'Coding' },
+      ],
+      listRouterProviders: async () => [
+        {
+          id: 'openai',
+          channel_id: 'general',
+          extension_id: 'openai',
+          adapter_kind: 'openai-compatible',
+          base_url: 'https://api.openai.com/v1',
+          display_name: 'OpenAI',
+          channel_bindings: [
+            {
+              provider_id: 'openai',
+              channel_id: 'general',
+              is_primary: true,
+            },
+          ],
+        },
+        {
+          id: 'deepseek',
+          channel_id: 'coding',
+          extension_id: 'deepseek',
+          adapter_kind: 'openai-compatible',
+          base_url: 'https://api.deepseek.com/v1',
+          display_name: 'DeepSeek',
+          channel_bindings: [
+            {
+              provider_id: 'deepseek',
+              channel_id: 'coding',
+              is_primary: true,
+            },
+          ],
+        },
+      ],
+      listRouterModels: async () => [
+        {
+          external_name: 'gpt-4.1',
+          provider_id: 'openai',
+          capabilities: ['chat'],
+          streaming: true,
+        },
+        {
+          external_name: 'deepseek-chat',
+          provider_id: 'deepseek',
+          capabilities: ['chat'],
+          streaming: true,
+        },
+      ],
+      resolveOpenClawConfigPath: () => null,
+      readOpenClawConfigSnapshot: async () => {
+        throw new Error('should not read OpenClaw config for non-OpenClaw gateway transport instances');
+      },
+      listGatewayModels: async () => {
+        gatewayModelCalls += 1;
+        return {
+          models: [
+            {
+              id: 'anthropic/claude-3-7-sonnet',
+              name: 'Claude 3.7 Sonnet',
+              provider: 'anthropic',
+            },
+            {
+              id: 'openai/gpt-5.4',
+              name: 'GPT-5.4',
+              provider: 'openai',
+            },
+          ],
+        };
+      },
+    });
+
+    const catalog = await service.getCatalog('instance-custom-gateway-runtime-models');
+
+    assert.equal(gatewayModelCalls, 1);
+    assert.deepEqual(catalog.channels, [
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        provider: 'anthropic',
+        baseUrl: '',
+        apiKey: '',
+        icon: 'AT',
+        defaultModelId: 'anthropic/claude-3-7-sonnet',
+        models: [
+          {
+            id: 'anthropic/claude-3-7-sonnet',
+            name: 'Claude 3.7 Sonnet',
+          },
+        ],
+      },
+      {
+        id: 'openai',
+        name: 'Openai',
+        provider: 'openai',
+        baseUrl: '',
+        apiKey: '',
+        icon: 'OA',
+        defaultModelId: 'openai/gpt-5.4',
+        models: [
+          {
+            id: 'openai/gpt-5.4',
+            name: 'GPT-5.4',
+          },
+        ],
+      },
+    ]);
+    assert.equal(catalog.preferredModelId, null);
+  },
+);
+
+await runTest(
   'instance effective model catalog falls back to gateway runtime models when managed OpenClaw config and router catalog no longer intersect',
   async () => {
     const service = createInstanceEffectiveModelCatalogService({

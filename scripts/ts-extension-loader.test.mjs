@@ -50,6 +50,15 @@ assert.equal(
 );
 
 assert.equal(
+  loader.resolveWorkspacePackageSourceAliasPath('@sdkwork/claw-core'),
+  path.resolve(
+    workspaceRoot,
+    'packages/sdkwork-claw-core/src/node.ts',
+  ),
+  'workspace package resolution must respect package root exports for Node-safe entries',
+);
+
+assert.equal(
   loader.resolveWorkspacePackageSourceAliasPath('@sdkwork/core-pc-react'),
   path.resolve(
     workspaceRoot,
@@ -65,6 +74,15 @@ assert.equal(
     '../sdkwork-core/sdkwork-core-pc-react/src/app/index.ts',
   ),
   'workspace package resolution must map sibling workspace package subpaths to their source entry',
+);
+
+assert.equal(
+  loader.resolveWorkspacePackageSourceAliasPath('@sdkwork/core-pc-react/runtime'),
+  path.resolve(
+    workspaceRoot,
+    'scripts/shims/core-pc-react-runtime-node.ts',
+  ),
+  'workspace package resolution must route core-pc-react runtime through the local Node-safe shim',
 );
 
 console.log('ok - ts extension loader remaps shared SDK packages to source entries in source mode');

@@ -105,7 +105,7 @@ function createOpenClawInstance(
   return {
     id: 'local-built-in',
     name: 'Local Built-In',
-    description: 'Bundled OpenClaw runtime.',
+    description: 'Packaged local OpenClaw kernel.',
     runtimeKind: 'openclaw',
     deploymentMode: 'local-managed',
     transportKind: 'openclawGatewayWs',
@@ -881,7 +881,7 @@ await runTest('providerConfigCenterService clears the previous default route on 
   assert.equal(reloadedSecondRoute?.isDefault, true);
 });
 
-await runTest('providerConfigCenterService exposes writable OpenClaw instances and their agent targets', async () => {
+await runTest('providerConfigCenterService exposes writable config-backed instances and their agent targets', async () => {
   const service = createProviderConfigCenterService({
     storageApi: {
       getStorageInfo: async () => null,
@@ -919,7 +919,19 @@ await runTest('providerConfigCenterService exposes writable OpenClaw instances a
           isBuiltIn: false,
         }),
       ],
-      getInstanceDetail: async () => createOpenClawDetail(),
+      getInstanceDetail: async (instanceId) =>
+        instanceId === 'remote-custom'
+          ? createOpenClawDetail({
+              instance: createOpenClawInstance({
+                id: 'remote-custom',
+                name: 'Remote Custom',
+                runtimeKind: 'custom',
+                deploymentMode: 'remote',
+                isDefault: false,
+                isBuiltIn: false,
+              }),
+            })
+          : createOpenClawDetail(),
     },
     openClawConfigService: {
       resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
@@ -964,8 +976,9 @@ await runTest('providerConfigCenterService exposes writable OpenClaw instances a
 
   assert.deepEqual(
     instances.map((instance) => instance.id),
-    ['local-built-in'],
+    ['local-built-in', 'remote-custom'],
   );
+  assert.equal(target.instance.id, 'local-built-in');
   assert.equal(target.instance.configPath, 'D:/OpenClaw/.openclaw/openclaw.json');
   assert.deepEqual(
     target.agents.map((agent) => agent.id),

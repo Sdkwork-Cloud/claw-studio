@@ -58,7 +58,7 @@
     "codebox": "CodeBox",
     "providerCenter": "模型配置中心",
     "modelPurchase": "模型购买",
-    "clawUpload": "Claw联网",
+    "clawUpload": "OpenClaw 联网",
     "systemResources": "系统资源",
     "cpu": "CPU",
     "ram": "RAM",
@@ -270,7 +270,7 @@
       "data": "数据与隐私"
     },
     "kernelCenter": {
-      "description": "内置 OpenClaw 内核被视为产品的必备基础设施。这里会如实展示当前宿主归属、活动端点、存储配置与运行来源，不会掩盖任何回退行为。",
+      "description": "这里会如实展示当前内核治理归属、活动端点、存储配置与运行来源，不会掩盖任何回退行为。",
       "actions": {
         "refresh": "刷新",
         "ensureRunning": "确保运行",
@@ -333,7 +333,7 @@
         "manual": "手动启动"
       },
       "installSources": {
-        "bundled": "内置",
+        "bundled": "随包提供",
         "external": "外部",
         "remote": "远程",
         "unknown": "未知"
@@ -414,7 +414,7 @@
         "websocketUrl": "WebSocket URL",
         "preferredPort": "首选端口",
         "activePort": "活动端口",
-        "openclawVersion": "OpenClaw 版本",
+        "runtimeVersion": "内核版本",
         "nodeVersion": "Node.js 版本",
         "activeProfile": "活动配置",
         "profilePath": "配置路径",
@@ -1064,8 +1064,8 @@
         "subtitle": "下载 AI 模型"
       },
       "upload": {
-        "title": "前往 Claw联网",
-        "subtitle": "管理 OpenClaw 注册中心连接和网关接入"
+        "title": "前往 OpenClaw 联网",
+        "subtitle": "查看本地 OpenClaw 网关端点与注册表关联连通性"
       },
       "instances": {
         "title": "前往实例",
@@ -1073,7 +1073,7 @@
       },
       "kernel": {
         "title": "前往内核中心",
-        "subtitle": "查看内置 OpenClaw 宿主、端点与运行来源"
+        "subtitle": "查看内核治理归属、端点与运行来源"
       },
       "nodes": {
         "title": "前往节点",
@@ -1505,6 +1505,108 @@
       "operatorsDescription": "能力卡片持续展示 Agent 关注方向、自动化适配度与执行范围。",
       "delivery": "交付模型",
       "deliveryDescription": "持续关注通道准备度，确保审批、告警与摘要在需要时可以稳定发出。"
+    },
+    "usage": {
+      "page": {
+        "eyebrow": "用量工作台",
+        "title": "网关用量",
+        "description": "在统一工作台中查看网关会话用量、成本、兼容性回退状态以及逐会话明细。",
+        "loading": "正在加载用量工作台",
+        "emptyTitle": "当前没有可用的兼容网关",
+        "emptyDescription": "请先添加或启动一个具备网关能力的实例，再查看用量与成本证据。",
+        "noSnapshot": "暂无可用的用量快照"
+      },
+      "actions": {
+        "openInstances": "打开实例"
+      },
+      "filters": {
+        "instance": "实例",
+        "startDate": "开始日期",
+        "endDate": "结束日期",
+        "timeZone": "时区",
+        "timeZoneLocal": "本地时间",
+        "timeZoneUtc": "UTC",
+        "search": "搜索会话",
+        "searchPlaceholder": "按会话、模型、Agent 或渠道筛选",
+        "query": "查询筛选",
+        "queryPlaceholder": "例如 provider:anthropic tool:grep minTokens:1000",
+        "applyQuery": "应用查询",
+        "clearQuery": "清空查询",
+        "sort": "会话排序",
+        "sortRecent": "最近活跃",
+        "sortTokens": "Token 最多",
+        "sortCost": "成本最高",
+        "sortMessages": "消息最多",
+        "sortErrors": "错误最多",
+        "selectedDays": "已选择 {{count}} 天",
+        "selectedSessions": "已选择 {{count}} 个会话",
+        "visibleColumns": "显示列",
+        "logRoles": "日志角色",
+        "logTools": "日志工具",
+        "logHasTools": "仅显示含工具的条目",
+        "logQuery": "日志搜索",
+        "logQueryPlaceholder": "筛选日志内容",
+        "clearLogFilters": "清空日志筛选",
+        "refresh": "刷新",
+        "invalidRange": "结束日期不能早于开始日期。"
+      },
+      "summary": {
+        "updatedAt": "更新时间",
+        "compatibility": "兼容性"
+      },
+      "compatibility": {
+        "dateInterpretation": "已启用日期解析",
+        "legacyNoDateInterpretation": "传统网关回退"
+      },
+      "sections": {
+        "sessions": "会话列表",
+        "sessionsDescription": "先查看会话级别的体量、成本集中度和错误分布，再进入单个会话深挖。",
+        "dailyBreakdown": "每日拆分",
+        "dailyBreakdownDescription": "对比每日用量与成本总量，并结合消息量和错误活动一起观察。",
+        "sessionDetail": "会话详情",
+        "sessionDetailDescription": "持续展示当前会话的上下文、模型选择、提供方与时间证据。",
+        "sessionTimeline": "会话时间线",
+        "sessionTimelineDescription": "查看所选会话时间线上的 Token 与成本变化。",
+        "sessionLogs": "会话日志",
+        "sessionLogsDescription": "查看所选网关返回的原始会话用量日志流。"
+      },
+      "metrics": {
+        "totalTokens": "总 Token",
+        "totalCost": "总成本",
+        "sessionCount": "会话数",
+        "errorCount": "错误数"
+      },
+      "labels": {
+        "gateway": "网关",
+        "version": "版本",
+        "noVersion": "未知",
+        "sessionKey": "会话",
+        "sessionId": "会话 ID",
+        "model": "模型",
+        "provider": "提供方",
+        "agent": "Agent",
+        "channel": "渠道",
+        "messages": "消息",
+        "toolCalls": "工具调用",
+        "errors": "错误",
+        "tokens": "Token",
+        "cost": "成本",
+        "inputTokens": "输入 Token",
+        "missingCostEntries": "缺失成本项",
+        "lastActivity": "最后活跃",
+        "duration": "耗时",
+        "logTime": "时间",
+        "cumulativeTokens": "累计 Token",
+        "cumulativeCost": "累计成本",
+        "noSessions": "当前筛选条件下没有匹配的会话。",
+        "noDailyBreakdown": "所选范围内暂无每日用量数据。",
+        "noSessionSelected": "请选择一个会话以查看详情、时间线和日志。",
+        "refineSessionSelection": "请只选择一个会话以查看详情、时间线和日志。",
+        "noTimeline": "所选会话暂无时间线数据。",
+        "noLogs": "所选会话暂无日志数据。",
+        "noLogTools": "当前日志流中未检测到工具调用。",
+        "noMatchingLogs": "当前日志筛选条件下没有匹配的条目。"
+      }
     }
   },
   "apps": {
@@ -2300,23 +2402,23 @@
     }
   },
   "clawUpload": {
-    "eyebrow": "注册中心已连接",
-    "title": "Claw联网",
-    "subtitle": "从注册中心读取 OpenClaw 实例，并把网关连通性集中展示在一个界面里。",
-    "description": "这个基于注册中心的视图会展示已经注册到 Claw Studio 的 OpenClaw 运行时，方便你在智能体上线前核对联网状态、网关暴露情况以及路由就绪度。",
+    "eyebrow": "OpenClaw 已关联",
+    "title": "OpenClaw 联网",
+    "subtitle": "集中查看本地 OpenClaw 实例，并保持网关连通性一目了然。",
+    "description": "该页面仅用于 OpenClaw 联网视图，展示 Claw Studio 当前已管理并与注册表关联的 OpenClaw 运行时，便于在接入智能体前核对网关端点、WebSocket 暴露状态和 ACP 路由就绪度。",
     "refresh": "刷新注册中心",
-    "loadFailed": "加载注册中心连接状态失败",
-    "loadFailedDescription": "当前无法读取 OpenClaw 注册中心快照。",
-    "emptyTitle": "当前还没有已注册的 OpenClaw 实例",
-    "emptyDescription": "请先安装或注册一个 OpenClaw 运行时。进入注册中心后，这里会展示它的网关地址、WebSocket 入口、存储命名空间和路由就绪情况。",
+    "loadFailed": "加载 OpenClaw 联网信息失败",
+    "loadFailedDescription": "当前无法读取本地 OpenClaw 注册表快照。",
+    "emptyTitle": "尚未注册任何 OpenClaw 实例",
+    "emptyDescription": "请先安装或注册 OpenClaw 运行时。待其在本地可用后，此页面会展示对应的网关端点、WebSocket 入口、存储命名空间和路由就绪度。",
     "openInstall": "安装 OpenClaw",
     "openInstances": "查看实例",
     "builtInBadge": "内置",
     "defaultBadge": "默认",
-    "notAvailable": "暂无",
-    "noDescription": "这个 OpenClaw 运行时已经出现在注册中心中，可以继续检查联网情况。",
+    "notAvailable": "暂不可用",
+    "noDescription": "该 OpenClaw 运行时已在本地完成注册，可直接进行连通性检查。",
     "summary": {
-      "registered": "已注册运行时",
+      "registered": "已注册 OpenClaw 运行时",
       "online": "当前在线",
       "gatewayReady": "网关就绪",
       "builtIn": "内置运行时"
@@ -2661,7 +2763,7 @@
     "allCategories": "全部分类",
     "actions": {
       "quickConnect": "一键快速联网",
-      "quickRegister": "一键注册",
+      "quickRegister": "OpenClaw 联网",
       "copyCommand": "复制 ACP 命令",
       "copyContent": "复制内容",
       "quickConnectNow": "立即联网",
@@ -2691,7 +2793,7 @@
       "matchCount": "撮合数",
       "activeAgents": "智能体",
       "bestFor": "适用场景",
-      "matchReasons": "命中原因"
+      "matchReasons": "匹配命中"
     },
     "sections": {
       "categories": "分类列表",
@@ -3497,7 +3599,7 @@
       }
     },
     "nodes": {
-      "description": "集群治理从这里开始。本地内置 OpenClaw 内核会与已接入或已托管的节点一同展示，让发布、诊断与拓扑漂移可以收敛到同一套产品模型。",
+      "description": "集群治理从这里开始。本地主节点内核会与已接入或已托管的节点一同展示，让发布、诊断与拓扑漂移可以收敛到同一套产品模型。",
       "actions": {
         "refresh": "刷新",
         "ensureLocalNode": "确保本地节点运行",
@@ -3687,6 +3789,63 @@
         "failedToOpenOpenClawConsole": "打开 OpenClaw 控制台失败"
       },
       "confirmUninstall": "确认要卸载这个实例吗？此操作不可撤销。",
+      "modules": {
+        "hermes": {
+          "eyebrow": "Hermes 内核",
+          "description": "Hermes 以外部托管内核方式运行。该详情模块聚焦传输形态、外部运行时标准、数据访问面，以及在 WSL2 或远程 Linux 部署下保持稳定接入所需的运行证据。",
+          "metrics": {
+            "runtime": "运行时",
+            "deployment": "部署方式",
+            "transport": "传输方式",
+            "health": "健康状态"
+          },
+          "runtimePolicies": {
+            "title": "运行时标准",
+            "windows": {
+              "title": "Windows 仅支持 WSL2 或远程 Linux",
+              "detail": "不支持原生 Windows 本地 Hermes 运行。Windows 主机必须通过 WSL2 或远程 Linux 机器接入 Hermes。"
+            },
+            "python": {
+              "title": "Python 与 uv 均为外部依赖",
+              "detail": "桌面包绝不内置 Python 或 uv。诊断、安装和部署流程都必须依赖外部安装的运行时。"
+            },
+            "node": {
+              "title": "Node.js 仍为外部依赖",
+              "detail": "Node.js 不参与打包。Hermes 某些能力可能会用到 Node.js，但安装与升级仍由外部环境负责。"
+            }
+          },
+          "readiness": {
+            "title": "就绪态势",
+            "deploymentTarget": {
+              "label": "部署目标",
+              "configured": "当前实例已经呈现远程 Linux 部署态势，这满足 Hermes 在 Windows 场景下的受支持边界。",
+              "required": "优先使用远程 Linux。如果该 Hermes 实例由 Windows 主机承载，本地执行也必须限定在 WSL2 内，而不是原生 Windows。"
+            },
+            "endpointExposure": {
+              "label": "连接端点",
+              "configured": "共享基础详情已经暴露至少一个 Hermes 连接端点，便于继续做运维与接入验证。",
+              "required": "当前还没有看到已发布的 Hermes 端点。在连接信息明确之前，端点校验仍应由 Hermes 模块边界负责。"
+            },
+            "observability": {
+              "label": "可观测证据",
+              "configured": "该实例已经有共享可观测数据，运行证据可以直接在详情模块内查看。",
+              "optional": "当前还没有暴露日志证据。Hermes 仍可运行，但在补齐可观测数据之前，诊断能力会受限。"
+            }
+          },
+          "endpointsTitle": "连接端点",
+          "emptyEndpoints": "当前 Hermes 实例还没有暴露可用连接端点。",
+          "openEndpoint": "打开端点",
+          "capabilitiesTitle": "能力态势",
+          "notesTitle": "运行说明",
+          "emptyNotes": "当前实例暂无额外 Hermes 说明。",
+          "dataAccessTitle": "数据访问面",
+          "artifactsTitle": "受管制品"
+        },
+        "unsupported": {
+          "eyebrow": "不受支持的内核",
+          "description": "当前还没有为 {{kernel}} 注册详情模块。现在该路由要求每个内核提供自己的详情实现，而不是继续复用 OpenClaw 页面。"
+        }
+      },
       "instanceWorkbench": {
         "sidebar": {
           "title": "实例工作台",

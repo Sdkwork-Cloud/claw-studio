@@ -65,6 +65,16 @@ test('desktop startup evidence builds a passed launch document with a sanitized 
       version: '0.1.0',
       target: 'x86_64-pc-windows-msvc',
     },
+    bundledComponents: {
+      packageProfileId: 'dual-kernel',
+      includedKernelIds: ['openclaw', 'hermes'],
+      defaultEnabledKernelIds: ['openclaw', 'hermes'],
+      componentCount: 2,
+      defaultStartupComponentIds: ['desktop-host'],
+      autoUpgradeEnabled: true,
+      approvalMode: 'strict',
+      components: [],
+    } as never,
     appPaths: {
       dataDir: 'C:/Users/admin/AppData/Claw/data',
       logsDir: 'C:/Users/admin/AppData/Claw/logs',
@@ -210,6 +220,9 @@ test('desktop startup evidence builds a passed launch document with a sanitized 
   assert.equal(document.phase, 'shell-mounted');
   assert.equal(document.runId, 7);
   assert.equal(document.durationMs, 842);
+  assert.equal(document.bundledComponents?.packageProfileId, 'dual-kernel');
+  assert.deepEqual(document.bundledComponents?.includedKernelIds, ['openclaw', 'hermes']);
+  assert.deepEqual(document.bundledComponents?.defaultEnabledKernelIds, ['openclaw', 'hermes']);
   assert.equal(document.paths?.dataDir, 'C:/Users/admin/AppData/Claw/data');
   assert.equal(document.descriptor?.browserBaseUrl, 'http://127.0.0.1:18797');
   assert.equal(
@@ -239,6 +252,7 @@ test('desktop startup evidence builds a passed launch document with a sanitized 
 
   const serialized = serializeDesktopStartupEvidence(document);
   assert.match(serialized, /"phase": "shell-mounted"/);
+  assert.match(serialized, /"packageProfileId": "dual-kernel"/);
   assert.match(serialized, /"localAiProxy": \{/);
   assert.match(serialized, /"snapshotPath": "C:\/Users\/admin\/AppData\/Claw\/data\/local-ai-proxy\.snapshot\.json"/);
   assert.doesNotMatch(serialized, /browserSessionToken/);
@@ -247,6 +261,111 @@ test('desktop startup evidence builds a passed launch document with a sanitized 
     DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH,
     'diagnostics/desktop-startup-evidence.json',
   );
+});
+
+test('desktop startup evidence resolves the built-in instance from readiness evidence instead of assuming local-built-in', () => {
+  const document = buildDesktopStartupEvidenceDocument({
+    status: 'passed',
+    phase: 'runtime-ready',
+    runId: 8,
+    durationMs: 512,
+    readinessSnapshot: {
+      descriptor: {
+        mode: 'desktopCombined',
+        lifecycle: 'ready',
+        apiBasePath: '/claw/api/v1',
+        manageBasePath: '/claw/manage/v1',
+        internalBasePath: '/claw/internal/v1',
+        browserBaseUrl: 'http://127.0.0.1:18797',
+        browserSessionToken: 'secret-session-token',
+      },
+      hostPlatformStatus: {
+        mode: 'desktopCombined',
+        lifecycle: 'ready',
+      },
+      hostEndpoints: [],
+      openClawRuntime: null,
+      openClawGateway: {
+        lifecycle: 'ready',
+        endpointId: 'openclaw-gateway',
+        activePort: 18871,
+        baseUrl: 'http://127.0.0.1:18871',
+        websocketUrl: 'ws://127.0.0.1:18871',
+      },
+      instances: [
+        {
+          id: 'managed-openclaw-primary',
+          name: 'Managed OpenClaw Primary',
+          version: '2026.4.11',
+          runtimeKind: 'openclaw',
+          deploymentMode: 'local-managed',
+          transportKind: 'openclawGatewayWs',
+          status: 'online',
+          baseUrl: 'http://127.0.0.1:18871',
+          websocketUrl: 'ws://127.0.0.1:18871',
+          isBuiltIn: true,
+          isDefault: true,
+          config: {
+            authToken: 'sensitive-token',
+          },
+        },
+      ],
+      evidence: {
+        builtInInstanceId: 'managed-openclaw-primary',
+      },
+    } as never,
+  });
+
+  assert.equal(document.builtInInstance?.id, 'managed-openclaw-primary');
+  assert.equal(document.builtInInstance?.runtimeKind, 'openclaw');
+});
+
+test('desktop startup evidence preserves bundled package context for hermes-only packages even when openclaw diagnostics are absent', () => {
+  const document = buildDesktopStartupEvidenceDocument({
+    status: 'passed',
+    phase: 'runtime-ready',
+    runId: 9,
+    durationMs: 420,
+    bundledComponents: {
+      packageProfileId: 'hermes-only',
+      includedKernelIds: ['hermes'],
+      defaultEnabledKernelIds: ['hermes'],
+      componentCount: 1,
+      defaultStartupComponentIds: ['desktop-host'],
+      autoUpgradeEnabled: true,
+      approvalMode: 'strict',
+      components: [],
+    } as never,
+    readinessSnapshot: {
+      descriptor: {
+        mode: 'desktopCombined',
+        lifecycle: 'ready',
+        apiBasePath: '/claw/api/v1',
+        manageBasePath: '/claw/manage/v1',
+        internalBasePath: '/claw/internal/v1',
+        browserBaseUrl: 'http://127.0.0.1:18797',
+        browserSessionToken: 'secret-session-token',
+      },
+      hostPlatformStatus: {
+        mode: 'desktopCombined',
+        lifecycle: 'ready',
+      },
+      hostEndpoints: [],
+      openClawRuntime: null,
+      openClawGateway: null,
+      instances: [],
+      evidence: {
+        ready: true,
+      },
+    } as never,
+  });
+
+  assert.equal(document.bundledComponents?.packageProfileId, 'hermes-only');
+  assert.deepEqual(document.bundledComponents?.includedKernelIds, ['hermes']);
+  assert.deepEqual(document.bundledComponents?.defaultEnabledKernelIds, ['hermes']);
+  assert.equal(document.openClawRuntime, null);
+  assert.equal(document.openClawGateway, null);
+  assert.equal(document.builtInInstance, null);
 });
 
 test('desktop startup evidence builds a failed launch document with summarized error cause', () => {

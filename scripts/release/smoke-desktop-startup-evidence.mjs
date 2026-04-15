@@ -38,6 +38,21 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..', '..');
 const DEFAULT_RELEASE_ASSETS_DIR = path.join(rootDir, 'artifacts', 'release');
 
+function manifestIncludesKernel(manifest, kernelId) {
+  const normalizedKernelId = String(kernelId ?? '').trim().toLowerCase();
+  if (!normalizedKernelId) {
+    return false;
+  }
+
+  if (!Array.isArray(manifest?.includedKernelIds)) {
+    return normalizedKernelId === 'openclaw';
+  }
+
+  return manifest.includedKernelIds.some(
+    (value) => String(value ?? '').trim().toLowerCase() === normalizedKernelId,
+  );
+}
+
 function readOptionValue(argv, index, flag) {
   const next = argv[index + 1];
   const normalizedNext = String(next ?? '').trim();
@@ -55,6 +70,16 @@ function normalizeArtifactRelativePaths(manifest) {
       .map((artifact) => String(artifact?.relativePath ?? '').trim())
       .filter(Boolean)
       .sort((left, right) => left.localeCompare(right))
+    : [];
+}
+
+function normalizeManifestString(value) {
+  return String(value ?? '').trim();
+}
+
+function normalizeManifestStringArray(values) {
+  return Array.isArray(values)
+    ? values.map((value) => normalizeManifestString(value)).filter(Boolean)
     : [];
 }
 
@@ -96,7 +121,16 @@ function readDesktopStartupEvidence(evidencePath) {
   }
 }
 
-function validateDesktopStartupEvidence(evidence, evidencePath) {
+function validateDesktopStartupEvidence(
+  evidence,
+  evidencePath,
+  {
+    requiresManagedOpenClawEvidence = true,
+    expectedPackageProfileId = '',
+    expectedIncludedKernelIds = [],
+    expectedDefaultEnabledKernelIds = [],
+  } = {},
+) {
   if (!evidence || typeof evidence !== 'object') {
     throw new Error(`Desktop startup evidence must be a JSON object: ${evidencePath}`);
   }
@@ -121,22 +155,38 @@ function validateDesktopStartupEvidence(evidence, evidencePath) {
     );
   }
   if (
+    requiresManagedOpenClawEvidence
+    && (
     evidence?.readinessEvidence?.gatewayWebsocketProbeSupported === true
     && evidence?.readinessEvidence?.gatewayWebsocketDialable !== true
+    )
   ) {
     throw new Error(
       `Desktop startup evidence must prove the managed gateway websocket is dialable at ${evidencePath}.`,
     );
   }
-  if (String(evidence?.builtInInstance?.id ?? '').trim() !== 'local-built-in') {
-    throw new Error(
-      `Desktop startup evidence must preserve the built-in OpenClaw instance identity at ${evidencePath}.`,
-    );
-  }
-  if (String(evidence?.builtInInstance?.status ?? '').trim() !== 'online') {
-    throw new Error(
-      `Desktop startup evidence must preserve the built-in OpenClaw instance online status at ${evidencePath}.`,
-    );
+  if (requiresManagedOpenClawEvidence) {
+    const builtInInstanceId = String(evidence?.builtInInstance?.id ?? '').trim();
+    if (!builtInInstanceId) {
+      throw new Error(
+        `Desktop startup evidence must preserve the built-in OpenClaw instance identity at ${evidencePath}.`,
+      );
+    }
+    if (String(evidence?.builtInInstance?.runtimeKind ?? '').trim() !== 'openclaw') {
+      throw new Error(
+        `Desktop startup evidence must preserve the built-in OpenClaw runtime kind at ${evidencePath}.`,
+      );
+    }
+    if (evidence?.builtInInstance?.isBuiltIn !== true) {
+      throw new Error(
+        `Desktop startup evidence must preserve the managed built-in OpenClaw projection at ${evidencePath}.`,
+      );
+    }
+    if (String(evidence?.builtInInstance?.status ?? '').trim() !== 'online') {
+      throw new Error(
+        `Desktop startup evidence must preserve the built-in OpenClaw instance online status at ${evidencePath}.`,
+      );
+    }
   }
 
   const descriptorBrowserBaseUrl = String(
@@ -145,6 +195,49 @@ function validateDesktopStartupEvidence(evidence, evidencePath) {
   if (!descriptorBrowserBaseUrl) {
     throw new Error(
       `Desktop startup evidence must preserve descriptor.browserBaseUrl at ${evidencePath}.`,
+    );
+  }
+
+  const bundledComponents = evidence?.bundledComponents;
+  if (!bundledComponents || typeof bundledComponents !== 'object') {
+    throw new Error(
+      `Desktop startup evidence must preserve bundled package context at ${evidencePath}.`,
+    );
+  }
+
+  const packageProfileId = normalizeManifestString(bundledComponents.packageProfileId);
+  if (!packageProfileId) {
+    throw new Error(
+      `Desktop startup evidence must preserve bundledComponents.packageProfileId at ${evidencePath}.`,
+    );
+  }
+  if (packageProfileId !== expectedPackageProfileId) {
+    throw new Error(
+      `Desktop startup evidence package profile mismatch at ${evidencePath}: expected ${expectedPackageProfileId}, received ${packageProfileId}.`,
+    );
+  }
+
+  const includedKernelIds = normalizeManifestStringArray(
+    bundledComponents.includedKernelIds,
+  );
+  if (
+    JSON.stringify(includedKernelIds)
+    !== JSON.stringify(normalizeManifestStringArray(expectedIncludedKernelIds))
+  ) {
+    throw new Error(
+      `Desktop startup evidence included kernels mismatch at ${evidencePath}.`,
+    );
+  }
+
+  const defaultEnabledKernelIds = normalizeManifestStringArray(
+    bundledComponents.defaultEnabledKernelIds,
+  );
+  if (
+    JSON.stringify(defaultEnabledKernelIds)
+    !== JSON.stringify(normalizeManifestStringArray(expectedDefaultEnabledKernelIds))
+  ) {
+    throw new Error(
+      `Desktop startup evidence default enabled kernels mismatch at ${evidencePath}.`,
     );
   }
 }
@@ -167,7 +260,9 @@ function extractLocalAiProxyRuntime(evidence, evidencePath) {
   return localAiProxyRuntime;
 }
 
-function buildDesktopStartupSmokeChecks() {
+function buildDesktopStartupSmokeChecks({
+  requiresManagedOpenClawEvidence = true,
+} = {}) {
   return [
     {
       id: 'startup-status',
@@ -187,12 +282,16 @@ function buildDesktopStartupSmokeChecks() {
     {
       id: 'built-in-instance',
       status: 'passed',
-      detail: 'desktop startup evidence preserved the managed built-in instance projection',
+      detail: requiresManagedOpenClawEvidence
+        ? 'desktop startup evidence preserved the managed built-in instance projection'
+        : 'desktop startup evidence skipped managed OpenClaw instance checks because package profile excludes openclaw',
     },
     {
       id: 'gateway-websocket',
       status: 'passed',
-      detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
+      detail: requiresManagedOpenClawEvidence
+        ? 'desktop startup evidence proved the managed gateway websocket was dialable'
+        : 'desktop startup evidence skipped managed OpenClaw gateway websocket checks because package profile excludes openclaw',
     },
     {
       id: 'local-ai-proxy-runtime',
@@ -212,6 +311,7 @@ export function writeDesktopStartupSmokeReport({
   evidence,
   localAiProxyRuntime,
   artifactRelativePaths = [],
+  requiresManagedOpenClawEvidence = true,
 } = {}) {
   const reportPath = resolveDesktopStartupSmokeReportPath({
     releaseAssetsDir,
@@ -232,6 +332,13 @@ export function writeDesktopStartupSmokeReport({
       releaseAssetsDir,
       capturedEvidencePath,
     ).replaceAll('\\', '/'),
+    packageProfileId: normalizeManifestString(evidence?.bundledComponents?.packageProfileId),
+    includedKernelIds: normalizeManifestStringArray(
+      evidence?.bundledComponents?.includedKernelIds,
+    ),
+    defaultEnabledKernelIds: normalizeManifestStringArray(
+      evidence?.bundledComponents?.defaultEnabledKernelIds,
+    ),
     descriptorBrowserBaseUrl: String(evidence?.descriptor?.browserBaseUrl ?? '').trim(),
     builtInInstanceId: String(evidence?.builtInInstance?.id ?? '').trim(),
     builtInInstanceStatus: String(evidence?.builtInInstance?.status ?? '').trim(),
@@ -239,7 +346,9 @@ export function writeDesktopStartupSmokeReport({
     artifactRelativePaths: [...artifactRelativePaths].sort((left, right) =>
       left.localeCompare(right),
     ),
-    checks: buildDesktopStartupSmokeChecks(),
+    checks: buildDesktopStartupSmokeChecks({
+      requiresManagedOpenClawEvidence,
+    }),
   };
 
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
@@ -268,6 +377,7 @@ export async function smokeDesktopStartupEvidence({
     platform: releasePlatform,
     arch: releaseArch,
   });
+  const requiresManagedOpenClawEvidence = manifestIncludesKernel(manifest, 'openclaw');
 
   assertDesktopManifestMatchesTarget({
     manifest,
@@ -285,7 +395,14 @@ export async function smokeDesktopStartupEvidence({
     ? resolveCliPath(startupEvidencePath)
     : canonicalEvidencePath;
   const evidence = readDesktopStartupEvidence(sourceEvidencePath);
-  validateDesktopStartupEvidence(evidence, sourceEvidencePath);
+  validateDesktopStartupEvidence(evidence, sourceEvidencePath, {
+    requiresManagedOpenClawEvidence,
+    expectedPackageProfileId: normalizeManifestString(manifest?.packageProfileId),
+    expectedIncludedKernelIds: normalizeManifestStringArray(manifest?.includedKernelIds),
+    expectedDefaultEnabledKernelIds: normalizeManifestStringArray(
+      manifest?.defaultEnabledKernelIds,
+    ),
+  });
   const localAiProxyRuntime = extractLocalAiProxyRuntime(evidence, sourceEvidencePath);
 
   if (path.resolve(sourceEvidencePath) !== path.resolve(canonicalEvidencePath)) {
@@ -307,6 +424,7 @@ export async function smokeDesktopStartupEvidence({
     evidence,
     localAiProxyRuntime,
     artifactRelativePaths: normalizeArtifactRelativePaths(manifest),
+    requiresManagedOpenClawEvidence,
   });
 
   return {

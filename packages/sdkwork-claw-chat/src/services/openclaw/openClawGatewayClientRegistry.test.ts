@@ -24,7 +24,7 @@ function createInstance(
   return {
     id: 'local-built-in',
     name: 'Local Built-In',
-    description: 'Bundled OpenClaw runtime.',
+    description: 'Packaged local OpenClaw kernel.',
     runtimeKind: 'openclaw',
     deploymentMode: 'local-managed',
     transportKind: 'openclawGatewayWs',

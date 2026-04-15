@@ -21,6 +21,11 @@ import {
   syncWindowsPackagedOpenClawAliasRoot,
   validatePreparedOpenClawPackageTree,
 } from './prepare-openclaw-runtime.mjs';
+import {
+  DEFAULT_KERNEL_PACKAGE_PROFILE_ID,
+  resolveKernelPackageProfile,
+} from './release/kernel-package-profiles.mjs';
+import { listKernelDefinitions } from './release/kernel-definitions.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,11 +72,13 @@ const sourceFoundationDir = path.join(
   'components',
 );
 
-const args = new Set(process.argv.slice(2));
+const argvTokens = process.argv.slice(2);
+const args = new Set(argvTokens);
 const devMode = args.has('--dev');
 const noFetch = args.has('--no-fetch');
 const releaseMode = args.has('--release');
 const skipOpenClaw = args.has('--skip-openclaw');
+const requestedPackageProfileId = resolveRequestedPackageProfileId(argvTokens, process.env);
 const windowsTauriBundleBridgeRoots = {
   bundled: ['generated', 'br', 'b'],
   'web-dist': ['generated', 'br', 'w'],
@@ -88,6 +95,60 @@ const DEFAULT_DIRECTORY_CLEANUP_RETRY_DELAY_MS = 500;
 const DEFAULT_WINDOWS_BUNDLED_MIRROR_RETENTION_COUNT = 3;
 const MAX_LOCK_REUSE_LOG_LINES = 20;
 let lockedBundledFileReuseLogCount = 0;
+const KNOWN_KERNEL_IDS = new Set(
+  listKernelDefinitions().map((definition) => String(definition?.kernelId ?? '').trim()).filter(Boolean),
+);
+
+function readOptionValue(argv, index, flag) {
+  const next = argv[index + 1];
+  const normalizedNext = String(next ?? '').trim();
+  if (!normalizedNext || normalizedNext.startsWith('--')) {
+    throw new Error(`Missing value for ${flag}.`);
+  }
+
+  return normalizedNext;
+}
+
+function resolveRequestedPackageProfileId(argv, env = process.env) {
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] !== '--package-profile') {
+      continue;
+    }
+
+    return readOptionValue(argv, index, '--package-profile');
+  }
+
+  const envPackageProfileId = String(env.SDKWORK_KERNEL_PACKAGE_PROFILE_ID ?? '').trim();
+  return envPackageProfileId || DEFAULT_KERNEL_PACKAGE_PROFILE_ID;
+}
+
+export function createBundleManifest({
+  packageProfileId = requestedPackageProfileId,
+  generatedAt = new Date().toISOString(),
+} = {}) {
+  const kernelPackageProfile = resolveKernelPackageProfile(packageProfileId);
+  return {
+    version: 1,
+    generatedAt,
+    packageProfileId: kernelPackageProfile.profileId,
+    includedKernelIds: [...kernelPackageProfile.includedKernelIds],
+    defaultEnabledKernelIds: [...kernelPackageProfile.defaultEnabledKernelIds],
+    requiredExternalRuntimes: [...kernelPackageProfile.requiredExternalRuntimes],
+    optionalExternalRuntimes: [...kernelPackageProfile.optionalExternalRuntimes],
+    launcherKinds: [...kernelPackageProfile.launcherKinds],
+    kernelPlatformSupport: Object.fromEntries(
+      Object.entries(kernelPackageProfile.kernelPlatformSupport).map(([kernelId, platformSupport]) => [
+        kernelId,
+        {
+          ...platformSupport,
+        },
+      ]),
+    ),
+    components: [],
+    kernelBundles: [],
+    runtimeVersions: {},
+  };
+}
 
 export function resolvePinnedOpenClawVersion({ env = process.env } = {}) {
   const configuredVersion = env.OPENCLAW_VERSION;
@@ -222,7 +283,7 @@ export async function validateStagedOpenClawPackage({
   });
 }
 
-export async function ensureBundledNodeRuntimeCacheReady({
+export async function ensureBuildTimeNodeRuntimeCacheReady({
   cacheDir = DEFAULT_PREPARE_CACHE_DIR,
   openclawVersion = resolvePinnedOpenClawVersion(),
   nodeVersion = DEFAULT_NODE_VERSION,
@@ -265,33 +326,14 @@ export async function ensureBundledNodeRuntimeCacheReady({
   }
 
   if (!inspection.reusable && prepareResult?.resourceDir && prepareResult?.manifest) {
-    // Some workspaces keep the embedded runtime current without backfilling the shared
-    // node cache. Reuse the verified prepared runtime directly instead of falling back
-    // to the local shell Node binary.
     const preparedInspection = await inspectPreparedOpenClawRuntimeImpl({
       resourceDir: prepareResult.resourceDir,
       manifest: prepareResult.manifest,
       runtimeSupplementalPackages,
     });
-
-    if (preparedInspection.reusable) {
-      const preparedNodeBinaryPath = path.join(
-        prepareResult.resourceDir,
-        prepareResult.manifest.nodeRelativePath,
-      );
-
-      return {
-        cachePaths,
-        inspection: preparedInspection,
-        nodeSourceDir: path.dirname(preparedNodeBinaryPath),
-        nodeBinaryPath: preparedNodeBinaryPath,
-        refreshedRuntime,
-        sourceKind: 'prepared-resource',
-        target,
-      };
+    if (!preparedInspection.reusable) {
+      inspection = preparedInspection;
     }
-
-    inspection = preparedInspection;
   }
 
   if (!inspection.reusable) {
@@ -300,11 +342,11 @@ export async function ensureBundledNodeRuntimeCacheReady({
         ? ` (found ${inspection.preparedNodeVersion.trim()})`
         : '';
     throw new Error(
-      `[bundled-components] bundled node runtime cache is not ready for ${target.platformId}-${target.archId} Node ${nodeVersion}: ${inspection.reason}${observedVersion}`,
+      `[bundled-components] build-time Node runtime cache is not ready for ${target.platformId}-${target.archId} Node ${nodeVersion}: ${inspection.reason}${observedVersion}`,
     );
   }
 
-  const relativeNodeBinaryPath = target.bundledNodePath.replace(/^runtime[\\/]node[\\/]/, '');
+  const relativeNodeBinaryPath = target.nodeBinaryRelativePath.replace(/^runtime[\\/]node[\\/]/, '');
   return {
     cachePaths,
     inspection,
@@ -428,7 +470,7 @@ export function writeJsonWithWindowsLockFallback(
   }
 }
 
-const componentSources = [
+const kernelBundleSources = [
   {
     id: 'openclaw',
     repoUrl: 'https://github.com/openclaw/openclaw.git',
@@ -476,7 +518,7 @@ const componentSources = [
 
         if (preparedInspection.fresh) {
           console.log(
-            '[bundled-components] using prepared bundled runtime package as the source of truth for openclaw dev staging',
+            '[bundled-components] using the prepared OpenClaw package layout as the source of truth for openclaw dev staging',
           );
             prepareBundledOutputRootSync(stageVersionDir, { logger: console.warn });
             fs.mkdirSync(stageDir, { recursive: true });
@@ -617,31 +659,87 @@ const componentSources = [
   },
 ];
 
+export function createPackageProfileBundleSyncPlan({
+  packageProfileId = requestedPackageProfileId,
+} = {}) {
+  const kernelPackageProfile = resolveKernelPackageProfile(packageProfileId);
+  const includedKernelIds = [...kernelPackageProfile.includedKernelIds];
+  const availableBundledKernelIds = new Set(
+    kernelBundleSources.map((kernelSource) => String(kernelSource?.id ?? '').trim()).filter(Boolean),
+  );
+  const bundledKernelIds = includedKernelIds.filter((kernelId) => availableBundledKernelIds.has(kernelId));
+  const includesOpenClaw = bundledKernelIds.includes('openclaw');
+
+  return {
+    packageProfileId: kernelPackageProfile.profileId,
+    includedKernelIds,
+    bundledKernelIds,
+    includesOpenClaw,
+    requiresBuildTimeNodeRuntimeCache: includesOpenClaw,
+    shouldIncludeOpenClawResources: includesOpenClaw,
+  };
+}
+
+export function filterPackagedComponentRegistry({
+  componentRegistry,
+  bundledKernelIds = [],
+} = {}) {
+  const sourceRegistry =
+    componentRegistry && typeof componentRegistry === 'object' ? componentRegistry : {};
+  const sourceComponents = Array.isArray(sourceRegistry.components)
+    ? sourceRegistry.components
+    : [];
+  const kernelCatalogIds = new Set(
+    [...KNOWN_KERNEL_IDS],
+  );
+  const includedBundledKernelIds = new Set(
+    Array.isArray(bundledKernelIds)
+      ? bundledKernelIds.map((kernelId) => String(kernelId ?? '').trim()).filter(Boolean)
+      : [],
+  );
+
+  return {
+    ...sourceRegistry,
+    components: sourceComponents.filter((entry) => {
+      const componentId = typeof entry?.id === 'string' ? entry.id.trim() : '';
+      return !kernelCatalogIds.has(componentId) || includedBundledKernelIds.has(componentId);
+    }),
+  };
+}
+
 async function main() {
+  const bundleSyncPlan = createPackageProfileBundleSyncPlan({
+    packageProfileId: requestedPackageProfileId,
+  });
   fs.mkdirSync(upstreamRoot, { recursive: true });
   fs.mkdirSync(buildRoot, { recursive: true });
   fs.mkdirSync(generatedRoot, { recursive: true });
   prepareBundledOutputRootSync(bundledRoot);
   fs.mkdirSync(path.join(bundledRoot, 'foundation', 'components'), { recursive: true });
   fs.mkdirSync(path.join(bundledRoot, 'modules'), { recursive: true });
-  fs.mkdirSync(path.join(bundledRoot, 'runtimes'), { recursive: true });
-  writeTauriBundleOverlayConfig();
+  writeTauriBundleOverlayConfig({
+    packageProfileId: bundleSyncPlan.packageProfileId,
+  });
 
   const bundleManifest = {
-    generatedAt: new Date().toISOString(),
+    ...createBundleManifest({
+      packageProfileId: requestedPackageProfileId,
+    }),
     mode: devMode ? 'dev' : 'build',
-    components: [],
-    runtimeVersions: {},
   };
 
-  const staticRegistry = syncSourceFoundationComponentRegistrySync({
-    foundationDir: sourceFoundationDir,
-    bundledOpenClawVersion: resolvePinnedOpenClawVersion(),
+  const staticRegistry = filterPackagedComponentRegistry({
+    componentRegistry: syncSourceFoundationComponentRegistrySync({
+      foundationDir: sourceFoundationDir,
+    }),
+    bundledKernelIds: bundleSyncPlan.bundledKernelIds,
   });
   const serviceDefaults = readJson(path.join(sourceFoundationDir, 'service-defaults.json'));
   const upgradePolicy = readJson(path.join(sourceFoundationDir, 'upgrade-policy.json'));
 
-  for (const component of componentSources) {
+  for (const component of kernelBundleSources.filter((entry) => (
+    bundleSyncPlan.bundledKernelIds.includes(entry.id)
+  ))) {
     const repoDir = ensureRepository(component);
     const fullSha = readGitHeadCommit(repoDir);
     const shortSha = fullSha.slice(0, 12);
@@ -685,7 +783,7 @@ async function main() {
       );
     }
 
-    bundleManifest.components.push({
+    bundleManifest.kernelBundles.push({
       id: component.id,
       version,
       commit: fullSha,
@@ -700,29 +798,6 @@ async function main() {
       registryEntry.sourceUrl = component.repoUrl;
     }
   }
-
-  const bundledNodeRuntime = await ensureBundledNodeRuntimeCacheReady({
-    openclawVersion: resolvePinnedOpenClawVersion(),
-    nodeVersion: DEFAULT_NODE_VERSION,
-  });
-  const nodeRuntimeDir = path.join(bundledRoot, 'runtimes', 'node', DEFAULT_NODE_VERSION);
-  const bundledNodeBinaryPath = path.join(
-    nodeRuntimeDir,
-    path.basename(bundledNodeRuntime.nodeBinaryPath),
-  );
-  fs.mkdirSync(nodeRuntimeDir, { recursive: true });
-  try {
-    copyFile(bundledNodeRuntime.nodeBinaryPath, bundledNodeBinaryPath);
-  } catch (error) {
-    if (!(devMode && shouldRetryDirectoryCleanup(error) && fs.existsSync(bundledNodeBinaryPath))) {
-      throw error;
-    }
-
-    console.warn(
-      `[bundled-components] continuing with existing bundled node runtime ${DEFAULT_NODE_VERSION} after copy fallback: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  bundleManifest.runtimeVersions.node = DEFAULT_NODE_VERSION;
 
   writeJson(path.join(bundledRoot, 'foundation', 'components', 'component-registry.json'), staticRegistry, {
     allowEquivalentExistingOnLock: devMode,
@@ -742,13 +817,17 @@ async function main() {
     logger: console.warn,
   });
 
-  await syncWindowsPackagedOpenClawAliasRoot({
-    workspaceRootDir: rootDir,
-    packagedResourceDir: resolvePackagedOpenClawResourceDir(rootDir, 'windows'),
-    platform: process.platform,
-  });
+  if (bundleSyncPlan.shouldIncludeOpenClawResources) {
+    await syncWindowsPackagedOpenClawAliasRoot({
+      workspaceRootDir: rootDir,
+      packagedResourceDir: resolvePackagedOpenClawResourceDir(rootDir, 'windows'),
+      platform: process.platform,
+    });
+  }
   ensureBundledLinkRoot();
-  ensureWindowsTauriBundleBridgeRoots();
+  ensureWindowsTauriBundleBridgeRoots({
+    packageProfileId: bundleSyncPlan.packageProfileId,
+  });
   pruneWindowsBundledMirrorRoots({
     workspaceRootDir: rootDir,
     platform: process.platform,
@@ -1049,67 +1128,25 @@ export function resolvePreparedOpenClawPackageRoots({
   };
 }
 
-export function normalizeComponentRegistryOpenClawVersion(
-  componentRegistry,
-  { bundledOpenClawVersion = DEFAULT_OPENCLAW_VERSION } = {},
-) {
-  const sourceRegistry =
-    componentRegistry && typeof componentRegistry === 'object' ? componentRegistry : {};
-  const sourceComponents = Array.isArray(sourceRegistry.components)
-    ? sourceRegistry.components
-    : [];
-  let changed = false;
-
-  const registry = {
-    ...sourceRegistry,
-    components: sourceComponents.flatMap((entry) => {
-      if (!entry || typeof entry !== 'object') {
-        return [entry];
-      }
-
-      const componentId = typeof entry.id === 'string' ? entry.id.trim() : '';
-      if (componentId !== 'openclaw' || entry.bundledVersion === bundledOpenClawVersion) {
-        return [entry];
-      }
-
-      changed = true;
-      return [{
-        ...entry,
-        bundledVersion: bundledOpenClawVersion,
-      }];
-    }),
-  };
-
-  return {
-    registry,
-    changed,
-  };
-}
-
 export function syncSourceFoundationComponentRegistrySync({
   foundationDir = sourceFoundationDir,
-  bundledOpenClawVersion = DEFAULT_OPENCLAW_VERSION,
   readJsonImpl = readJson,
-  writeJsonImpl = (filePath, value) =>
-    writeJson(filePath, value, {
-      allowEquivalentExistingOnLock: true,
-      logger: console.warn,
-    }),
-  logger = console.log,
 } = {}) {
   const componentRegistryPath = path.join(foundationDir, 'component-registry.json');
-  const { registry, changed } = normalizeComponentRegistryOpenClawVersion(
-    readJsonImpl(componentRegistryPath),
-    { bundledOpenClawVersion },
-  );
+  const registry = readJsonImpl(componentRegistryPath);
+  const registryComponents = Array.isArray(registry?.components)
+    ? registry.components
+    : [];
+  const leakedKernelIds = [...new Set(
+    registryComponents
+      .map((entry) => (typeof entry?.id === 'string' ? entry.id.trim() : ''))
+      .filter((componentId) => KNOWN_KERNEL_IDS.has(componentId)),
+  )];
 
-  if (changed) {
-    writeJsonImpl(componentRegistryPath, registry);
-    if (typeof logger === 'function') {
-      logger(
-        `[bundled-components] normalized source component registry openclaw version to ${bundledOpenClawVersion}`,
-      );
-    }
+  if (leakedKernelIds.length > 0) {
+    throw new Error(
+      `source desktop component registry must not contain kernel entries: ${leakedKernelIds.join(', ')}`,
+    );
   }
 
   return registry;
@@ -1343,12 +1380,15 @@ function resolveExistingPathTarget(candidatePath) {
   }
 }
 
-function writeTauriBundleOverlayConfig() {
+function writeTauriBundleOverlayConfig({
+  packageProfileId = requestedPackageProfileId,
+} = {}) {
   writeJson(
     tauriBundleOverlayConfigPath,
     createTauriBundleOverlayConfig({
       workspaceRootDir: rootDir,
       platform: process.platform,
+      packageProfileId,
     }),
   );
 }
@@ -1407,11 +1447,14 @@ function resolveWindowsTauriBundleBridgeSource(resourceId) {
   return `${relativeSegments.join('/')}/`;
 }
 
-function ensureWindowsTauriBundleBridgeRoots() {
+function ensureWindowsTauriBundleBridgeRoots({
+  packageProfileId = requestedPackageProfileId,
+} = {}) {
   if (process.platform !== 'win32') {
     return;
   }
 
+  const bundleSyncPlan = createPackageProfileBundleSyncPlan({ packageProfileId });
   ensureDirectoryLinkRoot(
     resolveWindowsTauriBundleBridgeDir(rootDir, 'bundled', process.platform),
     bundledRoot,
@@ -1422,31 +1465,39 @@ function ensureWindowsTauriBundleBridgeRoots() {
     desktopWebDistBundleSourceRoot,
     process.platform,
   );
-  ensureDirectoryLinkRoot(
-    resolveWindowsTauriBundleBridgeDir(rootDir, 'openclaw', process.platform),
-    openClawRuntimeBundleSourceRoot,
-    process.platform,
-  );
+  if (bundleSyncPlan.shouldIncludeOpenClawResources) {
+    ensureDirectoryLinkRoot(
+      resolveWindowsTauriBundleBridgeDir(rootDir, 'openclaw', process.platform),
+      openClawRuntimeBundleSourceRoot,
+      process.platform,
+    );
+  }
 }
 
 export function createTauriBundleOverlayConfig({
   workspaceRootDir = rootDir,
   platform = process.platform,
+  packageProfileId = requestedPackageProfileId,
 } = {}) {
   if (platform !== 'win32') {
     return {};
   }
 
+  const bundleSyncPlan = createPackageProfileBundleSyncPlan({ packageProfileId });
+  const resources = {
+    'foundation/components/': 'foundation/components/',
+    // Use short in-tree bridge junctions so Windows bundling avoids both
+    // lost drive prefixes and MAX_PATH expansion through repo-relative roots.
+    [resolveWindowsTauriBundleBridgeSource('bundled')]: 'generated/bundled/',
+    [resolveWindowsTauriBundleBridgeSource('web-dist')]: 'dist/',
+  };
+  if (bundleSyncPlan.shouldIncludeOpenClawResources) {
+    resources[resolveWindowsTauriBundleBridgeSource('openclaw')] = 'resources/openclaw/';
+  }
+
   return {
     bundle: {
-      resources: {
-        'foundation/components/': 'foundation/components/',
-        // Use short in-tree bridge junctions so Windows bundling avoids both
-        // lost drive prefixes and MAX_PATH expansion through repo-relative roots.
-        [resolveWindowsTauriBundleBridgeSource('bundled')]: 'generated/bundled/',
-        [resolveWindowsTauriBundleBridgeSource('web-dist')]: 'dist/',
-        [resolveWindowsTauriBundleBridgeSource('openclaw')]: 'resources/openclaw/',
-      },
+      resources,
     },
   };
 }

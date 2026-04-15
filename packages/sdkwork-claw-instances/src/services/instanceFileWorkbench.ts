@@ -10,6 +10,7 @@ interface WorkbenchFileContentStateInput {
   file: InstanceWorkbenchFile;
   loadedFileContents: Record<string, string>;
   runtimeKind?: string | null;
+  transportKind?: string | null;
   isBuiltIn?: boolean;
 }
 
@@ -237,8 +238,8 @@ export function shouldPersistWorkbenchFileDraftChange(
   return input.isFlush !== true;
 }
 
-function isRemoteOpenClawWorkbenchFile(input: WorkbenchFileContentStateInput) {
-  return input.runtimeKind === 'openclaw' && !input.isBuiltIn;
+function isRemoteGatewayWorkbenchFile(input: WorkbenchFileContentStateInput) {
+  return input.transportKind === 'openclawGatewayWs' && !input.isBuiltIn;
 }
 
 export function shouldLoadWorkbenchFileContent(input: WorkbenchFileContentStateInput) {
@@ -246,7 +247,7 @@ export function shouldLoadWorkbenchFileContent(input: WorkbenchFileContentStateI
     return false;
   }
 
-  return isRemoteOpenClawWorkbenchFile(input);
+  return isRemoteGatewayWorkbenchFile(input);
 }
 
 export function getWorkbenchFileResolvedContent(input: WorkbenchFileContentStateInput) {
@@ -254,7 +255,7 @@ export function getWorkbenchFileResolvedContent(input: WorkbenchFileContentState
     return input.loadedFileContents[input.file.id] || '';
   }
 
-  if (isRemoteOpenClawWorkbenchFile(input)) {
+  if (isRemoteGatewayWorkbenchFile(input)) {
     return '';
   }
 

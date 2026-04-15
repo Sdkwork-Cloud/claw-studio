@@ -1,3 +1,6 @@
+import {
+  assertValidStudioCreateInstanceKernelPolicy,
+} from '@sdkwork/claw-infrastructure';
 import type {
   StudioCreateInstanceInput,
   StudioUpdateInstanceInput,
@@ -40,7 +43,10 @@ import type {
   ListParams,
   PaginatedResult,
   StudioInstanceDetailRecord,
+  StudioInstanceDeploymentMode,
   StudioInstanceRecord,
+  StudioInstanceTransportKind,
+  StudioRuntimeKind,
 } from '@sdkwork/claw-types';
 import type { Instance, InstanceConfig, InstanceLLMProviderUpdate } from '../types/index.ts';
 import type { ConfigUiHints } from './openClawConfigSchemaSupport.ts';
@@ -64,15 +70,9 @@ export interface CreateInstanceDTO {
   type?: string;
   iconType?: 'apple' | 'box' | 'server';
   description?: string;
-  runtimeKind?: 'openclaw' | 'zeroclaw' | 'ironclaw' | 'custom';
-  deploymentMode?: 'local-managed' | 'local-external' | 'remote';
-  transportKind?:
-    | 'openclawGatewayWs'
-    | 'zeroclawHttp'
-    | 'ironclawWeb'
-    | 'openaiHttp'
-    | 'customHttp'
-    | 'customWs';
+  runtimeKind?: StudioRuntimeKind;
+  deploymentMode?: StudioInstanceDeploymentMode;
+  transportKind?: StudioInstanceTransportKind;
   host?: string;
   port?: number | null;
   baseUrl?: string | null;
@@ -256,7 +256,7 @@ function mapStudioInstance(instance: StudioInstanceRecord): Instance {
 }
 
 function mapCreateInput(data: CreateInstanceDTO): StudioCreateInstanceInput {
-  return {
+  const input: StudioCreateInstanceInput = {
     name: data.name,
     description: data.description,
     runtimeKind: data.runtimeKind || 'custom',
@@ -269,6 +269,9 @@ function mapCreateInput(data: CreateInstanceDTO): StudioCreateInstanceInput {
     baseUrl: data.baseUrl ?? null,
     websocketUrl: data.websocketUrl ?? null,
   };
+
+  assertValidStudioCreateInstanceKernelPolicy(input);
+  return input;
 }
 
 function mapUpdateInput(data: UpdateInstanceDTO): StudioUpdateInstanceInput {

@@ -14,6 +14,7 @@ export * from './hostPortSettingsService.ts';
 export * from './hostRuntimeModeService.ts';
 export * from './instanceDirectoryService.ts';
 export * from './json5Compat.ts';
+export * from './kernelDetailModuleRegistry.ts';
 export * from './kernelPlatformService.ts';
 export * from './legacyProviderCompat.ts';
 export * from './localAiProxyRouteService.ts';

@@ -77,6 +77,10 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.match(serviceSource, /openClawConfigService\.saveChannelConfiguration/);
   assert.match(serviceSource, /deleteChannelConfig\(instanceId: string, channelId: string\)/);
   assert.match(serviceSource, /deleteInstanceChannelConfig/);
+  assert.doesNotMatch(serviceSource, /from 'react'/);
+  assert.doesNotMatch(serviceSource, /from 'lucide-react'/);
+  assert.doesNotMatch(serviceSource, /React\.ReactNode/);
+  assert.doesNotMatch(serviceSource, /React\.createElement/);
   assert.doesNotMatch(serviceSource, /studioMockService/);
   assert.doesNotMatch(serviceSource, /fetch\('/);
 

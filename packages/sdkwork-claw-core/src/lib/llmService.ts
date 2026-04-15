@@ -23,6 +23,11 @@ const OPENCLAW_CHAT_ENDPOINT_SUFFIXES = [
   '/v1/responses',
   '/responses',
 ] as const;
+const STANDARD_CHAT_ENDPOINT_SUFFIXES = [
+  '/v1/chat/completions',
+  '/chat/completions',
+] as const;
+const WEB_CHAT_ENDPOINT_SUFFIXES = ['/api/chat/completions'] as const;
 
 type ActiveInstanceRecord = NonNullable<Awaited<ReturnType<typeof studio.getInstance>>>;
 
@@ -210,6 +215,16 @@ function appendSuffix(baseUrl: string, suffix: string) {
   return normalizedBaseUrl ? `${normalizedBaseUrl}${suffix}` : null;
 }
 
+function appendSuffixes(baseUrl: string, suffixes: readonly string[]) {
+  return Array.from(
+    new Set(
+      suffixes
+        .map((suffix) => appendSuffix(baseUrl, suffix))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
+
 function listEndpointCandidates(instance: ActiveInstanceRecord): string[] {
   const baseUrl = normalizeUrl(instance.baseUrl ?? instance.config?.baseUrl ?? null);
   if (!baseUrl) {
@@ -224,28 +239,18 @@ function listEndpointCandidates(instance: ActiveInstanceRecord): string[] {
     case 'zeroclawHttp':
     case 'openaiHttp':
     case 'customHttp':
-      return [appendSuffix(baseUrl, '/chat/completions')].filter((value): value is string => Boolean(value));
+      return appendSuffixes(baseUrl, STANDARD_CHAT_ENDPOINT_SUFFIXES);
     case 'ironclawWeb':
-      return [appendSuffix(baseUrl, '/api/chat/completions')].filter((value): value is string => Boolean(value));
+      return appendSuffixes(baseUrl, WEB_CHAT_ENDPOINT_SUFFIXES);
     case 'openclawGatewayWs':
-      return [
-        appendSuffix(baseUrl, '/v1/chat/completions'),
-        appendSuffix(baseUrl, '/chat/completions'),
-      ].filter((value): value is string => Boolean(value));
+      return appendSuffixes(baseUrl, STANDARD_CHAT_ENDPOINT_SUFFIXES);
     default:
-      if (instance.runtimeKind === 'openclaw') {
-        return [
-          appendSuffix(baseUrl, '/v1/chat/completions'),
-          appendSuffix(baseUrl, '/chat/completions'),
-        ].filter((value): value is string => Boolean(value));
-      }
-
-      return [];
+      return appendSuffixes(baseUrl, STANDARD_CHAT_ENDPOINT_SUFFIXES);
   }
 }
 
 function createMissingInstanceError() {
-  return new Error('Select or start an OpenClaw-compatible instance before using AI generation.');
+  return new Error('Select or start an AI-compatible instance before using AI generation.');
 }
 
 function createMissingEndpointError(instance: ActiveInstanceRecord) {

@@ -349,6 +349,31 @@ test('resolveBackgroundRuntimeReadinessToastPlan returns localized toast copy fo
   assert.match(plan.description, /gateway timed out/);
 });
 
+test('resolveBackgroundRuntimeReadinessToastPlan returns generic runtime copy when managed OpenClaw recovery is unavailable', () => {
+  const plan = resolveBackgroundRuntimeReadinessToastPlan({
+    language: 'en',
+    status: 'launching',
+    shouldRenderShell: true,
+    currentRunId: 10,
+    lastShownSignature: '',
+    notification: {
+      runId: 10,
+      message: 'manage endpoint unavailable',
+      recoveryMode: 'generic-hosted-runtime',
+    },
+  });
+
+  assert.ok(plan);
+  assert.equal(plan.signature, '10:manage endpoint unavailable');
+  assert.equal(plan.toastId, BACKGROUND_RUNTIME_READINESS_TOAST_ID);
+  assert.equal(plan.title, 'Desktop runtime is not ready yet');
+  assert.equal(plan.retryActionLabel, 'Retry check');
+  assert.equal(plan.detailsActionLabel, 'View instances');
+  assert.match(plan.description, /desktop runtime/i);
+  assert.match(plan.description, /manage endpoint unavailable/);
+  assert.doesNotMatch(plan.description, /OpenClaw/i);
+});
+
 test('resolveBackgroundRuntimeReadinessToastResetPlan requests dismissal of the shared toast channel once a failure notification has been shown', () => {
   assert.deepEqual(
     resolveBackgroundRuntimeReadinessToastResetPlan('8:gateway timed out'),
@@ -486,6 +511,29 @@ test('retryBackgroundRuntimeReadinessRecovery stops before reconnect when the bu
   ]);
 });
 
+test('retryBackgroundRuntimeReadinessRecovery can retry generic hosted runtime readiness without restarting a managed instance', async () => {
+  const events: string[] = [];
+
+  await retryBackgroundRuntimeReadinessRecovery({
+    recoveryMode: 'generic-hosted-runtime',
+    clearFailureState: () => {
+      events.push('clearFailureState');
+    },
+    restartInstance: async (instanceId) => {
+      events.push(`restartInstance:${instanceId}`);
+      return { id: instanceId };
+    },
+    reconnectHostedRuntimeReadiness: async () => {
+      events.push('reconnectHostedRuntimeReadiness');
+    },
+  });
+
+  assert.deepEqual(events, [
+    'clearFailureState',
+    'reconnectHostedRuntimeReadiness',
+  ]);
+});
+
 test('resolveBackgroundRuntimeReadinessRecoveryToastCopy returns localized retry and success copy', () => {
   const zhCopy = resolveBackgroundRuntimeReadinessRecoveryToastCopy('zh');
   assert.equal(zhCopy.retryActionLabel, '立即重试');
@@ -498,4 +546,13 @@ test('resolveBackgroundRuntimeReadinessRecoveryToastCopy returns localized retry
   assert.equal(enCopy.detailsActionLabel, 'View details');
   assert.match(enCopy.loadingTitle, /Retrying/);
   assert.match(enCopy.readyTitle, /is ready/);
+
+  const genericCopy = resolveBackgroundRuntimeReadinessRecoveryToastCopy('en', {
+    recoveryMode: 'generic-hosted-runtime',
+  });
+  assert.equal(genericCopy.retryActionLabel, 'Retry check');
+  assert.equal(genericCopy.detailsActionLabel, 'View instances');
+  assert.match(genericCopy.loadingTitle, /desktop runtime/i);
+  assert.match(genericCopy.readyTitle, /desktop runtime/i);
+  assert.doesNotMatch(genericCopy.loadingDescription, /OpenClaw/i);
 });

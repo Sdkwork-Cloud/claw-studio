@@ -80,9 +80,24 @@ assert.equal(
   'sync-bundled-components must export validateStagedOpenClawPackage',
 );
 assert.equal(
-  typeof syncModule.ensureBundledNodeRuntimeCacheReady,
+  typeof syncModule.ensureBuildTimeNodeRuntimeCacheReady,
   'function',
-  'sync-bundled-components must export ensureBundledNodeRuntimeCacheReady',
+  'sync-bundled-components must export ensureBuildTimeNodeRuntimeCacheReady',
+);
+assert.equal(
+  typeof syncModule.createBundleManifest,
+  'function',
+  'sync-bundled-components must export createBundleManifest',
+);
+assert.equal(
+  typeof syncModule.createPackageProfileBundleSyncPlan,
+  'function',
+  'sync-bundled-components must export createPackageProfileBundleSyncPlan',
+);
+assert.equal(
+  typeof syncModule.filterPackagedComponentRegistry,
+  'function',
+  'sync-bundled-components must export filterPackagedComponentRegistry',
 );
 assert.match(
   syncModuleSource,
@@ -157,6 +172,67 @@ assert.deepEqual(
     'generated/br/w/',
   ],
   'sync-bundled-components must keep only OpenClaw, web dist, and foundation mappings in the Windows Tauri overlay',
+);
+
+assert.deepEqual(
+  syncModule.createPackageProfileBundleSyncPlan({
+    packageProfileId: 'hermes-only',
+  }),
+  {
+    packageProfileId: 'hermes-only',
+    includedKernelIds: ['hermes'],
+    bundledKernelIds: [],
+    includesOpenClaw: false,
+    requiresBuildTimeNodeRuntimeCache: false,
+    shouldIncludeOpenClawResources: false,
+  },
+  'sync-bundled-components must derive a package-profile sync plan that removes OpenClaw bundle work from hermes-only packages',
+);
+
+assert.equal(
+  syncModule.createPackageProfileBundleSyncPlan({
+    packageProfileId: 'openclaw-only',
+  }).requiresBuildTimeNodeRuntimeCache,
+  true,
+  'sync-bundled-components must record that openclaw-bearing package profiles depend on a build-time Node cache while still keeping Node.js external to packaged artifacts',
+);
+
+assert.deepEqual(
+  syncModule.filterPackagedComponentRegistry({
+    componentRegistry: {
+      version: 1,
+      components: [
+        { id: 'openclaw', bundledVersion: expectedOpenClawVersion },
+        { id: 'zeroclaw', bundledVersion: 'bundled' },
+      ],
+    },
+    bundledKernelIds: [],
+  }),
+  {
+    version: 1,
+    components: [
+      { id: 'zeroclaw', bundledVersion: 'bundled' },
+    ],
+  },
+  'sync-bundled-components must remove kernel component catalog entries that are excluded by the active package profile while keeping unrelated support components',
+);
+
+assert.deepEqual(
+  syncModule.createTauriBundleOverlayConfig({
+    workspaceRootDir: 'D:\\workspace\\claw-studio',
+    platform: 'win32',
+    packageProfileId: 'hermes-only',
+  }),
+  {
+    bundle: {
+      resources: {
+        'foundation/components/': 'foundation/components/',
+        'generated/br/b/': 'generated/bundled/',
+        'generated/br/w/': 'dist/',
+      },
+    },
+  },
+  'sync-bundled-components must omit OpenClaw resource bridge mappings from hermes-only Windows bundle overlays',
 );
 
 const cachedOpenClawRepoDir = syncModule.resolveComponentRepositoryDir({
@@ -264,18 +340,18 @@ assert.equal(
 );
 assert.match(
   syncModuleSource,
-  /bundleManifest\.runtimeVersions\.node = DEFAULT_NODE_VERSION;/,
-  'sync-bundled-components must record the bundled node runtime version from the shared OpenClaw release config instead of process.versions.node',
-);
-assert.match(
-  syncModuleSource,
   /inspectCachedNodeRuntimeDir/,
   'sync-bundled-components must validate the bundled node runtime against the prepared OpenClaw runtime cache before staging it',
 );
 assert.match(
   syncModuleSource,
   /prepareOpenClawRuntime/,
-  'sync-bundled-components must reuse the shared OpenClaw runtime preparation flow when the bundled node runtime cache is missing or stale',
+  'sync-bundled-components must reuse the shared OpenClaw runtime preparation flow when the build-time Node cache is missing or stale',
+);
+assert.doesNotMatch(
+  syncModuleSource,
+  /bundleManifest\.runtimeVersions\.node = DEFAULT_NODE_VERSION;/,
+  'sync-bundled-components must not record a standalone bundled node runtime in bundle-manifest.json because Node.js is not packaged as a desktop asset',
 );
 assert.doesNotMatch(
   syncModuleSource,
@@ -287,6 +363,59 @@ assert.doesNotMatch(
   /copyFile\(process\.execPath,\s*bundledNodeBinaryPath\);/,
   'sync-bundled-components must not stage the bundled node runtime from the local shell executable because that can drift from the pinned OpenClaw runtime version',
 );
+assert.doesNotMatch(
+  syncModuleSource,
+  /shouldStageBundledNodeRuntime/,
+  'sync-bundled-components package-profile sync plans must stop exposing legacy bundled Node staging flags after the external-runtime hard cut',
+);
+assert.doesNotMatch(
+  syncModuleSource,
+  /bundleManifest\.components\.push\(/,
+  'sync-bundled-components must not record kernel bundle staging entries under the generic support-component manifest field',
+);
+assert.match(
+  syncModuleSource,
+  /bundleManifest\.kernelBundles\.push\(/,
+  'sync-bundled-components must record kernel bundle staging entries under a dedicated kernelBundles manifest field',
+);
+assert.doesNotMatch(
+  syncModuleSource,
+  /normalized source component registry openclaw version/,
+  'sync-bundled-components must stop normalizing OpenClaw version metadata inside the generic desktop component registry after the kernel-platform hard cut',
+);
+
+  assert.deepEqual(
+    syncModule.createBundleManifest({
+      packageProfileId: 'dual-kernel',
+      generatedAt: '1970-01-01T00:00:00.000Z',
+  }),
+  {
+    version: 1,
+    generatedAt: '1970-01-01T00:00:00.000Z',
+    packageProfileId: 'dual-kernel',
+    includedKernelIds: ['openclaw', 'hermes'],
+    defaultEnabledKernelIds: ['openclaw', 'hermes'],
+    requiredExternalRuntimes: ['nodejs', 'python', 'uv'],
+    optionalExternalRuntimes: [],
+    launcherKinds: ['externalLocal', 'externalWslOrRemote'],
+    kernelPlatformSupport: {
+      openclaw: {
+        windows: 'native',
+        macos: 'native',
+        linux: 'native',
+      },
+      hermes: {
+        windows: 'wsl2OrRemoteOnly',
+        macos: 'native',
+        linux: 'native',
+      },
+    },
+    components: [],
+    kernelBundles: [],
+    runtimeVersions: {},
+  },
+  'sync-bundled-components must seed bundle-manifest.json from the explicit kernel package profile contract instead of only from generic bundled component metadata',
+);
 
 {
   const inspectCalls = [];
@@ -294,12 +423,12 @@ assert.doesNotMatch(
   const readyTarget = {
     platformId: 'windows',
     archId: 'x64',
-    bundledNodePath: 'runtime/node/node.exe',
+    nodeBinaryRelativePath: 'runtime/node/node.exe',
     nodeArchiveName(version) {
       return `node-v${version}-win-x64.zip`;
     },
   };
-  const readyResult = await syncModule.ensureBundledNodeRuntimeCacheReady({
+  const readyResult = await syncModule.ensureBuildTimeNodeRuntimeCacheReady({
     cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
     openclawVersion: expectedOpenClawVersion,
     nodeVersion: '22.16.0',
@@ -325,22 +454,22 @@ assert.doesNotMatch(
   assert.equal(
     readyResult.nodeBinaryPath,
     'D:\\workspace\\.cache\\openclaw-runtime-cache\\node\\windows-x64-node-v22.16.0\\node.exe',
-    'sync-bundled-components must resolve the staged bundled node binary from the prepared cache instead of process.execPath',
+    'sync-bundled-components must resolve the staged build-time Node binary from the prepared cache instead of process.execPath',
   );
   assert.equal(
     readyResult.refreshedRuntime,
     false,
-    'sync-bundled-components must reuse a ready bundled node cache without re-running runtime preparation',
+    'sync-bundled-components must reuse a ready build-time Node cache without re-running runtime preparation',
   );
   assert.equal(
     inspectCalls.length,
     1,
-    'sync-bundled-components must inspect the prepared bundled node cache before staging it',
+    'sync-bundled-components must inspect the prepared build-time Node cache before staging it',
   );
   assert.deepEqual(
     prepareCalls,
     [],
-    'sync-bundled-components must not re-run bundled runtime preparation when the prepared node cache is already reusable',
+    'sync-bundled-components must not re-run OpenClaw runtime preparation when the prepared build-time Node cache is already reusable',
   );
 }
 
@@ -358,14 +487,14 @@ assert.doesNotMatch(
     },
   ];
 
-  const refreshedResult = await syncModule.ensureBundledNodeRuntimeCacheReady({
+  const refreshedResult = await syncModule.ensureBuildTimeNodeRuntimeCacheReady({
     cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
     openclawVersion: expectedOpenClawVersion,
     nodeVersion: '22.16.0',
     target: {
       platformId: 'windows',
       archId: 'x64',
-      bundledNodePath: 'runtime/node/node.exe',
+      nodeBinaryRelativePath: 'runtime/node/node.exe',
       nodeArchiveName(version) {
         return `node-v${version}-win-x64.zip`;
       },
@@ -384,77 +513,66 @@ assert.doesNotMatch(
   assert.equal(
     prepareCalls.length,
     1,
-    'sync-bundled-components must invoke the shared OpenClaw runtime preparation flow when the bundled node cache is not reusable',
+    'sync-bundled-components must invoke the shared OpenClaw runtime preparation flow when the build-time Node cache is not reusable',
   );
   assert.equal(
     prepareCalls[0].nodeVersion,
     '22.16.0',
-    'sync-bundled-components must prepare the bundled node runtime using the shared pinned Node version',
+    'sync-bundled-components must prepare the build-time Node runtime using the shared pinned Node version',
   );
   assert.equal(
     prepareCalls[0].openclawVersion,
     expectedOpenClawVersion,
-    'sync-bundled-components must prepare the bundled node runtime using the shared pinned OpenClaw version',
-  );
-}
-
-{
-  const resourceFallbackResult = await syncModule.ensureBundledNodeRuntimeCacheReady({
-    cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
-    openclawVersion: expectedOpenClawVersion,
-    nodeVersion: '22.16.0',
-    target: {
-      platformId: 'windows',
-      archId: 'x64',
-      bundledNodePath: 'runtime/node/node.exe',
-      nodeArchiveName(version) {
-        return `node-v${version}-win-x64.zip`;
-      },
-    },
-    inspectCachedNodeRuntimeDirImpl: async () => ({
-      reusable: false,
-      reason: 'invalid',
-    }),
-    prepareOpenClawRuntimeImpl: async () => ({
-      resourceDir: 'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw',
-      manifest: {
-        nodeRelativePath: 'runtime/node/node.exe',
-      },
-    }),
-    inspectPreparedOpenClawRuntimeImpl: async () => ({
-      reusable: true,
-      reason: 'reused-existing',
-    }),
-  });
-
-  assert.equal(
-    resourceFallbackResult.nodeSourceDir,
-    'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw\\runtime\\node',
-    'sync-bundled-components must fall back to the validated bundled OpenClaw resource runtime when the node cache was not backfilled',
-  );
-  assert.equal(
-    resourceFallbackResult.nodeBinaryPath,
-    'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw\\runtime\\node\\node.exe',
-    'sync-bundled-components must resolve the bundled node binary from the validated prepared OpenClaw resource runtime when cache staging is unavailable',
-  );
-  assert.equal(
-    resourceFallbackResult.sourceKind,
-    'prepared-resource',
-    'sync-bundled-components must report when the bundled node runtime is sourced from the validated prepared OpenClaw resource runtime',
+    'sync-bundled-components must prepare the build-time Node runtime using the shared pinned OpenClaw version',
   );
 }
 
 {
   await assert.rejects(
     () =>
-      syncModule.ensureBundledNodeRuntimeCacheReady({
+      syncModule.ensureBuildTimeNodeRuntimeCacheReady({
         cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
         openclawVersion: expectedOpenClawVersion,
         nodeVersion: '22.16.0',
         target: {
           platformId: 'windows',
           archId: 'x64',
-          bundledNodePath: 'runtime/node/node.exe',
+          nodeBinaryRelativePath: 'runtime/node/node.exe',
+          nodeArchiveName(version) {
+            return `node-v${version}-win-x64.zip`;
+          },
+        },
+        inspectCachedNodeRuntimeDirImpl: async () => ({
+          reusable: false,
+          reason: 'invalid',
+        }),
+        prepareOpenClawRuntimeImpl: async () => ({
+          resourceDir: 'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw',
+          manifest: {
+            cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
+          },
+        }),
+        inspectPreparedOpenClawRuntimeImpl: async () => ({
+          reusable: true,
+          reason: 'reused-existing',
+        }),
+      }),
+    /build-time node runtime cache/i,
+    'sync-bundled-components must not fall back to a prepared resource runtime because Node.js is an external prerequisite and the build-time node cache remains the only valid node source',
+  );
+}
+
+{
+  await assert.rejects(
+    () =>
+      syncModule.ensureBuildTimeNodeRuntimeCacheReady({
+        cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
+        openclawVersion: expectedOpenClawVersion,
+        nodeVersion: '22.16.0',
+        target: {
+          platformId: 'windows',
+          archId: 'x64',
+          nodeBinaryRelativePath: 'runtime/node/node.exe',
           nodeArchiveName(version) {
             return `node-v${version}-win-x64.zip`;
           },
@@ -467,7 +585,7 @@ assert.doesNotMatch(
         prepareOpenClawRuntimeImpl: async () => ({
           resourceDir: 'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw',
           manifest: {
-            nodeRelativePath: 'runtime/node/node.exe',
+            cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
           },
         }),
         inspectPreparedOpenClawRuntimeImpl: async () => ({
@@ -477,7 +595,7 @@ assert.doesNotMatch(
         }),
       }),
     /22\.16\.0.*22\.20\.0|22\.20\.0.*22\.16\.0/,
-    'sync-bundled-components must fail loudly when the prepared bundled node cache still does not match the pinned OpenClaw runtime version after preparation',
+    'sync-bundled-components must fail loudly when the prepared build-time Node cache still does not match the pinned OpenClaw runtime version after preparation',
   );
 }
 
@@ -620,8 +738,8 @@ assert.match(
         version: 1,
         components: [
           {
-            id: 'openclaw',
-            bundledVersion: '2026.3.24',
+            id: 'local-proxy',
+            bundledVersion: '1.0.0',
           },
         ],
       },
@@ -631,28 +749,50 @@ assert.match(
     'utf8',
   );
 
-  const normalizedRegistry = syncModule.syncSourceFoundationComponentRegistrySync({
+  const sourceRegistry = syncModule.syncSourceFoundationComponentRegistrySync({
     foundationDir,
-    bundledOpenClawVersion: expectedOpenClawVersion,
   });
-  const normalizedFile = JSON.parse(
+  const sourceRegistryFile = JSON.parse(
     readFileSync(path.join(foundationDir, 'component-registry.json'), 'utf8'),
   );
 
-  assert.equal(
-    normalizedRegistry.components.find((entry) => entry.id === 'openclaw')?.bundledVersion,
-    expectedOpenClawVersion,
-    'sync-bundled-components must normalize the source component registry to the shared OpenClaw stable version',
-  );
-  assert.equal(
-    normalizedRegistry.components.length,
-    1,
-    'sync-bundled-components must keep the source component registry focused on active bundled components during normalization',
-  );
   assert.deepEqual(
-    normalizedFile,
-    normalizedRegistry,
-    'sync-bundled-components must write the normalized OpenClaw source registry back to disk to prevent version drift',
+    sourceRegistry,
+    sourceRegistryFile,
+    'sync-bundled-components must read the source desktop component registry as-is when it only contains generic support components',
+  );
+
+  rmSync(tempRoot, { recursive: true, force: true });
+}
+
+{
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-sync-source-registry-kernel-'));
+  const foundationDir = path.join(tempRoot, 'foundation', 'components');
+  mkdirSync(foundationDir, { recursive: true });
+  writeFileSync(
+    path.join(foundationDir, 'component-registry.json'),
+    `${JSON.stringify(
+      {
+        version: 1,
+        components: [
+          {
+            id: 'openclaw',
+            bundledVersion: expectedOpenClawVersion,
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+
+  assert.throws(
+    () => syncModule.syncSourceFoundationComponentRegistrySync({
+      foundationDir,
+    }),
+    /must not contain kernel entries: openclaw/u,
+    'sync-bundled-components must reject source desktop component registries that leak kernel ids into the generic support-component catalog',
   );
 
   rmSync(tempRoot, { recursive: true, force: true });

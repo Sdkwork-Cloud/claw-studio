@@ -496,20 +496,31 @@ export interface ProviderUsageRecordsQuery {
 
 export type ProviderUsageRecordsResult = PaginatedResult<ProviderUsageRecord>;
 
-export type StudioRuntimeKind = 'openclaw' | 'zeroclaw' | 'ironclaw' | 'custom';
+export type KnownStudioRuntimeKind =
+  | 'openclaw'
+  | 'hermes'
+  | 'zeroclaw'
+  | 'ironclaw'
+  | 'custom';
+
+export type StudioRuntimeKind = KnownStudioRuntimeKind | (string & {});
 
 export type StudioInstanceDeploymentMode =
   | 'local-managed'
   | 'local-external'
   | 'remote';
 
-export type StudioInstanceTransportKind =
+export type KnownStudioInstanceTransportKind =
   | 'openclawGatewayWs'
   | 'zeroclawHttp'
   | 'ironclawWeb'
   | 'openaiHttp'
   | 'customHttp'
   | 'customWs';
+
+export type StudioInstanceTransportKind =
+  | KnownStudioInstanceTransportKind
+  | (string & {});
 
 export type StudioInstanceStatus =
   | 'online'
@@ -743,13 +754,20 @@ export interface StudioInstanceHealthSnapshot {
   evaluatedAt: number;
 }
 
-export type StudioBuiltInOpenClawActivationStage =
-  | 'prepareRuntimeActivation'
-  | 'bundledRuntimeReady'
-  | 'gatewayConfigured'
-  | 'localAiProxyReady'
-  | 'desktopKernelRunning'
-  | 'builtInInstanceOnline';
+export type KnownStudioInstanceActivationStage =
+  | 'resolveRequirements'
+  | 'prepareInstall'
+  | 'validateInstall'
+  | 'activateInstall'
+  | 'prepareConfig'
+  | 'startProcess'
+  | 'verifyEndpoint'
+  | 'projectInstance'
+  | 'ready';
+
+export type StudioInstanceActivationStage =
+  | KnownStudioInstanceActivationStage
+  | (string & {});
 
 export interface StudioInstanceLifecycleSnapshot {
   owner: StudioInstanceLifecycleOwner;
@@ -758,7 +776,7 @@ export interface StudioInstanceLifecycleSnapshot {
   lifecycleControllable?: boolean;
   workbenchManaged?: boolean;
   endpointObserved?: boolean;
-  lastActivationStage?: StudioBuiltInOpenClawActivationStage | null;
+  lastActivationStage?: StudioInstanceActivationStage | null;
   lastError?: string | null;
   notes: string[];
 }
@@ -843,7 +861,11 @@ export interface StudioInstanceRuntimeNote {
   sourceUrl?: string;
 }
 
-export type StudioInstanceConsoleKind = 'openclawControlUi';
+export type KnownStudioInstanceConsoleKind = 'openclawControlUi';
+
+export type StudioInstanceConsoleKind =
+  | KnownStudioInstanceConsoleKind
+  | (string & {});
 
 export type StudioInstanceConsoleAuthMode =
   | 'token'

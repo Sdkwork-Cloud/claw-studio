@@ -374,6 +374,47 @@ fn should_boot_desktop_kernel_via_platform_host_manager() -> bool {
 }
 
 #[cfg(test)]
+pub(crate) mod test_support {
+    use std::{
+        path::PathBuf,
+        sync::{Mutex, MutexGuard, OnceLock},
+    };
+
+    fn process_env_mutex() -> &'static Mutex<()> {
+        static PROCESS_ENV_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+        PROCESS_ENV_MUTEX.get_or_init(|| Mutex::new(()))
+    }
+
+    pub(crate) fn lock_process_env() -> MutexGuard<'static, ()> {
+        process_env_mutex()
+            .lock()
+            .expect("lock shared process environment for tests")
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn resolve_test_node_executable(context: &str) -> PathBuf {
+        let _env_lock = lock_process_env();
+        std::env::var_os("PATH")
+            .into_iter()
+            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
+            .map(|entry| entry.join("node.exe"))
+            .find(|candidate| candidate.exists())
+            .unwrap_or_else(|| panic!("node.exe should be available on PATH for {context}"))
+    }
+
+    #[cfg(not(windows))]
+    pub(crate) fn resolve_test_node_executable(context: &str) -> PathBuf {
+        let _env_lock = lock_process_env();
+        std::env::var_os("PATH")
+            .into_iter()
+            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
+            .map(|entry| entry.join("node"))
+            .find(|candidate| candidate.exists())
+            .unwrap_or_else(|| panic!("node should be available on PATH for {context}"))
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::FrameworkServices;
     use crate::framework::{
@@ -695,22 +736,12 @@ mod tests {
 
     #[cfg(windows)]
     fn resolve_test_node_executable() -> PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node.exe"))
-            .find(|candidate| candidate.exists())
-            .expect("node.exe should be available on PATH for desktop kernel service tests")
+        super::test_support::resolve_test_node_executable("desktop kernel service tests")
     }
 
     #[cfg(not(windows))]
     fn resolve_test_node_executable() -> PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node"))
-            .find(|candidate| candidate.exists())
-            .expect("node should be available on PATH for desktop kernel service tests")
+        super::test_support::resolve_test_node_executable("desktop kernel service tests")
     }
 
     fn reserve_loopback_port() -> u16 {

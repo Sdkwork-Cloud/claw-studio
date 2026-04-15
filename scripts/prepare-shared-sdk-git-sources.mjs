@@ -22,12 +22,28 @@ export const DEFAULT_SHARED_SDK_CORE_REPO_URL = 'https://github.com/Sdkwork-Clou
 export const DEFAULT_SHARED_IM_SDK_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git';
 export const DEFAULT_SHARED_SDK_RELEASE_CONFIG_PATH = 'config/shared-sdk-release-sources.json';
 
+function resolveSpawnCommand(command) {
+  if (process.platform !== 'win32') {
+    return command;
+  }
+
+  if (path.extname(command)) {
+    return command;
+  }
+
+  if (command === 'pnpm') {
+    return 'pnpm.cmd';
+  }
+
+  return command;
+}
+
 function run(command, args, { cwd = process.cwd(), captureStdout = false } = {}) {
-  const result = spawnSync(command, args, {
+  const result = spawnSync(resolveSpawnCommand(command), args, {
     cwd,
     encoding: 'utf8',
     stdio: captureStdout ? ['ignore', 'pipe', 'inherit'] : 'inherit',
-    shell: process.platform === 'win32',
+    shell: false,
   });
 
   if (result.error) {

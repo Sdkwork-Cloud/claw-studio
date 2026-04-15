@@ -390,6 +390,7 @@ await runTest(
         file,
         loadedFileContents: {},
         runtimeKind: 'openclaw',
+        transportKind: 'openclawGatewayWs',
         isBuiltIn: false,
       }),
       true,
@@ -401,9 +402,30 @@ await runTest(
           'openclaw-agent-file:ops:AGENTS.md': '# actual fetched body',
         },
         runtimeKind: 'openclaw',
+        transportKind: 'openclawGatewayWs',
         isBuiltIn: false,
       }),
       false,
+    );
+  },
+);
+
+await runTest(
+  'shouldLoadWorkbenchFileContent also keeps fetching remote gateway-backed file bodies when the kernel id is not OpenClaw',
+  () => {
+    const file = createFile('custom-agent-file:ops:AGENTS.md', 'AGENTS.md', {
+      content: '# stale list payload',
+    });
+
+    assert.equal(
+      shouldLoadWorkbenchFileContent({
+        file,
+        loadedFileContents: {},
+        runtimeKind: 'custom',
+        transportKind: 'openclawGatewayWs',
+        isBuiltIn: false,
+      }),
+      true,
     );
   },
 );
@@ -420,6 +442,7 @@ await runTest(
         file,
         loadedFileContents: {},
         runtimeKind: 'openclaw',
+        transportKind: 'openclawGatewayWs',
         isBuiltIn: false,
       }),
       '',
@@ -431,9 +454,30 @@ await runTest(
           'openclaw-agent-file:ops:AGENTS.md': '# actual fetched body',
         },
         runtimeKind: 'openclaw',
+        transportKind: 'openclawGatewayWs',
         isBuiltIn: false,
       }),
       '# actual fetched body',
+    );
+  },
+);
+
+await runTest(
+  'getWorkbenchFileResolvedContent also hides remote gateway-backed list content when the kernel id is not OpenClaw',
+  () => {
+    const file = createFile('custom-agent-file:ops:AGENTS.md', 'AGENTS.md', {
+      content: '# stale list payload',
+    });
+
+    assert.equal(
+      getWorkbenchFileResolvedContent({
+        file,
+        loadedFileContents: {},
+        runtimeKind: 'custom',
+        transportKind: 'openclawGatewayWs',
+        isBuiltIn: false,
+      }),
+      '',
     );
   },
 );

@@ -102,7 +102,7 @@ runTest('sdkwork-claw-shell exposes dedicated kernel and node governance surface
   assert.equal(enLocale.commandPalette.commands.kernel.title, 'Go to Kernel Center');
   assert.equal(
     enLocale.commandPalette.commands.kernel.subtitle,
-    'Inspect the built-in OpenClaw host, endpoint, and provenance',
+    'Inspect kernel authority, endpoints, and runtime provenance',
   );
   assert.equal(enLocale.commandPalette.commands.nodes.title, 'Go to Nodes');
   assert.equal(
@@ -114,7 +114,7 @@ runTest('sdkwork-claw-shell exposes dedicated kernel and node governance surface
   assert.equal(zhLocale.commandPalette.commands.kernel.title, '前往内核中心');
   assert.equal(
     zhLocale.commandPalette.commands.kernel.subtitle,
-    '查看内置 OpenClaw 宿主、端点与运行来源',
+    '查看内核治理归属、端点与运行来源',
   );
   assert.equal(zhLocale.commandPalette.commands.nodes.title, '前往节点');
   assert.equal(
@@ -382,6 +382,8 @@ runTest('sdkwork-claw-shell keeps i18n bootstrapped before render with a provide
   assert.match(bootstrapSource, /runBootstrapShellRuntime/);
   assert.match(bootstrapSource, /getPlatformBridge/);
   assert.match(bootstrapSource, /bootstrapServerBrowserPlatformBridge/);
+  assert.doesNotMatch(bootstrapSource, /import\s+\{\s*ensureI18n\s*\}\s+from\s+'@sdkwork\/claw-i18n'/);
+  assert.match(bootstrapSource, /await import\('@sdkwork\/claw-i18n'\)/);
   assert.match(bootstrapSource, /if \(dependencies\.getActivePlatform\(\) !== 'desktop'\)/);
   assert.match(providersSource, /ensureI18n/);
 });

@@ -487,7 +487,7 @@ fn windows_service_display_name() -> &'static str {
 
 #[cfg(windows)]
 fn windows_service_description() -> &'static str {
-    "Owns the bundled OpenClaw kernel required by Claw Studio."
+    "Owns the built-in OpenClaw kernel managed by Claw Studio."
 }
 
 #[cfg(windows)]

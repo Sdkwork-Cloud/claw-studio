@@ -52,6 +52,54 @@ impl LayoutState {
 pub struct ActiveStateEntry {
     pub active_version: Option<String>,
     pub fallback_version: Option<String>,
+    pub active_install_key: Option<String>,
+    pub fallback_install_key: Option<String>,
+    pub active_version_label: Option<String>,
+    pub fallback_version_label: Option<String>,
+}
+
+impl ActiveStateEntry {
+    pub fn active_runtime_install_key(&self) -> Option<&str> {
+        self.active_install_key
+            .as_deref()
+            .or(self.active_version.as_deref())
+    }
+
+    pub fn fallback_runtime_install_key(&self) -> Option<&str> {
+        self.fallback_install_key
+            .as_deref()
+            .or(self.fallback_version.as_deref())
+    }
+
+    #[allow(dead_code)]
+    pub fn active_runtime_version_label(&self) -> Option<&str> {
+        self.active_version_label
+            .as_deref()
+            .or(self.active_version.as_deref())
+    }
+
+    #[allow(dead_code)]
+    pub fn fallback_runtime_version_label(&self) -> Option<&str> {
+        self.fallback_version_label
+            .as_deref()
+            .or(self.fallback_version.as_deref())
+    }
+
+    pub fn set_runtime_state(
+        &mut self,
+        active_install_key: Option<String>,
+        fallback_install_key: Option<String>,
+        active_version_label: Option<String>,
+        fallback_version_label: Option<String>,
+    ) {
+        self.active_install_key = active_install_key.clone();
+        self.fallback_install_key = fallback_install_key.clone();
+        self.active_version_label = active_version_label.or_else(|| active_install_key.clone());
+        self.fallback_version_label =
+            fallback_version_label.or_else(|| fallback_install_key.clone());
+        self.active_version = active_install_key;
+        self.fallback_version = fallback_install_key;
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -311,6 +359,8 @@ pub struct KernelAuthorityState {
     pub runtime_id: String,
     pub active_install_key: Option<String>,
     pub fallback_install_key: Option<String>,
+    pub active_version_label: Option<String>,
+    pub fallback_version_label: Option<String>,
     pub managed_config_path: Option<String>,
     pub owned_runtime_roots: Vec<String>,
     pub legacy_runtime_roots: Vec<String>,
@@ -326,6 +376,8 @@ impl Default for KernelAuthorityState {
             runtime_id: "openclaw".to_string(),
             active_install_key: None,
             fallback_install_key: None,
+            active_version_label: None,
+            fallback_version_label: None,
             managed_config_path: None,
             owned_runtime_roots: Vec::new(),
             legacy_runtime_roots: Vec::new(),
@@ -371,6 +423,8 @@ impl Default for KernelMigrationState {
 pub struct RuntimeUpgradeStateEntry {
     pub active_install_key: Option<String>,
     pub fallback_install_key: Option<String>,
+    pub active_version_label: Option<String>,
+    pub fallback_version_label: Option<String>,
     pub last_attempted_version: Option<String>,
     pub last_applied_version: Option<String>,
     pub last_attempted_at: Option<String>,
@@ -382,6 +436,8 @@ impl Default for RuntimeUpgradeStateEntry {
         Self {
             active_install_key: None,
             fallback_install_key: None,
+            active_version_label: None,
+            fallback_version_label: None,
             last_attempted_version: None,
             last_applied_version: None,
             last_attempted_at: None,
@@ -512,11 +568,20 @@ pub fn sync_component_registry_state(
 
 pub fn set_active_runtime_version(paths: &AppPaths, runtime_id: &str, version: &str) -> Result<()> {
     let mut active = read_json_file::<ActiveState>(&paths.active_file)?;
+    let previous_active = active
+        .runtimes
+        .get(runtime_id)
+        .and_then(|entry| entry.active_runtime_install_key().map(str::to_string))
+        .filter(|current| current != version);
     let entry = active.runtimes.entry(runtime_id.to_string()).or_default();
 
-    if entry.active_version.as_deref() != Some(version) {
-        entry.fallback_version = entry.active_version.clone();
-        entry.active_version = Some(version.to_string());
+    if entry.active_runtime_install_key() != Some(version) {
+        entry.set_runtime_state(
+            Some(version.to_string()),
+            previous_active.clone(),
+            Some(version.to_string()),
+            previous_active,
+        );
     }
 
     write_json_file(&paths.active_file, &active)
@@ -714,17 +779,12 @@ mod tests {
         );
         assert_eq!(
             components
-                .pointer("/entries/openclaw/enabledByDefault")
-                .and_then(Value::as_bool),
-            Some(true)
+                .get("entries")
+                .and_then(Value::as_object)
+                .map(|value| value.len()),
+            Some(0)
         );
-        assert_eq!(
-            components
-                .pointer("/entries/zeroclaw/enabledByDefault")
-                .and_then(Value::as_bool),
-            Some(false)
-        );
-        assert!(upgrades.components.contains_key("openclaw"));
+        assert!(upgrades.components.is_empty());
     }
 
     #[test]
@@ -751,6 +811,7 @@ mod tests {
         assert_eq!(authority.layout_version, 1);
         assert_eq!(authority.runtime_id, "openclaw");
         assert!(authority.active_install_key.is_none());
+        assert!(authority.active_version_label.is_none());
         assert!(authority.managed_config_path.is_none());
         assert!(authority.owned_runtime_roots.is_empty());
 
@@ -765,6 +826,13 @@ mod tests {
                 .runtimes
                 .get("openclaw")
                 .and_then(|entry| entry.last_applied_version.as_deref()),
+            None
+        );
+        assert_eq!(
+            runtime_upgrades
+                .runtimes
+                .get("openclaw")
+                .and_then(|entry| entry.active_version_label.as_deref()),
             None
         );
     }
@@ -841,6 +909,22 @@ mod tests {
         );
         assert_eq!(
             openclaw.fallback_version.as_deref(),
+            Some("2026.3.20-windows-x64")
+        );
+        assert_eq!(
+            openclaw.active_install_key.as_deref(),
+            Some("2026.3.23-2-windows-x64")
+        );
+        assert_eq!(
+            openclaw.fallback_install_key.as_deref(),
+            Some("2026.3.20-windows-x64")
+        );
+        assert_eq!(
+            openclaw.active_version_label.as_deref(),
+            Some("2026.3.23-2-windows-x64")
+        );
+        assert_eq!(
+            openclaw.fallback_version_label.as_deref(),
             Some("2026.3.20-windows-x64")
         );
     }
