@@ -19,6 +19,13 @@ const EXTRA_WORKSPACE_PACKAGE_CONFIGS: Array<{
     },
   },
   {
+    packageName: '@sdkwork/craw-chat-backend-sdk',
+    relativePackageDir: '../../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi',
+    entryBySubpath: {
+      '.': 'dist/index.js',
+    },
+  },
+  {
     packageName: '@sdkwork/core-pc-react',
     relativePackageDir: '../../sdkwork-core/sdkwork-core-pc-react',
     entryBySubpath: {

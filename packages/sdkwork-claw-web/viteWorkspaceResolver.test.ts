@@ -27,6 +27,10 @@ const expectedCrawChatCompatRoot = path.resolve(
   currentWorkspaceRoot,
   'scripts/shims/craw-chat-sdk-compat.ts',
 );
+const expectedCrawChatBackendSdkRoot = path.resolve(
+  canonicalWorkspaceRoot,
+  '../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi/dist/index.js',
+);
 const worktreeRoot = path.resolve(
   canonicalWorkspaceRoot,
   '.worktrees/codex-openclaw-gateway-webchat',
@@ -53,6 +57,10 @@ test('resolveWorkspacePackageEntry maps @sdkwork workspace packages into the cur
     resolveWorkspacePackageEntry('@sdkwork/craw-chat-sdk', packagesRoot),
     expectedCrawChatCompatRoot,
   );
+  assert.equal(
+    resolveWorkspacePackageEntry('@sdkwork/craw-chat-backend-sdk', packagesRoot),
+    expectedCrawChatBackendSdkRoot,
+  );
   assert.equal(resolveWorkspacePackageEntry('react', packagesRoot), null);
 });
 
@@ -65,6 +73,7 @@ test('resolveWorkspacePackageAliases creates direct aliases for local @sdkwork/c
   const corePcReactEnvAlias = aliases.find((entry) => entry.find === '@sdkwork/core-pc-react/env');
   const corePcReactRuntimeAlias = aliases.find((entry) => entry.find === '@sdkwork/core-pc-react/runtime');
   const crawChatCompatAlias = aliases.find((entry) => entry.find === '@sdkwork/craw-chat-sdk');
+  const crawChatBackendSdkAlias = aliases.find((entry) => entry.find === '@sdkwork/craw-chat-backend-sdk');
 
   assert.ok(infrastructureAlias);
   assert.equal(
@@ -85,10 +94,12 @@ test('resolveWorkspacePackageAliases creates direct aliases for local @sdkwork/c
   assert.ok(corePcReactEnvAlias);
   assert.ok(corePcReactRuntimeAlias);
   assert.ok(crawChatCompatAlias);
+  assert.ok(crawChatBackendSdkAlias);
   assert.ok(aliases.indexOf(corePcReactAppAlias) < aliases.indexOf(corePcReactRootAlias));
   assert.ok(aliases.indexOf(corePcReactEnvAlias) < aliases.indexOf(corePcReactRootAlias));
   assert.ok(aliases.indexOf(corePcReactRuntimeAlias) < aliases.indexOf(corePcReactRootAlias));
   assert.equal(crawChatCompatAlias?.replacement, expectedCrawChatCompatRoot);
+  assert.equal(crawChatBackendSdkAlias?.replacement, expectedCrawChatBackendSdkRoot);
   assert.equal(
     aliases.some((entry) => entry.find === '@sdkwork/app-sdk'),
     false,

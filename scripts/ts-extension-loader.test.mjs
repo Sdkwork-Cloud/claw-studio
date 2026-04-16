@@ -110,4 +110,13 @@ assert.equal(
   'workspace package resolution must route craw-chat SDK imports through the local compatibility shim',
 );
 
+assert.equal(
+  loader.resolveWorkspacePackageSourceAliasPath('@sdkwork/craw-chat-backend-sdk'),
+  path.resolve(
+    canonicalWorkspaceRoot,
+    '../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi/dist/index.js',
+  ),
+  'workspace package resolution must route craw-chat generated backend SDK imports through the canonical generated dist entry',
+);
+
 console.log('ok - ts extension loader remaps shared SDK packages to source entries in source mode');
