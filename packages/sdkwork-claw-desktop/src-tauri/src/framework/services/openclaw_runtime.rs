@@ -912,7 +912,8 @@ fn ensure_managed_openclaw_state(
         &managed_config_path,
         format!("{}\n", serde_json::to_string_pretty(&config)?),
     )?;
-    authority.record_openclaw_config_migration(
+    authority.record_config_migration(
+        "openclaw",
         paths,
         imported_config.source_path.as_deref(),
         &managed_config_path,

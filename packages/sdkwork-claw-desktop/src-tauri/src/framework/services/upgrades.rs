@@ -183,7 +183,7 @@ impl ComponentUpgradeService {
             let result = (|| -> Result<()> {
                 write_json_file(&paths.inventory_file, &inventory)?;
                 KernelRuntimeAuthorityService::new()
-                    .record_openclaw_activation_result(paths, version, None)?;
+                    .record_activation_result(runtime_id, paths, version, None)?;
                 Ok(())
             })();
             if result.is_err() {

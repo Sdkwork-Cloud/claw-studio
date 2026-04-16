@@ -34,9 +34,20 @@ impl KernelRuntimeAuthorityService {
         Self
     }
 
+    pub fn contract(&self, runtime_id: &str, paths: &AppPaths) -> Result<KernelRuntimeContract> {
+        match runtime_id {
+            OPENCLAW_RUNTIME_ID => {
+                let adapter = OpenClawKernelAdapter::new();
+                self.contract_for_adapter(&adapter, paths)
+            }
+            _ => Err(FrameworkError::NotFound(format!(
+                "kernel runtime adapter not found: {runtime_id}"
+            ))),
+        }
+    }
+
     pub fn openclaw_contract(&self, paths: &AppPaths) -> Result<KernelRuntimeContract> {
-        let adapter = OpenClawKernelAdapter::new();
-        self.contract_for_adapter(&adapter, paths)
+        self.contract(OPENCLAW_RUNTIME_ID, paths)
     }
 
     fn contract_for_adapter(
@@ -47,14 +58,23 @@ impl KernelRuntimeAuthorityService {
         adapter.contract(paths)
     }
 
-    pub fn active_openclaw_config_path(&self, paths: &AppPaths) -> Result<PathBuf> {
-        let authority = read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)?;
+    pub fn active_managed_config_path(
+        &self,
+        runtime_id: &str,
+        paths: &AppPaths,
+    ) -> Result<PathBuf> {
+        let kernel_paths = paths.kernel_paths(runtime_id);
+        let authority = read_json_file::<KernelAuthorityState>(&kernel_paths.authority_file)?;
 
         Ok(authority
             .managed_config_path
             .filter(|value| !value.trim().is_empty())
             .map(PathBuf::from)
-            .unwrap_or_else(|| paths.openclaw_managed_config_file.clone()))
+            .unwrap_or_else(|| kernel_paths.managed_config_file.clone()))
+    }
+
+    pub fn active_openclaw_config_path(&self, paths: &AppPaths) -> Result<PathBuf> {
+        self.active_managed_config_path(OPENCLAW_RUNTIME_ID, paths)
     }
 
     pub fn import_or_default_openclaw_config(
@@ -86,7 +106,24 @@ impl KernelRuntimeAuthorityService {
         })
     }
 
-    pub fn record_openclaw_config_migration(
+    pub fn record_config_migration(
+        &self,
+        runtime_id: &str,
+        paths: &AppPaths,
+        source_path: Option<&Path>,
+        managed_config_path: &Path,
+    ) -> Result<()> {
+        match runtime_id {
+            OPENCLAW_RUNTIME_ID => {
+                self.record_openclaw_config_migration_inner(paths, source_path, managed_config_path)
+            }
+            _ => Err(FrameworkError::NotFound(format!(
+                "kernel runtime config migration handler not found: {runtime_id}"
+            ))),
+        }
+    }
+
+    fn record_openclaw_config_migration_inner(
         &self,
         paths: &AppPaths,
         source_path: Option<&Path>,
@@ -138,7 +175,33 @@ impl KernelRuntimeAuthorityService {
         Ok(())
     }
 
+    pub fn record_activation_result(
+        &self,
+        runtime_id: &str,
+        paths: &AppPaths,
+        install_key: &str,
+        last_error: Option<&str>,
+    ) -> Result<()> {
+        match runtime_id {
+            OPENCLAW_RUNTIME_ID => {
+                self.record_openclaw_activation_result_inner(paths, install_key, last_error)
+            }
+            _ => Err(FrameworkError::NotFound(format!(
+                "kernel runtime activation handler not found: {runtime_id}"
+            ))),
+        }
+    }
+
     pub fn record_openclaw_activation_result(
+        &self,
+        paths: &AppPaths,
+        install_key: &str,
+        last_error: Option<&str>,
+    ) -> Result<()> {
+        self.record_activation_result(OPENCLAW_RUNTIME_ID, paths, install_key, last_error)
+    }
+
+    fn record_openclaw_activation_result_inner(
         &self,
         paths: &AppPaths,
         install_key: &str,
@@ -460,6 +523,107 @@ mod tests {
         );
         assert!(contract.readiness_probe.supports_loopback_health_probe);
         assert_eq!(contract.readiness_probe.health_probe_timeout_ms, 750);
+    }
+
+    #[test]
+    fn kernel_authority_service_resolves_contract_by_runtime_id() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let contract = KernelRuntimeAuthorityService::new()
+            .contract("openclaw", &paths)
+            .expect("openclaw contract");
+
+        assert_eq!(contract.runtime_id, "openclaw");
+        assert_eq!(contract.managed_config_path, paths.kernel_paths("openclaw").managed_config_file);
+    }
+
+    #[test]
+    fn kernel_authority_service_records_activation_by_runtime_id() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        initialize_machine_state(&paths).expect("initialize machine state");
+        let install_key = "2026.4.11-beta.1-windows-x64";
+        let install_dir = paths.openclaw_runtime_dir.join(install_key);
+        fs::create_dir_all(&install_dir).expect("create install dir");
+        fs::write(
+            install_dir.join("manifest.json"),
+            r#"{
+  "schemaVersion": 2,
+  "runtimeId": "openclaw",
+  "openclawVersion": "2026.4.11-beta.1",
+  "requiredExternalRuntimes": ["nodejs"],
+  "requiredExternalRuntimeVersions": {
+    "nodejs": "22.16.0"
+  },
+  "platform": "windows",
+  "arch": "x64",
+  "cliRelativePath": "runtime/package/node_modules/openclaw/openclaw.mjs"
+}"#,
+        )
+        .expect("write install manifest");
+
+        KernelRuntimeAuthorityService::new()
+            .record_activation_result("openclaw", &paths, install_key, None)
+            .expect("record activation");
+
+        let authority = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_authority_file).expect("authority json"),
+        )
+        .expect("parse authority json");
+
+        assert_eq!(authority.get("runtimeId").and_then(Value::as_str), Some("openclaw"));
+        assert_eq!(
+            authority.get("activeInstallKey").and_then(Value::as_str),
+            Some(install_key)
+        );
+        assert_eq!(
+            authority
+                .get("activeVersionLabel")
+                .and_then(Value::as_str),
+            Some("2026.4.11-beta.1")
+        );
+    }
+
+    #[test]
+    fn kernel_authority_service_records_config_migration_by_runtime_id() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        initialize_machine_state(&paths).expect("initialize machine state");
+        let kernel_paths = paths.kernel_paths("openclaw");
+        fs::write(&paths.openclaw_config_file, "{ \"gateway\": {\"mode\": \"local\"} }")
+            .expect("write legacy config");
+
+        KernelRuntimeAuthorityService::new()
+            .record_config_migration(
+                "openclaw",
+                &paths,
+                Some(paths.openclaw_config_file.as_path()),
+                kernel_paths.managed_config_file.as_path(),
+            )
+            .expect("record config migration");
+
+        let authority = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_authority_file).expect("authority json"),
+        )
+        .expect("parse authority json");
+        let migrations = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_migrations_file).expect("migrations json"),
+        )
+        .expect("parse migrations json");
+
+        assert_eq!(authority.get("runtimeId").and_then(Value::as_str), Some("openclaw"));
+        assert_eq!(
+            authority
+                .get("managedConfigPath")
+                .and_then(Value::as_str),
+            Some(kernel_paths.managed_config_file.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            migrations
+                .get("lastConfigSourcePath")
+                .and_then(Value::as_str),
+            Some(paths.openclaw_config_file.to_string_lossy().as_ref())
+        );
     }
 
     #[test]

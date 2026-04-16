@@ -1,4 +1,7 @@
-use crate::framework::{FrameworkError, Result};
+use crate::framework::{
+    kernel_runtime::{build_kernel_paths, KernelPaths},
+    FrameworkError, Result,
+};
 use std::{fs, path::PathBuf};
 #[cfg(not(windows))]
 use tauri::Manager;
@@ -82,6 +85,10 @@ pub struct AppPaths {
 }
 
 impl AppPaths {
+    pub fn kernel_paths(&self, runtime_id: &str) -> KernelPaths {
+        build_kernel_paths(runtime_id, &self.runtimes_dir, &self.kernels_state_dir)
+    }
+
     pub fn managed_roots(&self) -> Vec<PathBuf> {
         let mut roots = vec![
             self.install_root.clone(),
@@ -191,8 +198,7 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
     let machine_staging_dir = machine_root.join("staging");
     let machine_receipts_dir = machine_root.join("receipts");
     let machine_runtime_dir = machine_root.join("runtime");
-    let managed_runtimes_dir = install_root.join("runtimes");
-    let openclaw_runtime_dir = managed_runtimes_dir.join("openclaw");
+    let managed_runtimes_dir = runtimes_dir.clone();
     let machine_recovery_dir = machine_root.join("recovery");
     let machine_logs_dir = machine_root.join("logs");
 
@@ -212,13 +218,15 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
 
     let config_dir = machine_state_dir.clone();
     let kernels_state_dir = config_dir.join("kernels");
-    let openclaw_kernel_dir = kernels_state_dir.join("openclaw");
-    let openclaw_authority_file = openclaw_kernel_dir.join("authority.json");
-    let openclaw_migrations_file = openclaw_kernel_dir.join("migrations.json");
-    let openclaw_runtime_upgrades_file = openclaw_kernel_dir.join("runtime-upgrades.json");
-    let openclaw_managed_config_dir = openclaw_kernel_dir.join("managed-config");
-    let openclaw_managed_config_file = openclaw_managed_config_dir.join("openclaw.json");
-    let openclaw_quarantine_dir = openclaw_kernel_dir.join("quarantine");
+    let openclaw_kernel_paths = build_kernel_paths("openclaw", &managed_runtimes_dir, &kernels_state_dir);
+    let openclaw_runtime_dir = openclaw_kernel_paths.runtime_root.clone();
+    let openclaw_kernel_dir = openclaw_kernel_paths.machine_state_dir.clone();
+    let openclaw_authority_file = openclaw_kernel_paths.authority_file.clone();
+    let openclaw_migrations_file = openclaw_kernel_paths.migrations_file.clone();
+    let openclaw_runtime_upgrades_file = openclaw_kernel_paths.upgrades_file.clone();
+    let openclaw_managed_config_dir = openclaw_kernel_paths.managed_config_dir.clone();
+    let openclaw_managed_config_file = openclaw_kernel_paths.managed_config_file.clone();
+    let openclaw_quarantine_dir = openclaw_kernel_paths.quarantine_dir.clone();
     let data_dir = studio_dir.clone();
     let cache_dir = machine_staging_dir.clone();
     let logs_dir = machine_logs_dir.join("app");
@@ -637,6 +645,35 @@ mod tests {
         assert!(paths.openclaw_authority_file.exists());
         assert!(paths.openclaw_migrations_file.exists());
         assert!(paths.openclaw_runtime_upgrades_file.exists());
+    }
+
+    #[test]
+    fn resolves_kernel_scoped_paths_under_kernel_namespace() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        let openclaw = paths.kernel_paths("openclaw");
+        let hermes = paths.kernel_paths("hermes");
+
+        assert!(normalize(&openclaw.runtime_root).ends_with("install/runtimes/openclaw"));
+        assert!(normalize(&openclaw.machine_state_dir).ends_with("machine/state/kernels/openclaw"));
+        assert!(normalize(&openclaw.authority_file)
+            .ends_with("machine/state/kernels/openclaw/authority.json"));
+        assert!(normalize(&openclaw.upgrades_file)
+            .ends_with("machine/state/kernels/openclaw/runtime-upgrades.json"));
+        assert!(normalize(&openclaw.managed_config_dir)
+            .ends_with("machine/state/kernels/openclaw/managed-config"));
+
+        assert!(normalize(&hermes.runtime_root).ends_with("install/runtimes/hermes"));
+        assert!(normalize(&hermes.machine_state_dir).ends_with("machine/state/kernels/hermes"));
+        assert!(normalize(&hermes.authority_file)
+            .ends_with("machine/state/kernels/hermes/authority.json"));
+        assert!(normalize(&hermes.upgrades_file)
+            .ends_with("machine/state/kernels/hermes/runtime-upgrades.json"));
+        assert!(normalize(&hermes.managed_config_dir)
+            .ends_with("machine/state/kernels/hermes/managed-config"));
+        assert_ne!(openclaw.authority_file, hermes.authority_file);
+        assert_ne!(openclaw.upgrades_file, hermes.upgrades_file);
     }
 
     #[test]
