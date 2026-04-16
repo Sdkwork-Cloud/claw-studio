@@ -281,6 +281,7 @@ async function invalidateAfter<T>(instanceId: string | undefined, loader: () => 
 async function invalidateKernelAfter<T>(loader: () => Promise<T>) {
   const result = await loader();
   invalidateKernelCaches();
+  invalidateRuntimeCaches();
   return result;
 }
 

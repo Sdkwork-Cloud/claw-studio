@@ -1,11 +1,10 @@
 use crate::framework::{
     kernel::{
         DesktopBundledComponentsInfo, DesktopCapabilityInfo, DesktopCapabilityStatus,
-        DesktopFileSystemInfo, DesktopIntegrationInfo, DesktopKernelDirectories,
-        DesktopKernelInfo, DesktopLocalAiProxyInfo, DesktopNotificationInfo,
-        DesktopOpenClawRuntimeInfo, DesktopPaymentInfo, DesktopPermissionsInfo,
-        DesktopProcessInfo, DesktopSecurityInfo, DesktopStartupEvidenceInfo,
-        DesktopSupervisorInfo,
+        DesktopFileSystemInfo, DesktopIntegrationInfo, DesktopKernelDirectories, DesktopKernelInfo,
+        DesktopLocalAiProxyInfo, DesktopNotificationInfo, DesktopOpenClawRuntimeInfo,
+        DesktopPaymentInfo, DesktopPermissionsInfo, DesktopProcessInfo, DesktopSecurityInfo,
+        DesktopStartupEvidenceInfo, DesktopSupervisorInfo,
     },
     kernel_host::types::DesktopKernelHostInfo,
     paths::AppPaths,
@@ -171,15 +170,16 @@ impl KernelService {
             descriptor_state_store_driver: document.descriptor.as_ref().and_then(|descriptor| {
                 normalize_optional_string(descriptor.state_store_driver.clone())
             }),
-            descriptor_state_store_profile_id: document.descriptor.as_ref().and_then(|descriptor| {
-                normalize_optional_string(descriptor.state_store_profile_id.clone())
-            }),
+            descriptor_state_store_profile_id: document.descriptor.as_ref().and_then(
+                |descriptor| normalize_optional_string(descriptor.state_store_profile_id.clone()),
+            ),
             descriptor_browser_base_url: document
                 .descriptor
                 .and_then(|descriptor| normalize_optional_string(descriptor.browser_base_url)),
-            manage_base_url: document.readiness_evidence.as_ref().and_then(|evidence| {
-                normalize_optional_string(evidence.manage_base_url.clone())
-            }),
+            manage_base_url: document
+                .readiness_evidence
+                .as_ref()
+                .and_then(|evidence| normalize_optional_string(evidence.manage_base_url.clone())),
             built_in_instance_id: document
                 .built_in_instance
                 .as_ref()
@@ -195,21 +195,15 @@ impl KernelService {
             built_in_instance_runtime_kind: document
                 .built_in_instance
                 .as_ref()
-                .and_then(|instance| {
-                    normalize_optional_string(instance.runtime_kind.clone())
-                }),
+                .and_then(|instance| normalize_optional_string(instance.runtime_kind.clone())),
             built_in_instance_deployment_mode: document
                 .built_in_instance
                 .as_ref()
-                .and_then(|instance| {
-                    normalize_optional_string(instance.deployment_mode.clone())
-                }),
+                .and_then(|instance| normalize_optional_string(instance.deployment_mode.clone())),
             built_in_instance_transport_kind: document
                 .built_in_instance
                 .as_ref()
-                .and_then(|instance| {
-                    normalize_optional_string(instance.transport_kind.clone())
-                }),
+                .and_then(|instance| normalize_optional_string(instance.transport_kind.clone())),
             built_in_instance_base_url: document
                 .built_in_instance
                 .as_ref()
@@ -217,9 +211,7 @@ impl KernelService {
             built_in_instance_websocket_url: document
                 .built_in_instance
                 .as_ref()
-                .and_then(|instance| {
-                    normalize_optional_string(instance.websocket_url.clone())
-                }),
+                .and_then(|instance| normalize_optional_string(instance.websocket_url.clone())),
             built_in_instance_is_built_in: document
                 .built_in_instance
                 .as_ref()
@@ -237,7 +229,9 @@ impl KernelService {
             open_claw_gateway_lifecycle: document.readiness_evidence.as_ref().and_then(
                 |evidence| normalize_optional_string(evidence.open_claw_gateway_lifecycle.clone()),
             ),
-            ready: document.readiness_evidence.and_then(|evidence| evidence.ready),
+            ready: document
+                .readiness_evidence
+                .and_then(|evidence| evidence.ready),
             error_message: document
                 .error
                 .as_ref()

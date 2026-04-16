@@ -1,12 +1,10 @@
 type TranslateFunction = (key: string) => string;
 type LifecycleActionExecutor = (instanceId: string) => Promise<void>;
 
-interface InstanceConsoleAccessState {
-  consoleAccess?: {
-    url?: string | null;
-    autoLoginUrl?: string | null;
-    reason?: string | null;
-  } | null;
+interface InstanceConsoleTarget {
+  url?: string | null;
+  autoLoginUrl?: string | null;
+  reason?: string | null;
 }
 
 export interface InstanceLifecycleActionRequest {
@@ -33,8 +31,8 @@ export interface BuildBundledStartupRecoveryHandlerArgs {
   executeStart: LifecycleActionExecutor;
 }
 
-export interface BuildOpenClawConsoleHandlersArgs {
-  detail: InstanceConsoleAccessState | null | undefined;
+export interface BuildInstanceConsoleHandlersArgs {
+  consoleTarget: InstanceConsoleTarget | null | undefined;
   openExternalLink: (href: string) => Promise<void>;
   reportInfo: (message: string) => void;
   reportError: (message: string) => void;
@@ -142,24 +140,22 @@ export function buildBundledStartupRecoveryHandler(
   };
 }
 
-export function buildOpenClawConsoleHandlers(args: BuildOpenClawConsoleHandlersArgs) {
+export function buildInstanceConsoleHandlers(args: BuildInstanceConsoleHandlersArgs) {
   return {
-    onOpenOpenClawConsole: async () => {
-      const targetUrl = args.detail?.consoleAccess?.autoLoginUrl || args.detail?.consoleAccess?.url;
+    onOpenControlPage: async () => {
+      const targetUrl = args.consoleTarget?.autoLoginUrl || args.consoleTarget?.url;
       if (!targetUrl) {
-        args.reportError(args.t('instances.detail.toasts.failedToOpenOpenClawConsole'));
+        args.reportError(args.t('instances.detail.toasts.failedToOpenControlPage'));
         return;
       }
 
       try {
         await args.openExternalLink(targetUrl);
-        if (!args.detail?.consoleAccess?.autoLoginUrl && args.detail?.consoleAccess?.reason) {
-          args.reportInfo(args.detail.consoleAccess.reason);
+        if (!args.consoleTarget?.autoLoginUrl && args.consoleTarget?.reason) {
+          args.reportInfo(args.consoleTarget.reason);
         }
       } catch (error: any) {
-        args.reportError(
-          error?.message || args.t('instances.detail.toasts.failedToOpenOpenClawConsole'),
-        );
+        args.reportError(error?.message || args.t('instances.detail.toasts.failedToOpenControlPage'));
       }
     },
     onOpenOfficialLink: async (href: string) => {

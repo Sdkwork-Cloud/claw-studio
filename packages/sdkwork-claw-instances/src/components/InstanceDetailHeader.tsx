@@ -5,9 +5,8 @@ import type { Instance } from '../types';
 interface InstanceDetailHeaderProps {
   activeInstanceId: string | null;
   instance: Pick<Instance, 'id' | 'name' | 'status' | 'ip' | 'uptime' | 'type' | 'version'>;
-  runtimeStatus: string;
   canSetActive: boolean;
-  canOpenOpenClawConsole: boolean;
+  canOpenControlPage: boolean;
   canControlLifecycle: boolean;
   canRestartLifecycle: boolean;
   canStopLifecycle: boolean;
@@ -16,9 +15,8 @@ interface InstanceDetailHeaderProps {
   t: (key: string, options?: Record<string, unknown>) => string;
   getSharedStatusLabel: (status: string) => string;
   getStatusBadge: (status: string) => string;
-  getRuntimeStatusTone: (status: string) => string;
   onSetActive: () => void;
-  onOpenOpenClawConsole: () => void;
+  onOpenControlPage: () => void;
   onRestart: () => void;
   onStop: () => void;
   onStart: () => void;
@@ -28,9 +26,8 @@ interface InstanceDetailHeaderProps {
 export function InstanceDetailHeader({
   activeInstanceId,
   instance,
-  runtimeStatus,
   canSetActive,
-  canOpenOpenClawConsole,
+  canOpenControlPage,
   canControlLifecycle,
   canRestartLifecycle,
   canStopLifecycle,
@@ -39,9 +36,8 @@ export function InstanceDetailHeader({
   t,
   getSharedStatusLabel,
   getStatusBadge,
-  getRuntimeStatusTone,
   onSetActive,
-  onOpenOpenClawConsole,
+  onOpenControlPage,
   onRestart,
   onStop,
   onStart,
@@ -71,13 +67,6 @@ export function InstanceDetailHeader({
             >
               {getSharedStatusLabel(instance.status)}
             </span>
-            <span
-              className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getRuntimeStatusTone(
-                runtimeStatus,
-              )}`}
-            >
-              {t(`instances.detail.instanceWorkbench.runtimeStates.${runtimeStatus}`)}
-            </span>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
             <span className="font-mono">{instance.ip}</span>
@@ -102,14 +91,14 @@ export function InstanceDetailHeader({
             {t('instances.detail.actions.setAsActive')}
           </button>
         ) : null}
-        {canOpenOpenClawConsole ? (
+        {canOpenControlPage ? (
           <button
             type="button"
-            onClick={onOpenOpenClawConsole}
+            onClick={onOpenControlPage}
             className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
           >
             <Wrench className="h-4 w-4" />
-            {t('instances.detail.actions.openOpenClawConsole')}
+            {t('instances.detail.actions.openControlPage')}
           </button>
         ) : null}
         {canControlLifecycle ? (

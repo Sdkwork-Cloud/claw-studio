@@ -18,26 +18,6 @@ const AgentMarket = lazy(() =>
     default: module.AgentMarket,
   })),
 );
-const AppStore = lazy(() =>
-  import('@sdkwork/claw-apps').then((module) => ({
-    default: module.AppStore,
-  })),
-);
-const AppDetail = lazy(() =>
-  import('@sdkwork/claw-apps').then((module) => ({
-    default: module.AppDetail,
-  })),
-);
-const ClawMall = lazy(() =>
-  import('@sdkwork/claw-mall').then((module) => ({
-    default: module.ClawMall,
-  })),
-);
-const ProductDetail = lazy(() =>
-  import('@sdkwork/claw-mall').then((module) => ({
-    default: module.ProductDetail,
-  })),
-);
 const ClawCenter = lazy(() =>
   import('@sdkwork/claw-center').then((module) => ({
     default: module.ClawCenter,
@@ -103,26 +83,6 @@ const Extensions = lazy(() =>
     default: module.Extensions,
   })),
 );
-const GitHubRepoDetail = lazy(() =>
-  import('@sdkwork/claw-github').then((module) => ({
-    default: module.GitHubRepoDetail,
-  })),
-);
-const GitHubRepos = lazy(() =>
-  import('@sdkwork/claw-github').then((module) => ({
-    default: module.GitHubRepos,
-  })),
-);
-const HuggingFaceModelDetail = lazy(() =>
-  import('@sdkwork/claw-huggingface').then((module) => ({
-    default: module.HuggingFaceModelDetail,
-  })),
-);
-const HuggingFaceModels = lazy(() =>
-  import('@sdkwork/claw-huggingface').then((module) => ({
-    default: module.HuggingFaceModels,
-  })),
-);
 const InstanceDetail = lazy(() =>
   import('@sdkwork/claw-instances').then((module) => ({
     default: module.InstanceDetail,
@@ -136,31 +96,6 @@ const Instances = lazy(() =>
 const Nodes = lazy(() =>
   import('@sdkwork/claw-instances').then((module) => ({
     default: module.Nodes,
-  })),
-);
-const Market = lazy(() =>
-  import('@sdkwork/claw-market').then((module) => ({
-    default: module.Market,
-  })),
-);
-const SkillDetail = lazy(() =>
-  import('@sdkwork/claw-market').then((module) => ({
-    default: module.SkillDetail,
-  })),
-);
-const SkillPackDetail = lazy(() =>
-  import('@sdkwork/claw-market').then((module) => ({
-    default: module.SkillPackDetail,
-  })),
-);
-const ModelPurchase = lazy(() =>
-  import('@sdkwork/claw-model-purchase').then((module) => ({
-    default: module.ModelPurchase,
-  })),
-);
-const Points = lazy(() =>
-  import('@sdkwork/claw-points').then((module) => ({
-    default: module.Points,
   })),
 );
 const Settings = lazy(() =>
@@ -341,81 +276,11 @@ export function AppRoutes() {
           }
         />
         <Route
-          path="/market"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <Market />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
           path="/agents"
           element={
             <PageWrapper>
               <Suspense fallback={<RouteFallback />}>
                 <AgentMarket />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/market/:id"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <SkillDetail />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/market/packs/:id"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <SkillPackDetail />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/apps"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <AppStore />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/apps/:id"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <AppDetail />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/mall"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <ClawMall />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/mall/:id"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <ProductDetail />
               </Suspense>
             </PageWrapper>
           }
@@ -456,46 +321,6 @@ export function AppRoutes() {
             <PageWrapper>
               <Suspense fallback={<RouteFallback />}>
                 <CommunityPostDetail />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/github"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <GitHubRepos />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/github/:id"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <GitHubRepoDetail />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/huggingface"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <HuggingFaceModels />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/huggingface/:id"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <HuggingFaceModelDetail />
               </Suspense>
             </PageWrapper>
           }
@@ -563,26 +388,6 @@ export function AppRoutes() {
         <Route
           path="/codebox"
           element={<ComingSoonRoute message={t('routes.codeboxComingSoon')} />}
-        />
-        <Route
-          path="/model-purchase"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <ModelPurchase />
-              </Suspense>
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/points"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <Points />
-              </Suspense>
-            </PageWrapper>
-          }
         />
       </Routes>
     </AnimatePresence>

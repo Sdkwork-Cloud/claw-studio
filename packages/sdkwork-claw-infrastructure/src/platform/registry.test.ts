@@ -443,6 +443,54 @@ await runTest('runtime platform de-duplicates rapid runtime reads and invalidate
   }
 });
 
+await runTest('kernel lifecycle actions also invalidate runtime info cache to avoid mixed dashboard snapshots', async () => {
+  const originalBridge = getPlatformBridge();
+  let runtimeInfoCalls = 0;
+  let restartCalls = 0;
+
+  configurePlatformBridge({
+    kernel: {
+      ...originalBridge.kernel,
+      async restart() {
+        restartCalls += 1;
+        return createKernelStatus(99) as any;
+      },
+    },
+    runtime: {
+      ...originalBridge.runtime,
+      async getRuntimeInfo() {
+        runtimeInfoCalls += 1;
+        await sleep(10);
+        return {
+          platform: 'desktop',
+          app: {
+            name: 'Claw Studio',
+            version: String(runtimeInfoCalls),
+            target: 'desktop-x64',
+          },
+        } as any;
+      },
+    },
+  });
+
+  try {
+    const [first, second] = await Promise.all([
+      runtime.getRuntimeInfo(),
+      runtime.getRuntimeInfo(),
+    ]);
+    await kernel.restart();
+    const third = await runtime.getRuntimeInfo();
+
+    assert.equal(restartCalls, 1);
+    assert.equal(runtimeInfoCalls, 2);
+    assert.equal(first.app?.version, '1');
+    assert.equal(second.app?.version, '1');
+    assert.equal(third.app?.version, '2');
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
 await runTest('installer platform de-duplicates install inspections and invalidates after installs', async () => {
   const originalBridge = getPlatformBridge();
   let inspectCalls = 0;

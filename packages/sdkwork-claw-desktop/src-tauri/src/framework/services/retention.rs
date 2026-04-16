@@ -564,7 +564,9 @@ mod tests {
             .expect("pruned packages");
 
         assert_eq!(removed.len(), 1);
-        assert!(package_dir.join("openclaw-nightly-windows-x64.pkg").exists());
+        assert!(package_dir
+            .join("openclaw-nightly-windows-x64.pkg")
+            .exists());
         assert!(package_dir.join("2026.4.9-windows-x64.pkg").exists());
         assert!(!package_dir.join("2026.4.8-windows-x64.pkg").exists());
     }

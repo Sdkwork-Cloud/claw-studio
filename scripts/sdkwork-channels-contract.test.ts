@@ -32,9 +32,17 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   const servicesIndexSource = read('packages/sdkwork-claw-channels/src/services/index.ts');
   const serviceSource = read('packages/sdkwork-claw-channels/src/services/channelService.ts');
   const pageSource = read('packages/sdkwork-claw-channels/src/pages/channels/Channels.tsx');
+  const resolverSource = read('packages/sdkwork-claw-channels/src/pages/channels/channelInstanceResolver.ts');
   const zhSidebar = readJson<{ channels: string }>('packages/sdkwork-claw-i18n/src/locales/zh/sidebar.json');
   const zhChannels = readJson<{
     page: {
+      feedback: {
+        loadFailed: string;
+        loadFailedServiceUnavailable: string;
+        saveFailed: string;
+        deleteFailed: string;
+        toggleFailed: string;
+      };
       title: string;
       catalog: {
         tabs: Record<'domestic' | 'global' | 'media' | 'all', string>;
@@ -43,6 +51,13 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   }>('packages/sdkwork-claw-i18n/src/locales/zh/channels.json');
   const enChannels = readJson<{
     page: {
+      feedback: {
+        loadFailed: string;
+        loadFailedServiceUnavailable: string;
+        saveFailed: string;
+        deleteFailed: string;
+        toggleFailed: string;
+      };
       catalog: {
         tabs: Record<'domestic' | 'global' | 'media' | 'all', string>;
       };
@@ -51,6 +66,7 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
 
   assert.ok(exists('packages/sdkwork-claw-channels/src/Channels.tsx'));
   assert.ok(exists('packages/sdkwork-claw-channels/src/services/channelService.ts'));
+  assert.ok(exists('packages/sdkwork-claw-channels/src/pages/channels/channelInstanceResolver.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-channels']);
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-instances']);
@@ -67,6 +83,8 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.match(serviceSource, /return getPlatformBridge\(\)\.studio/);
   assert.match(serviceSource, /getInstanceDetail\(instanceId: string\)/);
   assert.match(serviceSource, /getChannels\(instanceId: string\): Promise<Channel\[]>/);
+  assert.match(serviceSource, /isMissingManagedConfigError/);
+  assert.match(serviceSource, /detail\?\.workbench && isMissingManagedConfigError\(error\)/);
   assert.match(serviceSource, /detail\?\.workbench/);
   assert.match(serviceSource, /mapWorkbenchChannels\(detail\)/);
   assert.match(serviceSource, /updateChannelStatus\(instanceId: string, channelId: string, enabled: boolean\)/);
@@ -84,24 +102,48 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.doesNotMatch(serviceSource, /studioMockService/);
   assert.doesNotMatch(serviceSource, /fetch\('/);
 
+  assert.match(resolverSource, /resolveChannelsPageInstanceId/);
+  assert.match(resolverSource, /activeInstanceId/);
+  assert.match(resolverSource, /listInstances/);
+  assert.match(resolverSource, /setActiveInstanceId/);
+
   assert.match(pageSource, /useInstanceStore/);
-  assert.match(pageSource, /const \{ activeInstanceId \} = useInstanceStore\(\)/);
-  assert.match(pageSource, /channelService\.getChannels\(activeInstanceId\)/);
-  assert.match(pageSource, /channelService\.updateChannelStatus\(\s*activeInstanceId,\s*channel\.id,\s*nextEnabled,\s*\)/);
-  assert.match(pageSource, /channelService\.saveChannelConfig\(activeInstanceId, selectedChannel\.id, formData\)/);
-  assert.match(pageSource, /channelService\.deleteChannelConfig\(activeInstanceId, selectedChannel\.id\)/);
+  assert.match(pageSource, /instanceDirectoryService/);
+  assert.match(pageSource, /const \{ activeInstanceId, setActiveInstanceId \} = useInstanceStore\(\)/);
+  assert.match(pageSource, /resolveChannelsPageInstanceId/);
+  assert.match(pageSource, /const effectiveInstanceId = activeInstanceId \|\| resolvedInstanceId/);
+  assert.match(pageSource, /const \[errorMessage, setErrorMessage\] = useState<string \| null>\(null\)/);
+  assert.match(pageSource, /const \[resolvedInstanceId, setResolvedInstanceId\] = useState<string \| null>/);
+  assert.match(pageSource, /channelService\.getChannels\(effectiveInstanceId\)/);
+  assert.match(pageSource, /channelService\.updateChannelStatus\(\s*effectiveInstanceId,\s*channel\.id,\s*nextEnabled,\s*\)/);
+  assert.match(pageSource, /channelService\.saveChannelConfig\(\s*effectiveInstanceId,\s*selectedChannel\.id,\s*formData,\s*\)/);
+  assert.match(pageSource, /channelService\.deleteChannelConfig\(\s*effectiveInstanceId,\s*selectedChannel\.id,\s*\)/);
   assert.match(pageSource, /ChannelWorkspace/);
   assert.match(pageSource, /getChannelOfficialLink/);
   assert.match(pageSource, /openExternalUrl/);
+  assert.match(pageSource, /channels\.page\.feedback\.loadFailed/);
+  assert.match(pageSource, /channels\.page\.feedback\.loadFailedServiceUnavailable/);
   assert.match(pageSource, /actionDownloadApp/);
+  assert.match(pageSource, /error=\{errorMessage\}/);
+  assert.match(pageSource, /isSaving=\{isSaving\}/);
   assert.match(pageSource, /onOpenOfficialLink=\{\(_channel, link\) => void openOfficialLink\(link\.href\)\}/);
   assert.doesNotMatch(pageSource, /href=\{selectedChannelOfficialLink\.href\}/);
   assert.equal(zhSidebar.channels, '聊天通道');
   assert.equal(zhChannels.page.title, '聊天通道');
+  assert.equal(typeof zhChannels.page.feedback.loadFailed, 'string');
+  assert.equal(typeof zhChannels.page.feedback.loadFailedServiceUnavailable, 'string');
+  assert.equal(typeof zhChannels.page.feedback.saveFailed, 'string');
+  assert.equal(typeof zhChannels.page.feedback.deleteFailed, 'string');
+  assert.equal(typeof zhChannels.page.feedback.toggleFailed, 'string');
   assert.equal(zhChannels.page.catalog.tabs.domestic, '国内');
   assert.equal(zhChannels.page.catalog.tabs.global, '国外');
   assert.equal(zhChannels.page.catalog.tabs.all, '全部');
   assert.equal(typeof zhChannels.page.catalog.tabs.media, 'string');
+  assert.equal(typeof enChannels.page.feedback.loadFailed, 'string');
+  assert.equal(typeof enChannels.page.feedback.loadFailedServiceUnavailable, 'string');
+  assert.equal(typeof enChannels.page.feedback.saveFailed, 'string');
+  assert.equal(typeof enChannels.page.feedback.deleteFailed, 'string');
+  assert.equal(typeof enChannels.page.feedback.toggleFailed, 'string');
   assert.equal(enChannels.page.catalog.tabs.media, 'Media Accounts');
   assert.equal(enChannels.page.catalog.tabs.all, 'All');
 });

@@ -30,7 +30,8 @@ export type ChatHeaderStatus =
   | 'responding'
   | 'connected'
   | 'reconnecting'
-  | 'disconnected';
+  | 'disconnected'
+  | 'unavailable';
 
 export type ChatHeaderPresentation = {
   title: string;
@@ -56,6 +57,7 @@ function appendUniqueDetailItem(detailItems: string[], value: string | null | un
 }
 
 function resolveChatHeaderStatus(params: {
+  isChatSupported: boolean;
   isOpenClawGateway: boolean;
   gatewayConnectionStatus: ChatHeaderGatewayConnectionStatus;
   syncState: ChatHeaderSyncState;
@@ -64,6 +66,10 @@ function resolveChatHeaderStatus(params: {
 }): ChatHeaderStatus {
   if (params.isActiveSessionGenerating || normalizeLabel(params.activeSessionRunId)) {
     return 'responding';
+  }
+
+  if (!params.isChatSupported) {
+    return 'unavailable';
   }
 
   if (!params.isOpenClawGateway) {
@@ -92,6 +98,7 @@ function resolveChatHeaderStatus(params: {
 }
 
 export function presentChatHeader(params: {
+  isChatSupported?: boolean;
   activeSession?: ChatHeaderSessionLike | null;
   isOpenClawGateway: boolean;
   gatewayConnectionStatus?: ChatHeaderGatewayConnectionStatus;
@@ -116,6 +123,7 @@ export function presentChatHeader(params: {
   return {
     title,
     status: resolveChatHeaderStatus({
+      isChatSupported: params.isChatSupported !== false,
       isOpenClawGateway: params.isOpenClawGateway,
       gatewayConnectionStatus: params.gatewayConnectionStatus,
       syncState: params.syncState,

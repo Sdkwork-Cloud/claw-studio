@@ -1,6 +1,7 @@
 import { runNodeTypeScriptChecks } from './run-node-typescript-check.mjs';
 
 runNodeTypeScriptChecks([
+  'packages/sdkwork-claw-instances/src/components/instanceDetailHeaderBehavior.test.ts',
   'packages/sdkwork-claw-instances/src/services/openClawAgentPresentation.test.ts',
   'packages/sdkwork-claw-instances/src/services/openClawAgentMutationSupport.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceDetailAgentMutationStateSupport.test.ts',
@@ -19,6 +20,7 @@ runNodeTypeScriptChecks([
   'packages/sdkwork-claw-instances/src/services/instanceDetailReloadSupport.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceDetailSectionAvailabilitySupport.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceDetailToastSupport.test.ts',
+  'packages/sdkwork-claw-instances/src/services/instanceDetailWorkbenchState.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceDetailWorkbenchLoaderSupport.test.ts',
   'packages/sdkwork-claw-instances/src/services/openClawManagedChannelPresentation.test.ts',
   'packages/sdkwork-claw-instances/src/services/openClawManagedChannelMutationSupport.test.ts',
@@ -29,6 +31,7 @@ runNodeTypeScriptChecks([
   'packages/sdkwork-claw-instances/src/services/instanceWorkbenchHydration.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceActionCapabilities.test.ts',
+  'packages/sdkwork-claw-instances/src/services/instanceBaseDetail.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceOnboardingService.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceFileWorkbench.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceMemoryWorkbenchPresentation.test.ts',

@@ -3,11 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  Box,
   Command,
   Cpu,
-  GitBranch,
-  LayoutGrid,
   MessageCircle,
   Search,
   Server,
@@ -74,30 +71,6 @@ export function CommandPalette() {
 
   const commands = useMemo<CommandItem[]>(() => {
     const baseCommands: CommandItem[] = [
-      {
-        id: 'nav-apps',
-        title: t('commandPalette.commands.apps.title'),
-        subtitle: t('commandPalette.commands.apps.subtitle'),
-        icon: LayoutGrid,
-        category: t('commandPalette.categories.navigation'),
-        action: () => navigate('/apps'),
-      },
-      {
-        id: 'nav-github',
-        title: t('commandPalette.commands.github.title'),
-        subtitle: t('commandPalette.commands.github.subtitle'),
-        icon: GitBranch,
-        category: t('commandPalette.categories.navigation'),
-        action: () => navigate('/github'),
-      },
-      {
-        id: 'nav-hf',
-        title: t('commandPalette.commands.huggingface.title'),
-        subtitle: t('commandPalette.commands.huggingface.subtitle'),
-        icon: Box,
-        category: t('commandPalette.categories.navigation'),
-        action: () => navigate('/huggingface'),
-      },
       {
         id: 'nav-instances',
         title: t('commandPalette.commands.instances.title'),

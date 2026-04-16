@@ -31,6 +31,8 @@
     "currentModel": "Current Model",
     "currentChannel": "Current Channel",
     "noneSelected": "Not set",
+    "unsupportedRouteTitle": "This instance is not chat-ready",
+    "unsupportedRouteDescription": "This instance does not currently expose a supported chat route. Start the runtime or fix its chat endpoint configuration, then try again.",
     "routeMode": "Route Mode",
     "configureModels": "Configure models",
     "thinkingLevel": "Thinking Level",
@@ -78,7 +80,8 @@
     "loadingConversationHistory": "Loading conversation history...",
     "route": {
       "gateway": "OpenClaw Gateway",
-      "direct": "Direct Model"
+      "direct": "Direct Model",
+      "unsupported": "Unsupported"
     },
     "errorResponse": "Sorry, I encountered an error while processing your request. Please check your API key or internet connection.",
     "headerStatus": {
@@ -86,7 +89,8 @@
       "responding": "Responding",
       "connected": "Connected",
       "reconnecting": "Reconnecting",
-      "disconnected": "Disconnected"
+      "disconnected": "Disconnected",
+      "unavailable": "Unavailable"
     },
     "suggestions": {
       "quantum": "Explain quantum computing in simple terms",

@@ -3,7 +3,13 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
-const releaseConfigPath = path.join(rootDir, 'config', 'openclaw-release.json');
+const releaseConfigPath = path.join(
+  rootDir,
+  'config',
+  'kernel-releases',
+  'openclaw.json',
+);
+const legacyReleaseConfigPath = path.join(rootDir, 'config', 'openclaw-release.json');
 const prepareRuntimeSource = readFileSync(
   path.join(rootDir, 'scripts', 'prepare-openclaw-runtime.mjs'),
   'utf8',
@@ -28,6 +34,10 @@ const webStudioSource = readFileSync(
 );
 const clawTypesIndexSource = readFileSync(
   path.join(rootDir, 'packages', 'sdkwork-claw-types', 'src', 'index.ts'),
+  'utf8',
+);
+const clawTypesKernelReleaseCatalogSource = readFileSync(
+  path.join(rootDir, 'packages', 'sdkwork-claw-types', 'src', 'kernelReleaseCatalog.ts'),
   'utf8',
 );
 const clawTypesOpenClawReleaseSource = readFileSync(
@@ -61,6 +71,7 @@ const versionFixtureSources = versionFixtureSourcePaths.map((fixturePath) => ({
 }));
 
 const releaseConfig = JSON.parse(readFileSync(releaseConfigPath, 'utf8'));
+const legacyReleaseConfig = JSON.parse(readFileSync(legacyReleaseConfigPath, 'utf8'));
 const sourceComponentRegistry = JSON.parse(
   readFileSync(
     path.join(
@@ -90,8 +101,23 @@ const desktopBundledManifest = existsSync(desktopBundledManifestPath)
 
 assert.equal(
   releaseConfig.stableVersion,
-  '2026.4.9',
+  '2026.4.14',
   'openclaw shared release config must pin the current stable OpenClaw version',
+);
+assert.equal(
+  releaseConfig.kernelId,
+  'openclaw',
+  'openclaw kernel release registry must pin kernelId=openclaw',
+);
+assert.deepEqual(
+  releaseConfig.supportedChannels,
+  ['stable'],
+  'openclaw kernel release registry must expose the supported release channels',
+);
+assert.equal(
+  releaseConfig.defaultChannel,
+  'stable',
+  'openclaw kernel release registry must expose the default release channel',
 );
 assert.equal(
   releaseConfig.packageName,
@@ -114,6 +140,27 @@ assert.deepEqual(
   'openclaw shared release config must keep prerelease exception metadata empty while no supplemental runtime packages are bundled',
 );
 assert.deepEqual(
+  releaseConfig.runtimeRequirements?.requiredExternalRuntimes,
+  ['nodejs'],
+  'openclaw kernel release registry must declare Node.js as the only required external runtime',
+);
+assert.equal(
+  releaseConfig.runtimeRequirements?.requiredExternalRuntimeVersions?.nodejs,
+  '22.16.0',
+  'openclaw kernel release registry must pin the required external Node.js version',
+);
+assert.deepEqual(
+  legacyReleaseConfig,
+  {
+    stableVersion: releaseConfig.stableVersion,
+    nodeVersion: releaseConfig.nodeVersion,
+    packageName: releaseConfig.packageName,
+    runtimeSupplementalPackages: releaseConfig.runtimeSupplementalPackages,
+    runtimeSupplementalPackageExceptions: releaseConfig.runtimeSupplementalPackageExceptions,
+  },
+  'legacy config/openclaw-release.json must remain a projection of the kernel release registry during migration',
+);
+assert.deepEqual(
   sourceComponentRegistry.components,
   [],
   'desktop source component registry must remain a generic support-component catalog and must not carry kernel-specific OpenClaw version metadata',
@@ -125,8 +172,8 @@ assert.match(
 );
 assert.match(
   desktopBuildScriptSource,
-  /OPENCLAW_RELEASE_CONFIG_RELATIVE_PATH:.*config\/openclaw-release\.json/s,
-  'desktop build script must read the shared OpenClaw release config during clean-clone cargo builds',
+  /OPENCLAW_RELEASE_CONFIG_RELATIVE_PATH:.*config\/kernel-releases\/openclaw\.json/s,
+  'desktop build script must read the kernel release registry during clean-clone cargo builds',
 );
 assert.match(
   desktopBuildScriptSource,
@@ -154,9 +201,29 @@ assert.match(
   '@sdkwork/claw-types must export the shared OpenClaw release metadata for frontend/runtime consumers',
 );
 assert.match(
+  clawTypesIndexSource,
+  /export \* from '\.\/kernelReleaseCatalog\.ts';/,
+  '@sdkwork/claw-types must export the shared kernel release registry catalog for frontend/runtime consumers',
+);
+assert.match(
+  clawTypesKernelReleaseCatalogSource,
+  /kernelId:\s*'openclaw'/,
+  '@sdkwork/claw-types kernel release catalog must register OpenClaw metadata from the shared kernel release registry',
+);
+assert.match(
+  clawTypesKernelReleaseCatalogSource,
+  /kernelId:\s*'hermes'/,
+  '@sdkwork/claw-types kernel release catalog must register Hermes metadata from the shared kernel release registry',
+);
+assert.match(
   clawTypesOpenClawReleaseSource,
   /runtimeSupplementalPackages:\s*string\[\];/,
   '@sdkwork/claw-types shared OpenClaw release metadata must expose prepared runtime supplemental packages',
+);
+assert.match(
+  clawTypesOpenClawReleaseSource,
+  /resolveKernelReleaseConfig\('openclaw'\)/,
+  '@sdkwork/claw-types OpenClaw release metadata must resolve through the shared kernel release catalog',
 );
 assert.match(
   clawTypesOpenClawReleaseSource,

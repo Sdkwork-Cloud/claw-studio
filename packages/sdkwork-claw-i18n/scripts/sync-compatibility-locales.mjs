@@ -26,23 +26,9 @@ function readJson(path) {
 function syncCompatibilityLocale(language) {
   const compatibilityPath = join(localesRoot, `${language}.json`);
   const domains = listLocaleDomains(language);
-  const existingLocale = existsSync(compatibilityPath) ? readJson(compatibilityPath) : {};
   const nextLocale = {};
 
-  for (const [key, value] of Object.entries(existingLocale)) {
-    if (domains.includes(key)) {
-      nextLocale[key] = readJson(join(localesRoot, language, `${key}.json`));
-      continue;
-    }
-
-    nextLocale[key] = value;
-  }
-
   for (const domain of domains) {
-    if (domain in nextLocale) {
-      continue;
-    }
-
     nextLocale[domain] = readJson(join(localesRoot, language, `${domain}.json`));
   }
 

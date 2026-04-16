@@ -273,6 +273,41 @@ await runTest(
 );
 
 await runTest(
+  'buildRegistryBackedDetail normalizes syncing registry status into starting so detail startup state matches the shared workbench model',
+  () => {
+    const detail = registryWorkbenchSupportModule?.buildRegistryBackedDetail(
+      {
+        id: 'built-in-openclaw-syncing',
+        name: 'Built-in OpenClaw Syncing',
+        type: 'Built-in OpenClaw Runtime',
+        iconType: 'box',
+        status: 'syncing',
+        version: '2026.4.2',
+        uptime: '30s',
+        ip: '127.0.0.1',
+        cpu: 6,
+        memory: 12,
+        totalMemory: '32GB',
+        isBuiltIn: true,
+        baseUrl: 'http://127.0.0.1:17890',
+        websocketUrl: 'ws://127.0.0.1:17890',
+      } as any,
+      {
+        port: '17890',
+        sandbox: true,
+        autoUpdate: false,
+        logLevel: 'info',
+        corsOrigins: '*',
+      },
+      undefined,
+      '',
+    );
+
+    assert.equal(detail?.instance.status, 'starting');
+  },
+);
+
+await runTest(
   'resolveRegistryKernelId infers a future kernel id from a branded kernel descriptor even when it does not end with claw',
   () => {
     const runtimeKind = registryWorkbenchSupportModule?.resolveRegistryKernelId({

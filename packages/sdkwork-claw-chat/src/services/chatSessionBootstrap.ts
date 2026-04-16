@@ -188,6 +188,14 @@ export function resolveChatBootstrapAction(params: {
     return { type: 'wait' };
   }
 
+  if (params.syncState === 'error') {
+    return { type: 'idle' };
+  }
+
+  if (params.routeMode === 'unsupported') {
+    return { type: 'idle' };
+  }
+
   const isOpenClawGateway = params.routeMode === 'instanceOpenClawGatewayWs';
   const hasActiveSession =
     params.activeSessionId !== null && params.sessionIds.includes(params.activeSessionId);

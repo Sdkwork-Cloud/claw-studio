@@ -14,8 +14,80 @@ function runTest(name: string, callback: () => void | Promise<void>) {
 }
 
 await runTest(
+  'instance effective model catalog returns an empty catalog for unsupported routes instead of exposing router fallback models',
+  async () => {
+    let routerChannelCalls = 0;
+    let routerProviderCalls = 0;
+    let routerModelCalls = 0;
+    let gatewayModelCalls = 0;
+
+    const service = createInstanceEffectiveModelCatalogService({
+      getInstance: async () =>
+        ({
+          id: 'instance-unsupported-chat',
+          runtimeKind: 'custom',
+          transportKind: 'customWs',
+          deploymentMode: 'remote',
+          status: 'online',
+          baseUrl: null,
+          websocketUrl: null,
+        }) as any,
+      getInstanceDetail: async () => null,
+      listRouterChannels: async () => {
+        routerChannelCalls += 1;
+        return [{ id: 'general', name: 'General' }];
+      },
+      listRouterProviders: async () => {
+        routerProviderCalls += 1;
+        return [
+          {
+            id: 'openai',
+            channel_id: 'general',
+            extension_id: 'openai',
+            adapter_kind: 'openai-compatible',
+            base_url: 'https://api.openai.com/v1',
+            display_name: 'OpenAI',
+          },
+        ];
+      },
+      listRouterModels: async () => {
+        routerModelCalls += 1;
+        return [
+          {
+            external_name: 'gpt-5.4',
+            provider_id: 'openai',
+          },
+        ];
+      },
+      resolveOpenClawConfigPath: () => null,
+      readOpenClawConfigSnapshot: async () => {
+        throw new Error('should not read OpenClaw config for unsupported routes');
+      },
+      listGatewayModels: async () => {
+        gatewayModelCalls += 1;
+        return { models: [] };
+      },
+    });
+
+    const catalog = await service.getCatalog('instance-unsupported-chat');
+
+    assert.equal(routerChannelCalls, 0);
+    assert.equal(routerProviderCalls, 0);
+    assert.equal(routerModelCalls, 0);
+    assert.equal(gatewayModelCalls, 0);
+    assert.deepEqual(catalog, {
+      channels: [],
+      preferredModelId: null,
+    });
+  },
+);
+
+await runTest(
   'instance effective model catalog uses authoritative detail truth before probing the OpenClaw gateway runtime',
   async () => {
+    let routerChannelCalls = 0;
+    let routerProviderCalls = 0;
+    let routerModelCalls = 0;
     let gatewayModelCalls = 0;
     const service = createInstanceEffectiveModelCatalogService({
       getInstance: async () =>
@@ -44,34 +116,41 @@ await runTest(
           },
           artifacts: [],
         }) as any,
-      listRouterChannels: async () => [
-        { id: 'general', name: 'General' },
-      ],
-      listRouterProviders: async () => [
-        {
-          id: 'openai',
-          channel_id: 'general',
-          extension_id: 'openai',
-          adapter_kind: 'openai-compatible',
-          base_url: 'https://api.openai.com/v1',
-          display_name: 'OpenAI',
-          channel_bindings: [
-            {
-              provider_id: 'openai',
-              channel_id: 'general',
-              is_primary: true,
-            },
-          ],
-        },
-      ],
-      listRouterModels: async () => [
-        {
-          external_name: 'gpt-4.1',
-          provider_id: 'openai',
-          capabilities: ['chat'],
-          streaming: true,
-        },
-      ],
+      listRouterChannels: async () => {
+        routerChannelCalls += 1;
+        return [{ id: 'general', name: 'General' }];
+      },
+      listRouterProviders: async () => {
+        routerProviderCalls += 1;
+        return [
+          {
+            id: 'openai',
+            channel_id: 'general',
+            extension_id: 'openai',
+            adapter_kind: 'openai-compatible',
+            base_url: 'https://api.openai.com/v1',
+            display_name: 'OpenAI',
+            channel_bindings: [
+              {
+                provider_id: 'openai',
+                channel_id: 'general',
+                is_primary: true,
+              },
+            ],
+          },
+        ];
+      },
+      listRouterModels: async () => {
+        routerModelCalls += 1;
+        return [
+          {
+            external_name: 'gpt-4.1',
+            provider_id: 'openai',
+            capabilities: ['chat'],
+            streaming: true,
+          },
+        ];
+      },
       resolveOpenClawConfigPath: () => null,
       readOpenClawConfigSnapshot: async () => {
         throw new Error('should not read OpenClaw config while authoritative detail says the runtime is still starting');
@@ -84,24 +163,11 @@ await runTest(
 
     const catalog = await service.getCatalog('instance-openclaw-authority-mismatch');
 
+    assert.equal(routerChannelCalls, 0);
+    assert.equal(routerProviderCalls, 0);
+    assert.equal(routerModelCalls, 0);
     assert.equal(gatewayModelCalls, 0);
-    assert.deepEqual(catalog.channels, [
-      {
-        id: 'general',
-        name: 'General',
-        provider: 'openai',
-        baseUrl: 'https://api.openai.com/v1',
-        apiKey: '',
-        icon: 'AI',
-        defaultModelId: 'gpt-4.1',
-        models: [
-          {
-            id: 'gpt-4.1',
-            name: 'gpt-4.1',
-          },
-        ],
-      },
-    ]);
+    assert.deepEqual(catalog.channels, []);
     assert.equal(catalog.preferredModelId, null);
   },
 );

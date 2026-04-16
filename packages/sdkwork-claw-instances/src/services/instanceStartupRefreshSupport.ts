@@ -22,9 +22,9 @@ export function hasPendingBuiltInOpenClawStartup(
 }
 
 export function hasPendingBuiltInOpenClawWorkbenchStartup(
-  workbench: Pick<InstanceWorkbenchSnapshot, 'detail'> | null,
+  workbench: Pick<InstanceWorkbenchSnapshot, 'detail' | 'instance'> | null,
 ) {
-  const instance = workbench?.detail?.instance;
+  const instance = workbench?.instance ?? workbench?.detail?.instance;
   if (!instance) {
     return false;
   }
@@ -46,10 +46,10 @@ export function shouldRefreshInstancesForBuiltInOpenClawStatusChange(
 
 export function shouldRefreshWorkbenchForBuiltInOpenClawStatusChange(
   instanceId: string | undefined,
-  workbench: Pick<InstanceWorkbenchSnapshot, 'detail'> | null,
+  workbench: Pick<InstanceWorkbenchSnapshot, 'detail' | 'instance'> | null,
   event: Pick<RuntimeBuiltInOpenClawStatusChangedEvent, 'instanceId'>,
 ) {
-  const instance = workbench?.detail?.instance;
+  const instance = workbench?.instance ?? workbench?.detail?.instance;
   if (!instance || !instanceId || instanceId !== event.instanceId) {
     return false;
   }

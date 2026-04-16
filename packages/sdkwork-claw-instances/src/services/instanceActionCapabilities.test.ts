@@ -205,6 +205,54 @@ await runTest('explicit lifecycleControllable false disables lifecycle actions',
   assert.equal(capabilities.canRestart, false);
 });
 
+await runTest('starting instances surface stop and restart actions instead of incorrectly offering start', () => {
+  const capabilities = buildInstanceActionCapabilities(
+    createInstance({
+      status: 'starting',
+    }),
+    createDetail({
+      instance: {
+        status: 'starting',
+      },
+      lifecycle: {
+        startStopSupported: true,
+        lifecycleControllable: true,
+      },
+    }),
+  );
+
+  assert.equal(capabilities.canDelete, true);
+  assert.equal(capabilities.canSetActive, true);
+  assert.equal(capabilities.canControlLifecycle, true);
+  assert.equal(capabilities.canStart, false);
+  assert.equal(capabilities.canStop, true);
+  assert.equal(capabilities.canRestart, true);
+});
+
+await runTest('syncing instances keep lifecycle controls in stop/restart mode instead of exposing start again', () => {
+  const capabilities = buildInstanceActionCapabilities(
+    createInstance({
+      status: 'syncing',
+    }),
+    createDetail({
+      instance: {
+        status: 'syncing',
+      },
+      lifecycle: {
+        startStopSupported: true,
+        lifecycleControllable: true,
+      },
+    }),
+  );
+
+  assert.equal(capabilities.canDelete, true);
+  assert.equal(capabilities.canSetActive, true);
+  assert.equal(capabilities.canControlLifecycle, true);
+  assert.equal(capabilities.canStart, false);
+  assert.equal(capabilities.canStop, true);
+  assert.equal(capabilities.canRestart, true);
+});
+
 await runTest('capability loading tolerates per-instance detail failures', async () => {
   const instances = [
     createInstance({

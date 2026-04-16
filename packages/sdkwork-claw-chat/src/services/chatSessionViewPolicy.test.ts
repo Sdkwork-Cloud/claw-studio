@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  resolveChatRunningSessionId,
   resolveOpenClawDraftSessionId,
   resolveNewChatSessionModel,
   resolveChatSendSessionId,
@@ -240,6 +241,28 @@ await runTest(
   },
 );
 
+await runTest(
+  'resolveChatSessionViewState hides sessions entirely when the active route is unsupported',
+  () => {
+    const sessions = [{ id: 'session-a' }, { id: 'session-b' }];
+
+    assert.deepEqual(
+      resolveChatSessionViewState({
+        sessions,
+        activeSessionId: 'session-b',
+        isChatSupported: false,
+        isOpenClawGateway: false,
+        openClawAgentId: 'research',
+      }),
+      {
+        visibleSessions: [],
+        selectableSessions: [],
+        effectiveActiveSessionId: null,
+      },
+    );
+  },
+);
+
 await runTest('resolveChatSendSessionId uses the effective visible session for openclaw gateway sends', () => {
   assert.equal(
     resolveChatSendSessionId({
@@ -270,6 +293,46 @@ await runTest('resolveChatSendSessionId keeps the raw active session for direct 
     'session-a',
   );
 });
+
+await runTest(
+  'resolveChatRunningSessionId only exposes gateway runs from the current selectable session scope',
+  () => {
+    assert.equal(
+      resolveChatRunningSessionId({
+        isOpenClawGateway: true,
+        selectableSessions: [
+          { id: 'agent:research:main', runId: null },
+          { id: 'agent:research:main:thread:visible', runId: null },
+        ],
+      }),
+      null,
+    );
+  },
+);
+
+await runTest(
+  'resolveChatRunningSessionId keeps direct chat idle and returns the visible gateway run when present',
+  () => {
+    assert.equal(
+      resolveChatRunningSessionId({
+        isOpenClawGateway: false,
+        selectableSessions: [{ id: 'session-a', runId: 'run-local' }],
+      }),
+      null,
+    );
+
+    assert.equal(
+      resolveChatRunningSessionId({
+        isOpenClawGateway: true,
+        selectableSessions: [
+          { id: 'agent:research:main', runId: null },
+          { id: 'agent:research:main:thread:visible', runId: 'run-visible' },
+        ],
+      }),
+      'agent:research:main:thread:visible',
+    );
+  },
+);
 
 await runTest('resolveNewChatSessionModel keeps the active gateway model id for new openclaw threads', () => {
   assert.equal(

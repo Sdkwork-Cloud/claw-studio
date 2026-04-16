@@ -301,7 +301,7 @@
     },
     "actions": {
       "setAsActive": "设为活跃",
-      "openOpenClawConsole": "打开控制页面",
+      "openControlPage": "前往控制台",
       "restart": "重启",
       "stop": "停止",
       "start": "启动",
@@ -328,7 +328,7 @@
       "failedToOpenDiagnosticPath": "无法打开诊断位置",
       "uninstalled": "实例卸载成功",
       "failedToUninstall": "卸载实例失败",
-      "failedToOpenOpenClawConsole": "打开 OpenClaw 控制台失败"
+      "failedToOpenControlPage": "打开控制页面失败"
     },
     "confirmUninstall": "确认要卸载这个实例吗？此操作不可撤销。",
     "modules": {

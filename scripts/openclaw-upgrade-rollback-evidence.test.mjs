@@ -10,11 +10,20 @@ function createReadJsonFileStub() {
   return async (filePath) => {
     const normalizedPath = String(filePath).replaceAll('\\', '/');
 
-    if (normalizedPath.endsWith('/config/openclaw-release.json')) {
+    if (normalizedPath.endsWith('/config/kernel-releases/openclaw.json')) {
       return {
+        kernelId: 'openclaw',
         stableVersion: '2026.4.2',
+        supportedChannels: ['stable'],
+        defaultChannel: 'stable',
         nodeVersion: '22.16.0',
         packageName: 'openclaw',
+        runtimeRequirements: {
+          requiredExternalRuntimes: ['nodejs'],
+          requiredExternalRuntimeVersions: {
+            nodejs: '22.16.0',
+          },
+        },
       };
     }
 
@@ -91,6 +100,11 @@ test('upgrade rollback evidence summarizes explicit upgrade and rollback readine
   assert.equal(result.targetVersion, '2026.4.5');
   assert.equal(result.upgradeReady, true);
   assert.equal(result.rollbackReady, true);
+  assert.match(
+    result.sources.releaseConfigPath.replaceAll('\\', '/'),
+    /config\/kernel-releases\/openclaw\.json$/,
+    'upgrade rollback evidence must resolve OpenClaw baseline version from the kernel release registry',
+  );
   assert.deepEqual(result.blockers, {
     upgrade: [],
     rollback: [],

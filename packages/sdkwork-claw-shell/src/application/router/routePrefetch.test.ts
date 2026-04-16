@@ -16,17 +16,17 @@ await runTest('route prefetch controller de-duplicates immediate prefetches for 
   const loadedPrefixes: string[] = [];
   const controller = createSidebarRoutePrefetchController({
     routePrefetchers: [
-      ['/apps', async () => {
-        loadedPrefixes.push('/apps');
+      ['/agents', async () => {
+        loadedPrefixes.push('/agents');
       }],
     ],
   });
 
-  controller.prefetch('/apps');
-  controller.prefetch('/apps?tab=featured');
+  controller.prefetch('/agents');
+  controller.prefetch('/agents?tab=featured');
   await Promise.resolve();
 
-  assert.deepEqual(loadedPrefixes, ['/apps']);
+  assert.deepEqual(loadedPrefixes, ['/agents']);
 });
 
 await runTest('route prefetch controller schedules hover prefetches and supports cancellation', async () => {

@@ -60,6 +60,44 @@ await runTest(
 );
 
 await runTest(
+  'Chat page re-hydrates the active instance when the same instance route authority changes',
+  () => {
+    assert.match(
+      pageSource,
+      /import \{[\s\S]*resolveChatInstanceHydrationKey,[\s\S]*\} from '\.\.\/services';/s,
+    );
+    assert.match(
+      pageSource,
+      /const lastResolvedRouteHydrationKeyRef = useRef<string \| null>\(null\);/,
+    );
+    assert.match(
+      pageSource,
+      /const nextHydrationKey = resolveChatInstanceHydrationKey\(\{\s*activeInstanceId,\s*routeMode,\s*\}\);/,
+    );
+    assert.match(
+      pageSource,
+      /if \(lastResolvedRouteHydrationKeyRef\.current === nextHydrationKey\) \{\s*return;\s*\}/,
+    );
+    assert.match(
+      pageSource,
+      /const hadResolvedHydrationKey = lastResolvedRouteHydrationKeyRef\.current !== null;/,
+    );
+    assert.match(
+      pageSource,
+      /lastResolvedRouteHydrationKeyRef\.current = nextHydrationKey;/,
+    );
+    assert.match(
+      pageSource,
+      /if \(!nextHydrationKey \|\| !hadResolvedHydrationKey\) \{\s*return;\s*\}/,
+    );
+    assert.match(
+      pageSource,
+      /void hydrateInstance\(activeInstanceId\);/,
+    );
+  },
+);
+
+await runTest(
   'Chat page wires OpenClaw session controls through the context drawer',
   () => {
     assert.match(
@@ -181,6 +219,65 @@ await runTest(
     assert.match(
       pageSource,
       /onSelectReasoningLevel=\{isOpenClawGateway\s*\?\s*\(reasoningLevel\) => \{\s*if \(!activeInstanceId \|\| !activeSession\) \{\s*return;\s*\}\s*void setGatewaySessionReasoningLevel\(\{\s*instanceId: activeInstanceId,\s*sessionId: activeSession\.id,\s*reasoningLevel,\s*\}\)\.catch\(\(error\) => \{\s*console\.error\('Failed to update OpenClaw session reasoning level:', error\);/s,
+    );
+  },
+);
+
+await runTest(
+  'Chat page only loads the OpenClaw agent catalog when the active route is a gateway chat route',
+  () => {
+    assert.match(
+      pageSource,
+      /queryKey: \['chat', 'openclaw-agent-catalog', activeInstanceId\],\s*enabled: Boolean\(activeInstanceId && isOpenClawGateway\),/s,
+    );
+  },
+);
+
+await runTest(
+  'Chat page collapses unsupported routes into a blocked chat surface instead of treating them like direct chat',
+  () => {
+    assert.match(pageSource, /const isUnsupportedRoute = routeMode === 'unsupported';/);
+    assert.match(pageSource, /const isChatSupportedRoute = !isUnsupportedRoute;/);
+    assert.match(
+      pageSource,
+      /shouldLoadChatSkills\(\{\s*isRouteSupported: isChatSupportedRoute,\s*isSessionContextDrawerOpen,\s*selectedSkillId,\s*\}\)/s,
+    );
+    assert.match(
+      pageSource,
+      /shouldLoadChatDirectAgents\(\{\s*activeInstanceId,\s*isRouteSupported: isChatSupportedRoute,\s*isOpenClawGateway,\s*isSessionContextDrawerOpen,\s*selectedAgentId,\s*\}\)/s,
+    );
+    assert.match(
+      pageSource,
+      /resolveChatSessionViewState\(\{\s*sessions: instanceSessions,\s*activeSessionId,\s*isChatSupported: isChatSupportedRoute,\s*isOpenClawGateway,\s*openClawAgentId: effectiveGatewayAgentId,\s*\}\)/s,
+    );
+    assert.match(
+      pageSource,
+      /const sessionRouteLabel = isUnsupportedRoute\s*\?\s*t\('chat\.page\.route\.unsupported'\)\s*:\s*isOpenClawGateway\s*\?\s*t\('chat\.page\.route\.gateway'\)\s*:\s*t\('chat\.page\.route\.direct'\);/s,
+    );
+    assert.match(
+      pageSource,
+      /if\s*\(\s*!activeModel\s*\|\|\s*!activeChannel\s*\|\|\s*!isChatSupportedRoute\s*\|\|\s*isBusy\s*\|\|\s*\(activeInstanceId && !routeMode\)\s*\)\s*\{/,
+    );
+    assert.match(pageSource, /showAgentSection=\{isChatSupportedRoute\}/);
+    assert.match(pageSource, /showSkillSection=\{isChatSupportedRoute\}/);
+    assert.match(pageSource, /isChatSupported=\{isChatSupportedRoute\}/);
+  },
+);
+
+await runTest(
+  'Chat page derives gateway running state from the current selectable session scope instead of any hidden instance session',
+  () => {
+    assert.match(
+      pageSource,
+      /import \{[\s\S]*resolveChatRunningSessionId,[\s\S]*\} from '\.\.\/services';/s,
+    );
+    assert.match(
+      pageSource,
+      /const runningSessionId = resolveChatRunningSessionId\(\{\s*isOpenClawGateway,\s*selectableSessions: selectableInstanceSessions,\s*\}\);/s,
+    );
+    assert.doesNotMatch(
+      pageSource,
+      /instanceSessions\.find\(\(session\) => Boolean\(session\.runId\)\)\?\.id \?\? null/,
     );
   },
 );

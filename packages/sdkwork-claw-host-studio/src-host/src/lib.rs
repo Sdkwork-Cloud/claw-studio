@@ -379,7 +379,17 @@ impl ServerStudioPublicApiProvider {
         }
     }
 
+    fn built_in_instance_id_from_raw(raw: Option<&Value>) -> String {
+        raw.and_then(|value| non_empty_string(value.get("id")))
+            .unwrap_or_else(|| BUILT_IN_INSTANCE_ID.to_string())
+    }
+
+    fn built_in_instance_id(&self, document: &InstancesDocument) -> String {
+        Self::built_in_instance_id_from_raw(document.built_in_instance.as_ref())
+    }
+
     fn project_built_in_instance(&self, raw: Option<Value>) -> Value {
+        let built_in_id = Self::built_in_instance_id_from_raw(raw.as_ref());
         let endpoint = self.built_in_endpoint_projection();
         let config_port = endpoint.requested_port.unwrap_or(DEFAULT_PORT);
         let projected_port = endpoint.active_port.or(endpoint.requested_port);
@@ -418,7 +428,7 @@ impl ServerStudioPublicApiProvider {
         if let Some(raw) = raw {
             merge_values(&mut baseline, raw);
         }
-        self.normalize_instance(baseline, BUILT_IN_INSTANCE_ID, true)
+        self.normalize_instance(baseline, built_in_id.as_str(), true)
     }
 
     fn project_custom_instance(&self, raw: Value) -> Option<Value> {
@@ -741,8 +751,9 @@ impl ServerStudioPublicApiProvider {
     }
 
     fn get_projected_instance(&self, document: &InstancesDocument, id: &str) -> Option<Value> {
-        if id == BUILT_IN_INSTANCE_ID {
-            return Some(self.project_built_in_instance(document.built_in_instance.clone()));
+        let built_in = self.project_built_in_instance(document.built_in_instance.clone());
+        if built_in.get("id").and_then(Value::as_str) == Some(id) {
+            return Some(built_in);
         }
         document
             .custom_instances
@@ -751,7 +762,7 @@ impl ServerStudioPublicApiProvider {
             .and_then(|value| self.project_custom_instance(value.clone()))
     }
 
-    fn project_conversation(&self, id: &str, raw: Value) -> Value {
+    fn project_conversation(&self, id: &str, raw: Value, built_in_instance_id: &str) -> Value {
         let updated_at = unix_timestamp_ms();
         let mut object = into_object(raw);
         let messages = object
@@ -777,7 +788,7 @@ impl ServerStudioPublicApiProvider {
                     .get("primaryInstanceId")
                     .and_then(Value::as_str)
                     .map(ToOwned::to_owned)
-                    .unwrap_or_else(|| BUILT_IN_INSTANCE_ID.to_string()),
+                    .unwrap_or_else(|| built_in_instance_id.to_string()),
             ),
         );
         object.insert(
@@ -786,7 +797,7 @@ impl ServerStudioPublicApiProvider {
                 .get("participantInstanceIds")
                 .cloned()
                 .unwrap_or_else(|| {
-                    Value::Array(vec![Value::String(BUILT_IN_INSTANCE_ID.to_string())])
+                    Value::Array(vec![Value::String(built_in_instance_id.to_string())])
                 }),
         );
         object.insert(
@@ -1029,7 +1040,8 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
     fn update_instance(&self, id: &str, input: Value) -> Result<Value, String> {
         self.with_io_lock(|provider| {
             let mut document = provider.read_instances()?;
-            if id == BUILT_IN_INSTANCE_ID {
+            let built_in_id = provider.built_in_instance_id(&document);
+            if id == built_in_id {
                 let mut next = document
                     .built_in_instance
                     .clone()
@@ -1078,10 +1090,11 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
 
     fn delete_instance(&self, id: &str) -> Result<bool, String> {
         self.with_io_lock(|provider| {
-            if id == BUILT_IN_INSTANCE_ID {
+            let mut document = provider.read_instances()?;
+            let built_in_id = provider.built_in_instance_id(&document);
+            if id == built_in_id {
                 return Ok(false);
             }
-            let mut document = provider.read_instances()?;
             let initial_len = document.custom_instances.len();
             document
                 .custom_instances
@@ -1096,7 +1109,11 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
                     .filter_map(|value| {
                         let conversation_id =
                             value.get("id").and_then(Value::as_str)?.to_string();
-                        let projected = provider.project_conversation(conversation_id.as_str(), value);
+                        let projected = provider.project_conversation(
+                            conversation_id.as_str(),
+                            value,
+                            built_in_id.as_str(),
+                        );
                         let primary_matches =
                             projected.get("primaryInstanceId").and_then(Value::as_str) == Some(id);
                         let participant_matches = projected
@@ -1190,6 +1207,7 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
     fn update_instance_config(&self, id: &str, config: Value) -> Result<Option<Value>, String> {
         self.with_io_lock(|provider| {
             let mut document = provider.read_instances()?;
+            let built_in_id = provider.built_in_instance_id(&document);
             let apply_config = |mut next: Value, config: Value| -> Value {
                 if let Some(object) = next.as_object_mut() {
                     let mut next_config = object
@@ -1207,7 +1225,7 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
                 next
             };
 
-            if id == BUILT_IN_INSTANCE_ID {
+            if id == built_in_id {
                 let next = apply_config(
                     document
                         .built_in_instance
@@ -1532,13 +1550,16 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
 
     fn list_conversations(&self, instance_id: &str) -> Result<Value, String> {
         self.with_io_lock(|provider| {
+            let instances = provider.read_instances()?;
+            let built_in_id = provider.built_in_instance_id(&instances);
             let mut records = provider
                 .read_conversations()?
                 .conversations
                 .into_iter()
                 .filter_map(|value| {
                     let id = value.get("id").and_then(Value::as_str)?.to_string();
-                    let projected = provider.project_conversation(id.as_str(), value);
+                    let projected =
+                        provider.project_conversation(id.as_str(), value, built_in_id.as_str());
                     let primary_matches =
                         projected.get("primaryInstanceId").and_then(Value::as_str)
                             == Some(instance_id);
@@ -1566,8 +1587,10 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
 
     fn put_conversation(&self, id: &str, record: Value) -> Result<Value, String> {
         self.with_io_lock(|provider| {
+            let instances = provider.read_instances()?;
+            let built_in_id = provider.built_in_instance_id(&instances);
             let mut document = provider.read_conversations()?;
-            let projected = provider.project_conversation(id, record);
+            let projected = provider.project_conversation(id, record, built_in_id.as_str());
             if let Some(index) = document
                 .conversations
                 .iter()
@@ -3859,6 +3882,115 @@ mod tests {
         assert_eq!(
             config.get("port").and_then(serde_json::Value::as_str),
             Some("28888")
+        );
+    }
+
+    #[test]
+    fn default_provider_preserves_stable_built_in_openclaw_identity_without_rewriting_legacy_id() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let provider = super::ServerStudioPublicApiProvider::new(
+            root.path().to_path_buf(),
+            std::sync::Arc::new(OpenClawControlPlane::inactive("test-host")),
+        )
+        .expect("provider");
+        provider
+            .write_instances(&super::InstancesDocument {
+                built_in_instance: Some(json!({
+                    "id": "managed-openclaw-primary",
+                    "name": "Managed OpenClaw Primary",
+                    "description": "Stable built-in OpenClaw identity.",
+                    "runtimeKind": "openclaw",
+                    "deploymentMode": "local-managed",
+                    "transportKind": "openclawGatewayWs",
+                    "status": "online",
+                    "isBuiltIn": true,
+                    "isDefault": true,
+                    "typeLabel": "Built-In OpenClaw"
+                })),
+                custom_instances: Vec::new(),
+            })
+            .expect("seed instances");
+
+        let instances = provider.list_instances().expect("list instances");
+        let built_in = instances
+            .iter()
+            .find(|item| {
+                item.get("id").and_then(serde_json::Value::as_str)
+                    == Some("managed-openclaw-primary")
+            })
+            .expect("stable built-in instance");
+
+        assert_eq!(
+            built_in
+                .get("name")
+                .and_then(serde_json::Value::as_str),
+            Some("Managed OpenClaw Primary")
+        );
+        assert!(
+            !instances.iter().any(|item| {
+                item.get("id").and_then(serde_json::Value::as_str) == Some("local-built-in")
+            }),
+            "stable built-in identity should not be rewritten back to local-built-in"
+        );
+
+        let detail = provider
+            .get_instance_detail("managed-openclaw-primary")
+            .expect("get detail")
+            .expect("stable built-in detail");
+        assert_eq!(
+            detail
+                .get("instance")
+                .and_then(|value| value.get("id"))
+                .and_then(serde_json::Value::as_str),
+            Some("managed-openclaw-primary")
+        );
+    }
+
+    #[test]
+    fn default_provider_updates_stable_built_in_openclaw_by_actual_instance_id() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let provider = super::ServerStudioPublicApiProvider::new(
+            root.path().to_path_buf(),
+            std::sync::Arc::new(OpenClawControlPlane::inactive("test-host")),
+        )
+        .expect("provider");
+        provider
+            .write_instances(&super::InstancesDocument {
+                built_in_instance: Some(json!({
+                    "id": "managed-openclaw-primary",
+                    "name": "Managed OpenClaw Primary",
+                    "description": "Stable built-in OpenClaw identity.",
+                    "runtimeKind": "openclaw",
+                    "deploymentMode": "local-managed",
+                    "transportKind": "openclawGatewayWs",
+                    "status": "offline",
+                    "isBuiltIn": true,
+                    "isDefault": true,
+                    "typeLabel": "Built-In OpenClaw"
+                })),
+                custom_instances: Vec::new(),
+            })
+            .expect("seed instances");
+
+        let updated = provider
+            .update_instance(
+                "managed-openclaw-primary",
+                json!({
+                    "name": "Managed OpenClaw Primary Renamed",
+                    "config": {
+                        "port": "18871"
+                    }
+                }),
+            )
+            .expect("update built-in instance");
+
+        assert_eq!(
+            updated.get("id").and_then(serde_json::Value::as_str),
+            Some("managed-openclaw-primary")
+        );
+        assert_eq!(
+            updated.get("name").and_then(serde_json::Value::as_str),
+            Some("Managed OpenClaw Primary Renamed")
         );
     }
 

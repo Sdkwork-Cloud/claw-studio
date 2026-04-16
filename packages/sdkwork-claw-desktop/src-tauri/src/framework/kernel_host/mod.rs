@@ -422,8 +422,13 @@ pub fn build_desktop_kernel_host_info(
                 .map(|configured| configured.config_path.to_string_lossy().into_owned())
                 .unwrap_or_else(|| {
                     KernelRuntimeAuthorityService::new()
-                        .active_openclaw_config_path(paths)
-                        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                        .active_managed_config_path("openclaw", paths)
+                        .unwrap_or_else(|_| {
+                            paths
+                                .kernel_paths("openclaw")
+                                .map(|kernel| kernel.managed_config_file)
+                                .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                        })
                         .to_string_lossy()
                         .into_owned()
                 }),

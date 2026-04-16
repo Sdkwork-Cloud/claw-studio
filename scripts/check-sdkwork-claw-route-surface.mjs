@@ -53,11 +53,7 @@ const approvedTemplateExtensions = new Set([
   '/dashboard',
   '/usage',
   '/login/oauth/callback/:provider',
-  '/model-purchase',
-  '/points',
   '/agents',
-  '/mall',
-  '/mall/:id',
   '/kernel',
   '/nodes',
 ]);

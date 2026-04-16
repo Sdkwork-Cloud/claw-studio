@@ -373,7 +373,7 @@ impl Default for KernelAuthorityState {
     fn default() -> Self {
         Self {
             layout_version: LAYOUT_VERSION,
-            runtime_id: "openclaw".to_string(),
+            runtime_id: String::new(),
             active_install_key: None,
             fallback_install_key: None,
             active_version_label: None,
@@ -406,7 +406,7 @@ impl Default for KernelMigrationState {
     fn default() -> Self {
         Self {
             layout_version: LAYOUT_VERSION,
-            runtime_id: "openclaw".to_string(),
+            runtime_id: String::new(),
             last_config_source_path: None,
             last_config_target_path: None,
             last_config_migrated_at: None,
@@ -457,10 +457,7 @@ impl Default for RuntimeUpgradesState {
     fn default() -> Self {
         Self {
             layout_version: LAYOUT_VERSION,
-            runtimes: BTreeMap::from([(
-                "openclaw".to_string(),
-                RuntimeUpgradeStateEntry::default(),
-            )]),
+            runtimes: BTreeMap::new(),
         }
     }
 }
@@ -508,6 +505,8 @@ impl Default for RetentionState {
 }
 
 pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
+    let openclaw = paths.kernel_paths("openclaw")?;
+
     write_json_if_missing(&paths.layout_file, &LayoutState::from_paths(paths))?;
     write_json_if_missing(&paths.active_file, &ActiveState::default())?;
     write_json_if_missing(&paths.inventory_file, &InventoryState::default())?;
@@ -519,10 +518,10 @@ pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
     write_json_if_missing(&paths.service_file, &ServiceState::default())?;
     write_json_if_missing(&paths.components_file, &ComponentsState::default())?;
     write_json_if_missing(&paths.upgrades_file, &UpgradesState::default())?;
-    write_json_if_missing(&paths.openclaw_authority_file, &KernelAuthorityState::default())?;
-    write_json_if_missing(&paths.openclaw_migrations_file, &KernelMigrationState::default())?;
+    write_json_if_missing(&openclaw.authority_file, &KernelAuthorityState::default())?;
+    write_json_if_missing(&openclaw.migrations_file, &KernelMigrationState::default())?;
     write_json_if_missing(
-        &paths.openclaw_runtime_upgrades_file,
+        &openclaw.runtime_upgrades_file,
         &RuntimeUpgradesState::default(),
     )?;
     Ok(())
@@ -566,6 +565,7 @@ pub fn sync_component_registry_state(
     Ok(())
 }
 
+#[cfg(test)]
 pub fn set_active_runtime_version(paths: &AppPaths, runtime_id: &str, version: &str) -> Result<()> {
     let mut active = read_json_file::<ActiveState>(&paths.active_file)?;
     let previous_active = active
@@ -791,92 +791,40 @@ mod tests {
     fn initializes_openclaw_authority_state_files_with_expected_defaults() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let openclaw = paths
+            .kernel_paths("openclaw")
+            .expect("openclaw kernel paths");
 
         initialize_machine_state(&paths).expect("initialize machine state");
 
         let authority = serde_json::from_str::<KernelAuthorityState>(
-            &std::fs::read_to_string(&paths.openclaw_authority_file).expect("authority file"),
+            &std::fs::read_to_string(&openclaw.authority_file).expect("authority file"),
         )
         .expect("authority json");
         let migrations = serde_json::from_str::<KernelMigrationState>(
-            &std::fs::read_to_string(&paths.openclaw_migrations_file).expect("migrations file"),
+            &std::fs::read_to_string(&openclaw.migrations_file).expect("migrations file"),
         )
         .expect("migrations json");
         let runtime_upgrades = serde_json::from_str::<RuntimeUpgradesState>(
-            &std::fs::read_to_string(&paths.openclaw_runtime_upgrades_file)
+            &std::fs::read_to_string(&openclaw.runtime_upgrades_file)
                 .expect("runtime upgrades file"),
         )
         .expect("runtime upgrades json");
 
         assert_eq!(authority.layout_version, 1);
-        assert_eq!(authority.runtime_id, "openclaw");
+        assert_eq!(authority.runtime_id, "");
         assert!(authority.active_install_key.is_none());
         assert!(authority.active_version_label.is_none());
         assert!(authority.managed_config_path.is_none());
         assert!(authority.owned_runtime_roots.is_empty());
 
         assert_eq!(migrations.layout_version, 1);
+        assert_eq!(migrations.runtime_id, "");
         assert!(migrations.last_config_source_path.is_none());
         assert!(migrations.last_data_source_path.is_none());
         assert!(migrations.last_error.is_none());
 
-        assert!(runtime_upgrades.runtimes.contains_key("openclaw"));
-        assert_eq!(
-            runtime_upgrades
-                .runtimes
-                .get("openclaw")
-                .and_then(|entry| entry.last_applied_version.as_deref()),
-            None
-        );
-        assert_eq!(
-            runtime_upgrades
-                .runtimes
-                .get("openclaw")
-                .and_then(|entry| entry.active_version_label.as_deref()),
-            None
-        );
-    }
-
-    #[test]
-    fn initializes_openclaw_authority_state_files_with_expected_defaults() {
-        let root = tempfile::tempdir().expect("temp dir");
-        let paths = resolve_paths_for_root(root.path()).expect("paths");
-
-        initialize_machine_state(&paths).expect("initialize machine state");
-
-        let authority = serde_json::from_str::<KernelAuthorityState>(
-            &std::fs::read_to_string(&paths.openclaw_authority_file).expect("authority file"),
-        )
-        .expect("authority json");
-        let migrations = serde_json::from_str::<KernelMigrationState>(
-            &std::fs::read_to_string(&paths.openclaw_migrations_file).expect("migrations file"),
-        )
-        .expect("migrations json");
-        let runtime_upgrades = serde_json::from_str::<RuntimeUpgradesState>(
-            &std::fs::read_to_string(&paths.openclaw_runtime_upgrades_file)
-                .expect("runtime upgrades file"),
-        )
-        .expect("runtime upgrades json");
-
-        assert_eq!(authority.layout_version, 1);
-        assert_eq!(authority.runtime_id, "openclaw");
-        assert!(authority.active_install_key.is_none());
-        assert!(authority.managed_config_path.is_none());
-        assert!(authority.owned_runtime_roots.is_empty());
-
-        assert_eq!(migrations.layout_version, 1);
-        assert!(migrations.last_config_source_path.is_none());
-        assert!(migrations.last_data_source_path.is_none());
-        assert!(migrations.last_error.is_none());
-
-        assert!(runtime_upgrades.runtimes.contains_key("openclaw"));
-        assert_eq!(
-            runtime_upgrades
-                .runtimes
-                .get("openclaw")
-                .and_then(|entry| entry.last_applied_version.as_deref()),
-            None
-        );
+        assert!(runtime_upgrades.runtimes.is_empty());
     }
 
     #[test]

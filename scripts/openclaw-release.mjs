@@ -2,15 +2,26 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  resolveKernelReleaseConfig,
+  resolveKernelReleaseConfigPath,
+} from './release/kernel-releases.mjs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
-const releaseConfigPath = path.join(rootDir, 'config', 'openclaw-release.json');
+const releaseConfigPath = resolveKernelReleaseConfigPath('openclaw', {
+  workspaceRootDir: rootDir,
+});
 
 export function loadOpenClawReleaseConfig({
+  workspaceRootDir = rootDir,
   readFileImpl = (filePath) => fs.readFileSync(filePath, 'utf8'),
 } = {}) {
-  return JSON.parse(readFileImpl(releaseConfigPath));
+  return resolveKernelReleaseConfig('openclaw', {
+    workspaceRootDir,
+    readFileImpl,
+  });
 }
 
 function splitPackageSpec(spec) {
@@ -109,7 +120,7 @@ export function validateRuntimeSupplementalPackageExceptions(
   }
 }
 
-const releaseConfig = loadOpenClawReleaseConfig();
+const releaseConfig = loadOpenClawReleaseConfig({ workspaceRootDir: rootDir });
 const normalizedSupplementalPackages = normalizeRuntimeSupplementalPackages(
   releaseConfig.runtimeSupplementalPackages,
 );

@@ -1164,8 +1164,13 @@ fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
 
 fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
-        .active_openclaw_config_path(paths)
-        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+        .active_managed_config_path("openclaw", paths)
+        .unwrap_or_else(|_| {
+            paths
+                .kernel_paths("openclaw")
+                .map(|kernel| kernel.managed_config_file)
+                .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+        })
 }
 
 fn verify_managed_state(paths: &AppPaths) -> OpenClawMirrorImportVerificationCheck {
@@ -2747,8 +2752,13 @@ mod tests {
 
     fn managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
         crate::framework::services::kernel_runtime_authority::KernelRuntimeAuthorityService::new()
-            .active_openclaw_config_path(paths)
-            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            .active_managed_config_path("openclaw", paths)
+            .unwrap_or_else(|_| {
+                paths
+                    .kernel_paths("openclaw")
+                    .map(|kernel| kernel.managed_config_file)
+                    .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            })
     }
 
     fn create_archive_runtime(paths: &AppPaths) -> ActivatedOpenClawRuntime {

@@ -200,9 +200,9 @@ fn resolve_local_ai_proxy_public_host_addresses(host: &str) -> Vec<IpAddr> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ensure_local_ai_proxy_config, LocalAiProxyConfigFile,
-        LOCAL_AI_PROXY_CONFIG_SCHEMA_VERSION, LOCAL_AI_PROXY_DEFAULT_BIND_HOST,
-        LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY, LOCAL_AI_PROXY_DEFAULT_PORT,
+        ensure_local_ai_proxy_config, LocalAiProxyConfigFile, LOCAL_AI_PROXY_CONFIG_SCHEMA_VERSION,
+        LOCAL_AI_PROXY_DEFAULT_BIND_HOST, LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY,
+        LOCAL_AI_PROXY_DEFAULT_PORT,
     };
     use crate::framework::paths::resolve_paths_for_root;
     use std::fs;
@@ -234,7 +234,10 @@ mod tests {
         };
         fs::write(
             &paths.local_ai_proxy_config_file,
-            format!("{}\n", serde_json::to_string_pretty(&legacy).expect("legacy config json")),
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&legacy).expect("legacy config json")
+            ),
         )
         .expect("write legacy config");
 

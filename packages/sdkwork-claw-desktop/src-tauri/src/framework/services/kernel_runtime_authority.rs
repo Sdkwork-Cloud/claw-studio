@@ -5,7 +5,7 @@ use crate::framework::{
         RuntimeUpgradesState,
     },
     paths::AppPaths,
-    services::openclaw_runtime::load_manifest,
+    services::openclaw_runtime::{load_manifest, validate_installed_openclaw_runtime},
     FrameworkError, Result,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -19,6 +19,15 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 const OPENCLAW_HEALTH_PROBE_TIMEOUT_MS: u64 = 750;
 const OPENCLAW_RUNTIME_ID: &str = "openclaw";
+
+struct KernelRuntimeStatePaths {
+    authority_file: PathBuf,
+    migrations_file: PathBuf,
+    runtime_upgrades_file: PathBuf,
+    managed_config_file: PathBuf,
+    quarantine_dir: PathBuf,
+    runtime_install_dir: PathBuf,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImportedOpenClawConfig {
@@ -34,9 +43,43 @@ impl KernelRuntimeAuthorityService {
         Self
     }
 
+    pub fn contract(&self, runtime_id: &str, paths: &AppPaths) -> Result<KernelRuntimeContract> {
+        let normalized_runtime_id = normalize_runtime_id(runtime_id);
+        let adapter = self
+            .adapter_for_runtime_id(normalized_runtime_id)
+            .ok_or_else(|| unsupported_runtime_id_error(runtime_id))?;
+        self.contract_for_adapter(adapter.as_ref(), paths)
+    }
+
+    pub fn managed_contract(
+        &self,
+        runtime_id: &str,
+        paths: &AppPaths,
+    ) -> Result<Option<KernelRuntimeContract>> {
+        let normalized_runtime_id = normalize_runtime_id(runtime_id);
+        let Some(adapter) = self.adapter_for_runtime_id(normalized_runtime_id) else {
+            return Ok(None);
+        };
+        self.contract_for_adapter(adapter.as_ref(), paths).map(Some)
+    }
+
+    pub fn verify_managed_install(
+        &self,
+        runtime_id: &str,
+        paths: &AppPaths,
+        install_key: &str,
+    ) -> Result<()> {
+        let normalized_runtime_id = normalize_runtime_id(runtime_id);
+        let Some(adapter) = self.adapter_for_runtime_id(normalized_runtime_id) else {
+            return Ok(());
+        };
+        adapter.verify_install(paths, install_key)?;
+        Ok(())
+    }
+
+    #[allow(dead_code)]
     pub fn openclaw_contract(&self, paths: &AppPaths) -> Result<KernelRuntimeContract> {
-        let adapter = OpenClawKernelAdapter::new();
-        self.contract_for_adapter(&adapter, paths)
+        self.contract(OPENCLAW_RUNTIME_ID, paths)
     }
 
     fn contract_for_adapter(
@@ -47,14 +90,31 @@ impl KernelRuntimeAuthorityService {
         adapter.contract(paths)
     }
 
-    pub fn active_openclaw_config_path(&self, paths: &AppPaths) -> Result<PathBuf> {
-        let authority = read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)?;
+    fn adapter_for_runtime_id(&self, runtime_id: &str) -> Option<Box<dyn KernelRuntimeAdapter>> {
+        match normalize_runtime_id(runtime_id) {
+            OPENCLAW_RUNTIME_ID => Some(Box::new(OpenClawKernelAdapter::new())),
+            _ => None,
+        }
+    }
+
+    pub fn active_managed_config_path(
+        &self,
+        runtime_id: &str,
+        paths: &AppPaths,
+    ) -> Result<PathBuf> {
+        let state_paths = resolve_runtime_state_paths(runtime_id, paths)?;
+        let authority = read_json_file::<KernelAuthorityState>(&state_paths.authority_file)?;
 
         Ok(authority
             .managed_config_path
             .filter(|value| !value.trim().is_empty())
             .map(PathBuf::from)
-            .unwrap_or_else(|| paths.openclaw_managed_config_file.clone()))
+            .unwrap_or(state_paths.managed_config_file))
+    }
+
+    #[allow(dead_code)]
+    pub fn active_openclaw_config_path(&self, paths: &AppPaths) -> Result<PathBuf> {
+        self.active_managed_config_path(OPENCLAW_RUNTIME_ID, paths)
     }
 
     pub fn import_or_default_openclaw_config(
@@ -86,20 +146,32 @@ impl KernelRuntimeAuthorityService {
         })
     }
 
+    #[allow(dead_code)]
     pub fn record_openclaw_config_migration(
         &self,
         paths: &AppPaths,
         source_path: Option<&Path>,
         managed_config_path: &Path,
     ) -> Result<()> {
-        let contract = self.openclaw_contract(paths)?;
-        let mut authority = read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)?;
-        let mut migrations = read_json_file::<KernelMigrationState>(&paths.openclaw_migrations_file)?;
+        self.record_config_migration(OPENCLAW_RUNTIME_ID, paths, source_path, managed_config_path)
+    }
+
+    pub fn record_config_migration(
+        &self,
+        runtime_id: &str,
+        paths: &AppPaths,
+        source_path: Option<&Path>,
+        managed_config_path: &Path,
+    ) -> Result<()> {
+        let normalized_runtime_id = normalize_runtime_id(runtime_id);
+        let contract = self.contract(normalized_runtime_id, paths)?;
+        let state_paths = resolve_runtime_state_paths(normalized_runtime_id, paths)?;
+        let mut authority = read_json_file::<KernelAuthorityState>(&state_paths.authority_file)?;
+        let mut migrations = read_json_file::<KernelMigrationState>(&state_paths.migrations_file)?;
         let migrated_at = current_rfc3339_timestamp()?;
 
-        authority.runtime_id = OPENCLAW_RUNTIME_ID.to_string();
-        authority.managed_config_path =
-            Some(managed_config_path.to_string_lossy().into_owned());
+        authority.runtime_id = normalized_runtime_id.to_string();
+        authority.managed_config_path = Some(managed_config_path.to_string_lossy().into_owned());
         authority.owned_runtime_roots = contract
             .owned_runtime_roots
             .iter()
@@ -108,12 +180,12 @@ impl KernelRuntimeAuthorityService {
         authority.legacy_runtime_roots = contract
             .owned_runtime_roots
             .iter()
-            .filter(|root| **root != paths.openclaw_runtime_dir)
+            .filter(|root| *root != &state_paths.runtime_install_dir)
             .map(|root| path_string(root))
             .collect();
         authority.last_error = None;
 
-        migrations.runtime_id = OPENCLAW_RUNTIME_ID.to_string();
+        migrations.runtime_id = normalized_runtime_id.to_string();
         migrations.last_config_source_path = source_path.map(path_string);
         migrations.last_config_target_path = Some(path_string(managed_config_path));
         migrations.last_config_migrated_at = Some(migrated_at);
@@ -121,7 +193,7 @@ impl KernelRuntimeAuthorityService {
 
         if let Some(source_path) = source_path.filter(|path| *path != managed_config_path) {
             if source_path.exists() {
-                let quarantined_path = quarantine_path(source_path, &paths.openclaw_quarantine_dir)?;
+                let quarantined_path = quarantine_path(source_path, &state_paths.quarantine_dir)?;
                 let quarantined_path_string = path_string(&quarantined_path);
                 if !authority
                     .quarantined_paths
@@ -133,30 +205,43 @@ impl KernelRuntimeAuthorityService {
             }
         }
 
-        write_json_file(&paths.openclaw_authority_file, &authority)?;
-        write_json_file(&paths.openclaw_migrations_file, &migrations)?;
+        write_json_file(&state_paths.authority_file, &authority)?;
+        write_json_file(&state_paths.migrations_file, &migrations)?;
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn record_openclaw_activation_result(
         &self,
         paths: &AppPaths,
         install_key: &str,
         last_error: Option<&str>,
     ) -> Result<()> {
-        let contract = self.openclaw_contract(paths)?;
+        self.record_activation_result(OPENCLAW_RUNTIME_ID, paths, install_key, last_error)
+    }
+
+    pub fn record_activation_result(
+        &self,
+        runtime_id: &str,
+        paths: &AppPaths,
+        install_key: &str,
+        last_error: Option<&str>,
+    ) -> Result<()> {
+        let normalized_runtime_id = normalize_runtime_id(runtime_id);
+        let contract = self.contract(normalized_runtime_id, paths)?;
+        let state_paths = resolve_runtime_state_paths(normalized_runtime_id, paths)?;
         let mut active = read_json_file::<ActiveState>(&paths.active_file)?;
-        let mut authority = read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)?;
+        let mut authority = read_json_file::<KernelAuthorityState>(&state_paths.authority_file)?;
         let mut runtime_upgrades =
-            read_json_file::<RuntimeUpgradesState>(&paths.openclaw_runtime_upgrades_file)?;
+            read_json_file::<RuntimeUpgradesState>(&state_paths.runtime_upgrades_file)?;
         let attempted_at = current_rfc3339_timestamp()?;
-        let managed_config_path = self.active_openclaw_config_path(paths)?;
+        let managed_config_path = self.active_managed_config_path(normalized_runtime_id, paths)?;
         let runtime_upgrade_entry = runtime_upgrades
             .runtimes
-            .entry(OPENCLAW_RUNTIME_ID.to_string())
+            .entry(normalized_runtime_id.to_string())
             .or_insert_with(RuntimeUpgradeStateEntry::default);
 
-        authority.runtime_id = OPENCLAW_RUNTIME_ID.to_string();
+        authority.runtime_id = normalized_runtime_id.to_string();
         authority.managed_config_path = Some(path_string(&managed_config_path));
         authority.owned_runtime_roots = contract
             .owned_runtime_roots
@@ -166,37 +251,46 @@ impl KernelRuntimeAuthorityService {
         authority.legacy_runtime_roots = contract
             .owned_runtime_roots
             .iter()
-            .filter(|root| **root != paths.openclaw_runtime_dir)
+            .filter(|root| *root != &state_paths.runtime_install_dir)
             .map(|root| path_string(root))
             .collect();
         authority.last_error = last_error.map(str::to_string);
         runtime_upgrade_entry.last_attempted_at = Some(attempted_at);
         if let Some(last_error) = last_error {
             runtime_upgrade_entry.last_attempted_version =
-                resolve_openclaw_version_label(paths, install_key);
+                resolve_runtime_version_label(self, paths, normalized_runtime_id, install_key);
             runtime_upgrade_entry.last_error = Some(last_error.to_string());
         } else {
             let previous_active_install_key = active
                 .runtimes
-                .get(OPENCLAW_RUNTIME_ID)
+                .get(normalized_runtime_id)
                 .and_then(|entry| entry.active_runtime_install_key().map(str::to_string));
-            let fallback_install_key = if previous_active_install_key.as_deref()
-                != Some(install_key)
-            {
-                previous_active_install_key
-            } else {
-                active
-                    .runtimes
-                    .get(OPENCLAW_RUNTIME_ID)
-                    .and_then(|entry| entry.fallback_runtime_install_key().map(str::to_string))
-            };
-            let active_version_label =
-                resolve_openclaw_version_label_required(paths, install_key)?;
-            let fallback_version_label = fallback_install_key
-                .as_deref()
-                .and_then(|fallback_install_key| {
-                    resolve_openclaw_version_label(paths, fallback_install_key)
-                });
+            let fallback_install_key =
+                if previous_active_install_key.as_deref() != Some(install_key) {
+                    previous_active_install_key
+                } else {
+                    active
+                        .runtimes
+                        .get(normalized_runtime_id)
+                        .and_then(|entry| entry.fallback_runtime_install_key().map(str::to_string))
+                };
+            let active_version_label = resolve_runtime_version_label_required(
+                self,
+                paths,
+                normalized_runtime_id,
+                install_key,
+            )?;
+            let fallback_version_label =
+                fallback_install_key
+                    .as_deref()
+                    .and_then(|fallback_install_key| {
+                        resolve_runtime_version_label(
+                            self,
+                            paths,
+                            normalized_runtime_id,
+                            fallback_install_key,
+                        )
+                    });
 
             authority.active_install_key = Some(install_key.to_string());
             authority.fallback_install_key = fallback_install_key.clone();
@@ -207,7 +301,7 @@ impl KernelRuntimeAuthorityService {
 
             let active_entry = active
                 .runtimes
-                .entry(OPENCLAW_RUNTIME_ID.to_string())
+                .entry(normalized_runtime_id.to_string())
                 .or_default();
             active_entry.set_runtime_state(
                 Some(install_key.to_string()),
@@ -224,7 +318,14 @@ impl KernelRuntimeAuthorityService {
             runtime_upgrade_entry.last_error = None;
         }
 
-        persist_openclaw_state_transaction(paths, &active, &authority, &runtime_upgrades)
+        persist_runtime_state_transaction(
+            &paths.active_file,
+            &state_paths.authority_file,
+            &state_paths.runtime_upgrades_file,
+            &active,
+            &authority,
+            &runtime_upgrades,
+        )
     }
 }
 
@@ -243,18 +344,33 @@ impl KernelRuntimeAdapter for OpenClawKernelAdapter {
     }
 
     fn contract(&self, paths: &AppPaths) -> Result<KernelRuntimeContract> {
+        let openclaw = paths.kernel_paths(self.runtime_id())?;
         Ok(KernelRuntimeContract {
             runtime_id: self.runtime_id().to_string(),
-            managed_config_path: paths.openclaw_managed_config_file.clone(),
-            owned_runtime_roots: vec![
-                paths.openclaw_runtime_dir.clone(),
-                paths.machine_runtime_dir.join("runtimes").join("openclaw"),
-            ],
+            managed_config_path: openclaw.managed_config_file.clone(),
+            owned_runtime_roots: vec![openclaw.runtime_dir.clone(), openclaw.legacy_runtime_dir],
             readiness_probe: KernelRuntimeReadinessProbe {
                 supports_loopback_health_probe: true,
                 health_probe_timeout_ms: OPENCLAW_HEALTH_PROBE_TIMEOUT_MS,
             },
         })
+    }
+
+    fn verify_install(&self, paths: &AppPaths, install_key: &str) -> Result<()> {
+        validate_installed_openclaw_runtime(paths, install_key).map(|_| ())
+    }
+
+    fn resolve_install_version_label(
+        &self,
+        paths: &AppPaths,
+        install_key: &str,
+    ) -> Result<Option<String>> {
+        let openclaw = paths.kernel_paths(self.runtime_id())?;
+        Ok(
+            load_manifest(&openclaw.runtime_dir.join(install_key).join("manifest.json"))
+                .ok()
+                .map(|manifest| manifest.openclaw_version),
+        )
     }
 }
 
@@ -262,41 +378,80 @@ fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
-fn resolve_openclaw_version_label(paths: &AppPaths, install_key: &str) -> Option<String> {
-    load_manifest(
-        &paths
-            .openclaw_runtime_dir
-            .join(install_key)
-            .join("manifest.json"),
-    )
-    .ok()
-    .map(|manifest| manifest.openclaw_version)
+fn normalize_runtime_id(runtime_id: &str) -> &str {
+    runtime_id.trim()
 }
 
-fn resolve_openclaw_version_label_required(paths: &AppPaths, install_key: &str) -> Result<String> {
-    resolve_openclaw_version_label(paths, install_key).ok_or_else(|| {
+fn unsupported_runtime_id_error(runtime_id: &str) -> FrameworkError {
+    FrameworkError::ValidationFailed(format!(
+        "unsupported kernel runtime id {}",
+        runtime_id.trim()
+    ))
+}
+
+fn resolve_runtime_state_paths(
+    runtime_id: &str,
+    paths: &AppPaths,
+) -> Result<KernelRuntimeStatePaths> {
+    let kernel_paths = paths.kernel_paths(runtime_id)?;
+    Ok(KernelRuntimeStatePaths {
+        authority_file: kernel_paths.authority_file,
+        migrations_file: kernel_paths.migrations_file,
+        runtime_upgrades_file: kernel_paths.runtime_upgrades_file,
+        managed_config_file: kernel_paths.managed_config_file,
+        quarantine_dir: kernel_paths.quarantine_dir,
+        runtime_install_dir: kernel_paths.runtime_dir,
+    })
+}
+
+fn resolve_runtime_version_label(
+    authority: &KernelRuntimeAuthorityService,
+    paths: &AppPaths,
+    runtime_id: &str,
+    install_key: &str,
+) -> Option<String> {
+    authority
+        .adapter_for_runtime_id(runtime_id)
+        .and_then(|adapter| {
+            adapter
+                .resolve_install_version_label(paths, install_key)
+                .ok()
+                .flatten()
+        })
+}
+
+fn resolve_runtime_version_label_required(
+    authority: &KernelRuntimeAuthorityService,
+    paths: &AppPaths,
+    runtime_id: &str,
+    install_key: &str,
+) -> Result<String> {
+    resolve_runtime_version_label(authority, paths, runtime_id, install_key).ok_or_else(|| {
         FrameworkError::ValidationFailed(format!(
-            "managed OpenClaw activation is missing a canonical manifest version for install key {}",
-            install_key
+            "managed runtime activation is missing a canonical manifest version for runtime {} install key {}",
+            runtime_id.trim(),
+            install_key,
         ))
     })
 }
 
-fn persist_openclaw_state_transaction(
-    paths: &AppPaths,
+fn persist_runtime_state_transaction(
+    active_file: &Path,
+    authority_file: &Path,
+    runtime_upgrades_file: &Path,
     active: &ActiveState,
     authority: &KernelAuthorityState,
     runtime_upgrades: &RuntimeUpgradesState,
 ) -> Result<()> {
     let backups = vec![
-        capture_file_backup(&paths.active_file)?,
-        capture_file_backup(&paths.openclaw_authority_file)?,
-        capture_file_backup(&paths.openclaw_runtime_upgrades_file)?,
+        capture_file_backup(active_file)?,
+        capture_file_backup(authority_file)?,
+        capture_file_backup(runtime_upgrades_file)?,
     ];
     let write_result = (|| -> Result<()> {
-        write_json_file(&paths.active_file, active)?;
-        write_json_file(&paths.openclaw_authority_file, authority)?;
-        write_json_file(&paths.openclaw_runtime_upgrades_file, runtime_upgrades)?;
+        write_json_file(active_file, active)?;
+        write_json_file(authority_file, authority)?;
+        write_json_file(runtime_upgrades_file, runtime_upgrades)?;
         Ok(())
     })();
 
@@ -439,18 +594,146 @@ mod tests {
     use super::KernelRuntimeAuthorityService;
     use crate::framework::{layout::initialize_machine_state, paths::resolve_paths_for_root};
     use serde_json::Value;
-    use std::fs;
+    use std::{fs, path::Path};
+
+    fn strip_test_module(source: &str) -> String {
+        let Some(module_start) = source.find("mod tests {") else {
+            return source.to_string();
+        };
+        let Some(open_brace) = source[module_start..].find('{') else {
+            return source.to_string();
+        };
+        let open_brace = module_start + open_brace;
+        let mut depth = 0usize;
+        let mut module_end = None;
+        for (offset, ch) in source[open_brace..].char_indices() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        module_end = Some(open_brace + offset + ch.len_utf8());
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(module_end) = module_end else {
+            return source.to_string();
+        };
+
+        let mut production = String::with_capacity(source.len());
+        production.push_str(&source[..module_start]);
+        production.push_str(&source[module_end..]);
+        production
+    }
+
+    fn collect_rust_sources(root: &Path, files: &mut Vec<std::path::PathBuf>) {
+        let entries = fs::read_dir(root).expect("read source directory");
+        for entry in entries {
+            let entry = entry.expect("read source directory entry");
+            let path = entry.path();
+            if path.is_dir() {
+                collect_rust_sources(&path, files);
+                continue;
+            }
+            if path.extension().and_then(|value| value.to_str()) == Some("rs") {
+                files.push(path);
+            }
+        }
+    }
+
+    #[test]
+    fn production_sources_do_not_call_openclaw_specific_config_wrapper() {
+        for (label, source) in [
+            (
+                "framework/kernel_host/mod.rs",
+                include_str!("../kernel_host/mod.rs"),
+            ),
+            (
+                "framework/services/openclaw_runtime.rs",
+                include_str!("openclaw_runtime.rs"),
+            ),
+            (
+                "framework/services/openclaw_runtime_snapshot.rs",
+                include_str!("openclaw_runtime_snapshot.rs"),
+            ),
+            (
+                "framework/services/openclaw_mirror_import.rs",
+                include_str!("openclaw_mirror_import.rs"),
+            ),
+            (
+                "framework/services/studio/openclaw_workbench.rs",
+                include_str!("studio/openclaw_workbench.rs"),
+            ),
+        ] {
+            let production_source = strip_test_module(source);
+            assert!(
+                !production_source.contains(".active_openclaw_config_path("),
+                "{label} still calls the OpenClaw-specific config wrapper in production code"
+            );
+        }
+    }
+
+    #[test]
+    fn source_tree_does_not_use_openclaw_compatibility_wrappers_outside_authority_owner() {
+        let src_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let authority_owner = src_root
+            .join("framework")
+            .join("services")
+            .join("kernel_runtime_authority.rs");
+        let forbidden_patterns = [
+            ".active_openclaw_config_path(",
+            ".openclaw_contract(",
+            ".record_openclaw_activation_result(",
+            ".record_openclaw_config_migration(",
+        ];
+        let mut rust_sources = Vec::new();
+        let mut offenders = Vec::new();
+        collect_rust_sources(&src_root, &mut rust_sources);
+
+        for path in rust_sources {
+            if path == authority_owner {
+                continue;
+            }
+
+            let source = fs::read_to_string(&path).expect("read rust source");
+            let relative_path = path
+                .strip_prefix(&src_root)
+                .expect("source under src root")
+                .to_string_lossy()
+                .replace('\\', "/");
+
+            for (index, line) in source.lines().enumerate() {
+                for pattern in forbidden_patterns {
+                    if line.contains(pattern) && !line.contains("contains(\"") {
+                        offenders.push(format!("{relative_path}:{}:{}", index + 1, line.trim()));
+                    }
+                }
+            }
+        }
+
+        assert!(
+            offenders.is_empty(),
+            "OpenClaw compatibility wrappers must stay confined to kernel_runtime_authority.rs:\n{}",
+            offenders.join("\n")
+        );
+    }
 
     #[test]
     fn openclaw_contract_exposes_managed_config_path_and_owned_runtime_roots() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let contract = KernelRuntimeAuthorityService::new()
-            .openclaw_contract(&paths)
+            .contract("openclaw", &paths)
             .expect("openclaw contract");
 
         assert_eq!(contract.runtime_id, "openclaw");
-        assert_eq!(contract.managed_config_path, paths.openclaw_managed_config_file);
+        assert_eq!(
+            contract.managed_config_path,
+            paths.openclaw_managed_config_file
+        );
         assert_eq!(
             contract.owned_runtime_roots,
             vec![
@@ -460,6 +743,18 @@ mod tests {
         );
         assert!(contract.readiness_probe.supports_loopback_health_probe);
         assert_eq!(contract.readiness_probe.health_probe_timeout_ms, 750);
+    }
+
+    #[test]
+    fn runtime_contract_rejects_unknown_runtime_id() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        let error = KernelRuntimeAuthorityService::new()
+            .contract("hermes", &paths)
+            .expect_err("unknown kernel runtime should be rejected until adapter exists");
+
+        assert!(!error.to_string().trim().is_empty());
     }
 
     #[test]
@@ -523,7 +818,7 @@ mod tests {
         .expect("write active state");
 
         KernelRuntimeAuthorityService::new()
-            .record_openclaw_activation_result(&paths, install_key, None)
+            .record_activation_result("openclaw", &paths, install_key, None)
             .expect("record activation");
 
         let authority = serde_json::from_str::<Value>(
@@ -541,9 +836,7 @@ mod tests {
         .expect("parse runtime upgrades json");
 
         assert_eq!(
-            authority
-                .get("activeVersionLabel")
-                .and_then(Value::as_str),
+            authority.get("activeVersionLabel").and_then(Value::as_str),
             Some("2026.4.11-beta.1")
         );
         assert_eq!(
@@ -661,7 +954,8 @@ mod tests {
         .expect("write authority state");
 
         KernelRuntimeAuthorityService::new()
-            .record_openclaw_activation_result(
+            .record_activation_result(
+                "openclaw",
                 &paths,
                 attempted_install_key,
                 Some("simulated startup failure"),
@@ -679,27 +973,19 @@ mod tests {
         .expect("parse runtime upgrades json");
 
         assert_eq!(
-            authority
-                .get("activeInstallKey")
-                .and_then(Value::as_str),
+            authority.get("activeInstallKey").and_then(Value::as_str),
             Some(active_install_key)
         );
         assert_eq!(
-            authority
-                .get("activeVersionLabel")
-                .and_then(Value::as_str),
+            authority.get("activeVersionLabel").and_then(Value::as_str),
             Some("2026.4.9")
         );
         assert_eq!(
-            authority
-                .get("lastActivationAt")
-                .and_then(Value::as_str),
+            authority.get("lastActivationAt").and_then(Value::as_str),
             Some("2026-04-14T00:00:00Z")
         );
         assert_eq!(
-            authority
-                .get("lastError")
-                .and_then(Value::as_str),
+            authority.get("lastError").and_then(Value::as_str),
             Some("simulated startup failure")
         );
         assert_eq!(

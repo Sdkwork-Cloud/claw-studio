@@ -306,7 +306,7 @@ await runTest('ensureI18n exposes both translated bundles and fallback language 
 
 await runTest('i18n interpolation formats numeric counts using the active locale', async () => {
   const english = await ensureI18n('en');
-  assert.equal(english.t('market.labels.installCount', { count: 12345 }), '12,345 installs');
+  assert.equal(english.t('community.postDetail.meta.views', { count: 12345 }), '12,345 views');
 
   const chinese = await ensureI18n('zh');
   assert.equal(chinese.hasResourceBundle('zh', 'translation'), true);

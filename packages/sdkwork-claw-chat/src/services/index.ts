@@ -5,6 +5,7 @@ export * from './chatComposerStatusPresentation';
 export * from './chatConversationBodyState';
 export * from './chatCronActivityNotifications';
 export * from './chatHeaderPresentation';
+export * from './chatInstanceHydrationPolicy';
 export * from './chatMessageGroupPresentation';
 export * from './chatMessageGroups';
 export * from './chatMessageRenderKey';

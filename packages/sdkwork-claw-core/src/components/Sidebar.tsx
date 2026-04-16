@@ -1,18 +1,15 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  Box,
   Check,
   ChevronDown,
   Clock,
   Cpu,
-  GitBranch,
   Globe,
   Hash,
   HelpCircle,
-  LayoutGrid,
+  type LucideIcon,
   MessageCircle,
-  Package,
   PanelLeftClose,
   Puzzle,
   Server,
@@ -30,6 +27,19 @@ interface InstanceSummary {
   name: string;
   ip: string;
   status: string;
+}
+
+interface SidebarNavItem {
+  id: string;
+  to: string;
+  icon: LucideIcon;
+  label: string;
+  badge?: string;
+}
+
+interface SidebarNavGroup {
+  section: string;
+  items: SidebarNavItem[];
 }
 
 export function Sidebar() {
@@ -64,7 +74,7 @@ export function Sidebar() {
 
   const activeInstance = instances.find((instance) => instance.id === activeInstanceId);
 
-  const navItems = [
+  const navItems: SidebarNavGroup[] = [
     {
       section: t('sidebar.workspace'),
       items: [
@@ -76,19 +86,9 @@ export function Sidebar() {
     {
       section: t('sidebar.ecosystem'),
       items: [
-        {
-          id: 'apps',
-          to: '/apps',
-          icon: LayoutGrid,
-          label: t('sidebar.appStore'),
-          badge: t('sidebar.hotBadge'),
-        },
-        { id: 'market', to: '/market', icon: Package, label: t('sidebar.market') },
         { id: 'extensions', to: '/extensions', icon: Puzzle, label: t('sidebar.extensions') },
         { id: 'claw-upload', to: '/claw-center', icon: Globe, label: t('sidebar.clawUpload') },
         { id: 'community', to: '/community', icon: Users, label: t('sidebar.community') },
-        { id: 'github', to: '/github', icon: GitBranch, label: t('sidebar.githubRepos') },
-        { id: 'huggingface', to: '/huggingface', icon: Box, label: t('sidebar.huggingFace') },
       ],
     },
     {

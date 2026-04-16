@@ -331,7 +331,8 @@ mod tests {
     }
 
     #[test]
-    fn component_host_control_rejects_unknown_components_when_no_support_components_are_registered() {
+    fn component_host_control_rejects_unknown_components_when_no_support_components_are_registered()
+    {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let supervisor = SupervisorService::new();

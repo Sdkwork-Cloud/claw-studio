@@ -1,10 +1,13 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { instanceDirectoryService, useInstanceStore } from '@sdkwork/claw-core';
+import { runtime } from '@sdkwork/claw-infrastructure';
 import { useChatStore } from '../store/useChatStore';
 import {
+  resolveOpenClawGatewayWarmRefreshKey,
   resolveOpenClawGatewayWarmPlan,
+  shouldRefreshOpenClawGatewayWarmConnectionsForBuiltInStatusChange,
   shouldWarmOpenClawGatewayConnections,
 } from './openClawGatewayConnectionsPolicy.ts';
 
@@ -14,6 +17,7 @@ export function OpenClawGatewayConnections() {
   const location = useLocation();
   const activeInstanceId = useInstanceStore((state) => state.activeInstanceId);
   const connectGatewayInstances = useChatStore((state) => state.connectGatewayInstances);
+  const [builtInStatusRefreshTick, setBuiltInStatusRefreshTick] = useState(0);
   const shouldWarmConnections = shouldWarmOpenClawGatewayConnections(location.pathname);
   const prefetchPlan = useMemo(
     () =>
@@ -45,6 +49,55 @@ export function OpenClawGatewayConnections() {
   }, [activeInstanceId, instances, location.pathname, shouldWarmConnections]);
 
   const instanceSignature = useMemo(() => instanceIds.join('|'), [instanceIds]);
+  const warmRefreshKey = useMemo(
+    () =>
+      resolveOpenClawGatewayWarmRefreshKey({
+        pathname: location.pathname,
+        activeInstanceId,
+        directoryInstances: instances,
+      }),
+    [activeInstanceId, instances, location.pathname],
+  );
+
+  const handleBuiltInOpenClawStatusChanged = useEffectEvent((event: { instanceId: string }) => {
+    if (
+      !shouldRefreshOpenClawGatewayWarmConnectionsForBuiltInStatusChange({
+        pathname: location.pathname,
+        warmedInstanceIds: instanceIds,
+        eventInstanceId: event.instanceId,
+      })
+    ) {
+      return;
+    }
+
+    setBuiltInStatusRefreshTick((current) => current + 1);
+  });
+
+  useEffect(() => {
+    let disposed = false;
+    let unsubscribe = () => {};
+
+    void runtime
+      .subscribeBuiltInOpenClawStatusChanged((event) => {
+        handleBuiltInOpenClawStatusChanged(event);
+      })
+      .then((nextUnsubscribe) => {
+        if (disposed) {
+          void nextUnsubscribe();
+          return;
+        }
+
+        unsubscribe = nextUnsubscribe;
+      })
+      .catch((error) => {
+        console.warn('Failed to subscribe to built-in OpenClaw status changes:', error);
+      });
+
+    return () => {
+      disposed = true;
+      void unsubscribe();
+    };
+  }, [handleBuiltInOpenClawStatusChanged]);
 
   useEffect(() => {
     if (!shouldWarmConnections || !instanceSignature) {
@@ -52,7 +105,13 @@ export function OpenClawGatewayConnections() {
     }
 
     void connectGatewayInstances(instanceSignature.split('|'));
-  }, [connectGatewayInstances, instanceSignature, shouldWarmConnections]);
+  }, [
+    connectGatewayInstances,
+    instanceSignature,
+    shouldWarmConnections,
+    warmRefreshKey,
+    builtInStatusRefreshTick,
+  ]);
 
   return null;
 }

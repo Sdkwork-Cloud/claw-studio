@@ -31,6 +31,8 @@
     "currentModel": "\u5f53\u524d\u6a21\u578b",
     "currentChannel": "\u5f53\u524d\u901a\u9053",
     "noneSelected": "\u672a\u8bbe\u7f6e",
+    "unsupportedRouteTitle": "\u5f53\u524d\u5b9e\u4f8b\u6682\u4e0d\u652f\u6301\u5bf9\u8bdd",
+    "unsupportedRouteDescription": "\u5f53\u524d\u5b9e\u4f8b\u8fd8\u6ca1\u6709\u66b4\u9732\u53ef\u7528\u7684\u517c\u5bb9\u5bf9\u8bdd\u8def\u7531\u3002\u8bf7\u5148\u542f\u52a8\u8fd0\u884c\u65f6\u6216\u4fee\u590d\u5bf9\u8bdd\u7aef\u70b9\u914d\u7f6e\uff0c\u7136\u540e\u518d\u91cd\u8bd5\u3002",
     "routeMode": "\u8def\u7531\u6a21\u5f0f",
     "configureModels": "\u914d\u7f6e\u6a21\u578b",
     "thinkingLevel": "\u601d\u8003\u7ea7\u522b",
@@ -77,7 +79,8 @@
     "noMatchingSkills": "\u672a\u627e\u5230\u5339\u914d\u7684\u6280\u80fd\u3002",
     "route": {
       "gateway": "OpenClaw Gateway",
-      "direct": "\u76f4\u8fde\u6a21\u578b"
+      "direct": "\u76f4\u8fde\u6a21\u578b",
+      "unsupported": "\u6682\u4e0d\u652f\u6301"
     },
     "errorResponse": "\u62b1\u6b49\uff0c\u5904\u7406\u4f60\u7684\u8bf7\u6c42\u65f6\u51fa\u73b0\u4e86\u9519\u8bef\u3002\u8bf7\u68c0\u67e5 API Key \u6216\u7f51\u7edc\u8fde\u63a5\u3002",
     "headerStatus": {
@@ -85,7 +88,8 @@
       "responding": "\u56de\u590d\u4e2d",
       "connected": "\u5df2\u8fde\u63a5",
       "reconnecting": "\u91cd\u8fde\u4e2d",
-      "disconnected": "\u5df2\u65ad\u5f00"
+      "disconnected": "\u5df2\u65ad\u5f00",
+      "unavailable": "\u4e0d\u53ef\u7528"
     },
     "suggestions": {
       "quantum": "\u7528\u7b80\u5355\u6613\u61c2\u7684\u65b9\u5f0f\u89e3\u91ca\u91cf\u5b50\u8ba1\u7b97",

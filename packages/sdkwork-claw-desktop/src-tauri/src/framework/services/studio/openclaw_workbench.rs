@@ -1894,8 +1894,13 @@ fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
 
 fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
-        .active_openclaw_config_path(paths)
-        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+        .active_managed_config_path("openclaw", paths)
+        .unwrap_or_else(|_| {
+            paths
+                .kernel_paths("openclaw")
+                .map(|kernel| kernel.managed_config_file)
+                .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+        })
 }
 
 fn extract_frontmatter_value(content: &str, key: &str) -> Option<String> {

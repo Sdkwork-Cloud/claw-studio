@@ -10,12 +10,26 @@ type ChatSessionLike = {
   sessionKind?: string | null;
 };
 
+type ChatRunningSessionLike = {
+  id: string;
+  runId?: string | null;
+};
+
 export function resolveChatSessionViewState<T extends ChatSessionLike>(params: {
   sessions: T[];
   activeSessionId: string | null;
+  isChatSupported?: boolean;
   isOpenClawGateway: boolean;
   openClawAgentId?: string | null;
 }) {
+  if (params.isChatSupported === false) {
+    return {
+      visibleSessions: [],
+      selectableSessions: [],
+      effectiveActiveSessionId: null,
+    };
+  }
+
   const baseVisibleSessions = params.isOpenClawGateway
     ? filterUserFacingOpenClawSessionsByAgent(params.sessions, params.openClawAgentId)
     : params.sessions;
@@ -49,6 +63,17 @@ export function resolveChatSendSessionId(params: {
   isOpenClawGateway: boolean;
 }) {
   return params.isOpenClawGateway ? params.effectiveActiveSessionId : params.activeSessionId;
+}
+
+export function resolveChatRunningSessionId<T extends ChatRunningSessionLike>(params: {
+  isOpenClawGateway: boolean;
+  selectableSessions: T[];
+}) {
+  if (!params.isOpenClawGateway) {
+    return null;
+  }
+
+  return params.selectableSessions.find((session) => Boolean(session.runId))?.id ?? null;
 }
 
 export function resolveGatewayVisibleSessionSyncTarget(params: {

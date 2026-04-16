@@ -258,21 +258,19 @@ await runTest(
 );
 
 await runTest(
-  'buildOpenClawConsoleHandlers opens resolved console targets, reports manual-login hints, and passes official links through unchanged',
+  'buildInstanceConsoleHandlers opens resolved console targets, reports manual-login hints, and passes official links through unchanged',
   async () => {
-    const { buildOpenClawConsoleHandlers } = await loadInstanceLifecycleActionSupportModule();
+    const { buildInstanceConsoleHandlers } = await loadInstanceLifecycleActionSupportModule();
     const openedUrls: string[] = [];
     const infoMessages: string[] = [];
     const errorMessages: string[] = [];
 
-    const handlers = buildOpenClawConsoleHandlers({
-      detail: {
-        consoleAccess: {
-          url: 'https://console.example.com',
-          autoLoginUrl: null,
-          reason: 'OpenClaw requires manual sign-in.',
-        },
-      } as any,
+    const handlers = buildInstanceConsoleHandlers({
+      consoleTarget: {
+        url: 'https://console.example.com',
+        autoLoginUrl: null,
+        reason: 'OpenClaw requires manual sign-in.',
+      },
       openExternalLink: async (href) => {
         openedUrls.push(href);
       },
@@ -285,7 +283,7 @@ await runTest(
       t: (key: string) => `translated:${key}`,
     });
 
-    await handlers.onOpenOpenClawConsole();
+    await handlers.onOpenControlPage();
     await handlers.onOpenOfficialLink('https://docs.example.com/openclaw');
 
     assert.deepEqual(openedUrls, [
@@ -298,19 +296,17 @@ await runTest(
 );
 
 await runTest(
-  'buildOpenClawConsoleHandlers keeps missing-target and failed-open errors in the injected page reporters',
+  'buildInstanceConsoleHandlers keeps missing-target and failed-open errors in the injected page reporters',
   async () => {
-    const { buildOpenClawConsoleHandlers } = await loadInstanceLifecycleActionSupportModule();
+    const { buildInstanceConsoleHandlers } = await loadInstanceLifecycleActionSupportModule();
     const errorMessages: string[] = [];
 
-    const missingTargetHandlers = buildOpenClawConsoleHandlers({
-      detail: {
-        consoleAccess: {
-          url: null,
-          autoLoginUrl: null,
-          reason: null,
-        },
-      } as any,
+    const missingTargetHandlers = buildInstanceConsoleHandlers({
+      consoleTarget: {
+        url: null,
+        autoLoginUrl: null,
+        reason: null,
+      },
       openExternalLink: async () => undefined,
       reportInfo: () => undefined,
       reportError: (message) => {
@@ -319,16 +315,14 @@ await runTest(
       t: (key: string) => `translated:${key}`,
     });
 
-    await missingTargetHandlers.onOpenOpenClawConsole();
+    await missingTargetHandlers.onOpenControlPage();
 
-    const failingHandlers = buildOpenClawConsoleHandlers({
-      detail: {
-        consoleAccess: {
-          url: 'https://console.example.com',
-          autoLoginUrl: 'https://console.example.com/autologin',
-          reason: 'unused',
-        },
-      } as any,
+    const failingHandlers = buildInstanceConsoleHandlers({
+      consoleTarget: {
+        url: 'https://console.example.com',
+        autoLoginUrl: 'https://console.example.com/autologin',
+        reason: 'unused',
+      },
       openExternalLink: async () => {
         throw new Error('Open failed.');
       },
@@ -339,10 +333,10 @@ await runTest(
       t: (key: string) => `translated:${key}`,
     });
 
-    await failingHandlers.onOpenOpenClawConsole();
+    await failingHandlers.onOpenControlPage();
 
     assert.deepEqual(errorMessages, [
-      'translated:instances.detail.toasts.failedToOpenOpenClawConsole',
+      'translated:instances.detail.toasts.failedToOpenControlPage',
       'Open failed.',
     ]);
   },

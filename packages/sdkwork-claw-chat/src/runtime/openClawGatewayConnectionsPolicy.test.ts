@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {
+  resolveOpenClawGatewayWarmRefreshKey,
   resolveOpenClawGatewayWarmPlan,
+  shouldRefreshOpenClawGatewayWarmConnectionsForBuiltInStatusChange,
   shouldWarmOpenClawGatewayConnections,
 } from './openClawGatewayConnectionsPolicy.ts';
 
@@ -64,5 +66,78 @@ runTest('auth routes stay cold even if an active instance exists', () => {
       shouldQueryDirectory: false,
       instanceIds: [],
     },
+  );
+});
+
+runTest('chat route warm refresh key changes when a warmed directory instance changes status even if the instance ids stay the same', () => {
+  const offlineKey = resolveOpenClawGatewayWarmRefreshKey({
+    pathname: '/chat',
+    activeInstanceId: 'instance-b',
+    directoryInstances: [
+      { id: 'instance-a', status: 'offline' },
+      { id: 'instance-b', status: 'starting' },
+    ],
+  });
+
+  const onlineKey = resolveOpenClawGatewayWarmRefreshKey({
+    pathname: '/chat',
+    activeInstanceId: 'instance-b',
+    directoryInstances: [
+      { id: 'instance-a', status: 'offline' },
+      { id: 'instance-b', status: 'online' },
+    ],
+  });
+
+  assert.equal(offlineKey, 'instance-a:offline|instance-b:starting');
+  assert.equal(onlineKey, 'instance-a:offline|instance-b:online');
+  assert.notEqual(offlineKey, onlineKey);
+});
+
+runTest('non-chat workspace routes refresh warmup when the active warmed instance receives a built-in status event', () => {
+  assert.equal(
+    shouldRefreshOpenClawGatewayWarmConnectionsForBuiltInStatusChange({
+      pathname: '/kernel',
+      warmedInstanceIds: ['instance-active'],
+      eventInstanceId: 'instance-active',
+    }),
+    true,
+  );
+});
+
+runTest('chat route refreshes warmup when a warmed directory instance receives a built-in status event', () => {
+  assert.equal(
+    shouldRefreshOpenClawGatewayWarmConnectionsForBuiltInStatusChange({
+      pathname: '/chat',
+      warmedInstanceIds: ['instance-a', 'instance-b'],
+      eventInstanceId: 'instance-b',
+    }),
+    true,
+  );
+});
+
+runTest('cold routes and unmatched built-in status events do not refresh warmup', () => {
+  assert.equal(
+    shouldRefreshOpenClawGatewayWarmConnectionsForBuiltInStatusChange({
+      pathname: '/auth',
+      warmedInstanceIds: ['instance-active'],
+      eventInstanceId: 'instance-active',
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRefreshOpenClawGatewayWarmConnectionsForBuiltInStatusChange({
+      pathname: '/tasks',
+      warmedInstanceIds: ['instance-active'],
+      eventInstanceId: 'instance-other',
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRefreshOpenClawGatewayWarmConnectionsForBuiltInStatusChange({
+      pathname: '/tasks',
+      warmedInstanceIds: [],
+      eventInstanceId: 'instance-active',
+    }),
+    false,
   );
 });

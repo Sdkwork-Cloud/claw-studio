@@ -1,1 +1,0 @@
-export { instanceService, type Instance } from '@sdkwork/claw-instances';

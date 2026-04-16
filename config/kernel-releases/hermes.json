@@ -1,0 +1,25 @@
+{
+  "kernelId": "hermes",
+  "stableVersion": "main",
+  "supportedChannels": ["stable"],
+  "defaultChannel": "stable",
+  "runtimeRequirements": {
+    "requiredExternalRuntimes": ["python", "uv"],
+    "optionalExternalRuntimes": ["nodejs"]
+  },
+  "compatibility": {
+    "packageProfileIds": ["hermes-only", "dual-kernel"],
+    "windows": "wsl2OrRemoteOnly",
+    "macos": "native",
+    "linux": "native"
+  },
+  "releaseSource": {
+    "kind": "gitBranch",
+    "repositoryUrl": "https://github.com/nousresearch/hermes-agent",
+    "defaultRef": "main",
+    "docsUrl": "https://hermes-agent.nousresearch.com/docs/getting-started/installation/"
+  },
+  "releaseVerification": {
+    "attachModes": ["externalWslOrRemote"]
+  }
+}

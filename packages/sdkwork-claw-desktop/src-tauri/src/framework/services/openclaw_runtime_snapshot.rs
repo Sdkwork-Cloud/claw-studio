@@ -82,7 +82,8 @@ impl OpenClawRuntimeSnapshotService {
             &local_ai_proxy_status,
             &provider_projection,
         );
-        let authority = KernelRuntimeAuthorityService::new().openclaw_contract(paths)?;
+        let authority =
+            KernelRuntimeAuthorityService::new().contract(OPENCLAW_RUNTIME_ID, paths)?;
         let manifest = configured_runtime
             .as_ref()
             .and_then(|runtime| load_manifest(&runtime.install_dir.join("manifest.json")).ok());
@@ -498,8 +499,13 @@ fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
 
 fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
-        .active_openclaw_config_path(paths)
-        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+        .active_managed_config_path("openclaw", paths)
+        .unwrap_or_else(|_| {
+            paths
+                .kernel_paths("openclaw")
+                .map(|kernel| kernel.managed_config_file)
+                .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+        })
 }
 
 fn path_string(path: &Path) -> String {

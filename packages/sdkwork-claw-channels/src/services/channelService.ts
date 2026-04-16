@@ -99,6 +99,32 @@ function resolveChannelIconName(channelId: string, iconName?: string) {
   return iconName || channelIconNameMap[channelId] || 'MessageCircle';
 }
 
+function readErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  return String(error ?? '');
+}
+
+function isMissingManagedConfigError(error: unknown) {
+  const message = readErrorMessage(error).toLowerCase();
+  return (
+    message.includes('enoent') ||
+    message.includes('os error 2') ||
+    message.includes('no such file') ||
+    message.includes('cannot find path') ||
+    message.includes('\u627e\u4e0d\u5230\u6307\u5b9a\u7684\u6587\u4ef6') ||
+    message.includes('attached openclaw config file is no longer available on disk') ||
+    message.includes('re-scan or reattach the instance configuration') ||
+    message.includes('not found')
+  );
+}
+
 function normalizeChannelValues(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {} as Record<string, string>;
@@ -235,6 +261,13 @@ class ChannelService implements IChannelService {
     return openClawConfigService.resolveInstanceConfigPath(detail);
   }
 
+  private canFallbackToWorkbench(
+    detail: StudioInstanceDetailRecord | null | undefined,
+    error: unknown,
+  ) {
+    return Boolean(detail?.workbench && isMissingManagedConfigError(error));
+  }
+
   private mapWorkbenchChannels(detail: StudioInstanceDetailRecord): Channel[] {
     const definitions = openClawConfigService.getChannelDefinitions();
     const definitionById = new Map(definitions.map((definition) => [definition.id, definition] as const));
@@ -266,17 +299,31 @@ class ChannelService implements IChannelService {
     });
   }
 
-  private requireWorkbenchBridge() {
+  private requireSetInstanceChannelEnabled() {
     const studioApi = this.getStudioApi();
-    if (
-      typeof studioApi.setInstanceChannelEnabled !== 'function' ||
-      typeof studioApi.saveInstanceChannelConfig !== 'function' ||
-      typeof studioApi.deleteInstanceChannelConfig !== 'function'
-    ) {
+    if (typeof studioApi.setInstanceChannelEnabled !== 'function') {
       throw new Error(CHANNEL_WRITE_UNAVAILABLE_ERROR);
     }
 
-    return studioApi;
+    return studioApi.setInstanceChannelEnabled.bind(studioApi);
+  }
+
+  private requireSaveInstanceChannelConfig() {
+    const studioApi = this.getStudioApi();
+    if (typeof studioApi.saveInstanceChannelConfig !== 'function') {
+      throw new Error(CHANNEL_WRITE_UNAVAILABLE_ERROR);
+    }
+
+    return studioApi.saveInstanceChannelConfig.bind(studioApi);
+  }
+
+  private requireDeleteInstanceChannelConfig() {
+    const studioApi = this.getStudioApi();
+    if (typeof studioApi.deleteInstanceChannelConfig !== 'function') {
+      throw new Error(CHANNEL_WRITE_UNAVAILABLE_ERROR);
+    }
+
+    return studioApi.deleteInstanceChannelConfig.bind(studioApi);
   }
 
   async getList(instanceId: string, params: ListParams = {}): Promise<PaginatedResult<Channel>> {
@@ -328,8 +375,16 @@ class ChannelService implements IChannelService {
     const detail = await this.getInstanceDetail(instanceId);
     const configPath = this.resolveManagedConfigPath(detail);
     if (configPath) {
-      const snapshot = await openClawConfigService.readConfigSnapshot(configPath);
-      return snapshot.channelSnapshots.map((channel) => mapManagedChannel(channel));
+      try {
+        const snapshot = await openClawConfigService.readConfigSnapshot(configPath);
+        return snapshot.channelSnapshots.map((channel) => mapManagedChannel(channel));
+      } catch (error) {
+        if (detail?.workbench && this.canFallbackToWorkbench(detail, error)) {
+          return this.mapWorkbenchChannels(detail);
+        }
+
+        throw error;
+      }
     }
 
     if (detail?.workbench) {
@@ -347,17 +402,23 @@ class ChannelService implements IChannelService {
     const detail = await this.getInstanceDetail(instanceId);
     const configPath = this.resolveManagedConfigPath(detail);
     if (configPath) {
-      await openClawConfigService.setChannelEnabled({
-        configPath,
-        channelId,
-        enabled,
-      });
-      return this.getChannels(instanceId);
+      try {
+        await openClawConfigService.setChannelEnabled({
+          configPath,
+          channelId,
+          enabled,
+        });
+        return this.getChannels(instanceId);
+      } catch (error) {
+        if (!this.canFallbackToWorkbench(detail, error)) {
+          throw error;
+        }
+      }
     }
 
     if (detail?.workbench) {
-      const bridge = this.requireWorkbenchBridge();
-      const updated = await bridge.setInstanceChannelEnabled!(instanceId, channelId, enabled);
+      const setInstanceChannelEnabled = this.requireSetInstanceChannelEnabled();
+      const updated = await setInstanceChannelEnabled(instanceId, channelId, enabled);
       if (!updated) {
         throw new Error('Failed to update channel status');
       }
@@ -375,22 +436,24 @@ class ChannelService implements IChannelService {
     const detail = await this.getInstanceDetail(instanceId);
     const configPath = this.resolveManagedConfigPath(detail);
     if (configPath) {
-      await openClawConfigService.saveChannelConfiguration({
-        configPath,
-        channelId,
-        values: configData,
-        enabled: true,
-      });
-      return this.getChannels(instanceId);
+      try {
+        await openClawConfigService.saveChannelConfiguration({
+          configPath,
+          channelId,
+          values: configData,
+          enabled: true,
+        });
+        return this.getChannels(instanceId);
+      } catch (error) {
+        if (!this.canFallbackToWorkbench(detail, error)) {
+          throw error;
+        }
+      }
     }
 
     if (detail?.workbench) {
-      const bridge = this.requireWorkbenchBridge();
-      const updated = await bridge.saveInstanceChannelConfig!(
-        instanceId,
-        channelId,
-        configData,
-      );
+      const saveInstanceChannelConfig = this.requireSaveInstanceChannelConfig();
+      const updated = await saveInstanceChannelConfig(instanceId, channelId, configData);
       if (!updated) {
         throw new Error('Failed to save channel config');
       }
@@ -404,18 +467,24 @@ class ChannelService implements IChannelService {
     const detail = await this.getInstanceDetail(instanceId);
     const configPath = this.resolveManagedConfigPath(detail);
     if (configPath) {
-      await openClawConfigService.saveChannelConfiguration({
-        configPath,
-        channelId,
-        values: {},
-        enabled: false,
-      });
-      return this.getChannels(instanceId);
+      try {
+        await openClawConfigService.saveChannelConfiguration({
+          configPath,
+          channelId,
+          values: {},
+          enabled: false,
+        });
+        return this.getChannels(instanceId);
+      } catch (error) {
+        if (!this.canFallbackToWorkbench(detail, error)) {
+          throw error;
+        }
+      }
     }
 
     if (detail?.workbench) {
-      const bridge = this.requireWorkbenchBridge();
-      const updated = await bridge.deleteInstanceChannelConfig!(instanceId, channelId);
+      const deleteInstanceChannelConfig = this.requireDeleteInstanceChannelConfig();
+      const updated = await deleteInstanceChannelConfig(instanceId, channelId);
       if (!updated) {
         throw new Error('Failed to delete channel config');
       }

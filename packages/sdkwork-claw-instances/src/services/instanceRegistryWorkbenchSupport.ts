@@ -115,6 +115,12 @@ export function resolveRegistryRuntimeKind(
   return resolveRegistryKernelId(instance);
 }
 
+function normalizeRegistryInstanceStatus(
+  status: Instance['status'],
+): StudioInstanceDetailRecord['instance']['status'] {
+  return status === 'syncing' ? 'starting' : status;
+}
+
 function resolveRegistryDeploymentMode(
   instance: Instance,
 ): StudioInstanceRecord['deploymentMode'] {
@@ -357,7 +363,7 @@ export function buildRegistryBackedDetail(
       runtimeKind,
       deploymentMode,
       transportKind,
-      status: instance.status === 'starting' ? 'starting' : instance.status,
+      status: normalizeRegistryInstanceStatus(instance.status),
       isBuiltIn: instance.isBuiltIn === true,
       isDefault: false,
       iconType: instance.iconType,

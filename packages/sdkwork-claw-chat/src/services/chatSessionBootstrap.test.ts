@@ -100,6 +100,61 @@ await runTest('chat bootstrap selects the first session when the active session 
   );
 });
 
+await runTest('chat bootstrap stays idle for unsupported instance routes even when stale models or sessions exist', () => {
+  assert.deepEqual(
+    resolveChatBootstrapAction({
+      activeInstanceId: 'instance-unsupported',
+      routeMode: 'unsupported',
+      syncState: 'idle',
+      hasActiveModel: true,
+      activeSessionId: null,
+      sessionIds: [],
+    }),
+    { type: 'idle' },
+  );
+
+  assert.deepEqual(
+    resolveChatBootstrapAction({
+      activeInstanceId: 'instance-unsupported',
+      routeMode: 'unsupported',
+      syncState: 'idle',
+      hasActiveModel: true,
+      activeSessionId: 'missing-session',
+      sessionIds: ['session-a'],
+    }),
+    { type: 'idle' },
+  );
+});
+
+await runTest(
+  'chat bootstrap stays idle when local conversation hydration failed instead of auto-creating a replacement session',
+  () => {
+    assert.deepEqual(
+      resolveChatBootstrapAction({
+        activeInstanceId: 'instance-http',
+        routeMode: 'instanceOpenAiHttp',
+        syncState: 'error',
+        hasActiveModel: true,
+        activeSessionId: null,
+        sessionIds: [],
+      }),
+      { type: 'idle' },
+    );
+
+    assert.deepEqual(
+      resolveChatBootstrapAction({
+        activeInstanceId: 'instance-http',
+        routeMode: 'instanceOpenAiHttp',
+        syncState: 'error',
+        hasActiveModel: true,
+        activeSessionId: 'missing-session',
+        sessionIds: [],
+      }),
+      { type: 'idle' },
+    );
+  },
+);
+
 await runTest('openclaw chat bootstrap resolves upstream agent main session keys', () => {
   assert.equal(buildOpenClawMainSessionKey('research'), 'agent:research:main');
   assert.equal(buildOpenClawMainSessionKey(), 'agent:main:main');

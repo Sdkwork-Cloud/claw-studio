@@ -83,7 +83,7 @@ export interface InstanceDetailDerivedState {
   canEditManagedDreaming: boolean;
   isProviderConfigReadonly: boolean;
   canManageOpenClawProviders: boolean;
-  canOpenOpenClawConsole: boolean;
+  canOpenControlPage: boolean;
   memoryWorkbenchState: InstanceMemoryWorkbenchState;
   managementSummary: InstanceManagementSummary | null;
   providerSelectionState: OpenClawProviderSelectionState;
@@ -167,7 +167,7 @@ export function buildInstanceDetailDerivedState({
     canEditManagedDreaming: Boolean(id && isOpenClawConfigWritable && managedDreamingConfig),
     isProviderConfigReadonly: providerWorkspaceState.isProviderConfigReadonly,
     canManageOpenClawProviders: providerWorkspaceState.canManageProviderCatalog,
-    canOpenOpenClawConsole: Boolean(
+    canOpenControlPage: Boolean(
       consoleAccess?.available && (consoleAccess.autoLoginUrl || consoleAccess.url),
     ),
     memoryWorkbenchState: buildInstanceMemoryWorkbenchState(workbench),

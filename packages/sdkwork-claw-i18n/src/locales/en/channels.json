@@ -2,6 +2,13 @@
   "page": {
     "title": "Channels",
     "subtitle": "Connect your OpenClaw agents to external messaging platforms and APIs.",
+    "feedback": {
+      "loadFailed": "Unable to load channel configuration right now.",
+      "loadFailedServiceUnavailable": "Channel service is temporarily unavailable. Confirm the instance and kernel are running, then retry.",
+      "saveFailed": "Unable to save channel configuration right now.",
+      "deleteFailed": "Unable to delete channel configuration right now.",
+      "toggleFailed": "Unable to update channel status right now."
+    },
     "status": {
       "active": "Active",
       "disconnected": "Disconnected",

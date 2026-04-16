@@ -24,7 +24,9 @@ import {
   presentChatMessageGroupFooter,
   resolveChatBootstrapAction,
   resolveChatConversationBodyState,
+  resolveChatInstanceHydrationKey,
   resolveChatMessageRenderKey,
+  resolveChatRunningSessionId,
   resolveChatSendSessionId,
   resolveChatSessionViewState,
   resolveGatewayVisibleSessionSyncTarget,
@@ -91,6 +93,7 @@ export function Chat() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastResolvedRouteHydrationKeyRef = useRef<string | null>(null);
   const navigate = useNavigate();
   const instanceConfig = activeInstanceId ? getInstanceConfig(activeInstanceId) : null;
   const activeChannelId = instanceConfig?.activeChannelId || '';
@@ -99,16 +102,20 @@ export function Chat() {
   const activeSessionId = activeSessionIdByInstance[scopeKey] ?? null;
   const syncState = syncStateByInstance[scopeKey] ?? 'idle';
   const routeMode = activeInstanceId ? instanceRouteModeById[activeInstanceId] : 'directLlm';
+  const isUnsupportedRoute = routeMode === 'unsupported';
+  const isChatSupportedRoute = !isUnsupportedRoute;
   const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';
   const gatewayConnectionStatus =
     gatewayConnectionStatusByInstance[scopeKey] ?? (isOpenClawGateway ? 'disconnected' : null);
   const lastError = lastErrorByInstance[scopeKey];
   const shouldLoadSkillCatalog = shouldLoadChatSkills({
+    isRouteSupported: isChatSupportedRoute,
     isSessionContextDrawerOpen,
     selectedSkillId,
   });
   const shouldLoadDirectAgentCatalog = shouldLoadChatDirectAgents({
     activeInstanceId,
+    isRouteSupported: isChatSupportedRoute,
     isOpenClawGateway,
     isSessionContextDrawerOpen,
     selectedAgentId,
@@ -139,7 +146,7 @@ export function Chat() {
     isFetched: isOpenClawAgentCatalogFetched,
   } = useQuery({
     queryKey: ['chat', 'openclaw-agent-catalog', activeInstanceId],
-    enabled: Boolean(activeInstanceId),
+    enabled: Boolean(activeInstanceId && isOpenClawGateway),
     staleTime: 10_000,
     queryFn: async () => {
       if (!activeInstanceId) {
@@ -152,8 +159,10 @@ export function Chat() {
       return openClawChatAgentCatalogService.getCatalog(activeInstanceId);
     },
   });
-  const visibleAgents =
-    isOpenClawGateway ? openClawAgentCatalog?.agents ?? EMPTY_AGENTS : agents;
+  const visibleAgents = isChatSupportedRoute
+    ? (isOpenClawGateway ? openClawAgentCatalog?.agents ?? EMPTY_AGENTS : agents)
+    : EMPTY_AGENTS;
+  const visibleSkills = isChatSupportedRoute ? skills : EMPTY_SKILLS;
   const defaultOpenClawAgentId =
     isOpenClawGateway ? openClawAgentCatalog?.defaultAgentId ?? null : null;
   const effectiveGatewayAgentId =
@@ -171,17 +180,25 @@ export function Chat() {
       resolveChatSessionViewState({
         sessions: instanceSessions,
         activeSessionId,
+        isChatSupported: isChatSupportedRoute,
         isOpenClawGateway,
         openClawAgentId: effectiveGatewayAgentId,
       }),
-    [activeSessionId, effectiveGatewayAgentId, instanceSessions, isOpenClawGateway],
+    [
+      activeSessionId,
+      effectiveGatewayAgentId,
+      instanceSessions,
+      isChatSupportedRoute,
+      isOpenClawGateway,
+    ],
   );
   const activeSession = selectableInstanceSessions.find(
     (session) => session.id === effectiveActiveSessionId,
   );
-  const runningSessionId = isOpenClawGateway
-    ? instanceSessions.find((session) => Boolean(session.runId))?.id ?? null
-    : null;
+  const runningSessionId = resolveChatRunningSessionId({
+    isOpenClawGateway,
+    selectableSessions: selectableInstanceSessions,
+  });
   const sessionSelectedModelId =
     isOpenClawGateway && activeSession
       ? activeSession.model || activeSession.defaultModel || null
@@ -203,7 +220,7 @@ export function Chat() {
     error: modelCatalogError,
   } = useQuery({
     queryKey: ['chat', 'instance-model-catalog', activeInstanceId, effectiveGatewayAgentId],
-    enabled: Boolean(activeInstanceId),
+    enabled: Boolean(activeInstanceId && isChatSupportedRoute),
     staleTime: 10_000,
     queryFn: async () => {
       if (!activeInstanceId) {
@@ -216,7 +233,7 @@ export function Chat() {
       );
     },
   });
-  const catalogChannels = modelCatalog?.channels ?? [];
+  const catalogChannels = isChatSupportedRoute ? modelCatalog?.channels ?? [] : [];
   const activeMessages = Array.isArray(activeSession?.messages) ? activeSession.messages : [];
   const isGatewayHistoryLoading =
     isOpenClawGateway &&
@@ -299,11 +316,12 @@ export function Chat() {
     activeModelId: activeModel?.id,
     activeModelName: activeModel?.name,
   });
-  const activeSkill = skills.find((skill) => skill.id === selectedSkillId);
+  const activeSkill = visibleSkills.find((skill) => skill.id === selectedSkillId);
   const activeAgent = visibleAgents.find((agent) => agent.id === effectiveGatewayAgentId);
   const headerPresentation = useMemo(
     () =>
       presentChatHeader({
+        isChatSupported: isChatSupportedRoute,
         activeSession,
         isOpenClawGateway,
         gatewayConnectionStatus,
@@ -317,20 +335,28 @@ export function Chat() {
       activeModel?.name,
       activeSession,
       gatewayConnectionStatus,
+      isChatSupportedRoute,
       isActiveSessionGenerating,
       isOpenClawGateway,
       syncState,
     ],
   );
+  const unsupportedRouteMessage = isUnsupportedRoute
+    ? t('chat.page.unsupportedRouteDescription')
+    : undefined;
   const effectiveLastError =
     lastError ||
+    unsupportedRouteMessage ||
     (modelCatalogError instanceof Error ? modelCatalogError.message : undefined);
   const headerStatusLabel = t(`chat.page.headerStatus.${headerPresentation.status}`);
-  const hasResolvedVisibleAgents = isOpenClawGateway
-    ? !activeInstanceId || isOpenClawAgentCatalogFetched
-    : !shouldLoadDirectAgentCatalog || isDirectAgentsFetched;
+  const hasResolvedVisibleAgents = !isChatSupportedRoute
+    ? true
+    : isOpenClawGateway
+      ? !activeInstanceId || isOpenClawAgentCatalogFetched
+      : !shouldLoadDirectAgentCatalog || isDirectAgentsFetched;
   const isAgentSelectorLoading =
     isSessionContextDrawerOpen &&
+    isChatSupportedRoute &&
     (
       (isOpenClawGateway &&
         Boolean(activeInstanceId) &&
@@ -345,31 +371,37 @@ export function Chat() {
     isSessionContextDrawerOpen &&
     shouldLoadSkillCatalog &&
     isSkillsFetching &&
-    skills.length === 0;
-  const sessionRouteLabel = isOpenClawGateway
-    ? t('chat.page.route.gateway')
-    : t('chat.page.route.direct');
+    visibleSkills.length === 0;
+  const sessionRouteLabel = isUnsupportedRoute
+    ? t('chat.page.route.unsupported')
+    : isOpenClawGateway
+      ? t('chat.page.route.gateway')
+      : t('chat.page.route.direct');
   const agentOptions = useMemo(
     () =>
-      buildChatAgentOptions({
-        agents: visibleAgents,
-        defaultLabel: t('chat.page.noneDefault'),
-        defaultDescription: t(
-          isOpenClawGateway
-            ? 'chat.page.defaultAgentGatewayDescription'
-            : 'chat.page.defaultAgentDirectDescription',
-        ),
-      }),
-    [isOpenClawGateway, t, visibleAgents],
+      isChatSupportedRoute
+        ? buildChatAgentOptions({
+            agents: visibleAgents,
+            defaultLabel: t('chat.page.noneDefault'),
+            defaultDescription: t(
+              isOpenClawGateway
+                ? 'chat.page.defaultAgentGatewayDescription'
+                : 'chat.page.defaultAgentDirectDescription',
+            ),
+          })
+        : [],
+    [isChatSupportedRoute, isOpenClawGateway, t, visibleAgents],
   );
   const skillOptions = useMemo(
     () =>
-      buildChatSkillOptions({
-        skills,
-        defaultLabel: t('chat.page.noneGeneralChat'),
-        defaultDescription: t('chat.page.defaultSkillDescription'),
-      }),
-    [skills, t],
+      isChatSupportedRoute
+        ? buildChatSkillOptions({
+            skills: visibleSkills,
+            defaultLabel: t('chat.page.noneGeneralChat'),
+            defaultDescription: t('chat.page.defaultSkillDescription'),
+          })
+        : [],
+    [isChatSupportedRoute, t, visibleSkills],
   );
   const groupTimeFormatter = useMemo(
     () =>
@@ -422,8 +454,40 @@ export function Chat() {
   }, [hasResolvedVisibleAgents, selectedAgentId, visibleAgents]);
 
   useEffect(() => {
+    if (isChatSupportedRoute) {
+      return;
+    }
+
+    if (selectedAgentId) {
+      setSelectedAgentId(null);
+    }
+    if (selectedSkillId) {
+      setSelectedSkillId(null);
+    }
+  }, [isChatSupportedRoute, selectedAgentId, selectedSkillId]);
+
+  useEffect(() => {
     void hydrateInstance(activeInstanceId);
   }, [activeInstanceId, hydrateInstance]);
+
+  useEffect(() => {
+    const nextHydrationKey = resolveChatInstanceHydrationKey({
+      activeInstanceId,
+      routeMode,
+    });
+    if (lastResolvedRouteHydrationKeyRef.current === nextHydrationKey) {
+      return;
+    }
+
+    const hadResolvedHydrationKey = lastResolvedRouteHydrationKeyRef.current !== null;
+    lastResolvedRouteHydrationKeyRef.current = nextHydrationKey;
+
+    if (!nextHydrationKey || !hadResolvedHydrationKey) {
+      return;
+    }
+
+    void hydrateInstance(activeInstanceId);
+  }, [activeInstanceId, hydrateInstance, routeMode]);
 
   useEffect(() => {
     if (!activeInstanceId || channels.length === 0 || sessionSelectedModelId) {
@@ -609,7 +673,13 @@ export function Chat() {
     const normalizedAttachments = attachments.map((attachment) => ({ ...attachment }));
     const requestText = composeOutgoingChatText(content, normalizedAttachments);
 
-    if (!activeModel || !activeChannel || isBusy || (activeInstanceId && !routeMode)) {
+    if (
+      !activeModel ||
+      !activeChannel ||
+      !isChatSupportedRoute ||
+      isBusy ||
+      (activeInstanceId && !routeMode)
+    ) {
       return;
     }
 
@@ -818,7 +888,7 @@ export function Chat() {
           onClick={() => setIsSessionContextDrawerOpen(true)}
         />
 
-        {effectiveLastError ? (
+        {effectiveLastError && !isUnsupportedRoute ? (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
             {effectiveLastError}
           </div>
@@ -829,7 +899,29 @@ export function Chat() {
           onScroll={handleMessageListScroll}
           className="min-h-0 flex-1 overflow-y-auto scrollbar-hide"
         >
-          {conversationBodyState.mode === 'loading' ? (
+          {isUnsupportedRoute ? (
+            <div className="flex min-h-full flex-1 items-center justify-center px-3 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pt-10">
+              <div className="w-full max-w-3xl rounded-[2rem] border border-amber-200/80 bg-white/92 p-6 text-center shadow-[0_18px_48px_rgba(15,23,42,0.08)] dark:border-amber-900/40 dark:bg-zinc-900/88 dark:shadow-none sm:p-8 lg:p-10">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.75rem] bg-amber-500/10 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300">
+                  <AlertCircle className="h-8 w-8" />
+                </div>
+                <h2 className="mt-6 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-3xl">
+                  {t('chat.page.unsupportedRouteTitle')}
+                </h2>
+                <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-zinc-500 dark:text-zinc-400 sm:text-base">
+                  {effectiveLastError}
+                </p>
+                <div className="mt-8 flex justify-center">
+                  <button
+                    onClick={() => navigate('/instances')}
+                    className="rounded-xl bg-primary-600 px-6 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-primary-700"
+                  >
+                    {t('chat.page.manageInstances')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : conversationBodyState.mode === 'loading' ? (
             <div className="flex min-h-full flex-1 items-center justify-center px-3 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pt-10">
               <div className="flex flex-col items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white/88 px-5 py-5 text-center shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/78">
                 <LoaderCircle className="h-5 w-5 animate-spin text-zinc-500 dark:text-zinc-400" />
@@ -966,26 +1058,28 @@ export function Chat() {
           )}
         </div>
 
-        <div className="flex-shrink-0 bg-gradient-to-t from-zinc-50 via-zinc-50/78 to-transparent px-3 pb-3 pt-1.5 sm:px-4 sm:pb-4 sm:pt-2 lg:px-6 dark:from-zinc-950 dark:via-zinc-950/38 dark:to-transparent">
-          <ChatComposerPanel
-            showJumpToLatest={showJumpToLatest}
-            hasMessages={activeMessages.length > 0}
-            jumpToLatestLabel={t('chat.page.jumpToLatest')}
-            onJumpToLatest={jumpToLatest}
-            inputProps={{
-              onSend: handleSend,
-              isLoading: isBusy,
-              onStop: handleStop,
-              channels,
-              activeChannel,
-              activeModel,
-              onChannelChange: handleChannelChange,
-              onModelChange: handleModelChange,
-              onOpenModelConfig: () => navigate('/settings?tab=api'),
-              compactModelSelector,
-            }}
-          />
-        </div>
+        {isChatSupportedRoute ? (
+          <div className="flex-shrink-0 bg-gradient-to-t from-zinc-50 via-zinc-50/78 to-transparent px-3 pb-3 pt-1.5 sm:px-4 sm:pb-4 sm:pt-2 lg:px-6 dark:from-zinc-950 dark:via-zinc-950/38 dark:to-transparent">
+            <ChatComposerPanel
+              showJumpToLatest={showJumpToLatest}
+              hasMessages={activeMessages.length > 0}
+              jumpToLatestLabel={t('chat.page.jumpToLatest')}
+              onJumpToLatest={jumpToLatest}
+              inputProps={{
+                onSend: handleSend,
+                isLoading: isBusy,
+                onStop: handleStop,
+                channels,
+                activeChannel,
+                activeModel,
+                onChannelChange: handleChannelChange,
+                onModelChange: handleModelChange,
+                onOpenModelConfig: () => navigate('/settings?tab=api'),
+                compactModelSelector,
+              }}
+            />
+          </div>
+        ) : null}
 
         <ChatSessionContextDrawer
           isOpen={isSessionContextDrawerOpen}
@@ -1070,10 +1164,12 @@ export function Chat() {
           agentOptions={agentOptions}
           selectedAgentId={selectedAgentId}
           isAgentLoading={isAgentSelectorLoading}
+          showAgentSection={isChatSupportedRoute}
           onSelectAgent={setSelectedAgentId}
           skillOptions={skillOptions}
           selectedSkillId={selectedSkillId}
           isSkillLoading={isSkillSelectorLoading}
+          showSkillSection={isChatSupportedRoute}
           onSelectSkill={setSelectedSkillId}
         />
       </div>
@@ -1084,6 +1180,7 @@ export function Chat() {
     <div className="relative flex h-full min-w-0 overflow-hidden bg-zinc-50 dark:bg-zinc-950">
       <div className="hidden h-full w-72 shrink-0 lg:flex xl:w-80">
         <ChatSidebar
+          isChatSupported={isChatSupportedRoute}
           isOpenClawGateway={isOpenClawGateway}
           openClawAgentId={effectiveGatewayAgentId}
           newSessionModel={newSessionModel}
@@ -1113,6 +1210,7 @@ export function Chat() {
               <ChatSidebar
                 onSessionSelect={closeSidebar}
                 onClose={closeSidebar}
+                isChatSupported={isChatSupportedRoute}
                 isOpenClawGateway={isOpenClawGateway}
                 openClawAgentId={effectiveGatewayAgentId}
                 newSessionModel={newSessionModel}

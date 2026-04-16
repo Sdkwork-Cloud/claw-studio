@@ -1,6 +1,5 @@
 import type { OrderVO, PageOrderVO, PageProductVO, ProductVO, SdkworkAppClient } from '@sdkwork/app-sdk';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
-import { getAppSdkClientWithSession, readAppSdkSessionTokens } from '../sdk/useAppSdkClient.ts';
 
 export type DashboardCommerceGranularity = 'day' | 'hour';
 export type DashboardCommerceRangeMode = 'seven_days' | 'month' | 'custom';
@@ -102,6 +101,7 @@ export interface DashboardCommerceSnapshot {
 
 type DashboardCommerceClient = Pick<SdkworkAppClient, 'order' | 'product'>;
 type DashboardCommerceSessionTokens = { authToken?: string | null };
+type DashboardCommerceSdkRuntime = typeof import('../sdk/useAppSdkClient.ts');
 
 export interface CreateDashboardCommerceServiceOptions {
   getClient?: () => DashboardCommerceClient | Promise<DashboardCommerceClient>;
@@ -117,12 +117,23 @@ const ORDER_PAGE_SIZE = 100;
 const PRODUCT_PAGE_SIZE = 50;
 const MAX_PAGES = 25;
 const DAY_MS = 24 * 60 * 60 * 1000;
+let dashboardCommerceSdkRuntimePromise: Promise<DashboardCommerceSdkRuntime> | null = null;
 
-function getDefaultClient(): DashboardCommerceClient {
+function loadDashboardCommerceSdkRuntime(): Promise<DashboardCommerceSdkRuntime> {
+  if (!dashboardCommerceSdkRuntimePromise) {
+    dashboardCommerceSdkRuntimePromise = import('../sdk/useAppSdkClient.ts');
+  }
+
+  return dashboardCommerceSdkRuntimePromise;
+}
+
+async function getDefaultClient(): Promise<DashboardCommerceClient> {
+  const { getAppSdkClientWithSession } = await loadDashboardCommerceSdkRuntime();
   return getAppSdkClientWithSession();
 }
 
-function getDefaultSessionTokens(): DashboardCommerceSessionTokens {
+async function getDefaultSessionTokens(): Promise<DashboardCommerceSessionTokens> {
+  const { readAppSdkSessionTokens } = await loadDashboardCommerceSdkRuntime();
   return readAppSdkSessionTokens();
 }
 

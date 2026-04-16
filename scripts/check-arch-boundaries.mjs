@@ -70,8 +70,7 @@ const forbiddenCoreServiceExports = [
   'taskService',
 ];
 const allowedFeatureDependencies = new Map([
-  ['@sdkwork/claw-chat', new Set(['@sdkwork/claw-market', '@sdkwork/claw-settings'])],
-  ['@sdkwork/claw-market', new Set(['@sdkwork/claw-instances'])],
+  ['@sdkwork/claw-chat', new Set(['@sdkwork/claw-settings'])],
   ['@sdkwork/claw-settings', new Set(['@sdkwork/claw-account'])],
 ]);
 const allowedPackageExportKeys = new Map([

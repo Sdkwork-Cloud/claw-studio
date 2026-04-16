@@ -206,7 +206,7 @@ runTest(
     assert.match(detailSource, /source\??:\s*InstanceDetailSource/);
     assert.match(detailSource, /source\s*\.\s*loadModulePayload\(\)/);
     assert.match(detailSource, /getOpenClawWorkbenchFromModulePayload/);
-    assert.match(detailSource, /instanceWorkbenchService\.getInstanceWorkbench\(targetInstanceId\)/);
+    assert.match(detailSource, /instanceWorkbenchService\.getInstanceWorkbench\(/);
     assert.match(detailSource, /source\s*\.\s*loadModulePayload\(\)/);
     assert.doesNotMatch(detailSource, /source\.loadWorkbench\(\)/);
     assert.doesNotMatch(detailSource, /getOpenClawInstanceDetailSourceExtension/);
@@ -1178,7 +1178,7 @@ runTest(
       detailSource,
       /const consoleErrorReporters = createInstanceDetailConsoleErrorReporters\(\{\s*console,\s*\}\);/,
     );
-    assert.match(detailSource, /consoleErrorReporters\.reportWorkbenchLoadError\(error\)/);
+    assert.match(detailSource, /reportError: consoleErrorReporters\.reportWorkbenchLoadError,/);
     assert.match(detailSource, /reportError: consoleErrorReporters\.reportAgentWorkbenchLoadError,/);
     assert.match(detailSource, /reportError: consoleErrorReporters\.reportInstanceFilesLoadError,/);
     assert.match(detailSource, /reportError: consoleErrorReporters\.reportInstanceMemoriesLoadError,/);
@@ -1420,6 +1420,108 @@ runTest(
     );
     assert.doesNotMatch(agentPresentationSource, /toast\./);
     assert.doesNotMatch(agentPresentationSource, /instanceService\./);
+  },
+);
+
+runTest(
+  'sdkwork-claw-instances routes main workbench loading orchestration through a cancellable shared helper while keeping module-source authority in the page',
+  () => {
+    const detailSource = readInstanceDetailPageSources();
+    const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
+    const workbenchStateSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceDetailWorkbenchState.ts',
+    );
+    const mainWorkbenchLoadBlock = extractBetween(
+      detailSource,
+      'const loadWorkbench = async (',
+      'useEffect(() => () => {',
+    );
+    const unmountCleanupBlock = extractBetween(
+      detailSource,
+      'useEffect(() => () => {',
+      'useEffect(() => {',
+    );
+
+    assert.match(
+      detailSource,
+      /const loadWorkbenchRequestRef = useRef<ReturnType<typeof startLoadInstanceDetailWorkbench> \| null>\(null\);/,
+    );
+    assert.match(detailSource, /startLoadInstanceDetailWorkbench\(\{/);
+    assert.match(servicesIndexSource, /instanceDetailWorkbenchState/);
+    assert.match(mainWorkbenchLoadBlock, /loadWorkbenchRequestRef\.current\?\.cancel\(\);/);
+    assert.match(
+      mainWorkbenchLoadBlock,
+      /const request = startLoadInstanceDetailWorkbench\(\{/,
+    );
+    assert.match(mainWorkbenchLoadBlock, /setWorkbench,/);
+    assert.match(mainWorkbenchLoadBlock, /setConfig,/);
+    assert.match(mainWorkbenchLoadBlock, /setIsLoading,/);
+    assert.match(
+      mainWorkbenchLoadBlock,
+      /loadWorkbench:\s*async\s*\(instanceId\)\s*=>/,
+    );
+    assert.match(mainWorkbenchLoadBlock, /source\?\.instanceId === instanceId/);
+    assert.match(
+      mainWorkbenchLoadBlock,
+      /getOpenClawWorkbenchFromModulePayload\(await source\.loadModulePayload\(\)\)/,
+    );
+    assert.match(
+      mainWorkbenchLoadBlock,
+      /instanceWorkbenchService\.getInstanceWorkbench\(instanceId\)/,
+    );
+    assert.match(
+      mainWorkbenchLoadBlock,
+      /reportError: consoleErrorReporters\.reportWorkbenchLoadError,/,
+    );
+    assert.match(mainWorkbenchLoadBlock, /loadWorkbenchRequestRef\.current = request;/);
+    assert.doesNotMatch(mainWorkbenchLoadBlock, /try\s*\{/);
+    assert.doesNotMatch(mainWorkbenchLoadBlock, /setWorkbench\(nextWorkbench\);/);
+    assert.doesNotMatch(
+      mainWorkbenchLoadBlock,
+      /setConfig\(nextWorkbench\?\.config \|\| null\);/,
+    );
+    assert.doesNotMatch(mainWorkbenchLoadBlock, /setIsLoading\(true\);/);
+    assert.doesNotMatch(mainWorkbenchLoadBlock, /setIsLoading\(false\);/);
+    assert.match(unmountCleanupBlock, /loadWorkbenchRequestRef\.current\?\.cancel\(\);/);
+
+    assert.match(
+      workbenchStateSource,
+      /export interface InstanceDetailWorkbenchLoadRequest \{/,
+    );
+    assert.match(workbenchStateSource, /cancel: \(\) => void;/);
+    assert.match(workbenchStateSource, /promise: Promise<void>;/);
+    assert.match(
+      workbenchStateSource,
+      /export function startLoadInstanceDetailWorkbench\(/,
+    );
+    assert.match(workbenchStateSource, /let cancelled = false;/);
+    assert.match(
+      workbenchStateSource,
+      /if \(showSpinner\) \{\s*setIsLoading\(true\);\s*\}/s,
+    );
+    assert.match(
+      workbenchStateSource,
+      /if \(cancelled\) \{\s*return;\s*\}\s*setWorkbench\(nextWorkbench\);/s,
+    );
+    assert.match(
+      workbenchStateSource,
+      /setConfig\(nextWorkbench\?\.config \|\| null\);/,
+    );
+    assert.match(workbenchStateSource, /reportError\(error\);/);
+    assert.match(
+      workbenchStateSource,
+      /if \(preserveStateOnError !== true\) \{\s*setWorkbench\(null\);\s*setConfig\(null\);\s*\}/s,
+    );
+    assert.match(
+      workbenchStateSource,
+      /if \(!cancelled && showSpinner\) \{\s*setIsLoading\(false\);\s*\}/s,
+    );
+    assert.match(
+      workbenchStateSource,
+      /cancel\(\) \{\s*cancelled = true;\s*\}/s,
+    );
+    assert.doesNotMatch(workbenchStateSource, /instanceWorkbenchService\./);
+    assert.doesNotMatch(workbenchStateSource, /source\.loadModulePayload/);
   },
 );
 
@@ -1919,11 +2021,11 @@ runTest(
     const lifecycleHandlers = extractBetween(
       detailSource,
       '  const lifecycleActionHandlers = buildInstanceLifecycleActionHandlers({',
-      '  const consoleHandlers = buildOpenClawConsoleHandlers({',
+      '  const consoleHandlers = buildInstanceConsoleHandlers({',
     );
     const consoleHandlers = extractBetween(
       detailSource,
-      '  const consoleHandlers = buildOpenClawConsoleHandlers({',
+      '  const consoleHandlers = buildInstanceConsoleHandlers({',
       '  const deleteHandlerBindings = createInstanceDetailDeleteHandlerBindings({',
     );
     const deleteHandlerBindings = extractBetween(
@@ -1978,13 +2080,13 @@ runTest(
     assert.doesNotMatch(lifecycleHandlers, /toast\.success/);
     assert.doesNotMatch(lifecycleHandlers, /await loadWorkbench\(/);
 
-    assert.match(consoleHandlers, /detail,/);
+    assert.match(consoleHandlers, /consoleTarget:/);
     assert.match(consoleHandlers, /openExternalLink: openExternalUrl,/);
     assert.match(consoleHandlers, /reportInfo: toastReporters\.reportInfo,/);
     assert.match(consoleHandlers, /reportError: toastReporters\.reportError,/);
     assert.doesNotMatch(consoleHandlers, /openExternalLink: \(href\) => openExternalUrl\(href\)/);
-    assert.doesNotMatch(consoleHandlers, /detail\?\.consoleAccess\?\.autoLoginUrl \|\| detail\?\.consoleAccess\?\.url/);
-    assert.doesNotMatch(consoleHandlers, /toast\.info\(detail\.consoleAccess\.reason\)/);
+    assert.doesNotMatch(consoleHandlers, /consoleTarget\?\.autoLoginUrl \|\| consoleTarget\?\.url/);
+    assert.doesNotMatch(consoleHandlers, /toast\.info\(consoleTarget\.reason\)/);
     assert.match(
       detailSource,
       /const deleteHandlerBindings = createInstanceDetailDeleteHandlerBindings\(\{\s*confirmDelete: window\.confirm,\s*navigate,\s*instanceService,\s*\}\);/,
@@ -2009,11 +2111,11 @@ runTest(
     assert.doesNotMatch(detailSource, /const handleRestart = async \(\) => \{/);
     assert.doesNotMatch(detailSource, /const handleStop = async \(\) => \{/);
     assert.doesNotMatch(detailSource, /const handleStart = async \(\) => \{/);
-    assert.doesNotMatch(detailSource, /const handleOpenOpenClawConsole = async \(\) => \{/);
+    assert.doesNotMatch(detailSource, /const handleOpenControlPage = async \(\) => \{/);
     assert.doesNotMatch(detailSource, /const openOfficialLink = async \(href: string\) => \{/);
     assert.doesNotMatch(detailSource, /const openTaskWorkspace = \(/);
     assert.doesNotMatch(detailSource, /const handleDelete = async \(\) => \{/);
-    assert.match(detailSource, /onOpenOpenClawConsole=\{consoleHandlers\.onOpenOpenClawConsole\}/);
+    assert.match(detailSource, /onOpenControlPage=\{consoleHandlers\.onOpenControlPage\}/);
     assert.match(detailSource, /onRestart=\{lifecycleActionHandlers\.onRestart\}/);
     assert.match(detailSource, /onStop=\{lifecycleActionHandlers\.onStop\}/);
     assert.match(detailSource, /onStart=\{lifecycleActionHandlers\.onStart\}/);
@@ -2030,7 +2132,7 @@ runTest(
     );
     assert.match(
       lifecycleSupportSource,
-      /export function buildOpenClawConsoleHandlers/,
+      /export function buildInstanceConsoleHandlers/,
     );
     assert.match(
       lifecycleSupportSource,
@@ -2153,7 +2255,7 @@ runTest('sdkwork-claw-instances opens channel official setup links through the h
 
   assert.match(channelsSource, /ChannelWorkspace/);
   assert.match(detailSource, /openExternalUrl/);
-  assert.match(detailSource, /buildOpenClawConsoleHandlers/);
+  assert.match(detailSource, /buildInstanceConsoleHandlers/);
   assert.match(detailSource, /onOpenOfficialLink=\{consoleHandlers\.onOpenOfficialLink\}/);
   assert.match(lifecycleSupportSource, /onOpenOfficialLink: async \(href: string\) => \{/);
   assert.match(lifecycleSupportSource, /await args\.openExternalLink\(href\);/);
@@ -2812,6 +2914,22 @@ runTest('sdkwork-claw-instances gates instance detail lifecycle actions with bac
   assert.match(derivedStateSource, /canDelete: actionCapabilities\.canDelete,/);
   assert.match(headerSource, /\{canDelete \? \(/);
   assert.doesNotMatch(detailSource, /onClick=\{handleRestart\}[\s\S]*instances\.detail\.actions\.restart[\s\S]*\{instance\.status === 'online' \?/);
+});
+
+runTest('sdkwork-claw-instances blocks built-in instance uninstall in the service layer instead of relying only on UI chrome', () => {
+  const instanceServiceCoreSource = read(
+    'packages/sdkwork-claw-instances/src/services/instanceServiceCore.ts',
+  );
+
+  assert.match(instanceServiceCoreSource, /function createBuiltInInstanceDeleteError\(\)/);
+  assert.match(
+    instanceServiceCoreSource,
+    /private async assertDeleteSupported\(id: string\) \{[\s\S]*detail\?\.instance\.isBuiltIn === true[\s\S]*throw createBuiltInInstanceDeleteError\(\);/s,
+  );
+  assert.match(
+    instanceServiceCoreSource,
+    /async deleteInstance\(id: string\): Promise<void> \{\s*await this\.assertDeleteSupported\(id\);[\s\S]*this\.dependencies\.studioApi\.deleteInstance\(id\);/s,
+  );
 });
 
 runTest('sdkwork-claw-instances preloads lifecycle support for instance list actions before exposing controls', () => {

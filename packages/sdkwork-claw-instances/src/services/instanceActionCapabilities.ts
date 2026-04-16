@@ -12,6 +12,10 @@ export interface InstanceActionCapabilities {
 
 type InstanceActionInstance = Pick<Instance, 'id' | 'status' | 'isBuiltIn'>;
 
+function isTransitioningLifecycleStatus(status: InstanceActionInstance['status']) {
+  return status === 'starting' || status === 'syncing';
+}
+
 function resolveLifecycleControlSupport(
   detail: Pick<StudioInstanceDetailRecord, 'lifecycle'> | null | undefined,
 ) {
@@ -35,14 +39,15 @@ export function buildInstanceActionCapabilities(
 
   const canControlLifecycle = resolveLifecycleControlSupport(detail);
   const isOnline = instance.status === 'online';
+  const isRunning = isOnline || isTransitioningLifecycleStatus(instance.status);
 
   return {
     canDelete: instance.isBuiltIn !== true,
     canSetActive: true,
     canControlLifecycle,
-    canStart: canControlLifecycle && !isOnline,
-    canStop: canControlLifecycle && isOnline,
-    canRestart: canControlLifecycle && isOnline,
+    canStart: canControlLifecycle && !isRunning,
+    canStop: canControlLifecycle && isRunning,
+    canRestart: canControlLifecycle && instance.status !== 'offline',
   };
 }
 

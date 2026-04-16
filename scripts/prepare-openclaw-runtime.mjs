@@ -1305,6 +1305,98 @@ export function resolveDownloadedNativeRuntimeAsset({
   return null;
 }
 
+function resolveDownloadedNativeRuntimeAssetDestinationPath(packageDir, runtimeAsset) {
+  const destinationRelativePath = String(runtimeAsset?.destinationRelativePath ?? '').trim();
+  return destinationRelativePath ? path.join(packageDir, destinationRelativePath) : '';
+}
+
+function isOptionalOpenClawRuntimeDependency(packageName, openclawPackageJson) {
+  const normalizedPackageName = String(packageName ?? '').trim();
+  if (!normalizedPackageName || !openclawPackageJson || typeof openclawPackageJson !== 'object') {
+    return false;
+  }
+
+  const optionalDependencies =
+    openclawPackageJson.optionalDependencies
+    && typeof openclawPackageJson.optionalDependencies === 'object'
+      ? openclawPackageJson.optionalDependencies
+      : {};
+  return typeof optionalDependencies[normalizedPackageName] === 'string';
+}
+
+async function loadOpenClawRuntimePackageJson(modulesRoot) {
+  const openclawPackageJsonPath = path.join(modulesRoot, 'openclaw', 'package.json');
+  try {
+    return JSON.parse(await readFile(openclawPackageJsonPath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function shouldSkipOptionalDownloadedNativeRuntimePackage({
+  packageName,
+  packageDir,
+  packageJson,
+  openclawPackageJson,
+  platform = process.platform,
+  arch = process.arch,
+  env = process.env,
+  pathExists = existsSync,
+}) {
+  if (!isOptionalOpenClawRuntimeDependency(packageName, openclawPackageJson)) {
+    return false;
+  }
+
+  const runtimeAsset = resolveDownloadedNativeRuntimeAsset({
+    packageJson,
+    packageDir,
+    platform,
+    arch,
+    env,
+  });
+  if (!runtimeAsset) {
+    return false;
+  }
+
+  const destinationPath = resolveDownloadedNativeRuntimeAssetDestinationPath(
+    packageDir,
+    runtimeAsset,
+  );
+  return destinationPath ? !pathExists(destinationPath) : false;
+}
+
+async function rebuildDownloadedNativeRuntimeAssetFromSource({
+  packageInstallRoot,
+  runtimeAsset,
+  runtimeNpm,
+  installEnv = process.env,
+  runCommandImpl = runCommand,
+}) {
+  if (
+    runtimeAsset?.packageName !== '@discordjs/opus'
+    || !runtimeNpm
+    || typeof runtimeNpm.command !== 'string'
+    || runtimeNpm.command.trim().length === 0
+  ) {
+    return null;
+  }
+
+  await runCommandImpl(runtimeNpm.command, [
+    ...runtimeNpm.args,
+    'rebuild',
+    runtimeAsset.packageName,
+    '--foreground-scripts',
+  ], {
+    cwd: packageInstallRoot,
+    env: installEnv,
+  });
+
+  return {
+    built: true,
+    strategy: 'npm-rebuild',
+  };
+}
+
 export function resolveBundledPluginRuntimeHydrationTarget({
   installSpec,
   packageJson,
@@ -1683,6 +1775,7 @@ export async function stageDownloadedNativeRuntimeAsset({
   fetchImpl = globalThis.fetch,
   pathExists = existsSync,
   runCommandImpl = runCommand,
+  nativeBuildFallbackImpl = null,
 }) {
   const downloadUrl = String(runtimeAsset?.downloadUrl ?? '').trim();
   const destinationRelativePath = String(runtimeAsset?.destinationRelativePath ?? '').trim();
@@ -1690,10 +1783,11 @@ export async function stageDownloadedNativeRuntimeAsset({
     throw new Error('Downloaded native runtime asset staging requires a downloadUrl and destinationRelativePath');
   }
 
-  const destinationPath = path.join(packageDir, destinationRelativePath);
+  const destinationPath = resolveDownloadedNativeRuntimeAssetDestinationPath(packageDir, runtimeAsset);
   if (pathExists(destinationPath)) {
     return {
       downloaded: false,
+      built: false,
       destinationPath,
     };
   }
@@ -1704,12 +1798,39 @@ export async function stageDownloadedNativeRuntimeAsset({
     );
   }
 
-  const response = await retryOpenClawRuntimeOperation(
-    async () => await fetchImpl(downloadUrl),
-    {
-      description: `OpenClaw native runtime asset download ${runtimeAsset.assetFileName ?? destinationRelativePath}`,
-    },
-  );
+  let response;
+  try {
+    response = await retryOpenClawRuntimeOperation(
+      async () => await fetchImpl(downloadUrl),
+      {
+        description: `OpenClaw native runtime asset download ${runtimeAsset.assetFileName ?? destinationRelativePath}`,
+      },
+    );
+  } catch (error) {
+    if (typeof nativeBuildFallbackImpl !== 'function') {
+      throw error;
+    }
+
+    const fallbackResult = await nativeBuildFallbackImpl({
+      packageDir,
+      runtimeAsset,
+      destinationPath,
+      error,
+    });
+    if (!pathExists(destinationPath)) {
+      throw new Error(
+        `Downloaded native runtime asset fallback for ${runtimeAsset.packageName ?? destinationRelativePath} completed without materializing ${destinationRelativePath}`,
+      );
+    }
+
+    return {
+      downloaded: false,
+      built: fallbackResult?.built !== false,
+      destinationPath,
+      fallbackStrategy:
+        String(fallbackResult?.strategy ?? 'native-build').trim() || 'native-build',
+    };
+  }
   if (!response.ok || !response.body) {
     throw new Error(
       `Failed to download native runtime asset from ${downloadUrl}: ${response.status} ${response.statusText}`,
@@ -1754,6 +1875,7 @@ export async function stageDownloadedNativeRuntimeAsset({
     }
     return {
       downloaded: true,
+      built: false,
       destinationPath,
     };
   }
@@ -1766,6 +1888,7 @@ export async function stageDownloadedNativeRuntimeAsset({
   await rm(tempDestinationPath, { force: true });
   return {
     downloaded: true,
+    built: false,
     destinationPath,
   };
 }
@@ -1777,8 +1900,13 @@ async function stageKnownDownloadedNativeRuntimeAssets({
   arch = process.arch,
   env = process.env,
   pathExists = existsSync,
+  runtimeNpm = null,
+  installEnv = process.env,
+  runCommandImpl = runCommand,
 }) {
   const stagedAssets = [];
+  const packageInstallRoot = path.dirname(modulesRoot);
+  const openclawPackageJson = await loadOpenClawRuntimePackageJson(modulesRoot);
 
   for (const packageName of Object.keys(SUPPORTED_DOWNLOADED_NATIVE_RUNTIME_ASSET_TARGETS)) {
     const packageDir = path.join(modulesRoot, ...packageName.split('/'));
@@ -1805,14 +1933,57 @@ async function stageKnownDownloadedNativeRuntimeAssets({
       continue;
     }
 
-    stagedAssets.push(
-      await stageDownloadedNativeRuntimeAsset({
-        packageDir,
-        runtimeAsset,
-        fetchImpl,
-        pathExists,
-      }),
+    const destinationPath = resolveDownloadedNativeRuntimeAssetDestinationPath(
+      packageDir,
+      runtimeAsset,
     );
+
+    try {
+      stagedAssets.push(
+        await stageDownloadedNativeRuntimeAsset({
+          packageDir,
+          runtimeAsset,
+          fetchImpl,
+          pathExists,
+          runCommandImpl,
+          nativeBuildFallbackImpl: async ({ error }) =>
+            await rebuildDownloadedNativeRuntimeAssetFromSource({
+              packageInstallRoot,
+              runtimeAsset,
+              runtimeNpm,
+              installEnv,
+              runCommandImpl,
+              error,
+            }),
+        }),
+      );
+    } catch (error) {
+      if (
+        shouldSkipOptionalDownloadedNativeRuntimePackage({
+          packageName,
+          packageDir,
+          packageJson,
+          openclawPackageJson,
+          platform,
+          arch,
+          env,
+          pathExists,
+        })
+      ) {
+        stagedAssets.push({
+          packageName,
+          downloaded: false,
+          built: false,
+          skipped: true,
+          destinationPath,
+          reason: 'optional-native-runtime-asset-unavailable',
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
+
+      throw error;
+    }
   }
 
   return stagedAssets;
@@ -2137,6 +2308,10 @@ function packageHasImportableEntry({
 async function shouldSkipPreparedRuntimeSmokeLoadPackage({
   modulesRoot,
   packageName,
+  openclawPackageJson = null,
+  platform = process.platform,
+  arch = process.arch,
+  env = process.env,
   pathExists = existsSync,
 }) {
   const packageDir = resolvePreparedRuntimePackageDir({
@@ -2155,6 +2330,21 @@ async function shouldSkipPreparedRuntimeSmokeLoadPackage({
     return false;
   }
 
+  if (
+    shouldSkipOptionalDownloadedNativeRuntimePackage({
+      packageName,
+      packageDir,
+      packageJson,
+      openclawPackageJson,
+      platform,
+      arch,
+      env,
+      pathExists,
+    })
+  ) {
+    return true;
+  }
+
   return !packageHasImportableEntry({
     packageDir,
     packageJson,
@@ -2162,7 +2352,17 @@ async function shouldSkipPreparedRuntimeSmokeLoadPackage({
   });
 }
 
-async function importPreparedRuntimeModule(requireFromPackage, packageName, { modulesRoot }) {
+async function importPreparedRuntimeModule(
+  requireFromPackage,
+  packageName,
+  {
+    modulesRoot,
+    openclawPackageJson,
+    platform = process.platform,
+    arch = process.arch,
+    env = process.env,
+  },
+) {
   let resolvedEntry;
   try {
     resolvedEntry = requireFromPackage.resolve(packageName);
@@ -2174,6 +2374,10 @@ async function importPreparedRuntimeModule(requireFromPackage, packageName, { mo
       && await shouldSkipPreparedRuntimeSmokeLoadPackage({
         modulesRoot,
         packageName,
+        openclawPackageJson,
+        platform,
+        arch,
+        env,
       })
     ) {
       return;
@@ -2184,6 +2388,18 @@ async function importPreparedRuntimeModule(requireFromPackage, packageName, { mo
   try {
     requireFromPackage(packageName);
   } catch (error) {
+    if (
+      await shouldSkipPreparedRuntimeSmokeLoadPackage({
+        modulesRoot,
+        packageName,
+        openclawPackageJson,
+        platform,
+        arch,
+        env,
+      })
+    ) {
+      return;
+    }
     if (error && typeof error === 'object' && error.code === 'ERR_REQUIRE_ESM') {
       await import(pathToFileURL(resolvedEntry).href);
       return;
@@ -2211,6 +2427,7 @@ async function validatePreparedRuntimeSmokeLoads({
     try {
       await importPreparedRuntimeModule(requireFromPackage, packageName, {
         modulesRoot,
+        openclawPackageJson,
       });
     } catch (error) {
       throw new Error(
@@ -2656,6 +2873,10 @@ export async function prepareOpenClawRuntime({
       runtimeSupplementalPackages,
     });
     const runtimeNpm = resolveNodeRuntimeNpmCommand(extractedNodeDir, target.platformId);
+    const runtimeInstallEnv = buildOpenClawRuntimeInstallEnv(process.env, {
+      cacheDir,
+      platform: target.platformId,
+    });
     await retryOpenClawRuntimeOperation(
       async () => {
         await runCommand(runtimeNpm.command, [
@@ -2667,10 +2888,7 @@ export async function prepareOpenClawRuntime({
           ...installSpecs,
         ], {
           cwd: packageDir,
-          env: buildOpenClawRuntimeInstallEnv(process.env, {
-            cacheDir,
-            platform: target.platformId,
-          }),
+          env: runtimeInstallEnv,
         });
       },
       {
@@ -2700,6 +2918,8 @@ export async function prepareOpenClawRuntime({
           fetchImpl,
           platform: target.platformId,
           arch: target.archId,
+          runtimeNpm,
+          installEnv: runtimeInstallEnv,
         });
       },
       {

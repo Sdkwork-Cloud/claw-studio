@@ -7,7 +7,7 @@ use std::{
 const FRONTEND_DIST_RELATIVE_PATH: &str = "../dist";
 const GENERATED_BUNDLED_RELATIVE_PATH: &str = "generated/bundled";
 const GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME: &str = "placeholder.txt";
-const OPENCLAW_RELEASE_CONFIG_RELATIVE_PATH: &str = "../../../config/openclaw-release.json";
+const OPENCLAW_RELEASE_CONFIG_RELATIVE_PATH: &str = "../../../config/kernel-releases/openclaw.json";
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -151,18 +151,16 @@ fn ensure_generated_bundled_placeholder(directory: &Path) {
 
     let placeholder_path = directory.join(GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME);
     let has_real_entries = match fs::read_dir(directory) {
-        Ok(entries) => entries
-            .filter_map(Result::ok)
-            .any(|entry| {
-                if entry.file_name() == GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME {
-                    return false;
-                }
+        Ok(entries) => entries.filter_map(Result::ok).any(|entry| {
+            if entry.file_name() == GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME {
+                return false;
+            }
 
-                match entry.file_type() {
-                    Ok(file_type) => file_type.is_file() || file_type.is_dir(),
-                    Err(_) => true,
-                }
-            }),
+            match entry.file_type() {
+                Ok(file_type) => file_type.is_file() || file_type.is_dir(),
+                Err(_) => true,
+            }
+        }),
         Err(error) => {
             cargo_warn(&format!(
                 "failed to inspect generated bundled resources at {}: {}",

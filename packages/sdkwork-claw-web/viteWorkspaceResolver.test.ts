@@ -23,6 +23,10 @@ const expectedCorePcReactAppRoot = path.resolve(
   canonicalWorkspaceRoot,
   '../sdkwork-core/sdkwork-core-pc-react/src/app/index.ts',
 );
+const expectedCrawChatCompatRoot = path.resolve(
+  currentWorkspaceRoot,
+  'scripts/shims/craw-chat-sdk-compat.ts',
+);
 const worktreeRoot = path.resolve(
   canonicalWorkspaceRoot,
   '.worktrees/codex-openclaw-gateway-webchat',
@@ -45,6 +49,10 @@ test('resolveWorkspacePackageEntry maps @sdkwork workspace packages into the cur
     resolveWorkspacePackageEntry('@sdkwork/core-pc-react/app', packagesRoot),
     expectedCorePcReactAppRoot,
   );
+  assert.equal(
+    resolveWorkspacePackageEntry('@sdkwork/craw-chat-sdk', packagesRoot),
+    expectedCrawChatCompatRoot,
+  );
   assert.equal(resolveWorkspacePackageEntry('react', packagesRoot), null);
 });
 
@@ -56,6 +64,7 @@ test('resolveWorkspacePackageAliases creates direct aliases for local @sdkwork/c
   const corePcReactAppAlias = aliases.find((entry) => entry.find === '@sdkwork/core-pc-react/app');
   const corePcReactEnvAlias = aliases.find((entry) => entry.find === '@sdkwork/core-pc-react/env');
   const corePcReactRuntimeAlias = aliases.find((entry) => entry.find === '@sdkwork/core-pc-react/runtime');
+  const crawChatCompatAlias = aliases.find((entry) => entry.find === '@sdkwork/craw-chat-sdk');
 
   assert.ok(infrastructureAlias);
   assert.equal(
@@ -75,9 +84,11 @@ test('resolveWorkspacePackageAliases creates direct aliases for local @sdkwork/c
   assert.ok(corePcReactRootAlias);
   assert.ok(corePcReactEnvAlias);
   assert.ok(corePcReactRuntimeAlias);
+  assert.ok(crawChatCompatAlias);
   assert.ok(aliases.indexOf(corePcReactAppAlias) < aliases.indexOf(corePcReactRootAlias));
   assert.ok(aliases.indexOf(corePcReactEnvAlias) < aliases.indexOf(corePcReactRootAlias));
   assert.ok(aliases.indexOf(corePcReactRuntimeAlias) < aliases.indexOf(corePcReactRootAlias));
+  assert.equal(crawChatCompatAlias?.replacement, expectedCrawChatCompatRoot);
   assert.equal(
     aliases.some((entry) => entry.find === '@sdkwork/app-sdk'),
     false,

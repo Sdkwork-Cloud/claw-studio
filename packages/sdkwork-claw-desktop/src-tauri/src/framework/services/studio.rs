@@ -5,6 +5,10 @@ use crate::framework::{
         HOST_PLATFORM_ROLLOUT_ENGINE_VERSION,
     },
     embedded_host_server::{EmbeddedHostRuntimeSnapshot, EmbeddedHostRuntimeStatus},
+    install_records::{
+        resolve_openclaw_install_records_home_candidates, InstallRecord, InstallRecordStatus,
+        OPENCLAW_INSTALL_RECORDS_HOME_NAME,
+    },
     layout::{ActiveState, KernelAuthorityState},
     openclaw_release::bundled_openclaw_version,
     paths::AppPaths,
@@ -16,12 +20,6 @@ use crate::framework::{
     storage::{
         StorageDeleteRequest, StorageGetTextRequest, StorageListKeysRequest, StorageProviderKind,
         StoragePutTextRequest,
-    },
-    install_records::{
-        resolve_openclaw_install_records_home_candidates,
-        InstallRecord,
-        InstallRecordStatus,
-        OPENCLAW_INSTALL_RECORDS_HOME_NAME,
     },
     FrameworkError, Result,
 };
@@ -1555,7 +1553,9 @@ impl StudioService {
             config,
             storage,
             supervisor,
-            DEFAULT_INSTANCE_ID,
+            &self
+                .resolve_built_in_managed_openclaw_instance(paths, config, storage)?
+                .id,
             &hosted_request,
             &options,
         )
@@ -1589,8 +1589,8 @@ impl StudioService {
         input: PreviewRolloutInput,
     ) -> Result<ManageRolloutPreview> {
         let instance = self
-            .get_instance(paths, config, storage, DEFAULT_INSTANCE_ID)?
-            .ok_or_else(|| FrameworkError::NotFound("built-in combined node".to_string()))?;
+            .resolve_built_in_managed_openclaw_instance(paths, config, storage)
+            .map_err(|_| FrameworkError::NotFound("built-in combined node".to_string()))?;
         let compiler = ProjectionCompiler::new();
         let projection = compiler.compile(&DesiredStateInput {
             node_id: instance.id.clone(),
@@ -1701,10 +1701,13 @@ impl StudioService {
             },
         )?;
         let target = preview.targets.into_iter().next();
+        let node_id = self
+            .resolve_built_in_managed_openclaw_instance(paths, config, storage)?
+            .id;
 
         Ok(vec![InternalNodeSessionRecord {
-            session_id: "desktop-combined-local-built-in".to_string(),
-            node_id: DEFAULT_INSTANCE_ID.to_string(),
+            session_id: format!("desktop-combined-{node_id}"),
+            node_id,
             state: if status.lifecycle == "ready" {
                 "admitted".to_string()
             } else {
@@ -1828,7 +1831,7 @@ impl StudioService {
             ..current
         };
 
-        if registry.instances[index].id == DEFAULT_INSTANCE_ID {
+        if is_built_in_managed_openclaw_instance(&registry.instances[index]) {
             self.sync_built_in_runtime_config(paths, &registry.instances[index].config)?;
         }
 
@@ -1853,10 +1856,12 @@ impl StudioService {
         storage: &StorageService,
         id: &str,
     ) -> Result<bool> {
-        if id == DEFAULT_INSTANCE_ID {
-            return Err(FrameworkError::Conflict(
-                "the built-in instance cannot be deleted".to_string(),
-            ));
+        if let Some(instance) = self.get_instance(paths, config, storage, id)? {
+            if is_built_in_managed_openclaw_instance(&instance) {
+                return Err(FrameworkError::Conflict(
+                    "the built-in instance cannot be deleted".to_string(),
+                ));
+            }
         }
 
         let mut registry = self.load_instance_registry(paths, config, storage)?;
@@ -1939,9 +1944,7 @@ impl StudioService {
             return Ok(None);
         };
 
-        if instance.id == DEFAULT_INSTANCE_ID
-            && instance.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
-        {
+        if is_built_in_managed_openclaw_instance(&instance) {
             self.set_built_in_openclaw_status(
                 paths,
                 config,
@@ -1991,9 +1994,7 @@ impl StudioService {
             return Ok(None);
         };
 
-        if instance.id == DEFAULT_INSTANCE_ID
-            && instance.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
-        {
+        if is_built_in_managed_openclaw_instance(&instance) {
             if let Err(error) = supervisor.stop_openclaw_gateway() {
                 let _ = self.set_built_in_openclaw_status(
                     paths,
@@ -2033,9 +2034,7 @@ impl StudioService {
             return Ok(None);
         };
 
-        if instance.id == DEFAULT_INSTANCE_ID
-            && instance.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
-        {
+        if is_built_in_managed_openclaw_instance(&instance) {
             self.set_built_in_openclaw_status(
                 paths,
                 config,
@@ -2104,7 +2103,18 @@ impl StudioService {
         storage: &StorageService,
         status: StudioInstanceStatus,
     ) -> Result<StudioInstanceRecord> {
-        self.set_instance_status(paths, config, storage, DEFAULT_INSTANCE_ID, status)
+        let mut registry = self.load_instance_registry(paths, config, storage)?;
+        let index = find_built_in_managed_openclaw_index(&registry.instances).ok_or_else(|| {
+            FrameworkError::NotFound("built-in managed OpenClaw instance".to_string())
+        })?;
+        let now = unix_timestamp_ms()?;
+        registry.instances[index].status = status;
+        registry.instances[index].updated_at = now;
+        registry.instances[index].last_seen_at = Some(now);
+
+        let updated = registry.instances[index].clone();
+        self.write_instance_registry(paths, config, storage, &registry)?;
+        Ok(updated)
     }
 
     pub fn get_instance_config(
@@ -2161,14 +2171,14 @@ impl StudioService {
         storage: &StorageService,
         id: &str,
     ) -> Result<String> {
-        if id == DEFAULT_INSTANCE_ID {
-            let log_file = paths.logs_dir.join("openclaw-gateway.log");
-            if log_file.exists() {
-                return Ok(fs::read_to_string(log_file)?);
-            }
-        }
-
         if let Some(instance) = self.get_instance(paths, config, storage, id)? {
+            if is_built_in_managed_openclaw_instance(&instance) {
+                let log_file = paths.logs_dir.join("openclaw-gateway.log");
+                if log_file.exists() {
+                    return Ok(fs::read_to_string(log_file)?);
+                }
+            }
+
             return Ok(format!(
                 "[{}] instance={} status={:?} transport={:?}",
                 instance.updated_at, instance.id, instance.status, instance.transport_kind
@@ -2750,6 +2760,21 @@ impl StudioService {
             .map_err(Into::into)
     }
 
+    fn resolve_built_in_managed_openclaw_instance(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+    ) -> Result<StudioInstanceRecord> {
+        self.load_instance_registry(paths, config, storage)?
+            .instances
+            .into_iter()
+            .find(is_built_in_managed_openclaw_instance)
+            .ok_or_else(|| {
+                FrameworkError::NotFound("built-in managed OpenClaw instance".to_string())
+            })
+    }
+
     fn sync_built_in_runtime_config(
         &self,
         paths: &AppPaths,
@@ -2800,11 +2825,7 @@ impl StudioService {
             .get_instance(paths, config, storage, instance_id)?
             .ok_or_else(|| FrameworkError::NotFound(format!("instance \"{instance_id}\"")))?;
 
-        if instance.id != DEFAULT_INSTANCE_ID
-            || !instance.is_built_in
-            || instance.runtime_kind != StudioRuntimeKind::Openclaw
-            || instance.deployment_mode != StudioInstanceDeploymentMode::LocalManaged
-        {
+        if !is_built_in_managed_openclaw_instance(&instance) {
             return Err(FrameworkError::Conflict(
                 "runtime-backed OpenClaw workspace operations are only available for the built-in managed OpenClaw instance"
                     .to_string(),
@@ -2964,42 +2985,42 @@ fn build_lifecycle_snapshot(
         }
     } else {
         match instance.deployment_mode {
-        StudioInstanceDeploymentMode::LocalManaged => StudioInstanceLifecycleSnapshot {
-            owner: StudioInstanceLifecycleOwner::ExternalProcess,
-            start_stop_supported: false,
-            config_writable: false,
-            lifecycle_controllable: false,
-            workbench_managed: false,
-            endpoint_observed: false,
-            last_activation_stage: None,
-            last_error: None,
-            notes: vec![
+            StudioInstanceDeploymentMode::LocalManaged => StudioInstanceLifecycleSnapshot {
+                owner: StudioInstanceLifecycleOwner::ExternalProcess,
+                start_stop_supported: false,
+                config_writable: false,
+                lifecycle_controllable: false,
+                workbench_managed: false,
+                endpoint_observed: false,
+                last_activation_stage: None,
+                last_error: None,
+                notes: vec![
                 "This local-managed runtime is not bound to the built-in Claw Studio controller."
                     .to_string(),
             ],
-        },
-        StudioInstanceDeploymentMode::LocalExternal => StudioInstanceLifecycleSnapshot {
-            owner: StudioInstanceLifecycleOwner::ExternalProcess,
-            start_stop_supported: false,
-            config_writable: true,
-            lifecycle_controllable: false,
-            workbench_managed: false,
-            endpoint_observed: false,
-            last_activation_stage: None,
-            last_error: None,
-            notes: vec!["Lifecycle is owned by an external local process.".to_string()],
-        },
-        StudioInstanceDeploymentMode::Remote => StudioInstanceLifecycleSnapshot {
-            owner: StudioInstanceLifecycleOwner::RemoteService,
-            start_stop_supported: false,
-            config_writable: false,
-            lifecycle_controllable: false,
-            workbench_managed: false,
-            endpoint_observed: false,
-            last_activation_stage: None,
-            last_error: None,
-            notes: vec!["Lifecycle is owned by a remote deployment.".to_string()],
-        },
+            },
+            StudioInstanceDeploymentMode::LocalExternal => StudioInstanceLifecycleSnapshot {
+                owner: StudioInstanceLifecycleOwner::ExternalProcess,
+                start_stop_supported: false,
+                config_writable: true,
+                lifecycle_controllable: false,
+                workbench_managed: false,
+                endpoint_observed: false,
+                last_activation_stage: None,
+                last_error: None,
+                notes: vec!["Lifecycle is owned by an external local process.".to_string()],
+            },
+            StudioInstanceDeploymentMode::Remote => StudioInstanceLifecycleSnapshot {
+                owner: StudioInstanceLifecycleOwner::RemoteService,
+                start_stop_supported: false,
+                config_writable: false,
+                lifecycle_controllable: false,
+                workbench_managed: false,
+                endpoint_observed: false,
+                last_activation_stage: None,
+                last_error: None,
+                notes: vec!["Lifecycle is owned by a remote deployment.".to_string()],
+            },
         }
     };
 
@@ -3012,9 +3033,9 @@ fn build_lifecycle_snapshot(
         if let Some(supervisor) = supervisor {
             if let Some(last_error) = managed_openclaw_last_error(supervisor)? {
                 snapshot.last_error = Some(last_error.clone());
-                snapshot.notes.push(format!(
-                    "Last built-in OpenClaw start error: {last_error}"
-                ));
+                snapshot
+                    .notes
+                    .push(format!("Last built-in OpenClaw start error: {last_error}"));
                 if let Some((_, detail_stage_label)) = last_bundled_openclaw_activation.as_ref() {
                     snapshot.notes.push(format!(
                         "Last built-in OpenClaw activation detail stage: {detail_stage_label}"
@@ -3059,9 +3080,10 @@ fn read_last_bundled_openclaw_activation_stage(
                 StudioInstanceActivationStage::VerifyEndpoint,
                 "Desktop Kernel Running",
             ),
-            "built-in-instance-online" => {
-                (StudioInstanceActivationStage::Ready, "Built-In Instance Online")
-            }
+            "built-in-instance-online" => (
+                StudioInstanceActivationStage::Ready,
+                "Built-In Instance Online",
+            ),
             _ => continue,
         };
 
@@ -3291,7 +3313,7 @@ fn build_console_access(
         return Ok(None);
     }
 
-    if instance.id == DEFAULT_INSTANCE_ID {
+    if uses_built_in_managed_openclaw_config(instance) {
         let root = read_managed_openclaw_config(paths)?;
         return Ok(Some(build_openclaw_console_access(
             instance,
@@ -3396,7 +3418,9 @@ fn build_openclaw_console_access(
 
     let reason = if !runtime_available {
         Some(match instance.deployment_mode {
-            StudioInstanceDeploymentMode::LocalManaged if instance.id == DEFAULT_INSTANCE_ID => {
+            StudioInstanceDeploymentMode::LocalManaged
+                if uses_built_in_managed_openclaw_config(instance) =>
+            {
                 "Built-in OpenClaw gateway is not running yet.".to_string()
             }
             StudioInstanceDeploymentMode::LocalExternal => {
@@ -4015,11 +4039,16 @@ fn discover_local_external_openclaw_config_path(
 
     let (installer_home, install_record) =
         resolve_local_external_openclaw_install_record(paths, instance)
-        .ok()
-        .flatten()?;
+            .ok()
+            .flatten()?;
     let install_method = console_install_method_from_install_record(&install_record);
 
-    discover_openclaw_config_path(paths, installer_home.as_path(), &install_record, &install_method)
+    discover_openclaw_config_path(
+        paths,
+        installer_home.as_path(),
+        &install_record,
+        &install_method,
+    )
 }
 
 fn openclaw_home_root_candidates(paths: &AppPaths, installer_home: &Path) -> Vec<PathBuf> {
@@ -4084,7 +4113,7 @@ fn build_observability_snapshot(
         .into_iter()
         .rev()
         .collect::<Vec<_>>();
-    let log_file_path = if instance.id == DEFAULT_INSTANCE_ID {
+    let log_file_path = if uses_built_in_managed_openclaw_config(instance) {
         Some(
             paths
                 .logs_dir
@@ -4099,7 +4128,7 @@ fn build_observability_snapshot(
     StudioInstanceObservabilitySnapshot {
         status: if !log_preview.is_empty() {
             StudioInstanceObservabilityStatus::Ready
-        } else if instance.id == DEFAULT_INSTANCE_ID {
+        } else if uses_built_in_managed_openclaw_config(instance) {
             StudioInstanceObservabilityStatus::Limited
         } else {
             StudioInstanceObservabilityStatus::Unavailable
@@ -4417,7 +4446,7 @@ fn build_artifacts(
     let local_external_openclaw_config_path =
         discover_local_external_openclaw_config_path(paths, instance);
 
-    if instance.id == DEFAULT_INSTANCE_ID {
+    if uses_built_in_managed_openclaw_config(instance) {
         artifacts.push(artifact_record(
             "config-file",
             "Config File",
@@ -4433,7 +4462,11 @@ fn build_artifacts(
             "Runtime Directory",
             StudioInstanceArtifactKind::RuntimeDirectory,
             StudioInstanceArtifactStatus::Available,
-            Some(paths.openclaw_runtime_dir.to_string_lossy().into_owned()),
+            Some(
+                managed_openclaw_runtime_dir(paths)
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
             true,
             "Packaged OpenClaw install directory managed by Claw Studio.",
             StudioInstanceDetailSource::Runtime,
@@ -4635,7 +4668,7 @@ fn storage_target(storage: &StudioInstanceStorageSnapshot) -> Option<String> {
 }
 
 fn local_workspace_target(paths: &AppPaths, instance: &StudioInstanceRecord) -> Option<String> {
-    if instance.id == DEFAULT_INSTANCE_ID {
+    if uses_built_in_managed_openclaw_config(instance) {
         return Some(paths.openclaw_workspace_dir.to_string_lossy().into_owned());
     }
 
@@ -4643,10 +4676,27 @@ fn local_workspace_target(paths: &AppPaths, instance: &StudioInstanceRecord) -> 
 }
 
 fn uses_built_in_managed_openclaw_config(instance: &StudioInstanceRecord) -> bool {
-    instance.id == DEFAULT_INSTANCE_ID
-        && instance.is_built_in
+    is_built_in_managed_openclaw_instance(instance)
+}
+
+fn is_built_in_managed_openclaw_instance(instance: &StudioInstanceRecord) -> bool {
+    instance.is_built_in
         && instance.runtime_kind == StudioRuntimeKind::Openclaw
         && instance.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
+        && instance.transport_kind == StudioInstanceTransportKind::OpenclawGatewayWs
+}
+
+fn find_built_in_managed_openclaw_index(instances: &[StudioInstanceRecord]) -> Option<usize> {
+    instances
+        .iter()
+        .position(|instance| {
+            is_built_in_managed_openclaw_instance(instance) && instance.id != DEFAULT_INSTANCE_ID
+        })
+        .or_else(|| {
+            instances
+                .iter()
+                .position(is_built_in_managed_openclaw_instance)
+        })
 }
 
 fn primary_connectivity_target(
@@ -4799,71 +4849,57 @@ fn default_capabilities_for_runtime(
     }
 }
 
+#[cfg(test)]
 fn read_active_openclaw_install_key(paths: &AppPaths) -> Option<String> {
+    read_active_state(paths).and_then(|active| {
+        active
+            .runtimes
+            .get("openclaw")
+            .and_then(|entry| entry.active_runtime_install_key().map(str::to_string))
+    })
+}
+
+fn read_active_state(paths: &AppPaths) -> Option<ActiveState> {
     fs::read_to_string(&paths.active_file)
         .ok()
         .and_then(|content| serde_json::from_str::<ActiveState>(&content).ok())
-        .and_then(|active| {
-            active
-                .runtimes
-                .get("openclaw")
-                .and_then(|entry| entry.active_runtime_install_key().map(str::to_string))
-        })
 }
 
-fn read_active_openclaw_version_label(paths: &AppPaths) -> Option<String> {
-    fn normalize_legacy_active_version_label(value: &str) -> Option<String> {
-        let trimmed = value.trim();
-        if trimmed.is_empty() {
-            return None;
-        }
-
-        let mut segments = trimmed.rsplitn(3, '-');
-        let arch = segments.next();
-        let platform = segments.next();
-        let version = segments.next();
-        if matches!(platform, Some("windows" | "linux" | "darwin" | "macos"))
-            && arch.is_some()
-            && version.is_some()
-        {
-            return version.map(str::to_string);
-        }
-
-        Some(trimmed.to_string())
-    }
-
-    fs::read_to_string(&paths.openclaw_authority_file)
+fn read_openclaw_authority_state(paths: &AppPaths) -> Option<KernelAuthorityState> {
+    let authority_file = paths.kernel_paths("openclaw").ok()?.authority_file;
+    fs::read_to_string(authority_file)
         .ok()
         .and_then(|content| serde_json::from_str::<KernelAuthorityState>(&content).ok())
-        .and_then(|authority| authority.active_version_label)
-        .or_else(|| {
-            fs::read_to_string(&paths.active_file)
-                .ok()
-                .and_then(|content| serde_json::from_str::<ActiveState>(&content).ok())
-                .and_then(|active| {
-                    active
-                        .runtimes
-                        .get("openclaw")
-                        .and_then(|entry| {
-                            entry
-                                .active_version_label
-                                .as_deref()
-                                .and_then(normalize_legacy_active_version_label)
-                                .or_else(|| {
-                                    entry
-                                        .active_install_key
-                                        .as_deref()
-                                        .and_then(normalize_legacy_active_version_label)
-                                })
-                                .or_else(|| {
-                                    entry
-                                        .active_version
-                                        .as_deref()
-                                        .and_then(normalize_legacy_active_version_label)
-                                })
-                        })
-                })
-        })
+}
+
+fn normalize_legacy_active_version_label(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let mut segments = trimmed.rsplitn(3, '-');
+    let arch = segments.next();
+    let platform = segments.next();
+    let version = segments.next();
+    if matches!(platform, Some("windows" | "linux" | "darwin" | "macos"))
+        && arch.is_some()
+        && version.is_some()
+    {
+        return version.map(str::to_string);
+    }
+
+    Some(trimmed.to_string())
+}
+
+fn resolve_installed_openclaw_manifest_version(
+    paths: &AppPaths,
+    install_key: &str,
+) -> Option<String> {
+    let runtime_dir = paths.kernel_paths("openclaw").ok()?.runtime_dir;
+    load_manifest(&runtime_dir.join(install_key).join("manifest.json"))
+        .ok()
+        .map(|manifest| manifest.openclaw_version)
 }
 
 fn compare_version_like(left: &str, right: &str) -> std::cmp::Ordering {
@@ -4904,7 +4940,8 @@ fn validate_create_instance_input(input: &StudioCreateInstanceInput) -> Result<(
 }
 
 fn resolve_latest_installed_openclaw_version(paths: &AppPaths) -> Option<String> {
-    fs::read_dir(&paths.openclaw_runtime_dir)
+    let runtime_dir = paths.kernel_paths("openclaw").ok()?.runtime_dir;
+    fs::read_dir(runtime_dir)
         .ok()?
         .filter_map(|entry| {
             let path = entry.ok()?.path();
@@ -4920,23 +4957,46 @@ fn resolve_latest_installed_openclaw_version(paths: &AppPaths) -> Option<String>
 }
 
 fn resolve_built_in_openclaw_display_version(paths: &AppPaths) -> String {
-    let active_install_key = read_active_openclaw_install_key(paths);
-    let active_authority_version = read_active_openclaw_version_label(paths);
-    let active_manifest_version = active_install_key
-        .as_deref()
-        .and_then(|install_key| {
-            load_manifest(
-                &paths
-                    .openclaw_runtime_dir
-                    .join(install_key)
-                    .join("manifest.json"),
-            )
-            .ok()
-        })
-        .map(|manifest| manifest.openclaw_version);
+    if let Some(authority) = read_openclaw_authority_state(paths) {
+        if let Some(install_key) = authority.active_install_key.as_deref() {
+            if let Some(manifest_version) =
+                resolve_installed_openclaw_manifest_version(paths, install_key)
+            {
+                return authority
+                    .active_version_label
+                    .as_deref()
+                    .and_then(normalize_legacy_active_version_label)
+                    .unwrap_or(manifest_version);
+            }
+        }
+    }
 
-    if let Some(version) = active_authority_version.or(active_manifest_version) {
-        return version;
+    if let Some(active) = read_active_state(paths) {
+        if let Some(entry) = active.runtimes.get("openclaw") {
+            if let Some(install_key) = entry.active_runtime_install_key() {
+                if let Some(manifest_version) =
+                    resolve_installed_openclaw_manifest_version(paths, install_key)
+                {
+                    return entry
+                        .active_version_label
+                        .as_deref()
+                        .and_then(normalize_legacy_active_version_label)
+                        .or_else(|| {
+                            entry
+                                .active_install_key
+                                .as_deref()
+                                .and_then(normalize_legacy_active_version_label)
+                        })
+                        .or_else(|| {
+                            entry
+                                .active_version
+                                .as_deref()
+                                .and_then(normalize_legacy_active_version_label)
+                        })
+                        .unwrap_or(manifest_version);
+                }
+            }
+        }
     }
 
     if let Some(version) = resolve_latest_installed_openclaw_version(paths) {
@@ -5012,16 +5072,18 @@ fn upsert_built_in_instance(
     instances: &mut Vec<StudioInstanceRecord>,
     built_in: StudioInstanceRecord,
 ) -> bool {
-    let Some(index) = instances
-        .iter()
-        .position(|instance| instance.id == DEFAULT_INSTANCE_ID)
-    else {
+    let Some(index) = find_built_in_managed_openclaw_index(instances) else {
         instances.insert(0, built_in);
         return true;
     };
 
     let previous = instances[index].clone();
+    let preferred_id = previous.id.clone();
     let merged = StudioInstanceRecord {
+        id: previous.id.clone(),
+        name: previous.name.clone(),
+        description: previous.description.clone(),
+        type_label: previous.type_label.clone(),
         created_at: previous.created_at,
         is_default: previous.is_default,
         status: previous.status.clone(),
@@ -5030,12 +5092,23 @@ fn upsert_built_in_instance(
         ..built_in
     };
 
-    if previous != merged {
-        instances[index] = merged;
-        return true;
+    let initial_len = instances.len();
+    instances.retain(|instance| {
+        !is_built_in_managed_openclaw_instance(instance) || instance.id == preferred_id
+    });
+    let mut changed = instances.len() != initial_len;
+
+    if let Some(current_index) = instances
+        .iter()
+        .position(|instance| instance.id == preferred_id)
+    {
+        if instances[current_index] != merged {
+            instances[current_index] = merged;
+            changed = true;
+        }
     }
 
-    false
+    changed
 }
 
 fn project_built_in_instance_live_state(
@@ -5043,14 +5116,10 @@ fn project_built_in_instance_live_state(
     instances: &mut [StudioInstanceRecord],
     supervisor: &SupervisorService,
 ) -> Result<()> {
-    let Some(instance) = instances.iter_mut().find(|candidate| {
-        candidate.id == DEFAULT_INSTANCE_ID
-            && candidate.is_built_in
-            && candidate.runtime_kind == StudioRuntimeKind::Openclaw
-            && candidate.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
-    }) else {
+    let Some(index) = find_built_in_managed_openclaw_index(instances) else {
         return Ok(());
     };
+    let instance = &mut instances[index];
 
     let lifecycle = managed_openclaw_lifecycle(supervisor)?;
     let gateway_running = matches!(lifecycle, OpenClawLifecycle::Ready);
@@ -5117,10 +5186,8 @@ fn normalize_default_instance(instances: &mut Vec<StudioInstanceRecord>) -> bool
         .find(|instance| instance.is_default)
         .map(|instance| instance.id.clone())
         .unwrap_or_else(|| {
-            instances
-                .iter()
-                .find(|instance| instance.id == DEFAULT_INSTANCE_ID)
-                .map(|instance| instance.id.clone())
+            find_built_in_managed_openclaw_index(instances)
+                .map(|index| instances[index].id.clone())
                 .unwrap_or_else(|| instances[0].id.clone())
         });
 
@@ -5663,7 +5730,10 @@ fn write_openclaw_config_file(paths: &AppPaths, root: &Value) -> Result<()> {
     if let Some(parent) = config_path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(config_path, format!("{}\n", serde_json::to_string_pretty(root)?))?;
+    fs::write(
+        config_path,
+        format!("{}\n", serde_json::to_string_pretty(root)?),
+    )?;
     Ok(())
 }
 
@@ -5677,6 +5747,13 @@ fn managed_openclaw_config_target(paths: &AppPaths) -> String {
         .into_owned()
 }
 
+fn managed_openclaw_runtime_dir(paths: &AppPaths) -> PathBuf {
+    paths
+        .kernel_paths("openclaw")
+        .map(|kernel| kernel.runtime_dir)
+        .unwrap_or_else(|_| paths.openclaw_runtime_dir.clone())
+}
+
 fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     let authority_path = authority_managed_openclaw_config_path(paths);
     if authority_path.exists() || !paths.openclaw_config_file.exists() {
@@ -5688,8 +5765,13 @@ fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
 
 fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
-        .active_openclaw_config_path(paths)
-        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+        .active_managed_config_path("openclaw", paths)
+        .unwrap_or_else(|_| {
+            paths
+                .kernel_paths("openclaw")
+                .map(|kernel| kernel.managed_config_file)
+                .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+        })
 }
 
 fn build_openclaw_provider_model_value(id: &str, role: &str, existing: Option<&Value>) -> Value {
@@ -5846,18 +5928,17 @@ fn get_nested_value<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
 mod tests {
     use super::{
         bundled_openclaw_version, console_install_method_from_install_record,
-        default_storage_binding, get_nested_string, get_nested_value,
-        percent_encode_url_component, read_json5_object, EmbeddedHostRuntimeStatus,
-        InstanceRegistryDocument, PartialStudioInstanceConfig, StudioConversationMessage,
-        StudioConversationMessageStatus, StudioConversationRecord, StudioConversationRole,
-        StudioCreateInstanceInput, StudioInstanceArtifactKind, StudioInstanceAuthMode,
-        StudioInstanceCapability, StudioInstanceCapabilityStatus,
-        StudioInstanceConfig, StudioInstanceConsoleInstallMethod, StudioInstanceDataAccessMode,
-        StudioInstanceDataAccessScope, StudioInstanceDeploymentMode, StudioInstanceIconType,
-        StudioInstanceLifecycleOwner, StudioInstanceRecord, StudioInstanceStatus,
-        StudioInstanceStorageStatus, StudioInstanceTransportKind, StudioRuntimeKind, StudioService,
-        StudioUpdateInstanceLlmProviderConfigInput, StudioWorkbenchLLMProviderConfigRecord,
-        DEFAULT_INSTANCE_ID,
+        default_storage_binding, get_nested_string, get_nested_value, percent_encode_url_component,
+        read_json5_object, EmbeddedHostRuntimeStatus, InstanceRegistryDocument,
+        PartialStudioInstanceConfig, StudioConversationMessage, StudioConversationMessageStatus,
+        StudioConversationRecord, StudioConversationRole, StudioCreateInstanceInput,
+        StudioInstanceArtifactKind, StudioInstanceAuthMode, StudioInstanceCapability,
+        StudioInstanceCapabilityStatus, StudioInstanceConfig, StudioInstanceConsoleInstallMethod,
+        StudioInstanceDataAccessMode, StudioInstanceDataAccessScope, StudioInstanceDeploymentMode,
+        StudioInstanceIconType, StudioInstanceLifecycleOwner, StudioInstanceRecord,
+        StudioInstanceStatus, StudioInstanceStorageStatus, StudioInstanceTransportKind,
+        StudioRuntimeKind, StudioService, StudioUpdateInstanceLlmProviderConfigInput,
+        StudioWorkbenchLLMProviderConfigRecord, DEFAULT_INSTANCE_ID,
     };
     use crate::framework::{
         config::AppConfig,
@@ -5936,10 +6017,44 @@ mod tests {
         (root, paths, config, storage, service)
     }
 
-    fn managed_openclaw_config_path(paths: &crate::framework::paths::AppPaths) -> std::path::PathBuf {
+    fn write_openclaw_manifest(
+        paths: &crate::framework::paths::AppPaths,
+        install_key: &str,
+        openclaw_version: &str,
+    ) {
+        let install_dir = paths.openclaw_runtime_dir.join(install_key);
+        fs::create_dir_all(&install_dir).expect("create install dir");
+        fs::write(
+            install_dir.join("manifest.json"),
+            format!(
+                r#"{{
+  "schemaVersion": 2,
+  "runtimeId": "openclaw",
+  "openclawVersion": "{openclaw_version}",
+  "requiredExternalRuntimes": ["nodejs"],
+  "requiredExternalRuntimeVersions": {{
+    "nodejs": "22.16.0"
+  }},
+  "platform": "windows",
+  "arch": "x64",
+  "cliRelativePath": "runtime/package/node_modules/openclaw/openclaw.mjs"
+}}"#
+            ),
+        )
+        .expect("write manifest");
+    }
+
+    fn managed_openclaw_config_path(
+        paths: &crate::framework::paths::AppPaths,
+    ) -> std::path::PathBuf {
         KernelRuntimeAuthorityService::new()
-            .active_openclaw_config_path(paths)
-            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            .active_managed_config_path("openclaw", paths)
+            .unwrap_or_else(|_| {
+                paths
+                    .kernel_paths("openclaw")
+                    .map(|kernel| kernel.managed_config_file)
+                    .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            })
     }
 
     fn desktop_host_snapshot_fixture(
@@ -6149,50 +6264,16 @@ mod tests {
         let (_root, paths, _config, _storage, _service) = studio_context();
         let latest_version = crate::framework::openclaw_release::bundled_openclaw_version();
         let stale_version = "0.0.1";
-        let old_install_dir = paths
-            .openclaw_runtime_dir
-            .join(format!("{stale_version}-windows-x64"));
-        let latest_install_dir = paths
-            .openclaw_runtime_dir
-            .join(format!("{latest_version}-windows-x64"));
-        fs::create_dir_all(&old_install_dir).expect("create old install dir");
-        fs::create_dir_all(&latest_install_dir).expect("create latest install dir");
-        fs::write(
-            old_install_dir.join("manifest.json"),
-            format!(
-                r#"{{
-  "schemaVersion": 2,
-  "runtimeId": "openclaw",
-  "openclawVersion": "{stale_version}",
-  "requiredExternalRuntimes": ["nodejs"],
-  "requiredExternalRuntimeVersions": {{
-    "nodejs": "22.16.0"
-  }},
-  "platform": "windows",
-  "arch": "x64",
-  "cliRelativePath": "runtime/package/node_modules/openclaw/openclaw.mjs"
-}}"#
-            ),
-        )
-        .expect("write old manifest");
-        fs::write(
-            latest_install_dir.join("manifest.json"),
-            format!(
-                r#"{{
-  "schemaVersion": 2,
-  "runtimeId": "openclaw",
-  "openclawVersion": "{latest_version}",
-  "requiredExternalRuntimes": ["nodejs"],
-  "requiredExternalRuntimeVersions": {{
-    "nodejs": "22.16.0"
-  }},
-  "platform": "windows",
-  "arch": "x64",
-  "cliRelativePath": "runtime/package/node_modules/openclaw/openclaw.mjs"
-}}"#
-            ),
-        )
-        .expect("write latest manifest");
+        write_openclaw_manifest(
+            &paths,
+            &format!("{stale_version}-windows-x64"),
+            stale_version,
+        );
+        write_openclaw_manifest(
+            &paths,
+            &format!("{latest_version}-windows-x64"),
+            latest_version,
+        );
         fs::write(
             &paths.active_file,
             format!(
@@ -6219,28 +6300,11 @@ mod tests {
     fn built_in_display_version_keeps_active_runtime_version_when_bundled_release_is_newer() {
         let (_root, paths, _config, _storage, _service) = studio_context();
         let stale_version = "0.0.1";
-        let old_install_dir = paths
-            .openclaw_runtime_dir
-            .join(format!("{stale_version}-windows-x64"));
-        fs::create_dir_all(&old_install_dir).expect("create old install dir");
-        fs::write(
-            old_install_dir.join("manifest.json"),
-            format!(
-                r#"{{
-  "schemaVersion": 2,
-  "runtimeId": "openclaw",
-  "openclawVersion": "{stale_version}",
-  "requiredExternalRuntimes": ["nodejs"],
-  "requiredExternalRuntimeVersions": {{
-    "nodejs": "22.16.0"
-  }},
-  "platform": "windows",
-  "arch": "x64",
-  "cliRelativePath": "runtime/package/node_modules/openclaw/openclaw.mjs"
-}}"#
-            ),
-        )
-        .expect("write old manifest");
+        write_openclaw_manifest(
+            &paths,
+            &format!("{stale_version}-windows-x64"),
+            stale_version,
+        );
         fs::write(
             &paths.active_file,
             format!(
@@ -6266,6 +6330,7 @@ mod tests {
     #[test]
     fn built_in_display_version_prefers_authority_version_label_over_install_key_parsing() {
         let (_root, paths, _config, _storage, _service) = studio_context();
+        write_openclaw_manifest(&paths, "openclaw-nightly-windows-x64", "2026.4.11-beta.1");
         fs::write(
             &paths.openclaw_authority_file,
             r#"{
@@ -6305,8 +6370,67 @@ mod tests {
     }
 
     #[test]
+    fn built_in_display_version_reads_canonical_authority_and_runtime_paths_when_compatibility_fields_drift(
+    ) {
+        let (root, mut paths, _config, _storage, _service) = studio_context();
+        let install_key = "openclaw-nightly-windows-x64";
+        let version = "2026.4.11-beta.1";
+        let openclaw = paths
+            .kernel_paths("openclaw")
+            .expect("openclaw kernel paths");
+
+        write_openclaw_manifest(&paths, install_key, version);
+        paths.openclaw_authority_file = root
+            .path()
+            .join("compatibility-only")
+            .join("authority.json");
+        paths.openclaw_runtime_dir = root.path().join("compatibility-only").join("runtime");
+        fs::write(
+            &openclaw.authority_file,
+            format!(
+                r#"{{
+  "layoutVersion": 1,
+  "runtimeId": "openclaw",
+  "activeInstallKey": "{install_key}",
+  "fallbackInstallKey": null,
+  "activeVersionLabel": "{version}",
+  "fallbackVersionLabel": null,
+  "managedConfigPath": null,
+  "ownedRuntimeRoots": [],
+  "legacyRuntimeRoots": [],
+  "quarantinedPaths": [],
+  "lastActivationAt": null,
+  "lastError": null
+}}"#
+            ),
+        )
+        .expect("write authority state");
+        fs::write(
+            &paths.active_file,
+            format!(
+                r#"{{
+  "layoutVersion": 1,
+  "modules": {{}},
+  "runtimes": {{
+    "openclaw": {{
+      "activeVersion": "{install_key}"
+    }}
+  }}
+}}"#
+            ),
+        )
+        .expect("write active file");
+
+        assert_eq!(
+            super::resolve_built_in_openclaw_display_version(&paths),
+            version.to_string()
+        );
+    }
+
+    #[test]
     fn built_in_display_version_falls_back_to_legacy_active_state_version_label() {
         let (_root, paths, _config, _storage, _service) = studio_context();
+        write_openclaw_manifest(&paths, "openclaw-nightly-windows-x64", "2026.4.11-beta.1");
         fs::write(
             &paths.active_file,
             r#"{
@@ -6325,6 +6449,68 @@ mod tests {
         assert_eq!(
             super::resolve_built_in_openclaw_display_version(&paths),
             "2026.4.11-beta.1".to_string()
+        );
+    }
+
+    #[test]
+    fn built_in_display_version_ignores_missing_active_runtime_and_uses_latest_current_install() {
+        let (_root, paths, _config, _storage, _service) = studio_context();
+        let latest_version = crate::framework::openclaw_release::bundled_openclaw_version();
+        let stale_version = "2026.3.28";
+        write_openclaw_manifest(
+            &paths,
+            &format!("{latest_version}-windows-x64"),
+            latest_version,
+        );
+        fs::write(
+            &paths.active_file,
+            format!(
+                r#"{{
+  "layoutVersion": 1,
+  "modules": {{}},
+  "runtimes": {{
+    "openclaw": {{
+      "activeVersion": "{stale_version}-windows-x64",
+      "activeVersionLabel": "{stale_version}"
+    }}
+  }}
+}}"#
+            ),
+        )
+        .expect("write active file");
+
+        assert_eq!(
+            super::resolve_built_in_openclaw_display_version(&paths),
+            latest_version.to_string()
+        );
+    }
+
+    #[test]
+    fn built_in_display_version_ignores_missing_authority_runtime_and_falls_back_to_bundled_version(
+    ) {
+        let (_root, paths, _config, _storage, _service) = studio_context();
+        fs::write(
+            &paths.openclaw_authority_file,
+            r#"{
+  "layoutVersion": 1,
+  "runtimeId": "openclaw",
+  "activeInstallKey": "2026.3.28-windows-x64",
+  "fallbackInstallKey": null,
+  "activeVersionLabel": "2026.3.28",
+  "fallbackVersionLabel": null,
+  "managedConfigPath": null,
+  "ownedRuntimeRoots": [],
+  "legacyRuntimeRoots": [],
+  "quarantinedPaths": [],
+  "lastActivationAt": null,
+  "lastError": null
+}"#,
+        )
+        .expect("write authority state");
+
+        assert_eq!(
+            super::resolve_built_in_openclaw_display_version(&paths),
+            bundled_openclaw_version().to_string()
         );
     }
 
@@ -6362,9 +6548,7 @@ mod tests {
         effective_runtime_platform: EffectiveRuntimePlatform,
         install_control_level: InstallControlLevel,
     ) {
-        let installer_home = paths
-            .user_root
-            .join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
+        let installer_home = paths.user_root.join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         let record = InstallRecord {
             schema_version: "1.0".to_string(),
             software_name: manifest_name.to_string(),
@@ -6850,6 +7034,82 @@ mod tests {
     }
 
     #[test]
+    fn preview_rollout_uses_stable_built_in_openclaw_identity() {
+        let (_root, paths, config, storage, service) = studio_context();
+        let supervisor = SupervisorService::new();
+        let stable_id = "managed-openclaw-primary";
+        let registry = InstanceRegistryDocument {
+            version: 1,
+            instances: vec![StudioInstanceRecord {
+                id: stable_id.to_string(),
+                name: "Managed OpenClaw Primary".to_string(),
+                description: Some("Stable built-in OpenClaw identity.".to_string()),
+                runtime_kind: StudioRuntimeKind::Openclaw,
+                deployment_mode: StudioInstanceDeploymentMode::LocalManaged,
+                transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
+                status: StudioInstanceStatus::Offline,
+                is_built_in: true,
+                is_default: true,
+                icon_type: StudioInstanceIconType::Server,
+                version: bundled_openclaw_version().to_string(),
+                type_label: "Built-In OpenClaw".to_string(),
+                host: "127.0.0.1".to_string(),
+                port: Some(18871),
+                base_url: Some("http://127.0.0.1:18871".to_string()),
+                websocket_url: Some("ws://127.0.0.1:18871".to_string()),
+                cpu: 0,
+                memory: 0,
+                total_memory: "Unknown".to_string(),
+                uptime: "-".to_string(),
+                capabilities: vec![
+                    StudioInstanceCapability::Chat,
+                    StudioInstanceCapability::Health,
+                    StudioInstanceCapability::Files,
+                    StudioInstanceCapability::Memory,
+                    StudioInstanceCapability::Tasks,
+                    StudioInstanceCapability::Tools,
+                    StudioInstanceCapability::Models,
+                ],
+                storage: default_storage_binding(&config),
+                config: StudioInstanceConfig {
+                    port: "18871".to_string(),
+                    sandbox: true,
+                    auto_update: true,
+                    log_level: "info".to_string(),
+                    cors_origins: "*".to_string(),
+                    workspace_path: None,
+                    base_url: Some("http://127.0.0.1:18871".to_string()),
+                    websocket_url: Some("ws://127.0.0.1:18871".to_string()),
+                    auth_token: None,
+                },
+                created_at: 1,
+                updated_at: 1,
+                last_seen_at: Some(1),
+            }],
+        };
+        service
+            .write_instance_registry(&paths, &config, &storage, &registry)
+            .expect("seed stable built-in registry");
+
+        let preview = service
+            .preview_rollout(
+                &paths,
+                &config,
+                &storage,
+                &supervisor,
+                super::PreviewRolloutInput {
+                    rollout_id: "stable-built-in-rollout".to_string(),
+                    force_recompute: false,
+                    include_targets: true,
+                },
+            )
+            .expect("preview rollout");
+
+        assert_eq!(preview.targets.len(), 1);
+        assert_eq!(preview.targets[0].node_id, stable_id);
+    }
+
+    #[test]
     fn built_in_instance_reads_http_auth_from_managed_openclaw_config() {
         let (_root, paths, config, storage, service) = studio_context();
         fs::write(
@@ -7272,15 +7532,22 @@ mod tests {
             && route.mode == StudioInstanceDataAccessMode::ManagedFile
             && route.authoritative
             && route.target.as_deref()
-                == Some(managed_openclaw_config_path(&paths).to_string_lossy().as_ref())));
+                == Some(
+                    managed_openclaw_config_path(&paths)
+                        .to_string_lossy()
+                        .as_ref()
+                )));
         assert!(detail.artifacts.iter().any(|artifact| artifact.kind
             == StudioInstanceArtifactKind::WorkspaceDirectory
             && artifact.location.as_deref()
                 == Some(paths.openclaw_workspace_dir.to_string_lossy().as_ref())));
-        assert!(detail.artifacts.iter().any(|artifact| artifact.id == "desktop-main-log-file"
-            && artifact.kind == StudioInstanceArtifactKind::LogFile
-            && artifact.location.as_deref()
-                == Some(paths.main_log_file.to_string_lossy().as_ref())));
+        assert!(detail
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.id == "desktop-main-log-file"
+                && artifact.kind == StudioInstanceArtifactKind::LogFile
+                && artifact.location.as_deref()
+                    == Some(paths.main_log_file.to_string_lossy().as_ref())));
         assert!(detail
             .capabilities
             .iter()
@@ -7293,7 +7560,7 @@ mod tests {
         let (_root, paths, config, storage, service) = studio_context();
         let (supervisor, _server) = configured_openclaw_supervisor(&paths);
         let managed_config_path = KernelRuntimeAuthorityService::new()
-            .active_openclaw_config_path(&paths)
+            .active_managed_config_path("openclaw", &paths)
             .expect("authority managed config path");
 
         fs::write(
@@ -7326,8 +7593,48 @@ mod tests {
             == StudioInstanceDataAccessScope::Config
             && route.mode == StudioInstanceDataAccessMode::ManagedFile
             && route.authoritative
-            && route.target.as_deref()
-                == Some(managed_config_path.to_string_lossy().as_ref())));
+            && route.target.as_deref() == Some(managed_config_path.to_string_lossy().as_ref())));
+    }
+
+    #[test]
+    fn built_in_instance_detail_reports_canonical_runtime_directory_when_compatibility_field_drifts(
+    ) {
+        let (root, mut paths, config, storage, service) = studio_context();
+        let openclaw = paths
+            .kernel_paths("openclaw")
+            .expect("openclaw kernel paths");
+        let (supervisor, _server) = configured_openclaw_supervisor(&paths);
+
+        paths.openclaw_runtime_dir = root.path().join("compatibility-only").join("runtime");
+
+        let detail = service
+            .get_instance_detail_with_supervisor(
+                &paths,
+                &config,
+                &storage,
+                &supervisor,
+                DEFAULT_INSTANCE_ID,
+            )
+            .expect("load instance detail")
+            .expect("built-in detail");
+
+        assert!(detail
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.id == "runtime-directory"
+                && artifact.kind == StudioInstanceArtifactKind::RuntimeDirectory
+                && artifact.location.as_deref()
+                    == Some(openclaw.runtime_dir.to_string_lossy().as_ref())));
+    }
+
+    #[test]
+    fn studio_production_code_does_not_call_openclaw_specific_config_wrapper() {
+        let production_source = include_str!("studio.rs")
+            .split("mod tests {")
+            .next()
+            .expect("production source");
+
+        assert!(!production_source.contains(".active_openclaw_config_path("));
     }
 
     #[test]
@@ -7577,7 +7884,9 @@ mod tests {
             .iter()
             .any(|note| note.contains(expected_error)));
         assert_eq!(
-            lifecycle_json.get("lastError").and_then(|value| value.as_str()),
+            lifecycle_json
+                .get("lastError")
+                .and_then(|value| value.as_str()),
             Some(expected_error)
         );
         assert_eq!(
@@ -7675,7 +7984,11 @@ mod tests {
         assert!(!config_route.authoritative);
         assert_ne!(
             config_route.target.as_deref(),
-            Some(managed_openclaw_config_path(&paths).to_string_lossy().as_ref())
+            Some(
+                managed_openclaw_config_path(&paths)
+                    .to_string_lossy()
+                    .as_ref()
+            )
         );
         assert_eq!(
             config_route.target.as_deref(),
@@ -8156,9 +8469,7 @@ mod tests {
         let work_root = root.path().join("profile-work");
         let data_root = root.path().join("profile-data");
         let host_openclaw_home = paths.user_root.join(".openclaw");
-        let installer_home = paths
-            .user_root
-            .join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
+        let installer_home = paths.user_root.join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         fs::create_dir_all(&install_root).expect("create install root");
         fs::create_dir_all(&work_root).expect("create work root");
         fs::create_dir_all(&data_root).expect("create data root");
@@ -8263,9 +8574,7 @@ mod tests {
         let install_root = root.path().join("ansible-install");
         let work_root = root.path().join("ansible-work");
         let data_root = root.path().join("ansible-data");
-        let installer_home = paths
-            .user_root
-            .join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
+        let installer_home = paths.user_root.join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         fs::create_dir_all(&install_root).expect("create ansible install root");
         fs::create_dir_all(&work_root).expect("create ansible work root");
         fs::create_dir_all(&data_root).expect("create ansible data root");
@@ -8374,9 +8683,7 @@ mod tests {
     fn local_external_openclaw_detail_prefers_install_record_matching_instance_workspace() {
         let (root, paths, config, storage, service) = studio_context();
         let host_openclaw_home = paths.user_root.join(".openclaw");
-        let installer_home = paths
-            .user_root
-            .join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
+        let installer_home = paths.user_root.join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         let profile_work_root = root.path().join("target-work");
         let profile_install_root = root.path().join("target-install");
         let profile_data_root = root.path().join("target-data");
@@ -8515,9 +8822,7 @@ mod tests {
     fn local_external_openclaw_detail_reads_from_preferred_install_record_home() {
         let (root, paths, config, storage, service) = studio_context();
         let host_openclaw_home = paths.user_root.join(".openclaw");
-        let preferred_installer_home = paths
-            .user_root
-            .join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
+        let preferred_installer_home = paths.user_root.join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         let preferred_install_root = root.path().join("preferred-install");
         let preferred_work_root = root.path().join("preferred-work");
         let preferred_data_root = root.path().join("preferred-data");
@@ -8821,8 +9126,7 @@ mod tests {
                 StudioUpdateInstanceLlmProviderConfigInput {
                     endpoint: "https://openrouter.ai/api/v1".to_string(),
                     api_key_source: "${OPENROUTER_API_KEY}".to_string(),
-                    default_model_id: "openrouter/meta-llama/llama-3.1-8b-instruct"
-                        .to_string(),
+                    default_model_id: "openrouter/meta-llama/llama-3.1-8b-instruct".to_string(),
                     reasoning_model_id: Some("anthropic/claude-3.7-sonnet".to_string()),
                     embedding_model_id: None,
                     config: StudioWorkbenchLLMProviderConfigRecord {
@@ -8862,7 +9166,12 @@ mod tests {
         .is_some());
         assert!(get_nested_value(
             &root,
-            &["agents", "defaults", "models", "anthropic/claude-3.7-sonnet"]
+            &[
+                "agents",
+                "defaults",
+                "models",
+                "anthropic/claude-3.7-sonnet"
+            ]
         )
         .is_some());
         assert!(get_nested_value(
@@ -9495,7 +9804,8 @@ Reads runtime diagnostics and summarizes them.
     }
 
     #[test]
-    fn hermes_remote_instance_detail_reports_external_runtime_constraints_and_generic_connectivity() {
+    fn hermes_remote_instance_detail_reports_external_runtime_constraints_and_generic_connectivity()
+    {
         let (_root, paths, config, storage, service) = studio_context();
         let remote = service
             .create_instance(

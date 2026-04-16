@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import * as services from './index.ts';
+import { presentChatHeader } from './chatHeaderPresentation.ts';
 
 function runTest(name: string, callback: () => void | Promise<void>) {
   return Promise.resolve()
@@ -16,10 +16,10 @@ function runTest(name: string, callback: () => void | Promise<void>) {
 await runTest(
   'presentChatHeader prefers the first user turn as the visible title and marks streaming gateway sessions as responding',
   () => {
-    assert.equal(typeof (services as any).presentChatHeader, 'function');
+    assert.equal(typeof presentChatHeader, 'function');
 
     assert.deepEqual(
-      (services as any).presentChatHeader({
+      presentChatHeader({
         isOpenClawGateway: true,
         gatewayConnectionStatus: 'connected',
         syncState: 'idle',
@@ -56,10 +56,10 @@ await runTest(
 await runTest(
   'presentChatHeader reports reconnecting while the gateway is still hydrating',
   () => {
-    assert.equal(typeof (services as any).presentChatHeader, 'function');
+    assert.equal(typeof presentChatHeader, 'function');
 
     assert.deepEqual(
-      (services as any).presentChatHeader({
+      presentChatHeader({
         isOpenClawGateway: true,
         gatewayConnectionStatus: 'disconnected',
         syncState: 'loading',
@@ -80,10 +80,10 @@ await runTest(
 await runTest(
   'presentChatHeader keeps direct chat headers in a ready state and uses the selected model as supporting detail',
   () => {
-    assert.equal(typeof (services as any).presentChatHeader, 'function');
+    assert.equal(typeof presentChatHeader, 'function');
 
     assert.deepEqual(
-      (services as any).presentChatHeader({
+      presentChatHeader({
         isOpenClawGateway: false,
         gatewayConnectionStatus: null,
         syncState: 'idle',
@@ -107,6 +107,31 @@ await runTest(
         title: 'Summarize the release checklist',
         status: 'ready',
         detailItems: ['GPT-4.1 Mini'],
+      },
+    );
+  },
+);
+
+await runTest(
+  'presentChatHeader marks unsupported chat routes as unavailable instead of ready',
+  () => {
+    assert.equal(typeof presentChatHeader, 'function');
+
+    assert.deepEqual(
+      presentChatHeader({
+        isChatSupported: false,
+        isOpenClawGateway: false,
+        gatewayConnectionStatus: null,
+        syncState: 'idle',
+        activeAgentName: null,
+        activeModelName: null,
+        activeSession: null,
+        isActiveSessionGenerating: false,
+      }),
+      {
+        title: 'New Conversation',
+        status: 'unavailable',
+        detailItems: [],
       },
     );
   },

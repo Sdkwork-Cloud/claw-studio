@@ -16,7 +16,7 @@ function runTest(name: string, fn: () => void | Promise<void>) {
 }
 
 await runTest(
-  'InstanceDetailHeader keeps status badges and instance-level actions inside the dedicated header boundary',
+  'InstanceDetailHeader keeps a single top-level status badge while preserving instance-level actions',
   () => {
     const markup = renderToStaticMarkup(
       <InstanceDetailHeader
@@ -30,9 +30,8 @@ await runTest(
           type: 'builtin',
           version: '2026.4.8',
         } as any}
-        runtimeStatus="healthy"
         canSetActive
-        canOpenOpenClawConsole
+        canOpenControlPage
         canControlLifecycle
         canRestartLifecycle
         canStopLifecycle
@@ -41,9 +40,8 @@ await runTest(
         t={(key, options) => (options ? `${key}:${JSON.stringify(options)}` : key)}
         getSharedStatusLabel={(status) => `status:${status}`}
         getStatusBadge={(status) => `status-badge:${status}`}
-        getRuntimeStatusTone={(status) => `runtime-tone:${status}`}
         onSetActive={() => undefined}
-        onOpenOpenClawConsole={() => undefined}
+        onOpenControlPage={() => undefined}
         onRestart={() => undefined}
         onStop={() => undefined}
         onStart={() => undefined}
@@ -54,9 +52,9 @@ await runTest(
     assert.match(markup, /OpenClaw Desktop/);
     assert.match(markup, /instances\.detail\.activeBadge/);
     assert.match(markup, /status:online/);
-    assert.match(markup, /instances\.detail\.instanceWorkbench\.runtimeStates\.healthy/);
+    assert.doesNotMatch(markup, /instances\.detail\.instanceWorkbench\.runtimeStates\.healthy/);
     assert.match(markup, /instances\.detail\.uptime:\{&quot;value&quot;:&quot;2h&quot;\}/);
-    assert.match(markup, /instances\.detail\.actions\.openOpenClawConsole/);
+    assert.match(markup, /instances\.detail\.actions\.openControlPage/);
     assert.match(markup, /instances\.detail\.actions\.restart/);
     assert.match(markup, /instances\.detail\.actions\.stop/);
     assert.match(markup, /instances\.detail\.actions\.uninstallInstance/);
@@ -65,7 +63,7 @@ await runTest(
 );
 
 await runTest(
-  'InstanceDetailHeader keeps the control-page action visible for built-in instances while suppressing uninstall',
+  'InstanceDetailHeader keeps the console action visible for built-in instances while suppressing uninstall',
   () => {
     const markup = renderToStaticMarkup(
       <InstanceDetailHeader
@@ -79,26 +77,24 @@ await runTest(
           type: 'builtin',
           version: '2026.4.14',
         } as any}
-        runtimeStatus="healthy"
         canSetActive={false}
-        canOpenOpenClawConsole
+        canOpenControlPage
         canControlLifecycle
         canRestartLifecycle
         canStopLifecycle
         canStartLifecycle={false}
         canDelete={false}
         t={(key) =>
-          key === 'instances.detail.actions.openOpenClawConsole'
-            ? '打开控制页面'
+          key === 'instances.detail.actions.openControlPage'
+            ? '前往控制台'
             : key === 'instances.detail.actions.uninstallInstance'
               ? '卸载实例'
               : key
         }
         getSharedStatusLabel={(status) => `status:${status}`}
         getStatusBadge={(status) => `status-badge:${status}`}
-        getRuntimeStatusTone={(status) => `runtime-tone:${status}`}
         onSetActive={() => undefined}
-        onOpenOpenClawConsole={() => undefined}
+        onOpenControlPage={() => undefined}
         onRestart={() => undefined}
         onStop={() => undefined}
         onStart={() => undefined}
@@ -106,7 +102,7 @@ await runTest(
       />,
     );
 
-    assert.match(markup, /打开控制页面/);
+    assert.match(markup, /前往控制台/);
     assert.doesNotMatch(markup, /卸载实例/);
   },
 );

@@ -3,8 +3,7 @@ use super::local_ai_proxy::{
 };
 use crate::{
     framework::{
-        paths::AppPaths,
-        services::kernel_runtime_authority::KernelRuntimeAuthorityService,
+        paths::AppPaths, services::kernel_runtime_authority::KernelRuntimeAuthorityService,
         FrameworkError, Result,
     },
     platform,
@@ -16,8 +15,7 @@ use serde_json::{Map, Number, Value};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
-    env,
-    fs,
+    env, fs,
     io::{self, Read},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
@@ -127,7 +125,9 @@ impl BundledOpenClawManifest {
         self.required_external_runtimes
             .iter()
             .any(|runtime| runtime == "nodejs")
-            && self.external_node_version().is_some_and(|version| !version.trim().is_empty())
+            && self
+                .external_node_version()
+                .is_some_and(|version| !version.trim().is_empty())
     }
 }
 
@@ -239,8 +239,12 @@ impl OpenClawRuntimeService {
 
         let managed_state =
             ensure_managed_openclaw_state(paths, Some(manifest.openclaw_version.as_str()))?;
-        KernelRuntimeAuthorityService::new()
-            .record_openclaw_activation_result(paths, &install_key, None)?;
+        KernelRuntimeAuthorityService::new().record_activation_result(
+            OPENCLAW_RUNTIME_ID,
+            paths,
+            &install_key,
+            None,
+        )?;
 
         Ok(ActivatedOpenClawRuntime {
             install_key,
@@ -362,7 +366,7 @@ fn ensure_runtime_installation_from_directory(
         })?;
     }
 
-    rename_directory_with_retry(&staging_dir, install_dir)?;
+    finalize_runtime_install_dir(&staging_dir, install_dir)?;
 
     if !runtime_dir.exists() {
         return Err(FrameworkError::Internal(format!(
@@ -418,7 +422,7 @@ fn ensure_runtime_installation_from_archive(
         })?;
     }
 
-    rename_directory_with_retry(&staging_dir, install_dir)?;
+    finalize_runtime_install_dir(&staging_dir, install_dir)?;
 
     if !runtime_dir.exists() {
         return Err(FrameworkError::Internal(format!(
@@ -514,16 +518,7 @@ fn resolve_launch_runtime_install_dir(
         )));
     }
 
-    rename_directory_with_retry_using(&candidate, install_dir, |source_dir, target_dir| {
-        fs::rename(source_dir, target_dir)
-    })
-    .map_err(|error| {
-        FrameworkError::Internal(format!(
-            "failed to finalize packaged OpenClaw install root {} from staged candidate {}: {error}",
-            install_dir.display(),
-            candidate.display()
-        ))
-    })?;
+    finalize_runtime_install_dir(&candidate, install_dir)?;
 
     if runtime_install_root_is_complete(install_dir, manifest) {
         return Ok(Some(install_dir.to_path_buf()));
@@ -616,17 +611,41 @@ pub(crate) fn validate_installed_openclaw_runtime(
     Ok(manifest)
 }
 
-fn rename_directory_with_retry(source_dir: &Path, target_dir: &Path) -> Result<()> {
-    rename_directory_with_retry_using(source_dir, target_dir, |source_dir, target_dir| {
+fn finalize_runtime_install_dir(source_dir: &Path, target_dir: &Path) -> Result<()> {
+    finalize_runtime_install_dir_using(source_dir, target_dir, |source_dir, target_dir| {
         fs::rename(source_dir, target_dir)
     })
-    .map_err(|error| {
-        FrameworkError::Internal(format!(
+}
+
+fn finalize_runtime_install_dir_using<F>(
+    source_dir: &Path,
+    target_dir: &Path,
+    mut rename_fn: F,
+) -> Result<()>
+where
+    F: FnMut(&Path, &Path) -> std::io::Result<()>,
+{
+    match rename_directory_with_retry_using(source_dir, target_dir, |source_dir, target_dir| {
+        rename_fn(source_dir, target_dir)
+    }) {
+        Ok(()) => Ok(()),
+        Err(error) if should_retry_runtime_install_rename(&error) && !target_dir.exists() => {
+            copy_directory_recursive(source_dir, target_dir)?;
+            fs::remove_dir_all(source_dir).map_err(|remove_error| {
+                FrameworkError::Internal(format!(
+                    "failed to remove staged packaged OpenClaw install root {} after copy fallback into {}: {remove_error}",
+                    source_dir.display(),
+                    target_dir.display()
+                ))
+            })?;
+            Ok(())
+        }
+        Err(error) => Err(FrameworkError::Internal(format!(
             "failed to finalize packaged OpenClaw install root {} from {}: {error}",
             target_dir.display(),
             source_dir.display()
-        ))
-    })
+        ))),
+    }
 }
 
 fn rename_directory_with_retry_using<F>(
@@ -793,11 +812,14 @@ fn extract_bundled_runtime_archive(archive_path: &Path, destination_dir: &Path) 
 
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(map_zip_error)?;
-        let relative_path = entry.enclosed_name().map(Path::to_path_buf).ok_or_else(|| {
-            FrameworkError::ValidationFailed(format!(
-                "packaged OpenClaw runtime archive contains an unsafe entry at index {index}"
-            ))
-        })?;
+        let relative_path = entry
+            .enclosed_name()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| {
+                FrameworkError::ValidationFailed(format!(
+                    "packaged OpenClaw runtime archive contains an unsafe entry at index {index}"
+                ))
+            })?;
         let destination_path = destination_dir.join(&relative_path);
 
         if entry.is_dir() {
@@ -878,7 +900,7 @@ fn ensure_managed_openclaw_state(
     fs::create_dir_all(&paths.openclaw_state_dir)?;
     fs::create_dir_all(&paths.openclaw_workspace_dir)?;
     let authority = KernelRuntimeAuthorityService::new();
-    let managed_config_path = authority.active_openclaw_config_path(paths)?;
+    let managed_config_path = authority.active_managed_config_path("openclaw", paths)?;
     let imported_config =
         authority.import_or_default_openclaw_config(paths, &managed_config_path)?;
 
@@ -912,7 +934,8 @@ fn ensure_managed_openclaw_state(
         &managed_config_path,
         format!("{}\n", serde_json::to_string_pretty(&config)?),
     )?;
-    authority.record_openclaw_config_migration(
+    authority.record_config_migration(
+        "openclaw",
         paths,
         imported_config.source_path.as_deref(),
         &managed_config_path,
@@ -1191,10 +1214,9 @@ mod tests {
     use super::{
         copy_directory_recursive, load_manifest, normalized_target_arch,
         normalized_target_platform, rename_directory_with_retry_using,
-        resolve_bundled_resource_root,
-        resolve_bundled_resource_root_with_manifest_dir, resolve_runtime_sidecar_manifest_path,
-        sha256_file_hex, staged_runtime_install_dir, BundledOpenClawManifest,
-        OpenClawRuntimeService, PreparedOpenClawRuntimeIntegrityFile,
+        resolve_bundled_resource_root, resolve_bundled_resource_root_with_manifest_dir,
+        resolve_runtime_sidecar_manifest_path, sha256_file_hex, staged_runtime_install_dir,
+        BundledOpenClawManifest, OpenClawRuntimeService, PreparedOpenClawRuntimeIntegrityFile,
         PreparedOpenClawRuntimeIntegrityManifest, PreparedOpenClawRuntimeSidecarManifest,
         BUNDLED_RUNTIME_ARCHIVE_FILE_NAME, DEFAULT_GATEWAY_PORT, OPENCLAW_RUNTIME_ID,
         PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME, TAURI_CONTROL_UI_ALLOWED_ORIGINS,
@@ -1204,13 +1226,7 @@ mod tests {
         paths::resolve_paths_for_root,
     };
     use serde_json::Value;
-    use std::{
-        env,
-        ffi::OsString,
-        fs,
-        io::Write,
-        sync::MutexGuard,
-    };
+    use std::{env, ffi::OsString, fs, io::Write, sync::MutexGuard};
     use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
     const TEST_BUNDLED_OPENCLAW_VERSION: &str = env!("SDKWORK_BUNDLED_OPENCLAW_VERSION");
@@ -1400,8 +1416,7 @@ mod tests {
     }
 
     #[test]
-    fn activation_migrates_legacy_managed_config_into_authority_path_and_quarantines_legacy_copy()
-    {
+    fn activation_migrates_legacy_managed_config_into_authority_path_and_quarantines_legacy_copy() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
@@ -1464,7 +1479,12 @@ mod tests {
         .expect("authority state json");
         assert_eq!(
             authority.managed_config_path.as_deref(),
-            Some(paths.openclaw_managed_config_file.to_string_lossy().as_ref())
+            Some(
+                paths
+                    .openclaw_managed_config_file
+                    .to_string_lossy()
+                    .as_ref()
+            )
         );
         assert_eq!(
             authority.active_install_key.as_deref(),
@@ -1488,7 +1508,12 @@ mod tests {
         );
         assert_eq!(
             migration.last_config_target_path.as_deref(),
-            Some(paths.openclaw_managed_config_file.to_string_lossy().as_ref())
+            Some(
+                paths
+                    .openclaw_managed_config_file
+                    .to_string_lossy()
+                    .as_ref()
+            )
         );
         assert!(migration
             .last_config_migrated_at
@@ -1502,8 +1527,8 @@ mod tests {
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
 
-        let manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
+        let manifest = load_manifest(&resource_root.join("manifest.json"))
+            .expect("packaged OpenClaw manifest");
 
         assert_eq!(
             manifest.required_external_runtimes,
@@ -1548,8 +1573,8 @@ mod tests {
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
-        let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
+        let bundled_manifest = load_manifest(&resource_root.join("manifest.json"))
+            .expect("packaged OpenClaw manifest");
         let install_dir = paths
             .openclaw_runtime_dir
             .join(bundled_manifest.install_key());
@@ -1656,8 +1681,8 @@ mod tests {
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
-        let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
+        let bundled_manifest = load_manifest(&resource_root.join("manifest.json"))
+            .expect("packaged OpenClaw manifest");
         let install_key = bundled_manifest.install_key();
         let install_dir = paths.openclaw_runtime_dir.join(&install_key);
         let staged_dir = staged_runtime_install_dir(&install_dir, 123);
@@ -1697,8 +1722,8 @@ mod tests {
         let sentinel = first.install_dir.join("sentinel.txt");
         fs::write(&sentinel, "keep").expect("sentinel");
 
-        let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
+        let bundled_manifest = load_manifest(&resource_root.join("manifest.json"))
+            .expect("packaged OpenClaw manifest");
         write_runtime_sidecar_manifest(&first.runtime_dir, &bundled_manifest);
 
         fs::remove_file(
@@ -1734,8 +1759,8 @@ mod tests {
         let sentinel = first.install_dir.join("sentinel.txt");
         fs::write(&sentinel, "stale").expect("sentinel");
 
-        let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
+        let bundled_manifest = load_manifest(&resource_root.join("manifest.json"))
+            .expect("packaged OpenClaw manifest");
         write_runtime_sidecar_manifest(&first.runtime_dir, &bundled_manifest);
 
         fs::write(
@@ -1780,8 +1805,8 @@ mod tests {
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
-        let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
+        let bundled_manifest = load_manifest(&resource_root.join("manifest.json"))
+            .expect("packaged OpenClaw manifest");
         write_runtime_sidecar_manifest(&resource_root.join("runtime"), &bundled_manifest);
 
         let service = OpenClawRuntimeService::new();
@@ -1810,8 +1835,8 @@ mod tests {
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
-        let bundled_manifest =
-            load_manifest(&resource_root.join("manifest.json")).expect("packaged OpenClaw manifest");
+        let bundled_manifest = load_manifest(&resource_root.join("manifest.json"))
+            .expect("packaged OpenClaw manifest");
         write_runtime_sidecar_manifest(&resource_root.join("runtime"), &bundled_manifest);
         create_test_runtime_archive(&resource_root);
         fs::remove_dir_all(resource_root.join("runtime")).expect("remove source runtime dir");
@@ -1983,7 +2008,8 @@ mod tests {
         let temp = tempfile::tempdir().expect("temp dir");
         let managed_root = create_long_windows_managed_root(temp.path());
         let paths = resolve_paths_for_root(&managed_root).expect("paths");
-        let resource_root = create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let deep_runtime_relative_path = std::path::Path::new(
             "runtime/package/node_modules/openclaw/dist/extensions/amazon-bedrock-mantle/node_modules/@aws-sdk/nested-clients/dist-types/submodules/bedrock-agent-runtime/commands/ReallyLongBundledRuntimeSmokeSentinel.d.ts",
         );
@@ -1994,8 +2020,11 @@ mod tests {
                 .expect("deep runtime parent"),
         )
         .expect("create deep runtime parent");
-        fs::write(&deep_runtime_absolute_path, "export type SmokeSentinel = 'ready';\n")
-            .expect("write deep runtime sentinel");
+        fs::write(
+            &deep_runtime_absolute_path,
+            "export type SmokeSentinel = 'ready';\n",
+        )
+        .expect("write deep runtime sentinel");
         create_test_runtime_archive(&resource_root);
         fs::remove_dir_all(resource_root.join("runtime")).expect("remove source runtime dir");
         let service = OpenClawRuntimeService::new();
@@ -2005,7 +2034,10 @@ mod tests {
             .expect("activate archived runtime with long windows paths");
 
         assert!(
-            activated.install_dir.join(deep_runtime_relative_path).exists(),
+            activated
+                .install_dir
+                .join(deep_runtime_relative_path)
+                .exists(),
             "archived packaged OpenClaw runtime install should preserve long nested file paths",
         );
     }
@@ -2055,6 +2087,45 @@ mod tests {
 
         assert_eq!(attempts, 26);
         assert!(install_dir.join("manifest.json").exists());
+        assert!(!staging_dir.exists());
+    }
+
+    #[test]
+    fn falls_back_to_copy_when_runtime_install_finalization_keeps_hitting_access_denied() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let staging_dir = temp.path().join("openclaw.staging");
+        let install_dir = temp.path().join("openclaw");
+        let nested_file = staging_dir
+            .join("runtime")
+            .join("package")
+            .join("sentinel.txt");
+        let mut attempts = 0u16;
+
+        fs::create_dir_all(nested_file.parent().expect("nested runtime parent"))
+            .expect("create staged runtime tree");
+        fs::write(staging_dir.join("manifest.json"), "{}\n").expect("write staging manifest");
+        fs::write(&nested_file, "ready\n").expect("write staged runtime file");
+
+        super::finalize_runtime_install_dir_using(
+            &staging_dir,
+            &install_dir,
+            |_source, _target| {
+                attempts = attempts.saturating_add(1);
+                Err(std::io::Error::from_raw_os_error(5))
+            },
+        )
+        .expect("finalize runtime install dir via copy fallback");
+
+        assert!(
+            attempts >= 1,
+            "expected the finalization path to attempt a rename before falling back",
+        );
+        assert!(install_dir.join("manifest.json").exists());
+        assert!(install_dir
+            .join("runtime")
+            .join("package")
+            .join("sentinel.txt")
+            .exists());
         assert!(!staging_dir.exists());
     }
 
@@ -2132,7 +2203,7 @@ mod tests {
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
-        let (busy_port, occupied_ports) = reserve_contiguous_port_window(1);
+        let (_port_lock, busy_port, occupied_ports) = reserve_contiguous_port_window(1);
 
         fs::write(
             &paths.openclaw_config_file,
@@ -2165,7 +2236,7 @@ mod tests {
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
-        let (preferred_port, occupied_ports) = reserve_contiguous_port_window(32);
+        let (_port_lock, preferred_port, occupied_ports) = reserve_contiguous_port_window(32);
 
         fs::write(
             &paths.openclaw_config_file,
@@ -2202,7 +2273,7 @@ mod tests {
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
-        let (configured_port, occupied_ports) = reserve_contiguous_port_window(1);
+        let (_port_lock, configured_port, occupied_ports) = reserve_contiguous_port_window(1);
         drop(occupied_ports);
         let activated = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
@@ -2388,7 +2459,7 @@ mod tests {
         let activated = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect("activated runtime");
-        let (busy_port, occupied_ports) = reserve_contiguous_port_window(1);
+        let (_port_lock, busy_port, occupied_ports) = reserve_contiguous_port_window(1);
 
         fs::write(
             &activated.config_path,
@@ -2642,9 +2713,7 @@ mod tests {
 
         for entry in entries {
             let entry_path = entry.path();
-            let metadata = entry
-                .metadata()
-                .expect("runtime archive entry metadata");
+            let metadata = entry.metadata().expect("runtime archive entry metadata");
             let relative_path = entry_path
                 .strip_prefix(archive_root)
                 .expect("runtime archive relative path");
@@ -2658,7 +2727,12 @@ mod tests {
                 writer
                     .add_directory(format!("{archive_path}/"), options)
                     .expect("add runtime archive directory entry");
-                append_directory_to_test_runtime_archive(writer, archive_root, &entry_path, options);
+                append_directory_to_test_runtime_archive(
+                    writer,
+                    archive_root,
+                    &entry_path,
+                    options,
+                );
                 continue;
             }
 
@@ -2712,7 +2786,10 @@ mod tests {
         .expect("runtime sidecar manifest");
     }
 
-    fn reserve_contiguous_port_window(size: u16) -> (u16, Vec<std::net::TcpListener>) {
+    fn reserve_contiguous_port_window(
+        size: u16,
+    ) -> (MutexGuard<'static, ()>, u16, Vec<std::net::TcpListener>) {
+        let port_lock = crate::framework::services::test_support::lock_loopback_ports();
         for start in 20_000..60_000u16.saturating_sub(size) {
             let mut listeners = Vec::new();
             let mut success = true;
@@ -2728,7 +2805,7 @@ mod tests {
             }
 
             if success {
-                return (start, listeners);
+                return (port_lock, start, listeners);
             }
         }
 

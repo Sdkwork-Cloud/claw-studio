@@ -319,12 +319,7 @@ fn read_installed_openclaw_install_record(installer_home: &Path) -> Option<Insta
     read_install_record(installer_home.to_string_lossy().as_ref(), "openclaw")
         .ok()
         .flatten()
-        .filter(|record| {
-            matches!(
-                record.status,
-                InstallRecordStatus::Installed
-            )
-        })
+        .filter(|record| matches!(record.status, InstallRecordStatus::Installed))
 }
 
 fn discover_registered_openclaw_config_path(

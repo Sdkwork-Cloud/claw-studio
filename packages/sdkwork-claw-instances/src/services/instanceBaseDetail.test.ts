@@ -155,3 +155,83 @@ await runTest(
     assert.equal(baseDetail?.runtimeNotes[0]?.content, 'Requires WSL2 or remote Linux');
   },
 );
+
+await runTest(
+  'projectInstanceBaseDetail keeps syncing instances in stop/restart mode instead of re-enabling start',
+  async () => {
+    assert.ok(instanceBaseDetailModule, 'Expected instanceBaseDetail.ts to exist');
+
+    const baseDetail = instanceBaseDetailModule?.projectInstanceBaseDetail({
+      instance: {
+        id: 'instance-syncing',
+        name: 'Syncing Built-In',
+        runtimeKind: 'openclaw',
+        deploymentMode: 'local-managed',
+        transportKind: 'openclawGatewayWs',
+        status: 'syncing',
+        version: '2026.4.15',
+        isBuiltIn: true,
+        host: '127.0.0.1',
+      },
+      health: {
+        score: 70,
+        status: 'healthy',
+        checks: [],
+      },
+      lifecycle: {
+        owner: 'appManaged',
+        startStopSupported: true,
+        configWritable: true,
+        lifecycleControllable: true,
+        lastActivationStage: 'runtime_sync',
+        lastError: null,
+        notes: [],
+      },
+      storage: {
+        status: 'ready',
+        provider: 'localFile',
+        namespace: 'instance-syncing',
+        durable: true,
+        queryable: true,
+        transactional: false,
+        remote: false,
+      },
+      connectivity: {
+        primaryTransport: 'openclawGatewayWs',
+        endpoints: [],
+      },
+      observability: {
+        status: 'ready',
+        logAvailable: true,
+        logFilePath: null,
+        logPreview: [],
+        lastSeenAt: null,
+        metricsSource: 'runtime',
+      },
+      dataAccess: {
+        routes: [],
+      },
+      artifacts: [],
+      capabilities: [],
+      officialRuntimeNotes: [],
+      consoleAccess: null,
+      config: {
+        port: '18789',
+        sandbox: true,
+        autoUpdate: true,
+        logLevel: 'info',
+        corsOrigins: '*',
+      },
+      logs: '',
+      workbench: null,
+    } as never);
+
+    const actionsById = Object.fromEntries(
+      (baseDetail?.management.actions ?? []).map((action) => [action.id, action]),
+    );
+
+    assert.equal(actionsById.start?.enabled, false);
+    assert.equal(actionsById.stop?.enabled, true);
+    assert.equal(actionsById.restart?.enabled, true);
+  },
+);

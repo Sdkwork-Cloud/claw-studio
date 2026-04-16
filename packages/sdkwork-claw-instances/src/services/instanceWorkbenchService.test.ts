@@ -2691,6 +2691,61 @@ await runTest(
 );
 
 await runTest(
+  'getInstanceWorkbench hides managed config access when the attached config file is missing and the OpenClaw gateway is offline',
+  async () => {
+    let readConfigSnapshotCalls = 0;
+
+    const service = createInstanceWorkbenchService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createOpenClawDetail('offline-missing-config-openclaw', {
+            instance: {
+              ...createOpenClawDetail('offline-missing-config-openclaw').instance,
+              deploymentMode: 'local-external',
+              status: 'offline',
+            },
+            lifecycle: {
+              ...createOpenClawDetail('offline-missing-config-openclaw').lifecycle,
+              configWritable: false,
+            },
+            dataAccess: {
+              routes: [
+                createManagedConfigRoute('D:/Missing/.openclaw/openclaw.json', {
+                  readonly: true,
+                  detail: 'Managed config file is readable.',
+                }),
+              ],
+            },
+            workbench: null,
+          }),
+      },
+      openClawConfigService: {
+        getConfigDocumentPathInfo: async (configPath: string) => ({
+          path: configPath,
+          name: 'openclaw.json',
+          kind: 'missing' as const,
+          size: null,
+          extension: '.json',
+          exists: false,
+          lastModifiedMs: null,
+        }),
+        readConfigSnapshot: async (configPath: string) => {
+          readConfigSnapshotCalls += 1;
+          return createManagedConfigSnapshot(configPath);
+        },
+      },
+    });
+
+    const workbench = await service.getInstanceWorkbench('offline-missing-config-openclaw');
+
+    assert.equal(workbench?.managedConfigPath, null);
+    assert.equal(workbench?.sectionCounts.config, 0);
+    assert.equal(workbench?.sectionAvailability.config.status, 'planned');
+    assert.equal(readConfigSnapshotCalls, 0);
+  },
+);
+
+await runTest(
   'getInstanceWorkbench keeps managed agent default params visible as inherited sources in workbench agents',
   async () => {
     const managedConfigPath = 'D:/OpenClaw/.openclaw/openclaw.json';

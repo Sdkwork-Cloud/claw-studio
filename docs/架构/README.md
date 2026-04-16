@@ -18,6 +18,7 @@
 - `Provider Center`、`Kernel Center`、`Instance Detail` 已形成配置、运行、治理三类核心管理面。
 - `Instance Detail` 当前已覆盖 `overview`、`channels`、`cronTasks`、`llmProviders`、`agents`、`skills`、`files`、`memory`、`tools`、`config` 十个工作台分区。
 - OpenClaw 升级链路已具备版本源、打包脚本、升级就绪校验、资源校验与契约测试。
+- 当前已具备多内核 catalog 与 package profile 基础，但 kernel 的版本、目录、authority 与升级治理仍然存在 OpenClaw 偏置，需要通过统一的多内核治理标准收敛。
 
 ## 3. 架构硬约束
 
@@ -47,6 +48,7 @@
 15. `15-Instance Detail 功能一致性基线与验收矩阵.md`
 16. `16-API体系与契约设计.md`
 17. `17-能力到API调用矩阵.md`
+18. `18-多内核治理与升级维护设计.md`
 
 ## 5. 评估方法
 
@@ -57,4 +59,4 @@
 
 ## 6. 总体结论
 
-当前仓库已经具备成为行业领先桌面 AI 工作台的骨架，后续重点不是推翻，而是围绕“内置 OpenClaw 托管化、本地 Proxy 网关统一化、Instance Detail 完整化、升级链路工程化、商业交付标准化”持续迭代。
+当前仓库已经具备成为行业领先桌面 AI 工作台的骨架，后续重点不是推翻，而是围绕“内置 OpenClaw 托管化、本地 Proxy 网关统一化、Instance Detail 完整化、多内核治理标准化、升级链路工程化、商业交付标准化”持续迭代。

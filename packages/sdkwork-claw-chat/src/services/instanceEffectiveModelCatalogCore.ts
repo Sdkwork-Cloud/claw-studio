@@ -425,6 +425,14 @@ class DefaultInstanceEffectiveModelCatalogService
       return { channels: [] };
     }
 
+    const route = resolveInstanceChatRoute(instance);
+    if (route.mode === 'unsupported') {
+      return {
+        channels: [],
+        preferredModelId: null,
+      };
+    }
+
     const [routerChannels, routerProviders, routerModels] = await Promise.all([
       this.dependencies.listRouterChannels(),
       this.dependencies.listRouterProviders(),
@@ -436,7 +444,6 @@ class DefaultInstanceEffectiveModelCatalogService
       models: routerModels,
     });
 
-    const route = resolveInstanceChatRoute(instance);
     if (route.mode !== 'instanceOpenClawGatewayWs') {
       return {
         channels: groupEntriesToChannels(routerCatalog, {

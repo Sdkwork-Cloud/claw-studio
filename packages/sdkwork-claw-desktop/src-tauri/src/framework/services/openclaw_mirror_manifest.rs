@@ -625,9 +625,9 @@ fn looks_like_openclaw_version_label(value: &str) -> bool {
     let trimmed = value.trim();
     !trimmed.is_empty()
         && trimmed.chars().any(|character| character.is_ascii_digit())
-        && trimmed
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_'))
+        && trimmed.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_')
+        })
 }
 
 #[cfg(test)]
@@ -738,7 +738,8 @@ mod tests {
     }
 
     #[test]
-    fn openclaw_mirror_manifest_does_not_infer_version_from_non_version_install_key_without_manifest() {
+    fn openclaw_mirror_manifest_does_not_infer_version_from_non_version_install_key_without_manifest(
+    ) {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         seed_managed_openclaw_tree(&paths);

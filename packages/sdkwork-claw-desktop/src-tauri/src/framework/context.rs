@@ -3,11 +3,10 @@ use crate::framework::{
     config::{load_or_create_config, AppConfig},
     desktop_host_bootstrap::{bootstrap_desktop_host_runtime, DesktopHostRuntime},
     events,
-    FrameworkError,
     logging::{init_logger, AppLogger},
     paths::AppPaths,
     services::{studio::StudioInstanceStatus, FrameworkServices},
-    Result,
+    FrameworkError, Result,
 };
 use std::{fmt::Debug, sync::Arc};
 use tauri::{AppHandle, Emitter, Runtime};

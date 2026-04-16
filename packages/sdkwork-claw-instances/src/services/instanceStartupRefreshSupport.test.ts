@@ -42,10 +42,15 @@ function createInstance(overrides: Record<string, unknown> = {}) {
 }
 
 function createWorkbench(overrides: Record<string, unknown> = {}) {
+  const detail = (overrides.detail as { instance?: ReturnType<typeof createInstance> } | undefined) ?? {
+    instance: createInstance(),
+  };
+
   return {
-    detail: {
-      instance: createInstance(),
-    },
+    instance: (overrides.instance as ReturnType<typeof createInstance> | undefined)
+      ?? detail.instance
+      ?? createInstance(),
+    detail,
     ...overrides,
   };
 }
@@ -129,6 +134,24 @@ await runTest('instance startup refresh support also polls the workbench for fut
       createWorkbench({
         detail: {
           instance: createManagedFutureKernelLikeInstance(),
+        },
+      }) as any,
+    ),
+    true,
+  );
+});
+
+await runTest('instance startup refresh support keeps polling the workbench when the normalized snapshot still shows startup while raw detail lags behind in syncing', () => {
+  assert.equal(
+    hasPendingBuiltInOpenClawWorkbenchStartup(
+      createWorkbench({
+        instance: createInstance({
+          status: 'starting',
+        }),
+        detail: {
+          instance: createInstance({
+            status: 'syncing',
+          }),
         },
       }) as any,
     ),
@@ -241,6 +264,29 @@ await runTest('instance startup refresh support also refreshes the active workbe
       }) as any,
       {
         instanceId: 'local-built-in-phoenixclaw',
+        status: 'online',
+      } as any,
+    ),
+    true,
+  );
+});
+
+await runTest('instance startup refresh support refreshes the active workbench when the normalized snapshot remains in startup even if raw detail still says syncing', () => {
+  assert.equal(
+    shouldRefreshWorkbenchForBuiltInOpenClawStatusChange(
+      'local-built-in',
+      createWorkbench({
+        instance: createInstance({
+          status: 'starting',
+        }),
+        detail: {
+          instance: createInstance({
+            status: 'syncing',
+          }),
+        },
+      }) as any,
+      {
+        instanceId: 'local-built-in',
         status: 'online',
       } as any,
     ),

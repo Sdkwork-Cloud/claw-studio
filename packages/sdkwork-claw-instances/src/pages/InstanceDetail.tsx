@@ -12,6 +12,20 @@ import type { Instance } from '../types';
 import type { InstanceBaseDetail } from '../services';
 import { UnsupportedInstanceDetailPage } from './UnsupportedInstanceDetailPage';
 
+const INSTANCE_DETAIL_PLACEHOLDER: Instance = {
+  id: '__instance-detail-placeholder__',
+  name: 'Unknown Instance',
+  type: 'Unknown Runtime',
+  iconType: 'server',
+  status: 'offline',
+  version: '',
+  uptime: '-',
+  ip: '127.0.0.1',
+  cpu: 0,
+  memory: 0,
+  totalMemory: 'Unknown',
+};
+
 function renderInstanceDetailLoadingState() {
   return (
     <div className="mx-auto flex h-64 max-w-6xl items-center justify-center p-4 md:p-8">
@@ -27,6 +41,9 @@ export function InstanceDetail() {
   const [instance, setInstance] = useState<Instance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const handleBackToInstances = () => navigate('/instances');
+  const kernelId = instance ? resolveRegistryKernelId(instance) : 'custom';
+  const detailModule = instance ? resolveSupportedInstanceDetailModule(kernelId) : null;
+  const detailChrome = detailModule?.chrome ?? 'sharedWorkbench';
 
   useEffect(() => {
     let isCancelled = false;
@@ -64,6 +81,46 @@ export function InstanceDetail() {
     };
   }, [id]);
 
+  const detailSource = useMemo(() => {
+    const baseDetailPromiseByInstanceId = new Map<string, Promise<InstanceBaseDetail | null>>();
+    const effectiveInstanceId = id ?? INSTANCE_DETAIL_PLACEHOLDER.id;
+    const effectiveInstance = instance ?? INSTANCE_DETAIL_PLACEHOLDER;
+    const loadBaseDetail = (instanceId: string) => {
+      if (!id || !instance) {
+        return Promise.resolve<InstanceBaseDetail | null>(null);
+      }
+
+      const cachedPromise = baseDetailPromiseByInstanceId.get(instanceId);
+      if (cachedPromise) {
+        return cachedPromise;
+      }
+
+      const nextPromise = instanceService.getInstanceDetail(instanceId).then((detail) => (
+        detail ? projectInstanceBaseDetail(detail) : null
+      ));
+      baseDetailPromiseByInstanceId.set(instanceId, nextPromise);
+      return nextPromise;
+    };
+
+    return createInstanceDetailSource({
+      instanceId: effectiveInstanceId,
+      kernelId,
+      chrome: detailChrome,
+      instance: effectiveInstance,
+      loadBaseDetail: async (instanceId) => loadBaseDetail(instanceId),
+      loadModulePayload: async (instanceId) => {
+        if (!detailModule || !instance) {
+          return null;
+        }
+
+        return detailModule.loadModulePayload(instanceId, {
+          instance,
+          loadBaseDetail: () => loadBaseDetail(instanceId),
+        });
+      },
+    });
+  }, [detailChrome, detailModule, id, instance, kernelId]);
+
   if (isLoading) {
     return renderInstanceDetailLoadingState();
   }
@@ -84,8 +141,6 @@ export function InstanceDetail() {
     );
   }
 
-  const kernelId = resolveRegistryKernelId(instance);
-  const detailModule = resolveSupportedInstanceDetailModule(kernelId);
   if (!detailModule) {
     return (
       <UnsupportedInstanceDetailPage
@@ -96,35 +151,6 @@ export function InstanceDetail() {
   }
 
   const DetailPage = detailModule.DetailPage;
-  const detailSource = useMemo(() => {
-    const baseDetailPromiseByInstanceId = new Map<string, Promise<InstanceBaseDetail | null>>();
-    const loadBaseDetail = (instanceId: string) => {
-      const cachedPromise = baseDetailPromiseByInstanceId.get(instanceId);
-      if (cachedPromise) {
-        return cachedPromise;
-      }
-
-      const nextPromise = instanceService.getInstanceDetail(instanceId).then((detail) => (
-        detail ? projectInstanceBaseDetail(detail) : null
-      ));
-      baseDetailPromiseByInstanceId.set(instanceId, nextPromise);
-      return nextPromise;
-    };
-
-    return createInstanceDetailSource({
-      instanceId: id,
-      kernelId,
-      chrome: detailModule.chrome,
-      instance,
-      loadBaseDetail: async (instanceId) => loadBaseDetail(instanceId),
-      loadModulePayload: async (instanceId) =>
-        detailModule.loadModulePayload(instanceId, {
-          instance,
-          loadBaseDetail: () => loadBaseDetail(instanceId),
-        }),
-    });
-  }, [detailModule, id, instance, kernelId]);
-
   return (
     <Suspense fallback={renderInstanceDetailLoadingState()}>
       <DetailPage source={detailSource} />

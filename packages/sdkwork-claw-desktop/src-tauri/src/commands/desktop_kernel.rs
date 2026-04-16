@@ -323,7 +323,10 @@ mod tests {
         assert_eq!(info.supervisor.lifecycle, "running");
         assert_eq!(info.bundled_components.component_count, 0);
         assert_eq!(info.bundled_components.package_profile_id, "openclaw-only");
-        assert_eq!(info.bundled_components.included_kernel_ids, vec!["openclaw"]);
+        assert_eq!(
+            info.bundled_components.included_kernel_ids,
+            vec!["openclaw"]
+        );
         assert_eq!(info.bundled_components.component_count, 0);
         assert_eq!(
             info.bundled_components.default_enabled_kernel_ids,
@@ -393,7 +396,8 @@ mod tests {
         )
         .ends_with("machine/runtime/runtimes/openclaw"));
         assert_eq!(
-            payload["openClawRuntime"]["authority"]["readinessProbe"]["supportsLoopbackHealthProbe"],
+            payload["openClawRuntime"]["authority"]["readinessProbe"]
+                ["supportsLoopbackHealthProbe"],
             true
         );
         assert_eq!(
@@ -648,8 +652,14 @@ mod tests {
             info.bundled_components.default_enabled_kernel_ids,
             vec!["hermes"]
         );
-        assert_eq!(payload["bundledComponents"]["packageProfileId"], "hermes-only");
-        assert_eq!(payload["bundledComponents"]["includedKernelIds"][0], "hermes");
+        assert_eq!(
+            payload["bundledComponents"]["packageProfileId"],
+            "hermes-only"
+        );
+        assert_eq!(
+            payload["bundledComponents"]["includedKernelIds"][0],
+            "hermes"
+        );
         assert_eq!(
             payload["bundledComponents"]["defaultEnabledKernelIds"][0],
             "hermes"

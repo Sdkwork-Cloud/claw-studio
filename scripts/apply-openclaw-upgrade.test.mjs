@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -13,11 +13,21 @@ function createJson(filePath, value) {
 }
 
 function createReleaseConfig(workspaceRootDir, stableVersion) {
-  createJson(path.join(workspaceRootDir, 'config', 'openclaw-release.json'), {
+  createJson(path.join(workspaceRootDir, 'config', 'kernel-releases', 'openclaw.json'), {
+    kernelId: 'openclaw',
     stableVersion,
+    supportedChannels: ['stable'],
+    defaultChannel: 'stable',
     nodeVersion: '22.16.0',
     packageName: 'openclaw',
+    runtimeRequirements: {
+      requiredExternalRuntimes: ['nodejs'],
+      requiredExternalRuntimeVersions: {
+        nodejs: '22.16.0',
+      },
+    },
     runtimeSupplementalPackages: [],
+    runtimeSupplementalPackageExceptions: [],
   });
 }
 
@@ -45,9 +55,14 @@ test('applyOpenClawUpgrade refuses to mutate release config when readiness is bl
     );
 
     const releaseConfig = JSON.parse(
-      readFileSync(path.join(tempRoot, 'config', 'openclaw-release.json'), 'utf8'),
+      readFileSync(path.join(tempRoot, 'config', 'kernel-releases', 'openclaw.json'), 'utf8'),
     );
     assert.equal(releaseConfig.stableVersion, '2026.4.9');
+    assert.equal(
+      existsSync(path.join(tempRoot, 'config', 'openclaw-release.json')),
+      false,
+      'applyOpenClawUpgrade must not synthesize the legacy compatibility projection when readiness blocks the upgrade before mutation starts',
+    );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -192,6 +207,14 @@ test('applyOpenClawUpgrade updates the release baseline and runs sync, prepare, 
     assert.equal(result.versionState.preparedRuntimeVersion, '2026.4.11');
     assert.equal(result.versionState.bundledManifestVersion, '2026.4.11');
     assert.equal(result.versionState.generatedManifestVersion, '2026.4.11');
+    const releaseConfig = JSON.parse(
+      readFileSync(path.join(tempRoot, 'config', 'kernel-releases', 'openclaw.json'), 'utf8'),
+    );
+    assert.equal(releaseConfig.stableVersion, '2026.4.11');
+    const legacyReleaseConfig = JSON.parse(
+      readFileSync(path.join(tempRoot, 'config', 'openclaw-release.json'), 'utf8'),
+    );
+    assert.equal(legacyReleaseConfig.stableVersion, '2026.4.11');
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -220,13 +243,17 @@ test('applyOpenClawUpgrade restores the previous release baseline if a downstrea
           }
         },
       }),
-      /restored config\/openclaw-release\.json/i,
+      /restored config\/kernel-releases\/openclaw\.json/i,
     );
 
     const releaseConfig = JSON.parse(
-      readFileSync(path.join(tempRoot, 'config', 'openclaw-release.json'), 'utf8'),
+      readFileSync(path.join(tempRoot, 'config', 'kernel-releases', 'openclaw.json'), 'utf8'),
     );
     assert.equal(releaseConfig.stableVersion, '2026.4.9');
+    const legacyReleaseConfig = JSON.parse(
+      readFileSync(path.join(tempRoot, 'config', 'openclaw-release.json'), 'utf8'),
+    );
+    assert.equal(legacyReleaseConfig.stableVersion, '2026.4.9');
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

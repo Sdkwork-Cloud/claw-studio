@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { openClawConfigService } from '@sdkwork/claw-core';
+import { configurePlatformBridge, getPlatformBridge } from '@sdkwork/claw-infrastructure';
+import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
 import { channelService } from './channelService.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
@@ -45,6 +48,153 @@ async function withMockedWindowStorage(fn: () => Promise<void>) {
   } finally {
     globalWithWindow.window = originalWindow;
   }
+}
+
+function createManagedWorkbenchDetail(
+  channelOverrides: Partial<
+    NonNullable<NonNullable<StudioInstanceDetailRecord['workbench']>['channels']>[number]
+  > = {},
+): StudioInstanceDetailRecord {
+  const channel = {
+    id: 'wehcat',
+    name: 'Wehcat',
+    description: 'Wehcat official account bridge.',
+    status: 'connected',
+    enabled: true,
+    configurationMode: 'required',
+    fieldCount: 3,
+    configuredFieldCount: 3,
+    setupSteps: ['Create an app', 'Copy credentials'],
+    values: {
+      appId: 'wx1234567890abcdef',
+      appSecret: 'secret',
+      token: 'token',
+    },
+    ...channelOverrides,
+  };
+
+  return {
+    instance: {
+      id: 'managed-openclaw',
+      name: 'Managed OpenClaw',
+      description: 'Managed OpenClaw instance for channels fallback tests.',
+      runtimeKind: 'openclaw',
+      deploymentMode: 'local-managed',
+      transportKind: 'openclawGatewayWs',
+      status: 'online',
+      isBuiltIn: true,
+      isDefault: true,
+      iconType: 'server',
+      version: '2026.04.16',
+      typeLabel: 'OpenClaw',
+      host: '127.0.0.1',
+      port: 18789,
+      baseUrl: 'http://127.0.0.1:18789',
+      websocketUrl: 'ws://127.0.0.1:18789',
+      cpu: 0,
+      memory: 0,
+      totalMemory: '0 GB',
+      uptime: '0m',
+      capabilities: ['channels'],
+      storage: {
+        provider: 'localFile',
+        namespace: 'managed-openclaw',
+      },
+      config: {
+        port: '18789',
+        sandbox: true,
+        autoUpdate: true,
+        logLevel: 'info',
+        corsOrigins: '*',
+      },
+      createdAt: 1,
+      updatedAt: 1,
+      lastSeenAt: 1,
+    },
+    config: {
+      port: '18789',
+      sandbox: true,
+      autoUpdate: true,
+      logLevel: 'info',
+      corsOrigins: '*',
+    },
+    logs: '',
+    health: {
+      score: 100,
+      status: 'healthy',
+      checks: [],
+      evaluatedAt: 1,
+    },
+    lifecycle: {
+      owner: 'appSupervisor',
+      startStopSupported: true,
+      configWritable: true,
+      notes: [],
+    },
+    storage: {
+      status: 'ready',
+      provider: 'localFile',
+      namespace: 'managed-openclaw',
+      durable: true,
+      queryable: false,
+      transactional: false,
+      remote: false,
+    },
+    connectivity: {
+      primaryTransport: 'openclawGatewayWs',
+      endpoints: [],
+    },
+    observability: {
+      status: 'ready',
+      logAvailable: true,
+      logPreview: [],
+      metricsSource: 'runtime',
+      lastSeenAt: 1,
+    },
+    dataAccess: {
+      routes: [
+        {
+          id: 'config',
+          label: 'Config',
+          scope: 'config',
+          mode: 'managedFile',
+          status: 'ready',
+          target: 'D:/missing/.openclaw/openclaw.json',
+          readonly: false,
+          authoritative: true,
+          detail: 'Writable config file',
+          source: 'config',
+        },
+      ],
+    },
+    artifacts: [
+      {
+        id: 'config-file',
+        label: 'Config File',
+        kind: 'configFile',
+        status: 'configured',
+        location: 'D:/missing/.openclaw/openclaw.json',
+        readonly: false,
+        detail: 'Writable config file',
+        source: 'config',
+      },
+    ],
+    capabilities: [],
+    officialRuntimeNotes: [],
+    consoleAccess: {
+      supported: false,
+      entries: [],
+    },
+    workbench: {
+      channels: [channel],
+    } as StudioInstanceDetailRecord['workbench'],
+  };
+}
+
+function createMissingConfigError() {
+  return new Error(
+    'The attached OpenClaw config file is no longer available on disk. Re-scan or reattach the instance configuration. (C:/ProgramData/SdkWork/CrawStudio/state/kernels/openclaw/managed-config/openclaw.json)',
+  );
 }
 
 await runTest('getList exposes the seeded channel catalog', async () => {
@@ -100,3 +250,254 @@ await runTest('create preserves the v3 unimplemented mutation contract', async (
     /Method not implemented\./,
   );
 });
+
+await runTest(
+  'getChannels falls back to the workbench snapshot when the managed config path is stale',
+  async () => {
+    const originalBridge = getPlatformBridge();
+    const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot;
+    const detail = createManagedWorkbenchDetail();
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstanceDetail() {
+          return detail;
+        },
+      },
+    });
+    (openClawConfigService as typeof openClawConfigService & {
+      readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+    }).readConfigSnapshot = async () => {
+      throw createMissingConfigError();
+    };
+
+    try {
+      const channels = await channelService.getChannels('managed-openclaw');
+      const wehcat = channels.find((channel) => channel.id === 'wehcat');
+
+      assert.equal(wehcat?.enabled, true);
+      assert.equal(wehcat?.status, 'connected');
+      assert.equal(
+        wehcat?.fields.find((field) => field.key === 'appId')?.value,
+        'wx1234567890abcdef',
+      );
+    } finally {
+      (openClawConfigService as typeof openClawConfigService & {
+        readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+      }).readConfigSnapshot = originalReadConfigSnapshot;
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'updateChannelStatus falls back to the workbench bridge when the managed config path is stale',
+  async () => {
+    const originalBridge = getPlatformBridge();
+    const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot;
+    const originalSetChannelEnabled = openClawConfigService.setChannelEnabled;
+    const detail = createManagedWorkbenchDetail();
+    const bridgeCalls: string[] = [];
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstanceDetail() {
+          return detail;
+        },
+        async setInstanceChannelEnabled(_instanceId, channelId, enabled) {
+          bridgeCalls.push(`toggle:${channelId}:${enabled}`);
+          const wehcat = detail.workbench?.channels.find((channel) => channel.id === channelId);
+          if (!wehcat) {
+            return false;
+          }
+
+          wehcat.enabled = enabled;
+          wehcat.status = enabled ? 'connected' : 'disconnected';
+          return true;
+        },
+      },
+    });
+    (openClawConfigService as typeof openClawConfigService & {
+      readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+      setChannelEnabled: typeof openClawConfigService.setChannelEnabled;
+    }).readConfigSnapshot = async () => {
+      throw createMissingConfigError();
+    };
+    (openClawConfigService as typeof openClawConfigService & {
+      readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+      setChannelEnabled: typeof openClawConfigService.setChannelEnabled;
+    }).setChannelEnabled = async () => {
+      throw createMissingConfigError();
+    };
+
+    try {
+      const channels = await channelService.updateChannelStatus(
+        'managed-openclaw',
+        'wehcat',
+        false,
+      );
+      const wehcat = channels.find((channel) => channel.id === 'wehcat');
+
+      assert.deepEqual(bridgeCalls, ['toggle:wehcat:false']);
+      assert.equal(wehcat?.enabled, false);
+      assert.equal(wehcat?.status, 'disconnected');
+    } finally {
+      (openClawConfigService as typeof openClawConfigService & {
+        readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+        setChannelEnabled: typeof openClawConfigService.setChannelEnabled;
+      }).readConfigSnapshot = originalReadConfigSnapshot;
+      (openClawConfigService as typeof openClawConfigService & {
+        readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+        setChannelEnabled: typeof openClawConfigService.setChannelEnabled;
+      }).setChannelEnabled = originalSetChannelEnabled;
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'saveChannelConfig falls back to the workbench bridge when the managed config path is stale',
+  async () => {
+    const originalBridge = getPlatformBridge();
+    const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot;
+    const originalSaveChannelConfiguration = openClawConfigService.saveChannelConfiguration;
+    const detail = createManagedWorkbenchDetail({
+      status: 'not_configured',
+      enabled: false,
+      configuredFieldCount: 0,
+      values: {},
+    });
+    const bridgeCalls: string[] = [];
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstanceDetail() {
+          return detail;
+        },
+        async saveInstanceChannelConfig(_instanceId, channelId, values) {
+          bridgeCalls.push(`save:${channelId}`);
+          const wehcat = detail.workbench?.channels.find((channel) => channel.id === channelId);
+          if (!wehcat) {
+            return false;
+          }
+
+          wehcat.values = { ...values };
+          wehcat.enabled = true;
+          wehcat.status = 'connected';
+          wehcat.configuredFieldCount = Object.values(values).filter((value) => value.trim()).length;
+          return true;
+        },
+      },
+    });
+    (openClawConfigService as typeof openClawConfigService & {
+      readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+      saveChannelConfiguration: typeof openClawConfigService.saveChannelConfiguration;
+    }).readConfigSnapshot = async () => {
+      throw createMissingConfigError();
+    };
+    (openClawConfigService as typeof openClawConfigService & {
+      readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+      saveChannelConfiguration: typeof openClawConfigService.saveChannelConfiguration;
+    }).saveChannelConfiguration = async () => {
+      throw createMissingConfigError();
+    };
+
+    try {
+      const channels = await channelService.saveChannelConfig('managed-openclaw', 'wehcat', {
+        appId: 'wx-channel',
+        appSecret: 'secret',
+        token: 'token',
+      });
+      const wehcat = channels.find((channel) => channel.id === 'wehcat');
+
+      assert.deepEqual(bridgeCalls, ['save:wehcat']);
+      assert.equal(wehcat?.enabled, true);
+      assert.equal(wehcat?.status, 'connected');
+      assert.equal(
+        wehcat?.fields.find((field) => field.key === 'appId')?.value,
+        'wx-channel',
+      );
+    } finally {
+      (openClawConfigService as typeof openClawConfigService & {
+        readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+        saveChannelConfiguration: typeof openClawConfigService.saveChannelConfiguration;
+      }).readConfigSnapshot = originalReadConfigSnapshot;
+      (openClawConfigService as typeof openClawConfigService & {
+        readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+        saveChannelConfiguration: typeof openClawConfigService.saveChannelConfiguration;
+      }).saveChannelConfiguration = originalSaveChannelConfiguration;
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'deleteChannelConfig falls back to the workbench bridge when the managed config path is stale',
+  async () => {
+    const originalBridge = getPlatformBridge();
+    const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot;
+    const originalSaveChannelConfiguration = openClawConfigService.saveChannelConfiguration;
+    const detail = createManagedWorkbenchDetail();
+    const bridgeCalls: string[] = [];
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstanceDetail() {
+          return detail;
+        },
+        async deleteInstanceChannelConfig(_instanceId, channelId) {
+          bridgeCalls.push(`delete:${channelId}`);
+          const wehcat = detail.workbench?.channels.find((channel) => channel.id === channelId);
+          if (!wehcat) {
+            return false;
+          }
+
+          wehcat.values = {};
+          wehcat.enabled = false;
+          wehcat.status = 'not_configured';
+          wehcat.configuredFieldCount = 0;
+          return true;
+        },
+      },
+    });
+    (openClawConfigService as typeof openClawConfigService & {
+      readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+      saveChannelConfiguration: typeof openClawConfigService.saveChannelConfiguration;
+    }).readConfigSnapshot = async () => {
+      throw createMissingConfigError();
+    };
+    (openClawConfigService as typeof openClawConfigService & {
+      readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+      saveChannelConfiguration: typeof openClawConfigService.saveChannelConfiguration;
+    }).saveChannelConfiguration = async () => {
+      throw createMissingConfigError();
+    };
+
+    try {
+      const channels = await channelService.deleteChannelConfig('managed-openclaw', 'wehcat');
+      const wehcat = channels.find((channel) => channel.id === 'wehcat');
+
+      assert.deepEqual(bridgeCalls, ['delete:wehcat']);
+      assert.equal(wehcat?.enabled, false);
+      assert.equal(wehcat?.status, 'not_configured');
+      assert.equal(
+        wehcat?.fields.find((field) => field.key === 'appId')?.value,
+        undefined,
+      );
+    } finally {
+      (openClawConfigService as typeof openClawConfigService & {
+        readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+        saveChannelConfiguration: typeof openClawConfigService.saveChannelConfiguration;
+      }).readConfigSnapshot = originalReadConfigSnapshot;
+      (openClawConfigService as typeof openClawConfigService & {
+        readConfigSnapshot: typeof openClawConfigService.readConfigSnapshot;
+        saveChannelConfiguration: typeof openClawConfigService.saveChannelConfiguration;
+      }).saveChannelConfiguration = originalSaveChannelConfiguration;
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);

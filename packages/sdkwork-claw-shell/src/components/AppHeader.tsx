@@ -10,11 +10,6 @@ const InstanceSwitcher = lazy(() =>
     default: module.InstanceSwitcher,
   })),
 );
-const PointsHeaderEntry = lazy(() =>
-  import('@sdkwork/claw-points').then((module) => ({
-    default: module.PointsHeaderEntry,
-  })),
-);
 
 function InstanceSwitcherFallback() {
   return (
@@ -99,7 +94,6 @@ export function AppHeader({ mode = 'default' }: AppHeaderProps) {
   const location = useLocation();
   const isAuthMode = mode === 'auth';
   const [shouldRenderInstanceSwitcher, setShouldRenderInstanceSwitcher] = useState(false);
-  const [shouldRenderPointsEntry, setShouldRenderPointsEntry] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const accountSettingsTarget = '/settings?tab=account';
@@ -116,21 +110,6 @@ export function AppHeader({ mode = 'default' }: AppHeaderProps) {
         setShouldRenderInstanceSwitcher(true);
       });
     }, 90);
-
-    return () => window.clearTimeout(timeout);
-  }, [isAuthMode]);
-
-  useEffect(() => {
-    if (isAuthMode) {
-      setShouldRenderPointsEntry(false);
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      startTransition(() => {
-        setShouldRenderPointsEntry(true);
-      });
-    }, 180);
 
     return () => window.clearTimeout(timeout);
   }, [isAuthMode]);
@@ -263,11 +242,6 @@ export function AppHeader({ mode = 'default' }: AppHeaderProps) {
                   {t('install.mobileGuide.headerAction')}
                 </span>
               </HeaderActionButton>
-              {shouldRenderPointsEntry ? (
-                <Suspense fallback={null}>
-                  <PointsHeaderEntry />
-                </Suspense>
-              ) : null}
               <div ref={userMenuRef} className="relative">
                 {isUserMenuOpen ? (
                   <div className="absolute right-0 top-full z-40 mt-2 w-64 rounded-2xl bg-white/96 p-2 shadow-[0_14px_32px_rgba(9,9,11,0.14)] backdrop-blur-xl dark:bg-zinc-950/96">

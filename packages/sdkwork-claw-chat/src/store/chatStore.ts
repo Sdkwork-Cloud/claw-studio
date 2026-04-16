@@ -171,6 +171,12 @@ function listScopeSessions(sessions: ChatSession[], instanceId: string | null | 
   );
 }
 
+function listScopeLocalSessions(sessions: ChatSession[], instanceId: string | null | undefined) {
+  return listScopeSessions(sessions, instanceId)
+    .map(normalizeSession)
+    .filter((session) => session.transport !== 'openclawGateway');
+}
+
 function replaceInstanceSessions(
   sessions: ChatSession[],
   instanceId: string | null | undefined,
@@ -182,6 +188,108 @@ function replaceInstanceSessions(
     ),
     ...nextSessions.map(normalizeSession),
   ].sort((left, right) => right.updatedAt - left.updatedAt);
+}
+
+function clearChatInstanceScopeState(
+  state: ChatState,
+  instanceId: string,
+  options: {
+    syncState?: SyncState;
+    lastError?: string | undefined;
+  } = {},
+) {
+  const scopeKey = getScopeKey(instanceId);
+
+  return {
+    sessions: replaceInstanceSessions(state.sessions, instanceId, []),
+    activeSessionIdByInstance: {
+      ...state.activeSessionIdByInstance,
+      [scopeKey]: null,
+    },
+    syncStateByInstance: {
+      ...state.syncStateByInstance,
+      [scopeKey]: options.syncState ?? 'idle',
+    },
+    gatewayConnectionStatusByInstance: {
+      ...state.gatewayConnectionStatusByInstance,
+      [scopeKey]: undefined,
+    },
+    lastErrorByInstance: {
+      ...state.lastErrorByInstance,
+      [scopeKey]: options.lastError,
+    },
+  } satisfies Partial<ChatState>;
+}
+
+function buildUnsupportedChatRouteError(reason?: string) {
+  return reason
+    ? `This instance does not expose a supported chat route yet. ${reason}`
+    : 'This instance does not expose a supported chat route yet.';
+}
+
+function resolveScopeActiveSessionId(params: {
+  sessions: ChatSession[];
+  preferredActiveSessionId?: string | null;
+  fallbackActiveSessionId?: string | null;
+}) {
+  const preferredActiveSessionId = params.preferredActiveSessionId ?? null;
+  if (
+    preferredActiveSessionId &&
+    params.sessions.some((session) => session.id === preferredActiveSessionId)
+  ) {
+    return preferredActiveSessionId;
+  }
+
+  const fallbackActiveSessionId = params.fallbackActiveSessionId ?? null;
+  if (
+    fallbackActiveSessionId &&
+    params.sessions.some((session) => session.id === fallbackActiveSessionId)
+  ) {
+    return fallbackActiveSessionId;
+  }
+
+  return params.sessions[0]?.id ?? null;
+}
+
+function applyLocalInstanceScopeState(
+  state: ChatState,
+  instanceId: string,
+  options: {
+    baseSessions?: ChatSession[];
+    preservedLocalSessions?: ChatSession[];
+    preferredActiveSessionId?: string | null;
+    lastError?: string | undefined;
+    syncState?: SyncState;
+  } = {},
+) {
+  const scopeKey = getScopeKey(instanceId);
+  const baseSessions = options.baseSessions ?? state.sessions;
+  const preservedLocalSessions =
+    options.preservedLocalSessions ?? listScopeLocalSessions(baseSessions, instanceId);
+
+  return {
+    sessions: replaceInstanceSessions(baseSessions, instanceId, preservedLocalSessions),
+    activeSessionIdByInstance: {
+      ...state.activeSessionIdByInstance,
+      [scopeKey]: resolveScopeActiveSessionId({
+        sessions: preservedLocalSessions,
+        preferredActiveSessionId: options.preferredActiveSessionId,
+        fallbackActiveSessionId: state.activeSessionIdByInstance[scopeKey] ?? null,
+      }),
+    },
+    syncStateByInstance: {
+      ...state.syncStateByInstance,
+      [scopeKey]: options.syncState ?? 'idle',
+    },
+    gatewayConnectionStatusByInstance: {
+      ...state.gatewayConnectionStatusByInstance,
+      [scopeKey]: undefined,
+    },
+    lastErrorByInstance: {
+      ...state.lastErrorByInstance,
+      [scopeKey]: options.lastError,
+    },
+  } satisfies Partial<ChatState>;
 }
 
 async function getStudioConversationGateway() {
@@ -210,6 +318,7 @@ async function resolveInstanceRouteMode(instanceId: string | null | undefined) {
   const { instance, route } = await resolveAuthoritativeInstanceChatRoute(instanceId);
   return {
     mode: route.mode,
+    reason: route.reason,
     instance,
   };
 }
@@ -301,6 +410,12 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
 
       if (route.mode === 'instanceOpenClawGatewayWs') {
         await openClawGatewaySessions.hydrateInstance(instanceId);
+        return;
+      }
+
+      if (route.mode === 'unsupported') {
+        openClawGatewaySessions.releaseInstance(instanceId);
+        set((state) => clearChatInstanceScopeState(state, instanceId));
         return;
       }
 
@@ -412,9 +527,8 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
   async createSession(model, instanceId, options) {
     const requestedModel = model?.trim() || undefined;
     if (instanceId) {
-      const routeMode =
-        get().instanceRouteModeById[instanceId] ??
-        (await resolveInstanceRouteMode(instanceId)).mode;
+      const resolvedRoute = await resolveInstanceRouteMode(instanceId);
+      const routeMode = resolvedRoute.mode;
       set((state) => ({
         instanceRouteModeById: {
           ...state.instanceRouteModeById,
@@ -428,6 +542,14 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
           agentId: options?.openClawAgentId,
           sessionId: options?.openClawSessionId,
         }).id;
+      }
+
+      if (routeMode === 'unsupported') {
+        const scopeKey = getScopeKey(instanceId);
+        const nextError = buildUnsupportedChatRouteError(resolvedRoute.reason);
+        openClawGatewaySessions.releaseInstance(instanceId);
+        set((state) => clearChatInstanceScopeState(state, instanceId, { lastError: nextError }));
+        return '';
       }
 
       openClawGatewaySessions.releaseInstance(instanceId);
@@ -446,30 +568,60 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
       transport: 'local',
     };
 
-    set((state) => ({
-      sessions: sortSessions([session, ...state.sessions.map(normalizeSession)]),
-      activeSessionIdByInstance: {
-        ...state.activeSessionIdByInstance,
-        [getScopeKey(instanceId)]: session.id,
-      },
-      lastErrorByInstance: {
-        ...state.lastErrorByInstance,
-        [getScopeKey(instanceId)]: undefined,
-      },
-    }));
+    set((state) => {
+      const nextSessions = sortSessions([session, ...state.sessions.map(normalizeSession)]);
+      if (!instanceId) {
+        return {
+          sessions: nextSessions,
+          activeSessionIdByInstance: {
+            ...state.activeSessionIdByInstance,
+            [getScopeKey(instanceId)]: session.id,
+          },
+          lastErrorByInstance: {
+            ...state.lastErrorByInstance,
+            [getScopeKey(instanceId)]: undefined,
+          },
+        };
+      }
+
+      const scopeKey = getScopeKey(instanceId);
+      const nextLocalSessions = listScopeLocalSessions(nextSessions, instanceId);
+      return applyLocalInstanceScopeState(state, instanceId, {
+        baseSessions: nextSessions,
+        preservedLocalSessions: nextLocalSessions,
+        preferredActiveSessionId: session.id,
+        syncState: state.syncStateByInstance[scopeKey] ?? 'idle',
+        lastError: undefined,
+      });
+    });
 
     void persistSession(session)
       .then((savedSession) => {
         if (!savedSession) {
           return;
         }
-        set((state) => ({
-          sessions: upsertSessionCollection(state.sessions, savedSession),
-          lastErrorByInstance: {
-            ...state.lastErrorByInstance,
-            [getScopeKey(instanceId)]: undefined,
-          },
-        }));
+        set((state) => {
+          const nextSessions = upsertSessionCollection(state.sessions, savedSession);
+          if (!savedSession.instanceId) {
+            return {
+              sessions: nextSessions,
+              lastErrorByInstance: {
+                ...state.lastErrorByInstance,
+                [getScopeKey(instanceId)]: undefined,
+              },
+            };
+          }
+
+          const localScopeKey = getScopeKey(savedSession.instanceId);
+          const nextLocalSessions = listScopeLocalSessions(nextSessions, savedSession.instanceId);
+          return applyLocalInstanceScopeState(state, savedSession.instanceId, {
+            baseSessions: nextSessions,
+            preservedLocalSessions: nextLocalSessions,
+            preferredActiveSessionId: savedSession.id,
+            syncState: state.syncStateByInstance[localScopeKey] ?? 'idle',
+            lastError: undefined,
+          });
+        });
       })
       .catch((error: any) => {
         console.error('Failed to persist session:', error);
@@ -486,9 +638,8 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
   async startNewSession(model, instanceId, options) {
     const requestedModel = model?.trim() || undefined;
     if (instanceId) {
-      const routeMode =
-        get().instanceRouteModeById[instanceId] ??
-        (await resolveInstanceRouteMode(instanceId)).mode;
+      const resolvedRoute = await resolveInstanceRouteMode(instanceId);
+      const routeMode = resolvedRoute.mode;
       set((state) => ({
         instanceRouteModeById: {
           ...state.instanceRouteModeById,
@@ -504,6 +655,13 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
         });
       }
 
+      if (routeMode === 'unsupported') {
+        const nextError = buildUnsupportedChatRouteError(resolvedRoute.reason);
+        openClawGatewaySessions.releaseInstance(instanceId);
+        set((state) => clearChatInstanceScopeState(state, instanceId, { lastError: nextError }));
+        return null;
+      }
+
       openClawGatewaySessions.releaseInstance(instanceId);
     }
 
@@ -514,15 +672,94 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
   async deleteSession(id, instanceId) {
     const session = get().sessions.find((item) => item.id === id);
     const resolvedInstanceId = instanceId ?? session?.instanceId;
+    const scopeKey = getScopeKey(resolvedInstanceId);
+    const deleteLocalConversation = () => {
+      if (!session) {
+        return;
+      }
+
+      void getStudioConversationGateway()
+        .then((gateway) => gateway.deleteInstanceConversation(id, session.instanceId))
+        .catch((error: any) => {
+          console.error('Failed to delete conversation:', error);
+          set((state) => ({
+            lastErrorByInstance: {
+              ...state.lastErrorByInstance,
+              [scopeKey]: error?.message || 'Failed to delete conversation',
+            },
+          }));
+        });
+    };
+
     if (session?.transport === 'openclawGateway' && resolvedInstanceId) {
-      await openClawGatewaySessions.deleteSession({
-        instanceId: resolvedInstanceId,
-        sessionId: id,
-      });
+      const resolvedRoute = await resolveInstanceRouteMode(resolvedInstanceId);
+      const routeMode = resolvedRoute.mode;
+      set((state) => ({
+        instanceRouteModeById: {
+          ...state.instanceRouteModeById,
+          [resolvedInstanceId]: routeMode,
+        },
+      }));
+
+      if (routeMode === 'instanceOpenClawGatewayWs') {
+        await openClawGatewaySessions.deleteSession({
+          instanceId: resolvedInstanceId,
+          sessionId: id,
+        });
+        return;
+      }
+
+      openClawGatewaySessions.releaseInstance(resolvedInstanceId);
+
+      if (routeMode === 'unsupported') {
+        set((state) =>
+          clearChatInstanceScopeState(state, resolvedInstanceId, {
+            lastError: buildUnsupportedChatRouteError(resolvedRoute.reason),
+          }),
+        );
+        return;
+      }
+
+      set((state) => applyLocalInstanceScopeState(state, resolvedInstanceId));
       return;
     }
 
-    const scopeKey = getScopeKey(resolvedInstanceId);
+    if (resolvedInstanceId) {
+      const resolvedRoute = await resolveInstanceRouteMode(resolvedInstanceId);
+      const routeMode = resolvedRoute.mode;
+      set((state) => ({
+        instanceRouteModeById: {
+          ...state.instanceRouteModeById,
+          [resolvedInstanceId]: routeMode,
+        },
+      }));
+
+      if (routeMode === 'unsupported') {
+        openClawGatewaySessions.releaseInstance(resolvedInstanceId);
+        set((state) =>
+          clearChatInstanceScopeState(state, resolvedInstanceId, {
+            lastError: buildUnsupportedChatRouteError(resolvedRoute.reason),
+          }),
+        );
+        deleteLocalConversation();
+        return;
+      }
+
+      if (routeMode !== 'instanceOpenClawGatewayWs') {
+        openClawGatewaySessions.releaseInstance(resolvedInstanceId);
+        set((state) => {
+          const nextSessions = state.sessions.filter((item) => item.id !== id);
+          const nextLocalSessions = listScopeLocalSessions(nextSessions, resolvedInstanceId);
+          return applyLocalInstanceScopeState(state, resolvedInstanceId, {
+            baseSessions: nextSessions,
+            preservedLocalSessions: nextLocalSessions,
+          });
+        });
+        deleteLocalConversation();
+        return;
+      }
+    }
+
     set((state) => {
       const nextSessions = state.sessions.filter((item) => item.id !== id);
       const nextScopeSessions = listScopeSessions(nextSessions, resolvedInstanceId);
@@ -538,33 +775,48 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
       };
     });
 
-    if (!session) {
-      return;
-    }
-
-    void getStudioConversationGateway()
-      .then((gateway) => gateway.deleteInstanceConversation(id, session.instanceId))
-      .catch((error: any) => {
-        console.error('Failed to delete conversation:', error);
-        set((state) => ({
-          lastErrorByInstance: {
-            ...state.lastErrorByInstance,
-            [scopeKey]: error?.message || 'Failed to delete conversation',
-          },
-        }));
-      });
+    deleteLocalConversation();
   },
   async setActiveSession(id, instanceId) {
     const resolvedInstanceId =
       instanceId ?? get().sessions.find((session) => session.id === id)?.instanceId ?? null;
-    if (
-      resolvedInstanceId &&
-      get().instanceRouteModeById[resolvedInstanceId] === 'instanceOpenClawGatewayWs'
-    ) {
-      await openClawGatewaySessions.setActiveSession({
-        instanceId: resolvedInstanceId,
-        sessionId: id,
-      });
+    if (resolvedInstanceId) {
+      const resolvedRoute = await resolveInstanceRouteMode(resolvedInstanceId);
+      const routeMode = resolvedRoute.mode;
+      const preservedLocalSessions = listScopeLocalSessions(get().sessions, resolvedInstanceId);
+
+      set((state) => ({
+        instanceRouteModeById: {
+          ...state.instanceRouteModeById,
+          [resolvedInstanceId]: routeMode,
+        },
+      }));
+
+      if (routeMode === 'instanceOpenClawGatewayWs') {
+        await openClawGatewaySessions.setActiveSession({
+          instanceId: resolvedInstanceId,
+          sessionId: id,
+        });
+        return;
+      }
+
+      openClawGatewaySessions.releaseInstance(resolvedInstanceId);
+
+      if (routeMode === 'unsupported') {
+        set((state) =>
+          clearChatInstanceScopeState(state, resolvedInstanceId, {
+            lastError: buildUnsupportedChatRouteError(resolvedRoute.reason),
+          }),
+        );
+        return;
+      }
+
+      set((state) =>
+        applyLocalInstanceScopeState(state, resolvedInstanceId, {
+          preservedLocalSessions,
+          preferredActiveSessionId: id,
+        }),
+      );
       return;
     }
 
@@ -616,8 +868,22 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
         return nextSession;
       });
 
+      const nextSessions = sortSessions(sessions);
+      if (!nextSession?.instanceId) {
+        return {
+          sessions: nextSessions,
+        };
+      }
+
+      const scopeKey = getScopeKey(nextSession.instanceId);
+      const nextLocalSessions = listScopeLocalSessions(nextSessions, nextSession.instanceId);
       return {
-        sessions: sortSessions(sessions),
+        ...applyLocalInstanceScopeState(state, nextSession.instanceId, {
+          baseSessions: nextSessions,
+          preservedLocalSessions: nextLocalSessions,
+          syncState: state.syncStateByInstance[scopeKey] ?? 'idle',
+          lastError: state.lastErrorByInstance[scopeKey],
+        }),
       };
     });
 
@@ -632,13 +898,27 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
         if (!savedSession) {
           return;
         }
-        set((state) => ({
-          sessions: upsertSessionCollection(state.sessions, savedSession),
-          lastErrorByInstance: {
-            ...state.lastErrorByInstance,
-            [getScopeKey(persistedSession.instanceId)]: undefined,
-          },
-        }));
+        set((state) => {
+          const nextSessions = upsertSessionCollection(state.sessions, savedSession);
+          if (!savedSession.instanceId) {
+            return {
+              sessions: nextSessions,
+              lastErrorByInstance: {
+                ...state.lastErrorByInstance,
+                [getScopeKey(persistedSession.instanceId)]: undefined,
+              },
+            };
+          }
+
+          const localScopeKey = getScopeKey(savedSession.instanceId);
+          const nextLocalSessions = listScopeLocalSessions(nextSessions, savedSession.instanceId);
+          return applyLocalInstanceScopeState(state, savedSession.instanceId, {
+            baseSessions: nextSessions,
+            preservedLocalSessions: nextLocalSessions,
+            syncState: state.syncStateByInstance[localScopeKey] ?? 'idle',
+            lastError: undefined,
+          });
+        });
       })
       .catch((error: any) => {
         console.error('Failed to persist message:', error);
@@ -653,20 +933,38 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
   updateMessage(sessionId, messageId, content) {
     set((state) => {
       const timestamp = Date.now();
-      const sessions = state.sessions.map((session) =>
-        session.id === sessionId && session.transport !== 'openclawGateway'
-          ? {
-              ...normalizeSession(session),
-              updatedAt: timestamp,
-              messages: normalizeMessages(session.messages).map((message) =>
-                message.id === messageId ? { ...message, content, timestamp } : message,
-              ),
-            }
-          : normalizeSession(session),
-      );
+      let updatedInstanceId: string | null | undefined;
+      const sessions = state.sessions.map((session) => {
+        if (session.id === sessionId && session.transport !== 'openclawGateway') {
+          updatedInstanceId = session.instanceId;
+          return {
+            ...normalizeSession(session),
+            updatedAt: timestamp,
+            messages: normalizeMessages(session.messages).map((message) =>
+              message.id === messageId ? { ...message, content, timestamp } : message,
+            ),
+          };
+        }
 
+        return normalizeSession(session);
+      });
+
+      const nextSessions = sortSessions(sessions);
+      if (!updatedInstanceId) {
+        return {
+          sessions: nextSessions,
+        };
+      }
+
+      const scopeKey = getScopeKey(updatedInstanceId);
+      const nextLocalSessions = listScopeLocalSessions(nextSessions, updatedInstanceId);
       return {
-        sessions: sortSessions(sessions),
+        ...applyLocalInstanceScopeState(state, updatedInstanceId, {
+          baseSessions: nextSessions,
+          preservedLocalSessions: nextLocalSessions,
+          syncState: state.syncStateByInstance[scopeKey] ?? 'idle',
+          lastError: state.lastErrorByInstance[scopeKey],
+        }),
       };
     });
   },
@@ -674,16 +972,41 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
     const session = get().sessions.find((item) => item.id === id);
     const resolvedInstanceId = instanceId ?? session?.instanceId;
     if (session?.transport === 'openclawGateway' && resolvedInstanceId) {
-      await openClawGatewaySessions.resetSession({
-        instanceId: resolvedInstanceId,
-        sessionId: id,
-      });
+      const resolvedRoute = await resolveInstanceRouteMode(resolvedInstanceId);
+      const routeMode = resolvedRoute.mode;
+      set((state) => ({
+        instanceRouteModeById: {
+          ...state.instanceRouteModeById,
+          [resolvedInstanceId]: routeMode,
+        },
+      }));
+
+      if (routeMode === 'instanceOpenClawGatewayWs') {
+        await openClawGatewaySessions.resetSession({
+          instanceId: resolvedInstanceId,
+          sessionId: id,
+        });
+        return;
+      }
+
+      openClawGatewaySessions.releaseInstance(resolvedInstanceId);
+
+      if (routeMode === 'unsupported') {
+        set((state) =>
+          clearChatInstanceScopeState(state, resolvedInstanceId, {
+            lastError: buildUnsupportedChatRouteError(resolvedRoute.reason),
+          }),
+        );
+        return;
+      }
+
+      set((state) => applyLocalInstanceScopeState(state, resolvedInstanceId));
       return;
     }
     let cleared: ChatSession | undefined;
 
-    set((state) => ({
-      sessions: state.sessions.map((currentSession) => {
+    set((state) => {
+      const nextSessions = state.sessions.map((currentSession) => {
         if (currentSession.id !== id) {
           return normalizeSession(currentSession);
         }
@@ -695,8 +1018,24 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
           lastMessagePreview: undefined,
         };
         return cleared;
-      }),
-    }));
+      });
+
+      if (!resolvedInstanceId || !cleared) {
+        return {
+          sessions: nextSessions,
+        };
+      }
+
+      const localScopeKey = getScopeKey(resolvedInstanceId);
+      const nextLocalSessions = listScopeLocalSessions(nextSessions, resolvedInstanceId);
+      return applyLocalInstanceScopeState(state, resolvedInstanceId, {
+        baseSessions: nextSessions,
+        preservedLocalSessions: nextLocalSessions,
+        preferredActiveSessionId: id,
+        syncState: state.syncStateByInstance[localScopeKey] ?? 'idle',
+        lastError: state.lastErrorByInstance[localScopeKey],
+      });
+    });
 
     if (!cleared) {
       return;
@@ -709,13 +1048,28 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
         if (!savedSession) {
           return;
         }
-        set((state) => ({
-          sessions: upsertSessionCollection(state.sessions, savedSession),
-          lastErrorByInstance: {
-            ...state.lastErrorByInstance,
-            [scopeKey]: undefined,
-          },
-        }));
+        set((state) => {
+          const nextSessions = upsertSessionCollection(state.sessions, savedSession);
+          if (!savedSession.instanceId) {
+            return {
+              sessions: nextSessions,
+              lastErrorByInstance: {
+                ...state.lastErrorByInstance,
+                [scopeKey]: undefined,
+              },
+            };
+          }
+
+          const localScopeKey = getScopeKey(savedSession.instanceId);
+          const nextLocalSessions = listScopeLocalSessions(nextSessions, savedSession.instanceId);
+          return applyLocalInstanceScopeState(state, savedSession.instanceId, {
+            baseSessions: nextSessions,
+            preservedLocalSessions: nextLocalSessions,
+            preferredActiveSessionId: savedSession.id,
+            syncState: state.syncStateByInstance[localScopeKey] ?? 'idle',
+            lastError: undefined,
+          });
+        });
       })
       .catch((error: any) => {
         console.error('Failed to clear conversation:', error);
@@ -738,30 +1092,46 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
     try {
       const savedSession = await persistSession(session);
       if (savedSession) {
-        set((state) => ({
-          sessions: upsertSessionCollection(state.sessions, savedSession),
-        }));
+        set((state) => {
+          const nextSessions = upsertSessionCollection(state.sessions, savedSession);
+          if (!savedSession.instanceId) {
+            return {
+              sessions: nextSessions,
+            };
+          }
+
+          const localScopeKey = getScopeKey(savedSession.instanceId);
+          const nextLocalSessions = listScopeLocalSessions(nextSessions, savedSession.instanceId);
+          return applyLocalInstanceScopeState(state, savedSession.instanceId, {
+            baseSessions: nextSessions,
+            preservedLocalSessions: nextLocalSessions,
+            preferredActiveSessionId: savedSession.id,
+            syncState: state.syncStateByInstance[localScopeKey] ?? 'idle',
+            lastError: state.lastErrorByInstance[localScopeKey],
+          });
+        });
       }
 
       if (savedSession?.instanceId) {
+        const hydratedInstanceId = savedSession.instanceId;
         const gateway = await getStudioConversationGateway();
         const hydrated = await gateway.getInstanceConversation(
-          savedSession.instanceId,
+          hydratedInstanceId,
           savedSession.id,
           savedSession,
         );
 
-        set((state) => ({
-          sessions: upsertSessionCollection(state.sessions, hydrated),
-          syncStateByInstance: {
-            ...state.syncStateByInstance,
-            [scopeKey]: 'idle',
-          },
-          lastErrorByInstance: {
-            ...state.lastErrorByInstance,
-            [scopeKey]: undefined,
-          },
-        }));
+        set((state) => {
+          const nextSessions = upsertSessionCollection(state.sessions, hydrated);
+          const nextLocalSessions = listScopeLocalSessions(nextSessions, hydratedInstanceId);
+          return applyLocalInstanceScopeState(state, hydratedInstanceId, {
+            baseSessions: nextSessions,
+            preservedLocalSessions: nextLocalSessions,
+            preferredActiveSessionId: hydrated.id,
+            syncState: 'idle',
+            lastError: undefined,
+          });
+        });
         return;
       }
 

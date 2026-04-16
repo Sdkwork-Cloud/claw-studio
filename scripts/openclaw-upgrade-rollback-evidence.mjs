@@ -15,6 +15,9 @@ import {
 import {
   verifyDesktopOpenClawReleaseAssets,
 } from './verify-desktop-openclaw-release-assets.mjs';
+import {
+  resolveKernelReleaseConfigPath,
+} from './release/kernel-releases.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,7 +57,7 @@ function pushRollbackBlocker(blockers, message) {
 
 function resolveEvidencePaths(workspaceRootDir) {
   return {
-    releaseConfigPath: path.join(workspaceRootDir, 'config', 'openclaw-release.json'),
+    releaseConfigPath: resolveKernelReleaseConfigPath('openclaw', { workspaceRootDir }),
     bundledManifestPath: path.join(
       workspaceRootDir,
       'packages',
@@ -116,7 +119,7 @@ export async function buildOpenClawUpgradeRollbackEvidence({
   if (!baselineVersion) {
     pushRollbackBlocker(
       blockers.rollback,
-      'Unable to resolve an OpenClaw rollback baseline version from config/openclaw-release.json or desktop manifests.',
+      'Unable to resolve an OpenClaw rollback baseline version from config/kernel-releases/openclaw.json or desktop manifests.',
     );
   } else {
     for (const [label, version] of baselineAlignmentChecks) {

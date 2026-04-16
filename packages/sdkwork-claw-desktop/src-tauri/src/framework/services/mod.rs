@@ -385,10 +385,21 @@ pub(crate) mod test_support {
         PROCESS_ENV_MUTEX.get_or_init(|| Mutex::new(()))
     }
 
+    fn loopback_port_mutex() -> &'static Mutex<()> {
+        static LOOPBACK_PORT_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+        LOOPBACK_PORT_MUTEX.get_or_init(|| Mutex::new(()))
+    }
+
     pub(crate) fn lock_process_env() -> MutexGuard<'static, ()> {
         process_env_mutex()
             .lock()
             .expect("lock shared process environment for tests")
+    }
+
+    pub(crate) fn lock_loopback_ports() -> MutexGuard<'static, ()> {
+        loopback_port_mutex()
+            .lock()
+            .expect("lock shared loopback ports for tests")
     }
 
     #[cfg(windows)]

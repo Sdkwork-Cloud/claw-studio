@@ -50,6 +50,7 @@ import {
   shouldRetryDirectoryCleanup,
   shouldSyncBundledResourceMirror,
   shouldReusePreparedOpenClawRuntime,
+  validatePreparedOpenClawPackageTree,
 } from './prepare-openclaw-runtime.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1267,6 +1268,105 @@ try {
       'Expected staged @discordjs/opus native runtime archive extraction to preserve archive sidecar files',
     );
   }
+  const opusDownloadedNativeRuntimeFallbackPackageDir = path.join(
+    tempRoot,
+    'opus-downloaded-native-runtime-fallback-package',
+  );
+  await mkdir(opusDownloadedNativeRuntimeFallbackPackageDir, { recursive: true });
+  const opusDownloadedNativeRuntimeFallbackResult = await stageDownloadedNativeRuntimeAsset({
+    packageDir: opusDownloadedNativeRuntimeFallbackPackageDir,
+    runtimeAsset: opusDownloadedNativeRuntimeAsset,
+    fetchImpl: async () => {
+      const error = new TypeError('fetch failed');
+      error.cause = new Error('connect ETIMEDOUT 20.205.243.166:443');
+      throw error;
+    },
+    nativeBuildFallbackImpl: async ({ destinationPath }) => {
+      await mkdir(path.dirname(destinationPath), { recursive: true });
+      await writeFile(destinationPath, 'opus-native-binary-built');
+      return {
+        built: true,
+        strategy: 'npm-rebuild',
+      };
+    },
+  });
+  if (!opusDownloadedNativeRuntimeFallbackResult.built) {
+    throw new Error(
+      'Expected @discordjs/opus native runtime staging to surface build fallback completion after download failure',
+    );
+  }
+  if (opusDownloadedNativeRuntimeFallbackResult.fallbackStrategy !== 'npm-rebuild') {
+    throw new Error(
+      `Expected @discordjs/opus native runtime staging to report npm-rebuild fallback, received ${opusDownloadedNativeRuntimeFallbackResult.fallbackStrategy}`,
+    );
+  }
+  const opusDownloadedNativeRuntimeFallbackBinaryPath = path.join(
+    opusDownloadedNativeRuntimeFallbackPackageDir,
+    'prebuild',
+    expectedDiscordJsOpusPrebuildDirName,
+    'opus.node',
+  );
+  const opusDownloadedNativeRuntimeFallbackBinaryValue = await readFile(
+    opusDownloadedNativeRuntimeFallbackBinaryPath,
+    'utf8',
+  );
+  if (opusDownloadedNativeRuntimeFallbackBinaryValue !== 'opus-native-binary-built') {
+    throw new Error(
+      `Expected @discordjs/opus native runtime fallback build output to be materialized, received ${opusDownloadedNativeRuntimeFallbackBinaryValue}`,
+    );
+  }
+  const optionalNativeRuntimeInstallRoot = path.join(
+    tempRoot,
+    'optional-native-runtime-install-root',
+  );
+  const optionalNativeRuntimeModulesRoot = path.join(optionalNativeRuntimeInstallRoot, 'node_modules');
+  const optionalNativeRuntimeOpenClawDir = path.join(optionalNativeRuntimeModulesRoot, 'openclaw');
+  const optionalNativeRuntimeMatrixDir = path.join(
+    optionalNativeRuntimeModulesRoot,
+    '@matrix-org',
+    'matrix-sdk-crypto-nodejs',
+  );
+  await mkdir(optionalNativeRuntimeOpenClawDir, { recursive: true });
+  await mkdir(optionalNativeRuntimeMatrixDir, { recursive: true });
+  await writeFile(
+    path.join(optionalNativeRuntimeOpenClawDir, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'openclaw',
+        version: expectedOpenClawVersion,
+        optionalDependencies: {
+          '@matrix-org/matrix-sdk-crypto-nodejs': '0.4.0',
+        },
+        pnpm: {
+          onlyBuiltDependencies: ['@matrix-org/matrix-sdk-crypto-nodejs'],
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await writeFile(
+    path.join(optionalNativeRuntimeMatrixDir, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: '@matrix-org/matrix-sdk-crypto-nodejs',
+        version: '0.4.0',
+        main: 'index.js',
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await writeFile(
+    path.join(optionalNativeRuntimeMatrixDir, 'index.js'),
+    "module.exports = require('./matrix-sdk-crypto.win32-x64-msvc.node');\n",
+  );
+  await validatePreparedOpenClawPackageTree({
+    packageRoot: optionalNativeRuntimeOpenClawDir,
+    packageInstallRoot: optionalNativeRuntimeInstallRoot,
+    modulesRoot: optionalNativeRuntimeModulesRoot,
+    expectedOpenClawVersion,
+  });
   const hydratedBundledPluginRuntimeInstallRoot = path.join(
     tempRoot,
     'hydrated-bundled-plugin-runtime-install-root',
@@ -1423,7 +1523,8 @@ try {
 
   const prepareScriptSource = await readFile(prepareScriptPath, 'utf8');
   if (
-    !/env:\s*buildOpenClawRuntimeInstallEnv\(\s*process\.env\s*,[\s\S]*?cacheDir[\s\S]*?platform:\s*target\.platformId[\s\S]*?\)/u.test(prepareScriptSource)
+    !/const\s+runtimeInstallEnv\s*=\s*buildOpenClawRuntimeInstallEnv\(\s*process\.env\s*,[\s\S]*?cacheDir[\s\S]*?platform:\s*target\.platformId[\s\S]*?\)/u.test(prepareScriptSource)
+    || !/env:\s*runtimeInstallEnv/u.test(prepareScriptSource)
   ) {
     throw new Error(
       'Expected prepare-openclaw-runtime to install OpenClaw with a runtime install env that uses the active prepare cache dir and platform',

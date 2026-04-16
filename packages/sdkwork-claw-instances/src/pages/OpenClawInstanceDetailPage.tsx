@@ -1,4 +1,4 @@
-import React, { useEffect, useEffectEvent, useMemo, useState } from 'react';
+import React, { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -77,7 +77,7 @@ import {
   buildInstanceDeleteHandler,
   buildInstanceLifecycleActionHandlers,
   buildBundledStartupRecoveryHandler,
-  buildOpenClawConsoleHandlers,
+  buildInstanceConsoleHandlers,
   createInstanceLifecycleActionRunner,
   buildOpenClawManagedChannelStateHandlers,
   createOpenClawAgentMutationRunner,
@@ -97,6 +97,7 @@ import {
   formatWorkbenchLabel,
   getOpenClawWorkbenchFromModulePayload,
   startLoadInstanceDetailAgentWorkbench,
+  startLoadInstanceDetailWorkbench,
   startLazyLoadInstanceWorkbenchFiles,
   startLazyLoadInstanceWorkbenchMemory,
   type OpenClawAuthCooldownsDraftValue as OpenClawAuthCooldownsFormState,
@@ -211,6 +212,7 @@ export function OpenClawInstanceDetailPage({
   const [isInstallingAgentSkill, setIsInstallingAgentSkill] = useState(false);
   const [updatingAgentSkillKeys, setUpdatingAgentSkillKeys] = useState<string[]>([]);
   const [removingAgentSkillKeys, setRemovingAgentSkillKeys] = useState<string[]>([]);
+  const loadWorkbenchRequestRef = useRef<ReturnType<typeof startLoadInstanceDetailWorkbench> | null>(null);
   const consoleErrorReporters = createInstanceDetailConsoleErrorReporters({
     console,
   });
@@ -228,33 +230,34 @@ export function OpenClawInstanceDetailPage({
       preserveStateOnError?: boolean;
     } = {},
   ) => {
-    if (options.withSpinner !== false) {
-      setIsLoading(true);
-    }
-    try {
-      const nextWorkbench =
-        source?.instanceId === targetInstanceId
+    loadWorkbenchRequestRef.current?.cancel();
+    const request = startLoadInstanceDetailWorkbench({
+      targetInstanceId,
+      withSpinner: options.withSpinner,
+      preserveStateOnError: options.preserveStateOnError,
+      setWorkbench,
+      setConfig,
+      setIsLoading,
+      loadWorkbench: async (instanceId) => (
+        source?.instanceId === instanceId
           ? getOpenClawWorkbenchFromModulePayload(await source.loadModulePayload())
-              ?? await instanceWorkbenchService.getInstanceWorkbench(targetInstanceId)
+              ?? await instanceWorkbenchService.getInstanceWorkbench(instanceId)
               ?? null
-          : await instanceWorkbenchService.getInstanceWorkbench(targetInstanceId);
-      setWorkbench(nextWorkbench);
-      setConfig(nextWorkbench?.config || null);
-    } catch (error) {
-      consoleErrorReporters.reportWorkbenchLoadError(error);
-      if (options.preserveStateOnError !== true) {
-        setWorkbench(null);
-        setConfig(null);
-      }
-    } finally {
-      if (options.withSpinner !== false) {
-        setIsLoading(false);
-      }
-    }
+          : await instanceWorkbenchService.getInstanceWorkbench(instanceId)
+      ),
+      reportError: consoleErrorReporters.reportWorkbenchLoadError,
+    });
+    loadWorkbenchRequestRef.current = request;
+    await request.promise;
   };
+
+  useEffect(() => () => {
+    loadWorkbenchRequestRef.current?.cancel();
+  }, []);
 
   useEffect(() => {
     if (!id) {
+      loadWorkbenchRequestRef.current?.cancel();
       setIsLoading(false);
       setWorkbench(null);
       setConfig(null);
@@ -545,7 +548,7 @@ export function OpenClawInstanceDetailPage({
     canEditManagedDreaming,
     isProviderConfigReadonly,
     canManageOpenClawProviders,
-    canOpenOpenClawConsole,
+    canOpenControlPage,
     memoryWorkbenchState,
     managementSummary,
     providerSelectionState,
@@ -778,8 +781,8 @@ export function OpenClawInstanceDetailPage({
       });
     }
   };
-  const consoleHandlers = buildOpenClawConsoleHandlers({
-    detail,
+  const consoleHandlers = buildInstanceConsoleHandlers({
+    consoleTarget: detail?.consoleAccess,
     openExternalLink: openExternalUrl,
     reportInfo: toastReporters.reportInfo,
     reportError: toastReporters.reportError,
@@ -1136,9 +1139,8 @@ export function OpenClawInstanceDetailPage({
         <InstanceDetailHeader
           activeInstanceId={activeInstanceId}
           instance={instance}
-          runtimeStatus={workbench.runtimeStatus}
           canSetActive={canSetActive}
-          canOpenOpenClawConsole={canOpenOpenClawConsole}
+          canOpenControlPage={canOpenControlPage}
           canControlLifecycle={canControlLifecycle}
           canRestartLifecycle={canRestartLifecycle}
           canStopLifecycle={canStopLifecycle}
@@ -1147,9 +1149,8 @@ export function OpenClawInstanceDetailPage({
           t={t}
           getSharedStatusLabel={getSharedStatusLabel}
           getStatusBadge={getStatusBadge}
-          getRuntimeStatusTone={getRuntimeStatusTone}
           onSetActive={detailNavigationHandlers.onSetActive}
-          onOpenOpenClawConsole={consoleHandlers.onOpenOpenClawConsole}
+          onOpenControlPage={consoleHandlers.onOpenControlPage}
           onRestart={lifecycleActionHandlers.onRestart}
           onStop={lifecycleActionHandlers.onStop}
           onStart={lifecycleActionHandlers.onStart}

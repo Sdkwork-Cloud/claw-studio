@@ -28,14 +28,12 @@ use tauri_plugin_opener::OpenerExt;
 const MAIN_WINDOW_LABEL: &str = "main";
 const TRAY_ICON_ID: &str = "main_tray";
 const ROUTE_DASHBOARD: &str = "/dashboard";
-const ROUTE_APPS: &str = "/apps";
 const ROUTE_INSTANCES: &str = "/instances";
 const ROUTE_TASKS: &str = "/tasks";
 const ROUTE_SETTINGS: &str = "/settings";
 
 pub(crate) const TRAY_MENU_ID_SHOW_WINDOW: &str = "show_window";
 pub(crate) const TRAY_MENU_ID_OPEN_DASHBOARD: &str = "open_dashboard";
-pub(crate) const TRAY_MENU_ID_OPEN_APPS: &str = "open_apps";
 pub(crate) const TRAY_MENU_ID_OPEN_INSTANCES: &str = "open_instances";
 pub(crate) const TRAY_MENU_ID_OPEN_TASKS: &str = "open_tasks";
 pub(crate) const TRAY_MENU_ID_OPEN_SETTINGS: &str = "open_settings";
@@ -91,7 +89,6 @@ struct TrayLabels {
     open_window: &'static str,
     navigate: &'static str,
     dashboard: &'static str,
-    apps: &'static str,
     instances: &'static str,
     tasks: &'static str,
     settings: &'static str,
@@ -254,7 +251,6 @@ pub(crate) fn tray_action_for_menu_id(id: &str) -> Option<TrayAction> {
     match id {
         TRAY_MENU_ID_SHOW_WINDOW => Some(TrayAction::ShowWindow),
         TRAY_MENU_ID_OPEN_DASHBOARD => Some(TrayAction::OpenRoute(ROUTE_DASHBOARD)),
-        TRAY_MENU_ID_OPEN_APPS => Some(TrayAction::OpenRoute(ROUTE_APPS)),
         TRAY_MENU_ID_OPEN_INSTANCES => Some(TrayAction::OpenRoute(ROUTE_INSTANCES)),
         TRAY_MENU_ID_OPEN_TASKS => Some(TrayAction::OpenRoute(ROUTE_TASKS)),
         TRAY_MENU_ID_OPEN_SETTINGS => Some(TrayAction::OpenRoute(ROUTE_SETTINGS)),
@@ -300,10 +296,6 @@ pub(crate) fn build_tray_menu_spec(language: TrayLanguage) -> Vec<TrayMenuEntry>
                 TrayMenuEntry::Item {
                     id: TRAY_MENU_ID_OPEN_DASHBOARD,
                     label: labels.dashboard.to_string(),
-                },
-                TrayMenuEntry::Item {
-                    id: TRAY_MENU_ID_OPEN_APPS,
-                    label: labels.apps.to_string(),
                 },
                 TrayMenuEntry::Item {
                     id: TRAY_MENU_ID_OPEN_INSTANCES,
@@ -643,10 +635,9 @@ fn spawn_bundled_openclaw_activation(
     resource_root: FrameworkResult<std::path::PathBuf>,
 ) {
     thread::spawn(move || {
-        let activation_result = resource_root
-            .and_then(|resource_root| {
-                activate_bundled_openclaw_from_resource_root(context.as_ref(), &resource_root)
-            });
+        let activation_result = resource_root.and_then(|resource_root| {
+            activate_bundled_openclaw_from_resource_root(context.as_ref(), &resource_root)
+        });
 
         if let Err(error) = activation_result {
             sync_built_in_openclaw_status(context.as_ref(), StudioInstanceStatus::Error);
@@ -715,10 +706,7 @@ fn finalize_openclaw_activation(
             sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
             error
         })?;
-    log_bundled_openclaw_activation_stage(
-        context,
-        OPENCLAW_ACTIVATION_STAGE_GATEWAY_CONFIGURED,
-    )?;
+    log_bundled_openclaw_activation_stage(context, OPENCLAW_ACTIVATION_STAGE_GATEWAY_CONFIGURED)?;
     context
         .services
         .ensure_local_ai_proxy_ready(&context.paths, &context.config)
@@ -726,10 +714,7 @@ fn finalize_openclaw_activation(
             sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
             error
         })?;
-    log_bundled_openclaw_activation_stage(
-        context,
-        OPENCLAW_ACTIVATION_STAGE_LOCAL_AI_PROXY_READY,
-    )?;
+    log_bundled_openclaw_activation_stage(context, OPENCLAW_ACTIVATION_STAGE_LOCAL_AI_PROXY_READY)?;
     if let Err(error) = context
         .services
         .ensure_desktop_kernel_running(&context.paths, &context.config)
@@ -773,12 +758,12 @@ fn sync_built_in_openclaw_status(context: &FrameworkContext, status: StudioInsta
         return;
     }
 
-    if let Err(error) = context.emit_built_in_openclaw_status_changed(
-        BuiltInOpenClawStatusChangedPayload {
+    if let Err(error) =
+        context.emit_built_in_openclaw_status_changed(BuiltInOpenClawStatusChangedPayload {
             instance_id: "local-built-in".to_string(),
             status,
-        },
-    ) {
+        })
+    {
         let _ = context.logger.warn(&format!(
             "failed to emit built-in openclaw lifecycle status change event: {error}"
         ));
@@ -854,7 +839,6 @@ fn tray_labels_for(language: TrayLanguage) -> TrayLabels {
             open_window: "Open Window",
             navigate: "Navigate",
             dashboard: "Dashboard",
-            apps: "Apps",
             instances: "Instances",
             tasks: "Tasks",
             settings: "Settings",
@@ -872,7 +856,6 @@ fn tray_labels_for(language: TrayLanguage) -> TrayLabels {
             open_window: "\u{6253}\u{5f00}\u{7a97}\u{53e3}",
             navigate: "\u{5bfc}\u{822a}",
             dashboard: "\u{5de5}\u{4f5c}\u{53f0}",
-            apps: "\u{5e94}\u{7528}",
             instances: "\u{5b9e}\u{4f8b}",
             tasks: "\u{4efb}\u{52a1}",
             settings: "\u{8bbe}\u{7f6e}",
@@ -897,7 +880,6 @@ fn build_tray_menu<R: Runtime>(
     let labels = tray_labels_for(language);
     let open_menu = SubmenuBuilder::new(app, labels.navigate)
         .text(TRAY_MENU_ID_OPEN_DASHBOARD, labels.dashboard)
-        .text(TRAY_MENU_ID_OPEN_APPS, labels.apps)
         .text(TRAY_MENU_ID_OPEN_INSTANCES, labels.instances)
         .text(TRAY_MENU_ID_OPEN_TASKS, labels.tasks)
         .text(TRAY_MENU_ID_OPEN_SETTINGS, labels.settings)
@@ -1268,10 +1250,6 @@ mod tests {
             Some(TrayAction::OpenRoute("/dashboard"))
         );
         assert_eq!(
-            tray_action_for_menu_id("open_apps"),
-            Some(TrayAction::OpenRoute("/apps"))
-        );
-        assert_eq!(
             tray_action_for_menu_id("open_instances"),
             Some(TrayAction::OpenRoute("/instances"))
         );
@@ -1563,8 +1541,13 @@ mod tests {
         paths: &crate::framework::paths::AppPaths,
     ) -> std::path::PathBuf {
         crate::framework::services::kernel_runtime_authority::KernelRuntimeAuthorityService::new()
-            .active_openclaw_config_path(paths)
-            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            .active_managed_config_path("openclaw", paths)
+            .unwrap_or_else(|_| {
+                paths
+                    .kernel_paths("openclaw")
+                    .map(|kernel| kernel.managed_config_file)
+                    .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            })
     }
 
     fn seed_managed_openclaw_gateway_port(paths: &crate::framework::paths::AppPaths, port: u16) {

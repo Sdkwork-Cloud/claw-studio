@@ -17,6 +17,25 @@ function createText(filePath, value) {
   writeFileSync(filePath, value, 'utf8');
 }
 
+function createReleaseConfig(workspaceRootDir, stableVersion) {
+  createJson(path.join(workspaceRootDir, 'config', 'kernel-releases', 'openclaw.json'), {
+    kernelId: 'openclaw',
+    stableVersion,
+    supportedChannels: ['stable'],
+    defaultChannel: 'stable',
+    nodeVersion: '22.16.0',
+    packageName: 'openclaw',
+    runtimeRequirements: {
+      requiredExternalRuntimes: ['nodejs'],
+      requiredExternalRuntimeVersions: {
+        nodejs: '22.16.0',
+      },
+    },
+    runtimeSupplementalPackages: [],
+    runtimeSupplementalPackageExceptions: [],
+  });
+}
+
 function createGitHeadRepo(repoDir, { head = '0123456789abcdef0123456789abcdef01234567', tags = {} } = {}) {
   mkdirSync(path.join(repoDir, '.git', 'refs', 'tags'), { recursive: true });
   createText(path.join(repoDir, '.git', 'HEAD'), `${head}\n`);
@@ -39,13 +58,7 @@ await runTest('assessOpenClawUpgradeReadiness reports ready when local upgrade i
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'openclaw-upgrade-readiness-ready-'));
 
   try {
-    createJson(path.join(tempRoot, 'config', 'openclaw-release.json'), {
-      stableVersion: '2026.4.2',
-      nodeVersion: '22.16.0',
-      packageName: 'openclaw',
-      runtimeSupplementalPackages: [],
-      runtimeSupplementalPackageExceptions: [],
-    });
+    createReleaseConfig(tempRoot, '2026.4.2');
     createJson(path.join(tempRoot, 'packages', 'sdkwork-claw-desktop', 'src-tauri', 'resources', 'openclaw', 'manifest.json'), {
       schemaVersion: 1,
       runtimeId: 'openclaw',
@@ -98,13 +111,7 @@ await runTest('assessOpenClawUpgradeReadiness reports missing local upgrade inpu
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'openclaw-upgrade-readiness-blocked-'));
 
   try {
-    createJson(path.join(tempRoot, 'config', 'openclaw-release.json'), {
-      stableVersion: '2026.4.2',
-      nodeVersion: '22.16.0',
-      packageName: 'openclaw',
-      runtimeSupplementalPackages: [],
-      runtimeSupplementalPackageExceptions: [],
-    });
+    createReleaseConfig(tempRoot, '2026.4.2');
     createJson(path.join(tempRoot, 'packages', 'sdkwork-claw-desktop', 'src-tauri', 'resources', 'openclaw', 'manifest.json'), {
       schemaVersion: 1,
       runtimeId: 'openclaw',
@@ -155,13 +162,7 @@ await runTest(
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'openclaw-upgrade-readiness-legacy-source-'));
 
     try {
-      createJson(path.join(tempRoot, 'config', 'openclaw-release.json'), {
-        stableVersion: '2026.4.9',
-        nodeVersion: '22.16.0',
-        packageName: 'openclaw',
-        runtimeSupplementalPackages: [],
-        runtimeSupplementalPackageExceptions: [],
-      });
+      createReleaseConfig(tempRoot, '2026.4.9');
       createJson(
         path.join(
           tempRoot,
@@ -277,13 +278,7 @@ await runTest(
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'openclaw-upgrade-readiness-current-baseline-'));
 
     try {
-      createJson(path.join(tempRoot, 'config', 'openclaw-release.json'), {
-        stableVersion: '2026.4.2',
-        nodeVersion: '22.16.0',
-        packageName: 'openclaw',
-        runtimeSupplementalPackages: [],
-        runtimeSupplementalPackageExceptions: [],
-      });
+      createReleaseConfig(tempRoot, '2026.4.2');
       createJson(
         path.join(
           tempRoot,

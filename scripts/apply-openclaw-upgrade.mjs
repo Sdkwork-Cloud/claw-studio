@@ -6,6 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { assessOpenClawUpgradeReadiness } from './openclaw-upgrade-readiness.mjs';
+import {
+  projectLegacyOpenClawReleaseConfig,
+  resolveKernelReleaseConfigPath,
+  resolveLegacyOpenClawReleaseConfigPath,
+} from './release/kernel-releases.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(import.meta.dirname, '..');
@@ -27,7 +32,7 @@ export async function readOpenClawVersionState({
   workspaceRootDir = rootDir,
 } = {}) {
   const releaseConfig = await readJsonFile(
-    path.join(workspaceRootDir, 'config', 'openclaw-release.json'),
+    resolveKernelReleaseConfigPath('openclaw', { workspaceRootDir }),
   );
   const bundledManifest = await readJsonFile(
     path.join(
@@ -155,15 +160,24 @@ export async function applyOpenClawUpgrade({
     );
   }
 
-  const releaseConfigPath = path.join(workspaceRootDir, 'config', 'openclaw-release.json');
-  const originalReleaseConfigText = await readFile(releaseConfigPath, 'utf8');
+  const kernelReleaseConfigPath = resolveKernelReleaseConfigPath('openclaw', {
+    workspaceRootDir,
+  });
+  const legacyReleaseConfigPath = resolveLegacyOpenClawReleaseConfigPath({
+    workspaceRootDir,
+  });
+  const originalReleaseConfigText = await readFile(kernelReleaseConfigPath, 'utf8');
   const releaseConfig = JSON.parse(originalReleaseConfigText);
   const nextReleaseConfig = {
     ...releaseConfig,
     stableVersion: normalizedTargetVersion,
   };
 
-  await writeJsonFile(releaseConfigPath, nextReleaseConfig);
+  await writeJsonFile(kernelReleaseConfigPath, nextReleaseConfig);
+  await writeJsonFile(
+    legacyReleaseConfigPath,
+    projectLegacyOpenClawReleaseConfig(nextReleaseConfig),
+  );
 
   try {
     await runNodeScriptFn({
@@ -197,9 +211,13 @@ export async function applyOpenClawUpgrade({
       versionState,
     };
   } catch (error) {
-    await writeFile(releaseConfigPath, originalReleaseConfigText, 'utf8');
+    await writeFile(kernelReleaseConfigPath, originalReleaseConfigText, 'utf8');
+    await writeJsonFile(
+      legacyReleaseConfigPath,
+      projectLegacyOpenClawReleaseConfig(JSON.parse(originalReleaseConfigText)),
+    );
     throw new Error(
-      `OpenClaw upgrade application failed after restored config/openclaw-release.json: ${error instanceof Error ? error.message : String(error)}`,
+      `OpenClaw upgrade application failed after restored config/kernel-releases/openclaw.json: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }

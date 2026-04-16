@@ -35,6 +35,8 @@ function createRuntimeDependencyOverrides(): InstanceWorkbenchServiceDependencyO
     },
     openClawConfigService: {
       resolveInstanceConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
+      getConfigDocumentPathInfo: (configPath) =>
+        openClawConfigService.getConfigDocumentPathInfo(configPath),
       readConfigSnapshot: (configPath) => openClawConfigService.readConfigSnapshot(configPath),
       getChannelDefinitions: () => openClawConfigService.getChannelDefinitions(),
     },

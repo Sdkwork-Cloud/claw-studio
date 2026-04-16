@@ -33,6 +33,6 @@ await runTest(
     assert.equal(shouldRenderChatRuntimeWarmersForPath('/dashboard'), true);
     assert.equal(shouldRenderChatRuntimeWarmersForPath('/chat'), true);
     assert.equal(shouldRenderChatRuntimeWarmersForPath('/nodes'), true);
-    assert.equal(shouldRenderChatRuntimeWarmersForPath('/apps/openclaw'), true);
+    assert.equal(shouldRenderChatRuntimeWarmersForPath('/agents/openclaw'), true);
   },
 );

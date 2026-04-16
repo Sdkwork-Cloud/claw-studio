@@ -133,9 +133,10 @@ impl ComponentRegistryService {
         let mut resources = BundledComponentResources::from_defaults();
 
         if directory.join(BUNDLE_MANIFEST_FILE_NAME).exists() {
-            resources.bundle_manifest =
-                read_json_file::<BundledKernelPackageManifest>(&directory.join(BUNDLE_MANIFEST_FILE_NAME))?
-                    .normalized();
+            resources.bundle_manifest = read_json_file::<BundledKernelPackageManifest>(
+                &directory.join(BUNDLE_MANIFEST_FILE_NAME),
+            )?
+            .normalized();
         }
 
         if directory.join(COMPONENT_REGISTRY_FILE_NAME).exists() {
@@ -143,7 +144,8 @@ impl ComponentRegistryService {
         }
 
         if directory.join(SERVICE_DEFAULTS_FILE_NAME).exists() {
-            resources.service_defaults = read_json_file(&directory.join(SERVICE_DEFAULTS_FILE_NAME))?;
+            resources.service_defaults =
+                read_json_file(&directory.join(SERVICE_DEFAULTS_FILE_NAME))?;
         }
 
         if directory.join(UPGRADE_POLICY_FILE_NAME).exists() {
@@ -299,11 +301,20 @@ mod tests {
             .expect("bundled component resources");
 
         assert!(resources.registry.components.is_empty());
-        assert!(resources.service_defaults.auto_start_component_ids.is_empty());
+        assert!(resources
+            .service_defaults
+            .auto_start_component_ids
+            .is_empty());
         assert!(resources.service_defaults.manual_component_ids.is_empty());
         assert!(resources.service_defaults.embedded_component_ids.is_empty());
-        assert_eq!(resources.bundle_manifest.package_profile_id, "openclaw-only");
-        assert_eq!(resources.bundle_manifest.included_kernel_ids, vec!["openclaw"]);
+        assert_eq!(
+            resources.bundle_manifest.package_profile_id,
+            "openclaw-only"
+        );
+        assert_eq!(
+            resources.bundle_manifest.included_kernel_ids,
+            vec!["openclaw"]
+        );
         assert_eq!(
             resources.bundle_manifest.default_enabled_kernel_ids,
             vec!["openclaw"]
@@ -336,7 +347,10 @@ mod tests {
             .expect("bundled component resources");
 
         assert_eq!(resources.bundle_manifest.package_profile_id, "hermes-only");
-        assert_eq!(resources.bundle_manifest.included_kernel_ids, vec!["hermes"]);
+        assert_eq!(
+            resources.bundle_manifest.included_kernel_ids,
+            vec!["hermes"]
+        );
         assert_eq!(
             resources.bundle_manifest.default_enabled_kernel_ids,
             vec!["hermes"]

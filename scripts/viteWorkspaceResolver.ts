@@ -12,6 +12,13 @@ const EXTRA_WORKSPACE_PACKAGE_CONFIGS: Array<{
   entryBySubpath: Record<string, string>;
 }> = [
   {
+    packageName: '@sdkwork/craw-chat-sdk',
+    relativePackageDir: '..',
+    entryBySubpath: {
+      '.': 'scripts/shims/craw-chat-sdk-compat.ts',
+    },
+  },
+  {
     packageName: '@sdkwork/core-pc-react',
     relativePackageDir: '../../sdkwork-core/sdkwork-core-pc-react',
     entryBySubpath: {

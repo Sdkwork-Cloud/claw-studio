@@ -177,6 +177,9 @@ export interface InstanceServiceDependencies {
     resolveInstanceConfigPath(
       detail: StudioInstanceDetailRecord,
     ): string | null | undefined;
+    getConfigDocumentPathInfo?(
+      configPath: string,
+    ): Promise<{ exists: boolean; kind: 'file' | 'directory' | 'missing' }>;
     readConfigDocument(configPath: string): Promise<string>;
     writeConfigDocument(configPath: string, raw: string): Promise<void>;
     saveAgent(args: {
@@ -350,6 +353,10 @@ function createManagedOpenClawProviderControlPlaneError() {
   );
 }
 
+function createBuiltInInstanceDeleteError() {
+  return new Error('Built-in instances are managed by Claw Studio and cannot be uninstalled.');
+}
+
 function createMissingDependencyError(name: string) {
   return new Error(`Instance service dependency "${name}" is not configured.`);
 }
@@ -510,6 +517,25 @@ class InstanceService implements IInstanceService {
     this.dependencies = dependencies;
   }
 
+  private async assertManagedOpenClawConfigDocumentAvailable(configPath: string) {
+    const getConfigDocumentPathInfo =
+      this.dependencies.openClawConfigService.getConfigDocumentPathInfo;
+    if (!getConfigDocumentPathInfo) {
+      return;
+    }
+
+    const pathInfo = await getConfigDocumentPathInfo(configPath).catch(() => null);
+    if (!pathInfo) {
+      return;
+    }
+
+    if (!pathInfo.exists || pathInfo.kind !== 'file') {
+      throw new Error(
+        'The attached OpenClaw config file is no longer available on disk. Re-scan or reattach the instance configuration.',
+      );
+    }
+  }
+
   private async resolveManagedOpenClawConfig(
     id: string,
     detail?: StudioInstanceDetailRecord | null,
@@ -550,6 +576,24 @@ class InstanceService implements IInstanceService {
     }
 
     return detail;
+  }
+
+  private async assertDeleteSupported(id: string) {
+    const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
+    if (detail?.instance.isBuiltIn === true) {
+      throw createBuiltInInstanceDeleteError();
+    }
+
+    if (detail) {
+      return detail;
+    }
+
+    const instance = await this.dependencies.studioApi.getInstance(id).catch(() => null);
+    if (instance?.isBuiltIn === true) {
+      throw createBuiltInInstanceDeleteError();
+    }
+
+    return null;
   }
 
   private async saveManagedOpenClawConfigWithGateway(
@@ -731,6 +775,7 @@ class InstanceService implements IInstanceService {
   }
 
   async deleteInstance(id: string): Promise<void> {
+    await this.assertDeleteSupported(id);
     const deleted = await this.dependencies.studioApi.deleteInstance(id);
     if (!deleted) {
       throw new Error('Failed to delete instance');
@@ -764,6 +809,7 @@ class InstanceService implements IInstanceService {
       return serializeOpenClawConfigDocument(root);
     }
 
+    await this.assertManagedOpenClawConfigDocumentAvailable(managedConfig.configPath);
     return this.dependencies.openClawConfigService.readConfigDocument(
       managedConfig.configPath,
     );
@@ -799,6 +845,7 @@ class InstanceService implements IInstanceService {
       return;
     }
 
+    await this.assertManagedOpenClawConfigDocumentAvailable(managedConfig.configPath);
     await this.dependencies.openClawConfigService.writeConfigDocument(
       managedConfig.configPath,
       raw,
@@ -860,6 +907,10 @@ class InstanceService implements IInstanceService {
       },
       () => null,
     );
+
+    if (!openedPath) {
+      await this.assertManagedOpenClawConfigDocumentAvailable(managedConfig.configPath);
+    }
 
     return openedPath || managedConfig.configPath;
   }

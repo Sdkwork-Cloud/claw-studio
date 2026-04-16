@@ -4,6 +4,23 @@ use std::{fs, path::PathBuf};
 use tauri::Manager;
 use tauri::{AppHandle, Runtime};
 
+const OPENCLAW_KERNEL_ID: &str = "openclaw";
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelPaths {
+    pub runtime_id: String,
+    pub kernel_state_dir: PathBuf,
+    pub runtime_dir: PathBuf,
+    pub legacy_runtime_dir: PathBuf,
+    pub authority_file: PathBuf,
+    pub migrations_file: PathBuf,
+    pub runtime_upgrades_file: PathBuf,
+    pub managed_config_dir: PathBuf,
+    pub managed_config_file: PathBuf,
+    pub quarantine_dir: PathBuf,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppPaths {
@@ -82,6 +99,33 @@ pub struct AppPaths {
 }
 
 impl AppPaths {
+    pub fn kernel_paths(&self, runtime_id: &str) -> Result<KernelPaths> {
+        let normalized_runtime_id = normalize_kernel_id(runtime_id);
+        match normalized_runtime_id {
+            OPENCLAW_KERNEL_ID => {
+                let kernel_state_dir = self.kernels_state_dir.join(OPENCLAW_KERNEL_ID);
+                let runtime_dir = self.managed_runtimes_dir.join(OPENCLAW_KERNEL_ID);
+                let managed_config_dir = kernel_state_dir.join("managed-config");
+                Ok(KernelPaths {
+                    runtime_id: normalized_runtime_id.to_string(),
+                    kernel_state_dir: kernel_state_dir.clone(),
+                    runtime_dir,
+                    legacy_runtime_dir: self
+                        .machine_runtime_dir
+                        .join("runtimes")
+                        .join(OPENCLAW_KERNEL_ID),
+                    authority_file: kernel_state_dir.join("authority.json"),
+                    migrations_file: kernel_state_dir.join("migrations.json"),
+                    runtime_upgrades_file: kernel_state_dir.join("runtime-upgrades.json"),
+                    managed_config_dir: managed_config_dir.clone(),
+                    managed_config_file: managed_config_dir.join("openclaw.json"),
+                    quarantine_dir: kernel_state_dir.join("quarantine"),
+                })
+            }
+            _ => Err(unsupported_kernel_id_error(runtime_id)),
+        }
+    }
+
     pub fn managed_roots(&self) -> Vec<PathBuf> {
         let mut roots = vec![
             self.install_root.clone(),
@@ -134,6 +178,17 @@ impl AppPaths {
         roots.dedup();
         roots
     }
+}
+
+fn normalize_kernel_id(runtime_id: &str) -> &str {
+    runtime_id.trim()
+}
+
+fn unsupported_kernel_id_error(runtime_id: &str) -> FrameworkError {
+    FrameworkError::ValidationFailed(format!(
+        "unsupported kernel runtime id {}",
+        runtime_id.trim()
+    ))
 }
 
 pub fn resolve_paths<R: Runtime>(app: &AppHandle<R>) -> Result<AppPaths> {
@@ -425,8 +480,8 @@ pub fn ensure_runtime_directories(paths: &AppPaths) -> Result<()> {
 }
 
 fn migrate_legacy_openclaw_runtime_layout(paths: &AppPaths) -> Result<()> {
-    let legacy_runtime_dir = paths.machine_runtime_dir.join("runtimes").join("openclaw");
-    migrate_directory_entries(&legacy_runtime_dir, &paths.openclaw_runtime_dir)
+    let openclaw = paths.kernel_paths(OPENCLAW_KERNEL_ID)?;
+    migrate_directory_entries(&openclaw.legacy_runtime_dir, &openclaw.runtime_dir)
 }
 
 fn migrate_directory_entries(
@@ -637,6 +692,82 @@ mod tests {
         assert!(paths.openclaw_authority_file.exists());
         assert!(paths.openclaw_migrations_file.exists());
         assert!(paths.openclaw_runtime_upgrades_file.exists());
+    }
+
+    #[test]
+    fn resolves_kernel_scoped_machine_state_paths() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let openclaw = paths
+            .kernel_paths("openclaw")
+            .expect("openclaw kernel paths");
+
+        assert!(normalize(&openclaw.kernel_state_dir).ends_with("machine/state/kernels/openclaw"));
+        assert!(normalize(&openclaw.runtime_dir).ends_with("install/runtimes/openclaw"));
+        assert!(normalize(&openclaw.authority_file)
+            .ends_with("machine/state/kernels/openclaw/authority.json"));
+        assert!(normalize(&openclaw.migrations_file)
+            .ends_with("machine/state/kernels/openclaw/migrations.json"));
+        assert!(normalize(&openclaw.runtime_upgrades_file)
+            .ends_with("machine/state/kernels/openclaw/runtime-upgrades.json"));
+        assert!(normalize(&openclaw.managed_config_dir)
+            .ends_with("machine/state/kernels/openclaw/managed-config"));
+        assert!(normalize(&openclaw.managed_config_file)
+            .ends_with("machine/state/kernels/openclaw/managed-config/openclaw.json"));
+        assert!(normalize(&openclaw.quarantine_dir)
+            .ends_with("machine/state/kernels/openclaw/quarantine"));
+        assert!(
+            normalize(&openclaw.legacy_runtime_dir).ends_with("machine/runtime/runtimes/openclaw")
+        );
+    }
+
+    #[test]
+    fn kernel_paths_reject_unknown_runtime_id() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        let error = paths
+            .kernel_paths("hermes")
+            .expect_err("unknown kernel paths should be rejected until registry exists");
+
+        assert!(!error.to_string().trim().is_empty());
+    }
+
+    #[test]
+    fn kernel_paths_are_derived_from_canonical_kernel_roots_instead_of_compatibility_fields() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let mut paths = resolve_paths_for_root(root.path()).expect("paths");
+        let compatibility_root = root.path().join("compatibility-only");
+
+        paths.openclaw_kernel_dir = compatibility_root.join("kernel");
+        paths.openclaw_runtime_dir = compatibility_root.join("runtime");
+        paths.openclaw_authority_file = compatibility_root.join("authority.json");
+        paths.openclaw_migrations_file = compatibility_root.join("migrations.json");
+        paths.openclaw_runtime_upgrades_file = compatibility_root.join("runtime-upgrades.json");
+        paths.openclaw_managed_config_dir = compatibility_root.join("managed-config");
+        paths.openclaw_managed_config_file = compatibility_root
+            .join("managed-config")
+            .join("openclaw.json");
+        paths.openclaw_quarantine_dir = compatibility_root.join("quarantine");
+
+        let openclaw = paths
+            .kernel_paths("openclaw")
+            .expect("openclaw kernel paths");
+
+        assert!(normalize(&openclaw.kernel_state_dir).ends_with("machine/state/kernels/openclaw"));
+        assert!(normalize(&openclaw.runtime_dir).ends_with("install/runtimes/openclaw"));
+        assert!(normalize(&openclaw.authority_file)
+            .ends_with("machine/state/kernels/openclaw/authority.json"));
+        assert!(normalize(&openclaw.migrations_file)
+            .ends_with("machine/state/kernels/openclaw/migrations.json"));
+        assert!(normalize(&openclaw.runtime_upgrades_file)
+            .ends_with("machine/state/kernels/openclaw/runtime-upgrades.json"));
+        assert!(normalize(&openclaw.managed_config_dir)
+            .ends_with("machine/state/kernels/openclaw/managed-config"));
+        assert!(normalize(&openclaw.managed_config_file)
+            .ends_with("machine/state/kernels/openclaw/managed-config/openclaw.json"));
+        assert!(normalize(&openclaw.quarantine_dir)
+            .ends_with("machine/state/kernels/openclaw/quarantine"));
     }
 
     #[test]

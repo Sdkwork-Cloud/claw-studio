@@ -97,7 +97,10 @@ pub fn write_install_record(
     if let Some(parent) = Path::new(&path).parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&path, format!("{}\n", serde_json::to_string_pretty(record)?))?;
+    fs::write(
+        &path,
+        format!("{}\n", serde_json::to_string_pretty(record)?),
+    )?;
     Ok(path)
 }
 

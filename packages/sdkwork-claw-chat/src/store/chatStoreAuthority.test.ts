@@ -128,6 +128,44 @@ function createStartingDetail(instanceId: string): StudioInstanceDetailRecord {
   };
 }
 
+function createUnsupportedWsInstance(instanceId: string): StudioInstanceRecord {
+  return {
+    ...createGatewaySnapshotInstance(instanceId),
+    name: 'Unsupported Gateway Snapshot',
+    runtimeKind: 'custom',
+    deploymentMode: 'remote',
+    transportKind: 'customWs',
+    status: 'online',
+    baseUrl: null,
+    websocketUrl: null,
+    config: {
+      ...createGatewaySnapshotInstance(instanceId).config,
+      baseUrl: null,
+      websocketUrl: null,
+      authToken: undefined,
+    },
+  };
+}
+
+function createSupportedHttpInstance(instanceId: string): StudioInstanceRecord {
+  return {
+    ...createGatewaySnapshotInstance(instanceId),
+    name: 'Supported HTTP Instance',
+    runtimeKind: 'custom',
+    deploymentMode: 'remote',
+    transportKind: 'customHttp',
+    status: 'online',
+    baseUrl: 'https://chat.example.com',
+    websocketUrl: null,
+    config: {
+      ...createGatewaySnapshotInstance(instanceId).config,
+      baseUrl: 'https://chat.example.com',
+      websocketUrl: null,
+      authToken: undefined,
+    },
+  };
+}
+
 function resetChatStore() {
   chatStore.setState((state) => ({
     ...state,
@@ -138,6 +176,10 @@ function resetChatStore() {
     lastErrorByInstance: {},
     instanceRouteModeById: {},
   }));
+}
+
+async function flushAsyncTasks() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 await runTest(
@@ -170,6 +212,1254 @@ await runTest(
     } finally {
       resetChatStore();
       configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore createSession refuses unsupported instance routes instead of creating a fake local chat session',
+  async () => {
+    const instanceId = 'unsupported-chat-session-instance';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createUnsupportedWsInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+      },
+    });
+
+    try {
+      const sessionId = await chatStore.getState().createSession(undefined, instanceId);
+      const state = chatStore.getState();
+
+      assert.equal(sessionId, '');
+      assert.deepEqual(
+        state.sessions.filter((session) => session.instanceId === instanceId),
+        [],
+      );
+      assert.equal(state.instanceRouteModeById[instanceId], 'unsupported');
+      assert.match(state.lastErrorByInstance[instanceId] ?? '', /supported chat route/i);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore hydrateInstance blocks unsupported instance routes from hydrating or retaining hidden local conversation snapshots',
+  async () => {
+    const instanceId = 'unsupported-chat-hydrate-instance';
+    const originalBridge = getPlatformBridge();
+    const listCalls: string[] = [];
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: 'stale-session-1',
+          title: 'Stale hidden conversation',
+          createdAt: 1,
+          updatedAt: 1,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: 'stale-session-1',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createUnsupportedWsInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+        async listConversations(requestedInstanceId) {
+          listCalls.push(requestedInstanceId);
+          return [
+            {
+              id: 'unexpected-session-1',
+              title: 'Unexpected unsupported conversation',
+              createdAt: 1,
+              updatedAt: 1,
+              model: 'gpt-4.1',
+              messages: [],
+              instanceId: requestedInstanceId,
+            },
+          ];
+        },
+      },
+    });
+
+    try {
+      await chatStore.getState().hydrateInstance(instanceId);
+      const state = chatStore.getState();
+
+      assert.deepEqual(listCalls, []);
+      assert.deepEqual(
+        state.sessions.filter((session) => session.instanceId === instanceId),
+        [],
+      );
+      assert.equal(state.activeSessionIdByInstance[instanceId] ?? null, null);
+      assert.equal(state.syncStateByInstance[instanceId], 'idle');
+      assert.equal(state.instanceRouteModeById[instanceId], 'unsupported');
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore createSession clears stale unsupported scope sessions instead of returning a hidden active session id',
+  async () => {
+    const instanceId = 'unsupported-chat-create-stale-instance';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: 'stale-session-create-1',
+          title: 'Hidden stale conversation',
+          createdAt: 1,
+          updatedAt: 1,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: 'stale-session-create-1',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createUnsupportedWsInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+      },
+    });
+
+    try {
+      const sessionId = await chatStore.getState().createSession(undefined, instanceId);
+      const state = chatStore.getState();
+
+      assert.equal(sessionId, '');
+      assert.deepEqual(
+        state.sessions.filter((session) => session.instanceId === instanceId),
+        [],
+      );
+      assert.equal(state.activeSessionIdByInstance[instanceId] ?? null, null);
+      assert.equal(state.instanceRouteModeById[instanceId], 'unsupported');
+      assert.match(state.lastErrorByInstance[instanceId] ?? '', /supported chat route/i);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore startNewSession clears stale unsupported scope sessions instead of leaving hidden state behind',
+  async () => {
+    const instanceId = 'unsupported-chat-start-new-stale-instance';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: 'stale-session-start-new-1',
+          title: 'Hidden stale conversation',
+          createdAt: 1,
+          updatedAt: 1,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: 'stale-session-start-new-1',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createUnsupportedWsInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+      },
+    });
+
+    try {
+      const sessionId = await chatStore.getState().startNewSession(undefined, instanceId);
+      const state = chatStore.getState();
+
+      assert.equal(sessionId, null);
+      assert.deepEqual(
+        state.sessions.filter((session) => session.instanceId === instanceId),
+        [],
+      );
+      assert.equal(state.activeSessionIdByInstance[instanceId] ?? null, null);
+      assert.equal(state.instanceRouteModeById[instanceId], 'unsupported');
+      assert.match(state.lastErrorByInstance[instanceId] ?? '', /supported chat route/i);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore createSession re-resolves authoritative routes instead of trusting a stale unsupported cache entry',
+  async () => {
+    const instanceId = 'stale-unsupported-create-instance';
+    const putConversationCalls: string[] = [];
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      instanceRouteModeById: {
+        [instanceId]: 'unsupported',
+      },
+      lastErrorByInstance: {
+        [instanceId]: 'This instance does not expose a supported chat route yet.',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createSupportedHttpInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+        async putConversation(record) {
+          putConversationCalls.push(record.id);
+          return record;
+        },
+        async deleteConversation() {
+          return true;
+        },
+      },
+    });
+
+    try {
+      const sessionId = await chatStore.getState().createSession('gpt-4.1', instanceId);
+      for (let attempt = 0; attempt < 20 && putConversationCalls.length === 0; attempt += 1) {
+        await flushAsyncTasks();
+      }
+      const state = chatStore.getState();
+      const session = state.sessions.find((entry) => entry.id === sessionId);
+
+      assert.ok(sessionId);
+      assert.ok(putConversationCalls.includes(sessionId));
+      assert.ok(session);
+      assert.equal(session?.instanceId, instanceId);
+      assert.equal(session?.transport, 'local');
+      assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
+      assert.equal(state.activeSessionIdByInstance[instanceId], sessionId);
+      assert.equal(state.lastErrorByInstance[instanceId], undefined);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore createSession on local routes drops stale gateway sessions while creating a new authoritative local session',
+  async () => {
+    const instanceId = 'local-create-stale-gateway-scope-instance';
+    const staleGatewaySessionId = 'gateway-session-create-stale';
+    const existingLocalSessionId = 'local-session-existing';
+    const putConversationCalls: string[] = [];
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: staleGatewaySessionId,
+          title: 'Stale Gateway Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'sonnet',
+          instanceId,
+          transport: 'openclawGateway',
+        },
+        {
+          id: existingLocalSessionId,
+          title: 'Existing Local Session',
+          createdAt: 1,
+          updatedAt: 1,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: existingLocalSessionId,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenAiHttp',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createSupportedHttpInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+        async putConversation(record) {
+          putConversationCalls.push(record.id);
+          return record;
+        },
+      },
+    });
+
+    try {
+      const sessionId = await chatStore.getState().createSession('gpt-4.1', instanceId);
+      for (let attempt = 0; attempt < 20 && putConversationCalls.length === 0; attempt += 1) {
+        await flushAsyncTasks();
+      }
+
+      const state = chatStore.getState();
+      const scopedSessions = state.sessions.filter((session) => session.instanceId === instanceId);
+
+      assert.ok(sessionId);
+      assert.ok(putConversationCalls.includes(sessionId));
+      assert.equal(state.activeSessionIdByInstance[instanceId], sessionId);
+      assert.deepEqual(
+        scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
+        [
+          { id: sessionId, transport: 'local' },
+          { id: existingLocalSessionId, transport: 'local' },
+        ],
+      );
+      assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
+      assert.equal(state.lastErrorByInstance[instanceId], undefined);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore startNewSession re-resolves authoritative routes instead of trusting a stale unsupported cache entry',
+  async () => {
+    const instanceId = 'stale-unsupported-start-new-instance';
+    const putConversationCalls: string[] = [];
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      instanceRouteModeById: {
+        [instanceId]: 'unsupported',
+      },
+      lastErrorByInstance: {
+        [instanceId]: 'This instance does not expose a supported chat route yet.',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createSupportedHttpInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+        async putConversation(record) {
+          putConversationCalls.push(record.id);
+          return record;
+        },
+      },
+    });
+
+    try {
+      const sessionId = await chatStore.getState().startNewSession('gpt-4.1', instanceId);
+      for (let attempt = 0; attempt < 20 && putConversationCalls.length === 0; attempt += 1) {
+        await flushAsyncTasks();
+      }
+      const state = chatStore.getState();
+      const session = state.sessions.find((entry) => entry.id === sessionId);
+
+      assert.ok(sessionId);
+      assert.ok(putConversationCalls.includes(String(sessionId)));
+      assert.ok(session);
+      assert.equal(session?.instanceId, instanceId);
+      assert.equal(session?.transport, 'local');
+      assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
+      assert.equal(state.activeSessionIdByInstance[instanceId], sessionId);
+      assert.equal(state.lastErrorByInstance[instanceId], undefined);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore setActiveSession re-resolves authoritative routes instead of trusting a stale gateway cache entry',
+  async () => {
+    const instanceId = 'stale-gateway-active-session-instance';
+    const sessionId = 'local-session-1';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: sessionId,
+          title: 'Recovered HTTP Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: null,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenClawGatewayWs',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createSupportedHttpInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+      },
+    });
+
+    try {
+      await chatStore.getState().setActiveSession(sessionId, instanceId);
+      const state = chatStore.getState();
+      const session = state.sessions.find((entry) => entry.id === sessionId);
+
+      assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
+      assert.equal(state.activeSessionIdByInstance[instanceId], sessionId);
+      assert.equal(state.gatewayConnectionStatusByInstance[instanceId], undefined);
+      assert.equal(state.syncStateByInstance[instanceId], 'idle');
+      assert.equal(state.sessions.length, 1);
+      assert.ok(session);
+      assert.equal(session?.transport, 'local');
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore setActiveSession clears stale unsupported scope sessions instead of keeping a hidden active session id',
+  async () => {
+    const instanceId = 'stale-unsupported-active-session-instance';
+    const sessionId = 'local-session-unsupported';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: sessionId,
+          title: 'Stale Unsupported Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: null,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenAiHttp',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createUnsupportedWsInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+      },
+    });
+
+    try {
+      await chatStore.getState().setActiveSession(sessionId, instanceId);
+      const state = chatStore.getState();
+
+      assert.equal(state.instanceRouteModeById[instanceId], 'unsupported');
+      assert.equal(state.activeSessionIdByInstance[instanceId], null);
+      assert.equal(state.sessions.length, 0);
+      assert.match(state.lastErrorByInstance[instanceId] ?? '', /supported chat route/i);
+      assert.equal(state.gatewayConnectionStatusByInstance[instanceId], undefined);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore deleteSession re-resolves authoritative routes instead of deleting stale gateway sessions through the gateway store',
+  async () => {
+    const instanceId = 'stale-gateway-delete-session-instance';
+    const sessionId = 'gateway-session-delete';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: sessionId,
+          title: 'Stale Gateway Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'sonnet',
+          instanceId,
+          transport: 'openclawGateway',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: sessionId,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenClawGatewayWs',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createSupportedHttpInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+      },
+    });
+
+    try {
+      await chatStore.getState().deleteSession(sessionId, instanceId);
+      const state = chatStore.getState();
+
+      assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
+      assert.equal(state.activeSessionIdByInstance[instanceId], null);
+      assert.deepEqual(
+        state.sessions.filter((session) => session.instanceId === instanceId),
+        [],
+      );
+      assert.equal(state.syncStateByInstance[instanceId], 'idle');
+      assert.equal(state.gatewayConnectionStatusByInstance[instanceId], undefined);
+      assert.equal(state.lastErrorByInstance[instanceId], undefined);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore clearSession re-resolves authoritative routes instead of resetting stale gateway sessions through the gateway store',
+  async () => {
+    const instanceId = 'stale-gateway-clear-session-instance';
+    const sessionId = 'gateway-session-clear';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: sessionId,
+          title: 'Stale Gateway Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'sonnet',
+          instanceId,
+          transport: 'openclawGateway',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: sessionId,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenClawGatewayWs',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createSupportedHttpInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+      },
+    });
+
+    try {
+      await chatStore.getState().clearSession(sessionId, instanceId);
+      const state = chatStore.getState();
+
+      assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
+      assert.equal(state.activeSessionIdByInstance[instanceId], null);
+      assert.deepEqual(
+        state.sessions.filter((session) => session.instanceId === instanceId),
+        [],
+      );
+      assert.equal(state.syncStateByInstance[instanceId], 'idle');
+      assert.equal(state.gatewayConnectionStatusByInstance[instanceId], undefined);
+      assert.equal(state.lastErrorByInstance[instanceId], undefined);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore deleteSession clears stale unsupported gateway scope instead of failing through the gateway store',
+  async () => {
+    const instanceId = 'stale-gateway-delete-unsupported-instance';
+    const sessionId = 'gateway-session-delete-unsupported';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: sessionId,
+          title: 'Unsupported Gateway Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'sonnet',
+          instanceId,
+          transport: 'openclawGateway',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: sessionId,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenClawGatewayWs',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createUnsupportedWsInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+      },
+    });
+
+    try {
+      await chatStore.getState().deleteSession(sessionId, instanceId);
+      const state = chatStore.getState();
+
+      assert.equal(state.instanceRouteModeById[instanceId], 'unsupported');
+      assert.equal(state.activeSessionIdByInstance[instanceId], null);
+      assert.deepEqual(
+        state.sessions.filter((session) => session.instanceId === instanceId),
+        [],
+      );
+      assert.equal(state.gatewayConnectionStatusByInstance[instanceId], undefined);
+      assert.match(state.lastErrorByInstance[instanceId] ?? '', /supported chat route/i);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore deleteSession on local routes drops stale gateway sessions before choosing the next active local session',
+  async () => {
+    const instanceId = 'local-delete-stale-gateway-fallback-instance';
+    const activeLocalSessionId = 'local-session-active';
+    const staleGatewaySessionId = 'gateway-session-stale';
+    const backupLocalSessionId = 'local-session-backup';
+    const deleteConversationCalls: string[] = [];
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: activeLocalSessionId,
+          title: 'Active Local Session',
+          createdAt: 1,
+          updatedAt: 3,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+        {
+          id: staleGatewaySessionId,
+          title: 'Stale Gateway Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'sonnet',
+          instanceId,
+          transport: 'openclawGateway',
+        },
+        {
+          id: backupLocalSessionId,
+          title: 'Backup Local Session',
+          createdAt: 1,
+          updatedAt: 1,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: activeLocalSessionId,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenAiHttp',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createSupportedHttpInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+        async deleteConversation(id) {
+          deleteConversationCalls.push(id);
+          return true;
+        },
+      },
+    });
+
+    try {
+      await chatStore.getState().deleteSession(activeLocalSessionId, instanceId);
+      for (let attempt = 0; attempt < 20 && deleteConversationCalls.length === 0; attempt += 1) {
+        await flushAsyncTasks();
+      }
+      const state = chatStore.getState();
+      const scopedSessions = state.sessions.filter((session) => session.instanceId === instanceId);
+
+      assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
+      assert.equal(state.activeSessionIdByInstance[instanceId], backupLocalSessionId);
+      assert.deepEqual(deleteConversationCalls, [activeLocalSessionId]);
+      assert.deepEqual(
+        scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
+        [{ id: backupLocalSessionId, transport: 'local' }],
+      );
+      assert.equal(state.syncStateByInstance[instanceId], 'idle');
+      assert.equal(state.gatewayConnectionStatusByInstance[instanceId], undefined);
+      assert.equal(state.lastErrorByInstance[instanceId], undefined);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore clearSession on local routes drops stale gateway sessions while keeping the cleared local session active',
+  async () => {
+    const instanceId = 'local-clear-stale-gateway-scope-instance';
+    const activeLocalSessionId = 'local-session-clear-active';
+    const staleGatewaySessionId = 'gateway-session-clear-stale';
+    const backupLocalSessionId = 'local-session-clear-backup';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: activeLocalSessionId,
+          title: 'Active Local Session',
+          createdAt: 1,
+          updatedAt: 3,
+          messages: [
+            {
+              id: 'msg-1',
+              role: 'user',
+              content: 'hello',
+              timestamp: 3,
+            },
+          ],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+        {
+          id: staleGatewaySessionId,
+          title: 'Stale Gateway Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'sonnet',
+          instanceId,
+          transport: 'openclawGateway',
+        },
+        {
+          id: backupLocalSessionId,
+          title: 'Backup Local Session',
+          createdAt: 1,
+          updatedAt: 1,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: activeLocalSessionId,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenAiHttp',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createSupportedHttpInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+        async putConversation(record) {
+          return record;
+        },
+      },
+    });
+
+    try {
+      await chatStore.getState().clearSession(activeLocalSessionId, instanceId);
+      await flushAsyncTasks();
+
+      const state = chatStore.getState();
+      const scopedSessions = state.sessions.filter((session) => session.instanceId === instanceId);
+      const clearedSession = scopedSessions.find((session) => session.id === activeLocalSessionId);
+
+      assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
+      assert.equal(state.activeSessionIdByInstance[instanceId], activeLocalSessionId);
+      assert.deepEqual(
+        scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
+        [
+          { id: activeLocalSessionId, transport: 'local' },
+          { id: backupLocalSessionId, transport: 'local' },
+        ],
+      );
+      assert.equal(clearedSession?.messages.length ?? -1, 0);
+      assert.equal(state.syncStateByInstance[instanceId] ?? 'idle', 'idle');
+      assert.equal(state.gatewayConnectionStatusByInstance[instanceId], undefined);
+      assert.equal(state.lastErrorByInstance[instanceId], undefined);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore flushSession on local routes drops stale gateway sessions after persisting the authoritative local session scope',
+  async () => {
+    const instanceId = 'local-flush-stale-gateway-scope-instance';
+    const activeLocalSessionId = 'local-session-flush-active';
+    const staleGatewaySessionId = 'gateway-session-flush-stale';
+    const backupLocalSessionId = 'local-session-flush-backup';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: activeLocalSessionId,
+          title: 'Active Local Session',
+          createdAt: 1,
+          updatedAt: 3,
+          messages: [
+            {
+              id: 'msg-1',
+              role: 'user',
+              content: 'hello',
+              timestamp: 3,
+            },
+          ],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+        {
+          id: staleGatewaySessionId,
+          title: 'Stale Gateway Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'sonnet',
+          instanceId,
+          transport: 'openclawGateway',
+        },
+        {
+          id: backupLocalSessionId,
+          title: 'Backup Local Session',
+          createdAt: 1,
+          updatedAt: 1,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: activeLocalSessionId,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenAiHttp',
+      },
+      syncStateByInstance: {
+        [instanceId]: 'loading',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createSupportedHttpInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+        async putConversation(record) {
+          return {
+            ...record,
+            updatedAt: 5,
+          };
+        },
+        async listConversations(requestedInstanceId) {
+          return [
+            {
+              id: activeLocalSessionId,
+              title: 'Active Local Session',
+              primaryInstanceId: requestedInstanceId,
+              participantInstanceIds: [requestedInstanceId],
+              createdAt: 1,
+              updatedAt: 5,
+              messageCount: 1,
+              lastMessagePreview: 'hello',
+              messages: [
+                {
+                  id: 'msg-1',
+                  conversationId: activeLocalSessionId,
+                  role: 'user',
+                  content: 'hello',
+                  createdAt: 3,
+                  updatedAt: 3,
+                  senderInstanceId: requestedInstanceId,
+                  status: 'complete',
+                },
+              ],
+            },
+            {
+              id: backupLocalSessionId,
+              title: 'Backup Local Session',
+              primaryInstanceId: requestedInstanceId,
+              participantInstanceIds: [requestedInstanceId],
+              createdAt: 1,
+              updatedAt: 1,
+              messageCount: 0,
+              lastMessagePreview: '',
+              messages: [],
+            },
+          ];
+        },
+      },
+    });
+
+    try {
+      await chatStore.getState().flushSession(activeLocalSessionId);
+
+      const state = chatStore.getState();
+      const scopedSessions = state.sessions.filter((session) => session.instanceId === instanceId);
+
+      assert.equal(state.activeSessionIdByInstance[instanceId], activeLocalSessionId);
+      assert.deepEqual(
+        scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
+        [
+          { id: activeLocalSessionId, transport: 'local' },
+          { id: backupLocalSessionId, transport: 'local' },
+        ],
+      );
+      assert.equal(state.syncStateByInstance[instanceId], 'idle');
+      assert.equal(state.gatewayConnectionStatusByInstance[instanceId], undefined);
+      assert.equal(state.lastErrorByInstance[instanceId], undefined);
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore addMessage on local routes drops stale gateway sessions while updating the authoritative local session',
+  async () => {
+    const instanceId = 'local-add-message-stale-gateway-scope-instance';
+    const activeLocalSessionId = 'local-session-add-message-active';
+    const staleGatewaySessionId = 'gateway-session-add-message-stale';
+    const backupLocalSessionId = 'local-session-add-message-backup';
+    const putConversationCalls: string[] = [];
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: activeLocalSessionId,
+          title: 'Untitled',
+          createdAt: 1,
+          updatedAt: 3,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+        {
+          id: staleGatewaySessionId,
+          title: 'Stale Gateway Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'sonnet',
+          instanceId,
+          transport: 'openclawGateway',
+        },
+        {
+          id: backupLocalSessionId,
+          title: 'Backup Local Session',
+          createdAt: 1,
+          updatedAt: 1,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: activeLocalSessionId,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenAiHttp',
+      },
+    }));
+
+    configurePlatformBridge({
+      studio: {
+        ...originalBridge.studio,
+        async getInstance(requestedInstanceId) {
+          return createSupportedHttpInstance(requestedInstanceId);
+        },
+        async getInstanceDetail() {
+          return null;
+        },
+        async putConversation(record) {
+          putConversationCalls.push(record.id);
+          return record;
+        },
+      },
+    });
+
+    try {
+      chatStore.getState().addMessage(activeLocalSessionId, {
+        role: 'user',
+        content: 'hello local scope',
+      });
+      for (let attempt = 0; attempt < 20 && putConversationCalls.length === 0; attempt += 1) {
+        await flushAsyncTasks();
+      }
+
+      const state = chatStore.getState();
+      const scopedSessions = state.sessions.filter((session) => session.instanceId === instanceId);
+      const activeSession = scopedSessions.find((session) => session.id === activeLocalSessionId);
+
+      assert.deepEqual(
+        scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
+        [
+          { id: activeLocalSessionId, transport: 'local' },
+          { id: backupLocalSessionId, transport: 'local' },
+        ],
+      );
+      assert.equal(state.activeSessionIdByInstance[instanceId], activeLocalSessionId);
+      assert.ok(putConversationCalls.includes(activeLocalSessionId));
+      assert.equal(activeSession?.messages.length ?? -1, 1);
+      assert.equal(activeSession?.messages[0]?.content, 'hello local scope');
+    } finally {
+      resetChatStore();
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
+await runTest(
+  'chatStore updateMessage on local routes drops stale gateway sessions while editing the authoritative local session',
+  async () => {
+    const instanceId = 'local-update-message-stale-gateway-scope-instance';
+    const activeLocalSessionId = 'local-session-update-message-active';
+    const staleGatewaySessionId = 'gateway-session-update-message-stale';
+    const backupLocalSessionId = 'local-session-update-message-backup';
+    const originalBridge = getPlatformBridge();
+    resetChatStore();
+
+    chatStore.setState((state) => ({
+      ...state,
+      sessions: [
+        {
+          id: activeLocalSessionId,
+          title: 'Editable Local Session',
+          createdAt: 1,
+          updatedAt: 3,
+          messages: [
+            {
+              id: 'msg-edit-1',
+              role: 'assistant',
+              content: 'draft reply',
+              timestamp: 3,
+            },
+          ],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+        {
+          id: staleGatewaySessionId,
+          title: 'Stale Gateway Session',
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          model: 'sonnet',
+          instanceId,
+          transport: 'openclawGateway',
+        },
+        {
+          id: backupLocalSessionId,
+          title: 'Backup Local Session',
+          createdAt: 1,
+          updatedAt: 1,
+          messages: [],
+          model: 'gpt-4.1',
+          instanceId,
+          transport: 'local',
+        },
+      ],
+      activeSessionIdByInstance: {
+        [instanceId]: activeLocalSessionId,
+      },
+      instanceRouteModeById: {
+        [instanceId]: 'instanceOpenAiHttp',
+      },
+    }));
+
+    try {
+      chatStore.getState().updateMessage(activeLocalSessionId, 'msg-edit-1', 'final reply');
+
+      const state = chatStore.getState();
+      const scopedSessions = state.sessions.filter((session) => session.instanceId === instanceId);
+      const activeSession = scopedSessions.find((session) => session.id === activeLocalSessionId);
+
+      assert.deepEqual(
+        scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
+        [
+          { id: activeLocalSessionId, transport: 'local' },
+          { id: backupLocalSessionId, transport: 'local' },
+        ],
+      );
+      assert.equal(state.activeSessionIdByInstance[instanceId], activeLocalSessionId);
+      assert.equal(activeSession?.messages[0]?.content, 'final reply');
+    } finally {
+      resetChatStore();
     }
   },
 );

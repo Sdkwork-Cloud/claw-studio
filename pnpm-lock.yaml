@@ -225,42 +225,6 @@ importers:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
 
-  packages/sdkwork-claw-apps:
-    dependencies:
-      '@sdkwork/claw-core':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-core
-      '@sdkwork/claw-infrastructure':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-infrastructure
-      '@sdkwork/claw-types':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-types
-      '@sdkwork/claw-ui':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-ui
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      lucide-react:
-        specifier: ^1.7.0
-        version: 1.7.0(react@19.2.4)
-      react:
-        specifier: ^19.2.4
-        version: 19.2.4
-      react-i18next:
-        specifier: ^17.0.2
-        version: 17.0.2(i18next@26.0.3(typescript@6.0.2))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@6.0.2)
-      react-router-dom:
-        specifier: ^7.14.0
-        version: 7.14.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-
   packages/sdkwork-claw-auth:
     dependencies:
       '@sdkwork/claw-core':
@@ -721,81 +685,9 @@ importers:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
 
-  packages/sdkwork-claw-github:
-    dependencies:
-      '@sdkwork/claw-core':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-core
-      '@sdkwork/claw-ui':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-ui
-      '@tanstack/react-virtual':
-        specifier: ^3.13.23
-        version: 3.13.23(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      fuse.js:
-        specifier: ^7.3.0
-        version: 7.3.0
-      lucide-react:
-        specifier: ^1.7.0
-        version: 1.7.0(react@19.2.4)
-      react:
-        specifier: ^19.2.4
-        version: 19.2.4
-      react-i18next:
-        specifier: ^17.0.2
-        version: 17.0.2(i18next@26.0.3(typescript@6.0.2))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@6.0.2)
-      react-router-dom:
-        specifier: ^7.14.0
-        version: 7.14.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-
   packages/sdkwork-claw-host-core: {}
 
   packages/sdkwork-claw-host-studio: {}
-
-  packages/sdkwork-claw-huggingface:
-    dependencies:
-      '@sdkwork/claw-core':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-core
-      '@sdkwork/claw-ui':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-ui
-      '@tanstack/react-virtual':
-        specifier: ^3.13.23
-        version: 3.13.23(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      fuse.js:
-        specifier: ^7.3.0
-        version: 7.3.0
-      lucide-react:
-        specifier: ^1.7.0
-        version: 1.7.0(react@19.2.4)
-      react:
-        specifier: ^19.2.4
-        version: 19.2.4
-      react-i18next:
-        specifier: ^17.0.2
-        version: 17.0.2(i18next@26.0.3(typescript@6.0.2))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@6.0.2)
-      react-router-dom:
-        specifier: ^7.14.0
-        version: 7.14.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
 
   packages/sdkwork-claw-i18n:
     dependencies:
@@ -853,147 +745,6 @@ importers:
       monaco-editor:
         specifier: ^0.55.1
         version: 0.55.1
-      motion:
-        specifier: ^12.38.0
-        version: 12.38.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      react:
-        specifier: ^19.2.4
-        version: 19.2.4
-      react-i18next:
-        specifier: ^17.0.2
-        version: 17.0.2(i18next@26.0.3(typescript@6.0.2))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@6.0.2)
-      react-router-dom:
-        specifier: ^7.14.0
-        version: 7.14.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-
-  packages/sdkwork-claw-mall:
-    dependencies:
-      '@sdkwork/claw-core':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-core
-      '@sdkwork/claw-ui':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-ui
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      lucide-react:
-        specifier: ^1.7.0
-        version: 1.7.0(react@19.2.4)
-      react:
-        specifier: ^19.2.4
-        version: 19.2.4
-      react-i18next:
-        specifier: ^17.0.2
-        version: 17.0.2(i18next@26.0.3(typescript@6.0.2))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@6.0.2)
-      react-router-dom:
-        specifier: ^7.14.0
-        version: 7.14.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-
-  packages/sdkwork-claw-market:
-    dependencies:
-      '@sdkwork/claw-core':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-core
-      '@sdkwork/claw-instances':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-instances
-      '@sdkwork/claw-types':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-types
-      '@sdkwork/claw-ui':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-ui
-      '@tanstack/react-query':
-        specifier: ^5.96.2
-        version: 5.96.2(react@19.2.4)
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      lucide-react:
-        specifier: ^1.7.0
-        version: 1.7.0(react@19.2.4)
-      react:
-        specifier: ^19.2.4
-        version: 19.2.4
-      react-dom:
-        specifier: ^19.2.4
-        version: 19.2.4(react@19.2.4)
-      react-i18next:
-        specifier: ^17.0.2
-        version: 17.0.2(i18next@26.0.3(typescript@6.0.2))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@6.0.2)
-      react-router-dom:
-        specifier: ^7.14.0
-        version: 7.14.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-
-  packages/sdkwork-claw-model-purchase:
-    dependencies:
-      '@sdkwork/claw-core':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-core
-      '@sdkwork/claw-i18n':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-i18n
-      '@sdkwork/claw-types':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-types
-      '@sdkwork/claw-ui':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-ui
-      '@tanstack/react-query':
-        specifier: ^5.96.2
-        version: 5.96.2(react@19.2.4)
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      lucide-react:
-        specifier: ^1.7.0
-        version: 1.7.0(react@19.2.4)
-      react:
-        specifier: ^19.2.4
-        version: 19.2.4
-      react-i18next:
-        specifier: ^17.0.2
-        version: 17.0.2(i18next@26.0.3(typescript@6.0.2))(react-dom@18.3.1(react@18.3.1))(react@19.2.4)(typescript@6.0.2)
-
-  packages/sdkwork-claw-points:
-    dependencies:
-      '@sdkwork/claw-core':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-core
-      '@sdkwork/claw-i18n':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-i18n
-      '@sdkwork/claw-ui':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-ui
-      '@tanstack/react-query':
-        specifier: ^5.96.2
-        version: 5.96.2(react@19.2.4)
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      lucide-react:
-        specifier: ^1.7.0
-        version: 1.7.0(react@19.2.4)
       motion:
         specifier: ^12.38.0
         version: 12.38.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1072,9 +823,6 @@ importers:
       '@sdkwork/claw-agent':
         specifier: workspace:*
         version: link:../sdkwork-claw-agent
-      '@sdkwork/claw-apps':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-apps
       '@sdkwork/claw-auth':
         specifier: workspace:*
         version: link:../sdkwork-claw-auth
@@ -1105,30 +853,12 @@ importers:
       '@sdkwork/claw-extensions':
         specifier: workspace:*
         version: link:../sdkwork-claw-extensions
-      '@sdkwork/claw-github':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-github
-      '@sdkwork/claw-huggingface':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-huggingface
       '@sdkwork/claw-i18n':
         specifier: workspace:*
         version: link:../sdkwork-claw-i18n
       '@sdkwork/claw-instances':
         specifier: workspace:*
         version: link:../sdkwork-claw-instances
-      '@sdkwork/claw-mall':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-mall
-      '@sdkwork/claw-market':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-market
-      '@sdkwork/claw-model-purchase':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-model-purchase
-      '@sdkwork/claw-points':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-points
       '@sdkwork/claw-settings':
         specifier: workspace:*
         version: link:../sdkwork-claw-settings
@@ -2675,15 +2405,6 @@ packages:
     resolution: {integrity: sha512-sYyzzJT4G0g02azzJ8o55VFFV31XvFpdUpG+unxS0vSaYsJnSPKGoI6WdPwUucJL1wpgGfwfmntNX/Ub1uOViA==}
     peerDependencies:
       react: ^18 || ^19
-
-  '@tanstack/react-virtual@3.13.23':
-    resolution: {integrity: sha512-XnMRnHQ23piOVj2bzJqHrRrLg4r+F86fuBcwteKfbIjJrtGxb4z7tIvPVAe4B+4UVwo9G4Giuz5fmapcrnZ0OQ==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  '@tanstack/virtual-core@3.13.23':
-    resolution: {integrity: sha512-zSz2Z2HNyLjCplANTDyl3BcdQJc2k1+yyFoKhNRmCr7V7dY8o8q5m8uFTI1/Pg1kL+Hgrz6u3Xo6eFUB7l66cg==}
 
   '@tauri-apps/api@2.10.1':
     resolution: {integrity: sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==}
@@ -6270,14 +5991,6 @@ snapshots:
     dependencies:
       '@tanstack/query-core': 5.96.2
       react: 19.2.4
-
-  '@tanstack/react-virtual@3.13.23(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      '@tanstack/virtual-core': 3.13.23
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-
-  '@tanstack/virtual-core@3.13.23': {}
 
   '@tauri-apps/api@2.10.1': {}
 

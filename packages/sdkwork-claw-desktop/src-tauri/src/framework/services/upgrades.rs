@@ -1,10 +1,7 @@
 use crate::framework::{
     layout::{ActiveState, ComponentsState, InventoryState, UpgradesState},
     paths::AppPaths,
-    services::{
-        kernel_runtime_authority::KernelRuntimeAuthorityService,
-        openclaw_runtime::{validate_installed_openclaw_runtime, OPENCLAW_RUNTIME_ID},
-    },
+    services::kernel_runtime_authority::KernelRuntimeAuthorityService,
     FrameworkError, Result,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -131,9 +128,10 @@ impl ComponentUpgradeService {
                 version_dir.display()
             )));
         }
-        let is_openclaw_runtime = runtime_id == OPENCLAW_RUNTIME_ID;
-        if is_openclaw_runtime {
-            validate_installed_openclaw_runtime(paths, version)?;
+        let authority = KernelRuntimeAuthorityService::new();
+        let is_managed_runtime = authority.managed_contract(runtime_id, paths)?.is_some();
+        if is_managed_runtime {
+            authority.verify_managed_install(runtime_id, paths, version)?;
         }
 
         let current_dir = runtime_dir.join("current");
@@ -147,7 +145,7 @@ impl ComponentUpgradeService {
             .and_then(|entry| entry.active_runtime_install_key().map(str::to_string))
             .filter(|current| current != version);
 
-        if !is_openclaw_runtime {
+        if !is_managed_runtime {
             let active_entry = active.runtimes.entry(runtime_id.to_string()).or_default();
             active_entry.set_runtime_state(
                 Some(version.to_string()),
@@ -167,7 +165,7 @@ impl ComponentUpgradeService {
             *packages = unique.into_iter().collect();
         }
 
-        let inventory_backup = if is_openclaw_runtime {
+        let inventory_backup = if is_managed_runtime {
             Some(capture_file_backup(&paths.inventory_file)?)
         } else {
             None
@@ -179,11 +177,10 @@ impl ComponentUpgradeService {
             return Err(error);
         }
 
-        let write_result = if is_openclaw_runtime {
+        let write_result = if is_managed_runtime {
             let result = (|| -> Result<()> {
                 write_json_file(&paths.inventory_file, &inventory)?;
-                KernelRuntimeAuthorityService::new()
-                    .record_openclaw_activation_result(paths, version, None)?;
+                authority.record_activation_result(runtime_id, paths, version, None)?;
                 Ok(())
             })();
             if result.is_err() {
@@ -592,11 +589,9 @@ mod tests {
                 .and_then(serde_json::Value::as_str),
             Some("2026.3.28")
         );
-        assert!(
-            receipt
-                .receipt_file
-                .contains(&format!("runtime-openclaw-{next_install_key}.json"))
-        );
+        assert!(receipt
+            .receipt_file
+            .contains(&format!("runtime-openclaw-{next_install_key}.json")));
     }
 
     #[test]
@@ -605,8 +600,13 @@ mod tests {
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let next_install_key = openclaw_install_key("2026.4.9");
         seed_openclaw_runtime_layout(root.path());
-        fs::remove_file(paths.openclaw_runtime_dir.join(&next_install_key).join("manifest.json"))
-            .expect("remove target manifest");
+        fs::remove_file(
+            paths
+                .openclaw_runtime_dir
+                .join(&next_install_key)
+                .join("manifest.json"),
+        )
+        .expect("remove target manifest");
 
         let error = ComponentUpgradeService::new()
             .activate_runtime_version(&paths, "openclaw", &next_install_key)
@@ -615,7 +615,8 @@ mod tests {
         assert!(!error.to_string().trim().is_empty());
         assert_eq!(
             std::fs::read_to_string(
-                paths.runtimes_dir
+                paths
+                    .runtimes_dir
                     .join("openclaw")
                     .join("current")
                     .join("runtime.txt")
@@ -641,7 +642,8 @@ mod tests {
         assert!(!error.to_string().trim().is_empty());
         assert_eq!(
             std::fs::read_to_string(
-                paths.runtimes_dir
+                paths
+                    .runtimes_dir
                     .join("openclaw")
                     .join("current")
                     .join("runtime.txt")
@@ -881,8 +883,11 @@ mod tests {
         )
         .expect("client bedrock package dir");
 
-        fs::write(install_dir.join("runtime.txt"), format!("runtime-{version}"))
-            .expect("runtime marker");
+        fs::write(
+            install_dir.join("runtime.txt"),
+            format!("runtime-{version}"),
+        )
+        .expect("runtime marker");
         fs::write(&cli_path, "console.log('openclaw');").expect("cli file");
         fs::write(
             &openclaw_package_json_path,

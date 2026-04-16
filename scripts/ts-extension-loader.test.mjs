@@ -101,4 +101,13 @@ assert.equal(
   'workspace package resolution must route core-pc-react runtime through the local Node-safe shim',
 );
 
+assert.equal(
+  loader.resolveWorkspacePackageSourceAliasPath('@sdkwork/craw-chat-sdk'),
+  path.resolve(
+    workspaceRoot,
+    'scripts/shims/craw-chat-sdk-compat.ts',
+  ),
+  'workspace package resolution must route craw-chat SDK imports through the local compatibility shim',
+);
+
 console.log('ok - ts extension loader remaps shared SDK packages to source entries in source mode');

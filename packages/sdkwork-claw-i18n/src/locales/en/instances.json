@@ -304,7 +304,7 @@
     },
     "actions": {
       "setAsActive": "Set as Active",
-      "openOpenClawConsole": "Open Control Page",
+      "openControlPage": "Open Console",
       "restart": "Restart",
       "stop": "Stop",
       "start": "Start",
@@ -331,7 +331,7 @@
       "failedToOpenDiagnosticPath": "Failed to open the diagnostic location",
       "uninstalled": "Instance uninstalled successfully",
       "failedToUninstall": "Failed to uninstall instance",
-      "failedToOpenOpenClawConsole": "Failed to open the OpenClaw console"
+      "failedToOpenControlPage": "Failed to open the control page"
     },
     "confirmUninstall": "Are you sure you want to uninstall this instance? This action cannot be undone.",
     "modules": {

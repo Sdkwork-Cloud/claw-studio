@@ -428,6 +428,35 @@ function normalizePath(path: string) {
   return path.replace(/\\/g, '/');
 }
 
+function createUnavailableOpenClawConfigDocumentError(configPath: string) {
+  return new Error(
+    `The attached OpenClaw config file is no longer available on disk. Re-scan or reattach the instance configuration. (${normalizePath(
+      configPath,
+    )})`,
+  );
+}
+
+function isUnavailableOpenClawConfigDocumentError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : '';
+
+  return /ENOENT|os error 2|not a file|\u7cfb\u7edf\u627e\u4e0d\u5230\u6307\u5b9a\u7684\u6587\u4ef6/i.test(
+    message,
+  );
+}
+
+function wrapUnavailableOpenClawConfigDocumentError(configPath: string, error: unknown): never {
+  if (isUnavailableOpenClawConfigDocumentError(error)) {
+    throw createUnavailableOpenClawConfigDocumentError(configPath);
+  }
+
+  throw error;
+}
+
 const DEFAULT_AGENT_ID = 'main';
 const VALID_AGENT_ID_RE = /^[a-z0-9](?:[a-z0-9._-]{0,63})$/;
 const INVALID_AGENT_ID_CHARS_RE = /[^a-z0-9._-]+/g;
@@ -2586,6 +2615,7 @@ async function readConfigRoot(configPath: string) {
 
   const version = getOpenClawConfigSnapshotVersion(normalizedConfigPath);
   const request = platform.readFile(normalizedConfigPath)
+    .catch((error) => wrapUnavailableOpenClawConfigDocumentError(normalizedConfigPath, error))
     .then((raw) => {
       const parsed = raw.trim() ? parseJson5<JsonObject>(raw) : {};
 
@@ -3612,8 +3642,20 @@ class OpenClawConfigService {
     return listResolvedChannelDefinitions();
   }
 
+  async getConfigDocumentPathInfo(configPath: string) {
+    return platform.getPathInfo(normalizePath(configPath));
+  }
+
   async readConfigDocument(configPath: string) {
-    return platform.readFile(normalizePath(configPath));
+    const normalizedConfigPath = normalizePath(configPath);
+    const pathInfo = await this.getConfigDocumentPathInfo(normalizedConfigPath).catch(() => null);
+    if (pathInfo && (!pathInfo.exists || pathInfo.kind !== 'file')) {
+      throw createUnavailableOpenClawConfigDocumentError(normalizedConfigPath);
+    }
+
+    return platform
+      .readFile(normalizedConfigPath)
+      .catch((error) => wrapUnavailableOpenClawConfigDocumentError(normalizedConfigPath, error));
   }
 
   async writeConfigDocument(configPath: string, raw: string) {
@@ -3623,7 +3665,14 @@ class OpenClawConfigService {
       throw new Error('OpenClaw config document must contain a top-level object.');
     }
 
-    await platform.writeFile(normalizedConfigPath, raw);
+    const pathInfo = await this.getConfigDocumentPathInfo(normalizedConfigPath).catch(() => null);
+    if (pathInfo && (!pathInfo.exists || pathInfo.kind !== 'file')) {
+      throw createUnavailableOpenClawConfigDocumentError(normalizedConfigPath);
+    }
+
+    await platform
+      .writeFile(normalizedConfigPath, raw)
+      .catch((error) => wrapUnavailableOpenClawConfigDocumentError(normalizedConfigPath, error));
     invalidateOpenClawConfigSnapshot(normalizedConfigPath);
   }
 

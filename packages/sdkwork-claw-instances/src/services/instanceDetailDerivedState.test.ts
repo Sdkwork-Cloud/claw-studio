@@ -267,7 +267,7 @@ await runTest(
     assert.equal(derivedState.canEditManagedDreaming, true);
     assert.equal(derivedState.isProviderConfigReadonly, true);
     assert.equal(derivedState.canManageOpenClawProviders, false);
-    assert.equal(derivedState.canOpenOpenClawConsole, true);
+    assert.equal(derivedState.canOpenControlPage, true);
     assert.equal(derivedState.managementSummary?.entries.length, 5);
     assert.equal(derivedState.providerSelectionState.selectedProvider?.id, 'openai');
     assert.equal(derivedState.providerSelectionState.deletingProvider?.id, 'openai');

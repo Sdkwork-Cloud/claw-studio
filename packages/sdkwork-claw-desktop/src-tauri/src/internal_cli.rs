@@ -598,7 +598,11 @@ mod tests {
         },
     };
     use sha2::{Digest, Sha256};
-    use std::{env, ffi::{OsStr, OsString}, fs};
+    use std::{
+        env,
+        ffi::{OsStr, OsString},
+        fs,
+    };
 
     const TEST_BUNDLED_OPENCLAW_VERSION: &str = env!("SDKWORK_BUNDLED_OPENCLAW_VERSION");
     const PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME: &str = ".sdkwork-openclaw-runtime.json";
@@ -633,10 +637,17 @@ mod tests {
         }
     }
 
-    fn managed_openclaw_config_path(paths: &crate::framework::paths::AppPaths) -> std::path::PathBuf {
+    fn managed_openclaw_config_path(
+        paths: &crate::framework::paths::AppPaths,
+    ) -> std::path::PathBuf {
         KernelRuntimeAuthorityService::new()
-            .active_openclaw_config_path(paths)
-            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            .active_managed_config_path("openclaw", paths)
+            .unwrap_or_else(|_| {
+                paths
+                    .kernel_paths("openclaw")
+                    .map(|kernel| kernel.managed_config_file)
+                    .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            })
     }
 
     #[test]
@@ -800,8 +811,10 @@ mod tests {
         fs::write(&invalid_program_data, "sentinel").expect("write invalid ProgramData sentinel");
         fs::write(&invalid_user_profile, "sentinel").expect("write invalid USERPROFILE sentinel");
         create_bundled_runtime_fixture(&install_root, None);
-        let _program_data_guard = ScopedEnvVarGuard::set("ProgramData", invalid_program_data.as_os_str());
-        let _user_profile_guard = ScopedEnvVarGuard::set("USERPROFILE", invalid_user_profile.as_os_str());
+        let _program_data_guard =
+            ScopedEnvVarGuard::set("ProgramData", invalid_program_data.as_os_str());
+        let _user_profile_guard =
+            ScopedEnvVarGuard::set("USERPROFILE", invalid_user_profile.as_os_str());
 
         prepare_bundled_openclaw_runtime_for_current_install(Some(install_root.as_os_str()))
             .expect("prepare packaged OpenClaw runtime with install-root override");
@@ -864,7 +877,9 @@ mod tests {
     ) {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        let capture_path = paths.user_root.join("openclaw-cli-external-node-capture.json");
+        let capture_path = paths
+            .user_root
+            .join("openclaw-cli-external-node-capture.json");
         create_bundled_runtime_fixture(&paths.install_root, Some(&capture_path));
 
         let exit_code = run_openclaw_cli_for_paths_and_install_root(
@@ -1096,5 +1111,4 @@ mod tests {
         }
         hex
     }
-
 }

@@ -48,6 +48,8 @@ function createRuntimeDependencyOverrides(): InstanceServiceDependencyOverrides 
     },
     openClawConfigService: {
       resolveInstanceConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
+      getConfigDocumentPathInfo: (configPath) =>
+        openClawConfigService.getConfigDocumentPathInfo(configPath),
       readConfigDocument: (configPath) => openClawConfigService.readConfigDocument(configPath),
       writeConfigDocument: (configPath, raw) =>
         openClawConfigService.writeConfigDocument(configPath, raw),

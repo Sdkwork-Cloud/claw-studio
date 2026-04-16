@@ -8,8 +8,8 @@ use crate::{
             StudioConversationRecord, StudioCreateInstanceInput, StudioInstanceConfig,
             StudioInstanceDetailRecord, StudioInstanceRecord, StudioInstanceStatus,
             StudioOpenClawGatewayInvokeOptions, StudioOpenClawGatewayInvokeRequest,
-            StudioUpdateInstanceInput,
-            StudioUpdateInstanceLlmProviderConfigInput, StudioWorkbenchTaskExecutionRecord,
+            StudioUpdateInstanceInput, StudioUpdateInstanceLlmProviderConfigInput,
+            StudioWorkbenchTaskExecutionRecord,
         },
         Result as FrameworkResult,
     },
@@ -62,12 +62,41 @@ fn list_instances_from_state(state: &AppState) -> FrameworkResult<Vec<StudioInst
         )
 }
 
+fn is_built_in_openclaw_status_event_instance(instance: &StudioInstanceRecord) -> bool {
+    instance.is_built_in
+        && instance.runtime_kind == crate::framework::services::studio::StudioRuntimeKind::Openclaw
+        && instance.deployment_mode
+            == crate::framework::services::studio::StudioInstanceDeploymentMode::LocalManaged
+        && instance.transport_kind
+            == crate::framework::services::studio::StudioInstanceTransportKind::OpenclawGatewayWs
+}
+
 fn emit_built_in_openclaw_status_changed_if_needed(
     state: &AppState,
     instance_id: &str,
     status: StudioInstanceStatus,
 ) -> Result<(), String> {
-    if instance_id != BUILT_IN_OPENCLAW_INSTANCE_ID {
+    let should_emit = if instance_id == BUILT_IN_OPENCLAW_INSTANCE_ID {
+        true
+    } else {
+        let config = state.config_snapshot();
+        state
+            .context
+            .services
+            .studio
+            .get_instance_with_supervisor(
+                &state.paths,
+                &config,
+                &state.context.services.storage,
+                &state.context.services.supervisor,
+                instance_id,
+            )
+            .ok()
+            .flatten()
+            .is_some_and(|instance| is_built_in_openclaw_status_event_instance(&instance))
+    };
+
+    if !should_emit {
         return Ok(());
     }
 
@@ -885,6 +914,12 @@ pub async fn invoke_managed_openclaw_gateway(
 
 #[cfg(test)]
 mod tests {
+    use crate::framework::services::studio::{
+        StudioInstanceConfig, StudioInstanceDeploymentMode, StudioInstanceIconType,
+        StudioInstanceRecord, StudioInstanceStatus, StudioInstanceTransportKind, StudioRuntimeKind,
+        StudioStorageBinding,
+    };
+
     fn command_source_segment<'a>(source: &'a str, fn_name: &str) -> &'a str {
         let start = source
             .find(&format!("pub async fn {fn_name}"))
@@ -898,6 +933,57 @@ mod tests {
     }
 
     #[test]
+    fn stable_built_in_openclaw_instances_still_match_status_event_semantics() {
+        let instance = StudioInstanceRecord {
+            id: "managed-openclaw-primary".to_string(),
+            name: "Managed OpenClaw Primary".to_string(),
+            description: Some("Stable built-in OpenClaw identity.".to_string()),
+            runtime_kind: StudioRuntimeKind::Openclaw,
+            deployment_mode: StudioInstanceDeploymentMode::LocalManaged,
+            transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
+            status: StudioInstanceStatus::Offline,
+            is_built_in: true,
+            is_default: true,
+            icon_type: StudioInstanceIconType::Server,
+            version: "2026.4.15".to_string(),
+            type_label: "Built-In OpenClaw".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: Some(18_789),
+            base_url: Some("http://127.0.0.1:18789".to_string()),
+            websocket_url: Some("ws://127.0.0.1:18789".to_string()),
+            cpu: 0,
+            memory: 0,
+            total_memory: "Unknown".to_string(),
+            uptime: "-".to_string(),
+            capabilities: vec![],
+            storage: StudioStorageBinding {
+                profile_id: Some("default-local".to_string()),
+                provider: crate::framework::storage::StorageProviderKind::LocalFile,
+                namespace: "claw-studio".to_string(),
+                database: None,
+                connection_hint: None,
+                endpoint: None,
+            },
+            config: StudioInstanceConfig {
+                port: "18789".to_string(),
+                sandbox: true,
+                auto_update: true,
+                log_level: "info".to_string(),
+                cors_origins: "*".to_string(),
+                workspace_path: None,
+                base_url: Some("http://127.0.0.1:18789".to_string()),
+                websocket_url: Some("ws://127.0.0.1:18789".to_string()),
+                auth_token: None,
+            },
+            created_at: 1,
+            updated_at: 1,
+            last_seen_at: Some(1),
+        };
+
+        assert!(super::is_built_in_openclaw_status_event_instance(&instance));
+    }
+
+    #[test]
     fn built_in_lifecycle_commands_emit_status_changed_events_after_manual_actions() {
         let source = include_str!("studio_commands.rs");
         let production_source = source
@@ -908,6 +994,10 @@ mod tests {
         assert!(
             production_source.contains("fn emit_built_in_openclaw_status_changed_if_needed"),
             "studio commands should centralize built-in OpenClaw status event emission"
+        );
+        assert!(
+            production_source.contains("fn is_built_in_openclaw_status_event_instance"),
+            "studio commands should resolve built-in OpenClaw status event targets semantically"
         );
 
         for fn_name in [

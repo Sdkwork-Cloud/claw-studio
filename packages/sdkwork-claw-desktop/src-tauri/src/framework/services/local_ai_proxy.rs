@@ -3764,8 +3764,13 @@ mod tests {
         paths: &crate::framework::paths::AppPaths,
     ) -> std::path::PathBuf {
         crate::framework::services::kernel_runtime_authority::KernelRuntimeAuthorityService::new()
-            .active_openclaw_config_path(paths)
-            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            .active_managed_config_path("openclaw", paths)
+            .unwrap_or_else(|_| {
+                paths
+                    .kernel_paths("openclaw")
+                    .map(|kernel| kernel.managed_config_file)
+                    .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            })
     }
 
     fn read_json(path: &std::path::Path) -> Value {

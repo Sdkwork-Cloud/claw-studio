@@ -118,6 +118,10 @@ function projectConsoleAvailability(
   };
 }
 
+function isTransitioningLifecycleStatus(status: StudioInstanceDetailRecord['instance']['status']) {
+  return status === 'starting' || status === 'syncing';
+}
+
 function buildManagementActions(detail: StudioInstanceDetailRecord): InstanceManagementAction[] {
   const lifecycleControllable =
     detail.lifecycle.lifecycleControllable ?? detail.lifecycle.startStopSupported;
@@ -126,8 +130,8 @@ function buildManagementActions(detail: StudioInstanceDetailRecord): InstanceMan
     return [];
   }
 
-  const canStart = detail.instance.status !== 'online' && detail.instance.status !== 'starting';
-  const canStop = detail.instance.status === 'online' || detail.instance.status === 'starting';
+  const canStart = detail.instance.status !== 'online' && !isTransitioningLifecycleStatus(detail.instance.status);
+  const canStop = detail.instance.status === 'online' || isTransitioningLifecycleStatus(detail.instance.status);
   const canRestart = detail.instance.status !== 'offline';
 
   return [

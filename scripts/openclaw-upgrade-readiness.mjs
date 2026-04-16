@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { detectLegacyOpenClawSourceRuntimeResidue } from './cleanup-legacy-openclaw-source-runtime.mjs';
+import { resolveKernelReleaseConfigPath } from './release/kernel-releases.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -116,7 +117,9 @@ export async function assessOpenClawUpgradeReadiness({
     throw new Error('assessOpenClawUpgradeReadiness requires a targetVersion.');
   }
 
-  const releaseConfig = tryReadJson(path.join(workspaceRootDir, 'config', 'openclaw-release.json'));
+  const releaseConfig = tryReadJson(
+    resolveKernelReleaseConfigPath('openclaw', { workspaceRootDir }),
+  );
   const bundledManifest = tryReadJson(
     path.join(
       workspaceRootDir,

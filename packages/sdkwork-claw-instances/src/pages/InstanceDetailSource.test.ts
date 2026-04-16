@@ -34,7 +34,7 @@ await runTest(
     assert.match(routeSource, /loadBaseDetail:\s*(?:async\s*)?\(instanceId\)\s*=>/);
     assert.match(routeSource, /loadModulePayload:\s*(?:async\s*)?\(instanceId\)\s*=>/);
     assert.match(routeSource, /const detailSource = useMemo\(/);
-    assert.match(routeSource, /const kernelId = resolveRegistryKernelId\(instance\);/);
+    assert.match(routeSource, /const kernelId = instance \? resolveRegistryKernelId\(instance\) : 'custom';/);
     assert.match(routeSource, /resolveSupportedInstanceDetailModule\(kernelId\)/);
     assert.match(routeSource, /kernelId=\{kernelId\}/);
     assert.match(routeSource, /kernelId,\s*$/m);
@@ -44,18 +44,37 @@ await runTest(
     assert.doesNotMatch(routeSource, /buildOpenClawAgentDialogStateHandlers/);
     assert.doesNotMatch(routeSource, /resolveRegistryRuntimeKind\(instance\)/);
 
+    const detailSourceIndex = routeSource.indexOf('const detailSource = useMemo(');
+    const loadingGuardIndex = routeSource.indexOf('if (isLoading) {');
+    const notFoundGuardIndex = routeSource.indexOf('if (!id || !instance) {');
+    assert.ok(detailSourceIndex >= 0, 'Expected a memoized detail source definition');
+    assert.ok(loadingGuardIndex >= 0, 'Expected an isLoading guard');
+    assert.ok(notFoundGuardIndex >= 0, 'Expected a not-found guard');
+    assert.ok(
+      detailSourceIndex < loadingGuardIndex,
+      'Expected detail-source hooks to execute before the loading early return',
+    );
+    assert.ok(
+      detailSourceIndex < notFoundGuardIndex,
+      'Expected detail-source hooks to execute before the not-found early return',
+    );
+
     assert.match(openClawDetailSource, /function OpenClawInstanceDetailPage\(/);
     assert.match(openClawDetailSource, /source\??:\s*InstanceDetailSource/);
     assert.match(openClawDetailSource, /buildOpenClawAgentDialogStateHandlers/);
+    assert.match(openClawDetailSource, /buildInstanceConsoleHandlers/);
     assert.match(openClawDetailSource, /source\s*\.\s*loadModulePayload\(\)/);
     assert.match(openClawDetailSource, /getOpenClawWorkbenchFromModulePayload/);
-    assert.match(openClawDetailSource, /instanceWorkbenchService\.getInstanceWorkbench\(targetInstanceId\)/);
+    assert.match(openClawDetailSource, /instanceWorkbenchService\.getInstanceWorkbench\(instanceId\)/);
     assert.doesNotMatch(openClawDetailSource, /getOpenClawInstanceDetailSourceExtension/);
 
     assert.match(hermesDetailSource, /function HermesInstanceDetailPage\(/);
     assert.match(hermesDetailSource, /source\??:\s*InstanceDetailSource/);
+    assert.match(hermesDetailSource, /buildInstanceConsoleHandlers/);
     assert.match(hermesDetailSource, /source\s*\.\s*loadBaseDetail\(\)/);
     assert.match(hermesDetailSource, /source\s*\.\s*loadModulePayload\(\)/);
+    assert.match(hermesDetailSource, /management\.consoleAvailability/);
+    assert.match(hermesDetailSource, /instances\.detail\.actions\.openControlPage/);
     assert.match(hermesDetailSource, /instances\.detail\.modules\.hermes\.readiness\.title/);
     assert.match(hermesDetailSource, /sections\.readinessChecks/);
     assert.doesNotMatch(hermesDetailSource, /\}, \[source\]\);/);

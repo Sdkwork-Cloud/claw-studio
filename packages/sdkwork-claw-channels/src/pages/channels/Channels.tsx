@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useInstanceStore } from '@sdkwork/claw-core';
+import { instanceDirectoryService, useInstanceStore } from '@sdkwork/claw-core';
 import { openExternalUrl } from '@sdkwork/claw-infrastructure';
 import {
   Building2,
@@ -18,6 +18,15 @@ import {
   type ChannelWorkspaceItem,
 } from '@sdkwork/claw-ui';
 import { Channel, channelService } from '../../services';
+import { resolveChannelsPageInstanceId } from './channelInstanceResolver.ts';
+
+type Translate = (
+  key: string,
+  options?: {
+    defaultValue?: string;
+    name?: string;
+  },
+) => string;
 
 function resolveChannelWorkspaceIcon(iconName?: string): React.ReactNode | undefined {
   switch (iconName) {
@@ -55,14 +64,72 @@ function buildInitialFormData(channel: Channel | null) {
   }, {});
 }
 
+function readErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  return String(error ?? '');
+}
+
+function isServiceUnavailableError(error: unknown) {
+  const message = readErrorMessage(error).toLowerCase();
+  return message.includes('503') || message.includes('service unavailable');
+}
+
+function describeChannelsPageError(
+  t: Translate,
+  error: unknown,
+  action: 'load' | 'toggle' | 'save' | 'delete',
+) {
+  if (action === 'load' && isServiceUnavailableError(error)) {
+    return t('channels.page.feedback.loadFailedServiceUnavailable', {
+      defaultValue:
+        'Channel service is temporarily unavailable. Confirm the instance and kernel are running, then retry.',
+    });
+  }
+
+  if (action === 'toggle') {
+    return t('channels.page.feedback.toggleFailed', {
+      defaultValue: 'Unable to update channel status right now.',
+    });
+  }
+
+  if (action === 'save') {
+    return t('channels.page.feedback.saveFailed', {
+      defaultValue: 'Unable to save channel configuration right now.',
+    });
+  }
+
+  if (action === 'delete') {
+    return t('channels.page.feedback.deleteFailed', {
+      defaultValue: 'Unable to delete channel configuration right now.',
+    });
+  }
+
+  return t('channels.page.feedback.loadFailed', {
+    defaultValue: 'Unable to load channel configuration right now.',
+  });
+}
+
 export function Channels() {
   const { t } = useTranslation();
-  const { activeInstanceId } = useInstanceStore();
+  const { activeInstanceId, setActiveInstanceId } = useInstanceStore();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [resolvedInstanceId, setResolvedInstanceId] = useState<string | null>(
+    activeInstanceId,
+  );
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isResolvingInstance, setIsResolvingInstance] = useState(!activeInstanceId);
+  const effectiveInstanceId = activeInstanceId || resolvedInstanceId;
 
   const selectedChannel = useMemo(
     () => channels.find((channel) => channel.id === selectedChannelId) || null,
@@ -84,31 +151,83 @@ export function Channels() {
   );
 
   useEffect(() => {
+    let disposed = false;
+
+    if (activeInstanceId) {
+      setResolvedInstanceId(activeInstanceId);
+      setIsResolvingInstance(false);
+      return () => {
+        disposed = true;
+      };
+    }
+
+    setIsResolvingInstance(true);
+    void resolveChannelsPageInstanceId({
+      activeInstanceId,
+      listInstances: () => instanceDirectoryService.listInstances(),
+      setActiveInstanceId,
+    })
+      .then((instanceId) => {
+        if (disposed) {
+          return;
+        }
+
+        setResolvedInstanceId(instanceId);
+      })
+      .catch((error) => {
+        console.error('Failed to resolve channels page instance:', error);
+        if (disposed) {
+          return;
+        }
+
+        setResolvedInstanceId(null);
+      })
+      .finally(() => {
+        if (!disposed) {
+          setIsResolvingInstance(false);
+        }
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [activeInstanceId, setActiveInstanceId]);
+
+  useEffect(() => {
     const fetchChannels = async () => {
-      if (!activeInstanceId) {
+      if (isResolvingInstance) {
+        setIsLoading(true);
+        return;
+      }
+
+      if (!effectiveInstanceId) {
         setChannels([]);
         setSelectedChannelId(null);
         setFormData({});
+        setErrorMessage(null);
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
+      setErrorMessage(null);
       try {
-        const data = await channelService.getChannels(activeInstanceId);
+        const data = await channelService.getChannels(effectiveInstanceId);
         setChannels(data);
         setSelectedChannelId((current) =>
           data.some((channel) => channel.id === current) ? current : null,
         );
+        setErrorMessage(null);
       } catch (error) {
         console.error('Failed to fetch channels:', error);
+        setErrorMessage(describeChannelsPageError(t, error, 'load'));
       } finally {
         setIsLoading(false);
       }
     };
 
     void fetchChannels();
-  }, [activeInstanceId]);
+  }, [effectiveInstanceId, isResolvingInstance, t]);
 
   const handleSelectedChannelIdChange = (channelId: string | null) => {
     setSelectedChannelId(channelId);
@@ -123,7 +242,7 @@ export function Channels() {
   };
 
   const handleToggleEnable = async (channel: ChannelWorkspaceItem, nextEnabled: boolean) => {
-    if (!activeInstanceId) {
+    if (!effectiveInstanceId) {
       return;
     }
 
@@ -132,19 +251,23 @@ export function Channels() {
       return;
     }
 
+    setErrorMessage(null);
     try {
       const updatedChannels = await channelService.updateChannelStatus(
-        activeInstanceId,
+        effectiveInstanceId,
         channel.id,
         nextEnabled,
       );
       setChannels(updatedChannels);
+      setErrorMessage(null);
     } catch (error) {
       console.error('Failed to update channel status:', error);
+      setErrorMessage(describeChannelsPageError(t, error, 'toggle'));
     }
   };
 
   const handleFieldChange = (_channel: ChannelWorkspaceItem, key: string, value: string) => {
+    setErrorMessage(null);
     setFormData((current) => ({ ...current, [key]: value }));
   };
 
@@ -153,35 +276,48 @@ export function Channels() {
   };
 
   const handleSave = async () => {
-    if (!selectedChannel || !activeInstanceId) {
+    if (!selectedChannel || !effectiveInstanceId) {
       return;
     }
 
     setIsSaving(true);
+    setErrorMessage(null);
     try {
-      const updatedChannels = await channelService.saveChannelConfig(activeInstanceId, selectedChannel.id, formData);
+      const updatedChannels = await channelService.saveChannelConfig(
+        effectiveInstanceId,
+        selectedChannel.id,
+        formData,
+      );
       setChannels(updatedChannels);
       setSelectedChannelId(null);
       setFormData({});
+      setErrorMessage(null);
     } catch (error) {
       console.error('Failed to save channel config:', error);
+      setErrorMessage(describeChannelsPageError(t, error, 'save'));
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDeleteConfig = async () => {
-    if (!selectedChannel || !activeInstanceId) {
+    if (!selectedChannel || !effectiveInstanceId) {
       return;
     }
 
+    setErrorMessage(null);
     try {
-      const updatedChannels = await channelService.deleteChannelConfig(activeInstanceId, selectedChannel.id);
+      const updatedChannels = await channelService.deleteChannelConfig(
+        effectiveInstanceId,
+        selectedChannel.id,
+      );
       setChannels(updatedChannels);
       setSelectedChannelId(null);
       setFormData({});
+      setErrorMessage(null);
     } catch (error) {
       console.error('Failed to delete channel config:', error);
+      setErrorMessage(describeChannelsPageError(t, error, 'delete'));
     }
   };
 
@@ -206,11 +342,19 @@ export function Channels() {
             </p>
           </div>
 
+          {errorMessage ? (
+            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+              {errorMessage}
+            </div>
+          ) : null}
+
           <ChannelWorkspace
             items={channelWorkspaceItems}
             variant="management"
             selectedChannelId={selectedChannel?.id || null}
             valuesByChannelId={selectedChannel ? { [selectedChannel.id]: formData } : {}}
+            error={errorMessage}
+            isSaving={isSaving}
             texts={{
               statusActive: t('channels.page.status.active'),
               statusConnected: t('dashboard.status.connected'),
@@ -236,7 +380,7 @@ export function Channels() {
               deleteConfigurationAction: t('channels.page.actions.deleteConfiguration'),
             }}
             emptyState={
-              !activeInstanceId ? (
+              !effectiveInstanceId ? (
                 <div className="rounded-[1.5rem] border border-dashed border-zinc-300 bg-white/75 p-6 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/35 dark:text-zinc-400">
                   {t('channels.page.subtitle')}
                 </div>

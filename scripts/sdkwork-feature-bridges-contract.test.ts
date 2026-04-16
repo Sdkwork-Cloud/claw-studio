@@ -28,15 +28,6 @@ function runTest(name: string, fn: () => void) {
 
 const packageContracts = [
   {
-    pkg: 'apps',
-    files: [
-      'packages/sdkwork-claw-apps/src/AppStore.tsx',
-      'packages/sdkwork-claw-apps/src/AppDetail.tsx',
-      'packages/sdkwork-claw-apps/src/services/appStoreService.ts',
-    ],
-    requiredExports: ["export * from './AppDetail';", "export * from './AppStore';"],
-  },
-  {
     pkg: 'channels',
     files: [
       'packages/sdkwork-claw-channels/src/Channels.tsx',
@@ -87,45 +78,6 @@ const packageContracts = [
       'packages/sdkwork-claw-extensions/src/services/extensionService.ts',
     ],
     requiredExports: ["export * from './Extensions';"],
-  },
-  {
-    pkg: 'github',
-    files: [
-      'packages/sdkwork-claw-github/src/GitHubRepos.tsx',
-      'packages/sdkwork-claw-github/src/GitHubRepoDetail.tsx',
-      'packages/sdkwork-claw-github/src/services/githubService.ts',
-    ],
-    requiredExports: ["export * from './GitHubRepoDetail';", "export * from './GitHubRepos';"],
-  },
-  {
-    pkg: 'huggingface',
-    files: [
-      'packages/sdkwork-claw-huggingface/src/HuggingFaceModels.tsx',
-      'packages/sdkwork-claw-huggingface/src/HuggingFaceModelDetail.tsx',
-      'packages/sdkwork-claw-huggingface/src/services/huggingfaceService.ts',
-    ],
-    requiredExports: [
-      "export * from './HuggingFaceModelDetail';",
-      "export * from './HuggingFaceModels';",
-    ],
-  },
-  {
-    pkg: 'model-purchase',
-    files: [
-      'packages/sdkwork-claw-model-purchase/src/ModelPurchase.tsx',
-      'packages/sdkwork-claw-model-purchase/src/pages/ModelPurchase.tsx',
-      'packages/sdkwork-claw-model-purchase/src/services/modelPurchaseCatalog.ts',
-    ],
-    requiredExports: ["export * from './ModelPurchase';", "export * from './services';"],
-  },
-  {
-    pkg: 'points',
-    files: [
-      'packages/sdkwork-claw-points/src/Points.tsx',
-      'packages/sdkwork-claw-points/src/pages/Points.tsx',
-      'packages/sdkwork-claw-points/src/services/pointsService.ts',
-    ],
-    requiredExports: ["export * from './Points';", "export * from './services';"],
   },
 ] as const;
 

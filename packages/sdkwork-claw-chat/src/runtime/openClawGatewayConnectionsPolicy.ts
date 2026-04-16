@@ -22,6 +22,23 @@ function normalizeInstanceIds(instanceIds: Array<string | null | undefined>) {
   ).sort();
 }
 
+function normalizeDirectoryInstanceStatuses(
+  instances: Array<{ id: string | null | undefined; status?: string | null | undefined }>,
+) {
+  const statusByInstanceId = new Map<string, string>();
+
+  for (const instance of instances) {
+    const normalizedId = instance.id?.trim() || '';
+    if (!normalizedId || statusByInstanceId.has(normalizedId)) {
+      continue;
+    }
+
+    statusByInstanceId.set(normalizedId, instance.status?.trim() || 'unknown');
+  }
+
+  return statusByInstanceId;
+}
+
 export interface OpenClawGatewayWarmPlan {
   shouldQueryDirectory: boolean;
   instanceIds: string[];
@@ -58,4 +75,45 @@ export function resolveOpenClawGatewayWarmPlan(params: {
 
 export function shouldWarmOpenClawGatewayConnections(pathname: string) {
   return !isColdRoute(normalizePathname(pathname));
+}
+
+export function shouldRefreshOpenClawGatewayWarmConnectionsForBuiltInStatusChange(params: {
+  pathname: string;
+  warmedInstanceIds?: Array<string | null | undefined>;
+  eventInstanceId?: string | null;
+}) {
+  if (!shouldWarmOpenClawGatewayConnections(params.pathname)) {
+    return false;
+  }
+
+  const eventInstanceId = params.eventInstanceId?.trim() || '';
+  if (!eventInstanceId) {
+    return false;
+  }
+
+  return normalizeInstanceIds(params.warmedInstanceIds ?? []).includes(eventInstanceId);
+}
+
+export function resolveOpenClawGatewayWarmRefreshKey(params: {
+  pathname: string;
+  activeInstanceId?: string | null;
+  directoryInstances?: Array<{
+    id: string | null | undefined;
+    status?: string | null | undefined;
+  }>;
+}) {
+  const plan = resolveOpenClawGatewayWarmPlan({
+    pathname: params.pathname,
+    activeInstanceId: params.activeInstanceId,
+    directoryInstanceIds: params.directoryInstances?.map((instance) => instance.id || ''),
+  });
+
+  if (plan.instanceIds.length === 0) {
+    return '';
+  }
+
+  const statusByInstanceId = normalizeDirectoryInstanceStatuses(params.directoryInstances ?? []);
+  return plan.instanceIds
+    .map((instanceId) => `${instanceId}:${statusByInstanceId.get(instanceId) ?? 'unknown'}`)
+    .join('|');
 }

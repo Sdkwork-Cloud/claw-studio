@@ -1,4 +1,7 @@
-import releaseConfig from '../../../config/openclaw-release.json' with { type: 'json' };
+import {
+  resolveKernelReleaseConfig,
+  type KernelReleaseConfig,
+} from './kernelReleaseCatalog.ts';
 
 export interface OpenClawReleaseSupplementalPackageException {
   spec: string;
@@ -14,7 +17,15 @@ export interface OpenClawReleaseMetadata {
   runtimeSupplementalPackageExceptions: OpenClawReleaseSupplementalPackageException[];
 }
 
-const metadata = releaseConfig as OpenClawReleaseMetadata;
+interface OpenClawKernelReleaseConfig extends KernelReleaseConfig {
+  nodeVersion: string;
+  packageName: string;
+  runtimeSupplementalPackages?: string[];
+  runtimeSupplementalPackageExceptions?: OpenClawReleaseSupplementalPackageException[];
+}
+
+const metadata = resolveKernelReleaseConfig('openclaw') as OpenClawKernelReleaseConfig;
+const releaseConfigPath = 'config/kernel-releases/openclaw.json';
 
 function splitPackageSpec(spec: string): { name: string; version: string } {
   const normalized = String(spec ?? '').trim();
@@ -73,17 +84,17 @@ function validateRuntimeSupplementalPackageExceptions(
   for (const exception of exceptions) {
     if (!exception.reason) {
       throw new Error(
-        `[openclaw-release] Supplemental package exception "${exception.spec}" is missing a non-empty reason in config/openclaw-release.json.`,
+        `[openclaw-release] Supplemental package exception "${exception.spec}" is missing a non-empty reason in ${releaseConfigPath}.`,
       );
     }
     if (!exception.reviewedAt || !/^\d{4}-\d{2}-\d{2}$/u.test(exception.reviewedAt)) {
       throw new Error(
-        `[openclaw-release] Supplemental package exception "${exception.spec}" must use reviewedAt in YYYY-MM-DD format in config/openclaw-release.json.`,
+        `[openclaw-release] Supplemental package exception "${exception.spec}" must use reviewedAt in YYYY-MM-DD format in ${releaseConfigPath}.`,
       );
     }
     if (exceptionBySpec.has(exception.spec)) {
       throw new Error(
-        `[openclaw-release] Supplemental package exception "${exception.spec}" is duplicated in config/openclaw-release.json.`,
+        `[openclaw-release] Supplemental package exception "${exception.spec}" is duplicated in ${releaseConfigPath}.`,
       );
     }
     exceptionBySpec.set(exception.spec, exception);
@@ -94,7 +105,7 @@ function validateRuntimeSupplementalPackageExceptions(
   );
   if (unapprovedUnstableSpecs.length > 0) {
     throw new Error(
-      `[openclaw-release] Unstable supplemental package(s) require explicit exceptions in config/openclaw-release.json: ${unapprovedUnstableSpecs.join(', ')}`,
+      `[openclaw-release] Unstable supplemental package(s) require explicit exceptions in ${releaseConfigPath}: ${unapprovedUnstableSpecs.join(', ')}`,
     );
   }
 
@@ -103,7 +114,7 @@ function validateRuntimeSupplementalPackageExceptions(
     .filter((spec) => !configuredSpecs.has(spec));
   if (orphanedExceptions.length > 0) {
     throw new Error(
-      `[openclaw-release] Supplemental package exception(s) do not match runtimeSupplementalPackages in config/openclaw-release.json: ${orphanedExceptions.join(', ')}`,
+      `[openclaw-release] Supplemental package exception(s) do not match runtimeSupplementalPackages in ${releaseConfigPath}: ${orphanedExceptions.join(', ')}`,
     );
   }
 }

@@ -24,6 +24,7 @@ export * from './instanceDetailSectionAvailabilitySupport';
 export * from './instanceDetailResetState';
 export * from './instanceDetailSource';
 export * from './instanceDetailToastSupport';
+export * from './instanceDetailWorkbenchState';
 export * from './instanceDetailWorkbenchLoaderSupport';
 export * from './instanceDetailModuleCatalog';
 export * from './instanceBaseDetail';

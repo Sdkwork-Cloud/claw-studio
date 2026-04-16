@@ -2,6 +2,13 @@
   "page": {
     "title": "聊天通道",
     "subtitle": "将你的 OpenClaw 智能体连接到外部消息平台和 API。",
+    "feedback": {
+      "loadFailed": "\u65e0\u6cd5\u52a0\u8f7d\u901a\u9053\u914d\u7f6e\u3002",
+      "loadFailedServiceUnavailable": "\u901a\u9053\u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528\uff0c\u8bf7\u786e\u8ba4\u5b9e\u4f8b\u4e0e Kernel \u5df2\u542f\u52a8\u540e\u91cd\u8bd5\u3002",
+      "saveFailed": "\u65e0\u6cd5\u4fdd\u5b58\u901a\u9053\u914d\u7f6e\u3002",
+      "deleteFailed": "\u65e0\u6cd5\u5220\u9664\u901a\u9053\u914d\u7f6e\u3002",
+      "toggleFailed": "\u65e0\u6cd5\u66f4\u65b0\u901a\u9053\u542f\u7528\u72b6\u6001\u3002"
+    },
     "status": {
       "active": "已启用",
       "disconnected": "未连接",

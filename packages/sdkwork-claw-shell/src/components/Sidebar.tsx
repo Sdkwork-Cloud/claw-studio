@@ -2,17 +2,13 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Activity,
-  Blocks,
-  BrainCircuit,
   BriefcaseBusiness,
   CalendarClock,
   ChevronUp,
   CircleUserRound,
   Cpu,
-  GitBranch,
   Hash,
   HelpCircle,
-  LayoutGrid,
   LayoutDashboard,
   LogIn,
   LogOut,
@@ -24,7 +20,6 @@ import {
   type LucideIcon,
   Server,
   Settings2,
-  Store,
   Waypoints,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -174,30 +169,14 @@ export function Sidebar() {
       section: t('sidebar.ecosystem'),
       items: [
         {
-          id: 'market',
-          to: '/market',
-          icon: Blocks,
-          label: t('sidebar.market'),
-          badge: t('sidebar.hotBadge'),
-        },
-        {
           id: 'agents',
           to: '/agents',
           icon: BriefcaseBusiness,
           label: t('sidebar.agentMarket'),
         },
-        { id: 'mall', to: '/mall', icon: Store, label: t('sidebar.clawMall') },
-        {
-          id: 'apps',
-          to: '/apps',
-          icon: LayoutGrid,
-          label: t('sidebar.appStore'),
-        },
         { id: 'extensions', to: '/extensions', icon: PlugZap, label: t('sidebar.extensions') },
         { id: 'claw-upload', to: '/claw-center', icon: Waypoints, label: t('sidebar.clawUpload') },
         { id: 'community', to: '/community', icon: Newspaper, label: t('sidebar.community') },
-        { id: 'github', to: '/github', icon: GitBranch, label: t('sidebar.githubRepos') },
-        { id: 'huggingface', to: '/huggingface', icon: BrainCircuit, label: t('sidebar.huggingFace') },
       ],
     },
     {

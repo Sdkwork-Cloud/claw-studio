@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Package, Search, Settings2, Sparkles, UserCircle, X } from 'lucide-react';
 import {
@@ -17,7 +17,8 @@ export type ChatSessionContextStatusTone =
   | 'responding'
   | 'connected'
   | 'reconnecting'
-  | 'disconnected';
+  | 'disconnected'
+  | 'unavailable';
 
 export interface ChatSessionContextDrawerOption {
   id: string | null;
@@ -73,10 +74,12 @@ export interface ChatSessionContextDrawerProps {
   agentOptions: ChatSessionContextDrawerOption[];
   selectedAgentId: string | null;
   isAgentLoading?: boolean;
+  showAgentSection?: boolean;
   onSelectAgent: (agentId: string | null) => void;
   skillOptions: ChatSessionContextDrawerOption[];
   selectedSkillId: string | null;
   isSkillLoading?: boolean;
+  showSkillSection?: boolean;
   onSelectSkill: (skillId: string | null) => void;
 }
 
@@ -103,6 +106,11 @@ function resolveStatusClasses(statusTone: ChatSessionContextStatusTone) {
       return {
         badge: 'border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300',
         dot: 'bg-rose-500 dark:bg-rose-300',
+      };
+    case 'unavailable':
+      return {
+        badge: 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+        dot: 'bg-amber-500 dark:bg-amber-300',
       };
     default:
       return {
@@ -151,15 +159,19 @@ export function ChatSessionContextDrawer({
   agentOptions,
   selectedAgentId,
   isAgentLoading = false,
+  showAgentSection = true,
   onSelectAgent,
   skillOptions,
   selectedSkillId,
   isSkillLoading = false,
+  showSkillSection = true,
   onSelectSkill,
 }: ChatSessionContextDrawerProps) {
   const { t } = useTranslation();
   const [agentSearchQuery, setAgentSearchQuery] = useState('');
   const [skillSearchQuery, setSkillSearchQuery] = useState('');
+  const previousAgentOptionsKeyRef = useRef<string | null>(null);
+  const previousSkillOptionsKeyRef = useRef<string | null>(null);
   const statusClasses = resolveStatusClasses(statusTone);
 
   const filteredAgentOptions = useMemo(() => {
@@ -185,6 +197,82 @@ export function ChatSessionContextDrawer({
       return haystack.includes(normalizedQuery);
     });
   }, [skillOptions, skillSearchQuery]);
+  const agentOptionsKey = useMemo(
+    () =>
+      agentOptions
+        .map((option) => `${option.id ?? '__default__'}:${option.name}:${option.description ?? ''}`)
+        .join('|'),
+    [agentOptions],
+  );
+  const skillOptionsKey = useMemo(
+    () =>
+      skillOptions
+        .map((option) => `${option.id ?? '__default__'}:${option.name}:${option.description ?? ''}`)
+        .join('|'),
+    [skillOptions],
+  );
+  const hasAgentSearchQuery = agentSearchQuery.trim().length > 0;
+  const hasSkillSearchQuery = skillSearchQuery.trim().length > 0;
+
+  useEffect(() => {
+    if (isOpen && showAgentSection) {
+      return;
+    }
+    setAgentSearchQuery('');
+  }, [isOpen, showAgentSection]);
+
+  useEffect(() => {
+    if (isOpen && showSkillSection) {
+      return;
+    }
+    setSkillSearchQuery('');
+  }, [isOpen, showSkillSection]);
+
+  useEffect(() => {
+    if (!showAgentSection) {
+      previousAgentOptionsKeyRef.current = agentOptionsKey;
+      return;
+    }
+
+    const previousAgentOptionsKey = previousAgentOptionsKeyRef.current;
+    previousAgentOptionsKeyRef.current = agentOptionsKey;
+
+    if (
+      !isOpen ||
+      !hasAgentSearchQuery ||
+      isAgentLoading ||
+      !previousAgentOptionsKey ||
+      previousAgentOptionsKey === agentOptionsKey ||
+      filteredAgentOptions.length > 0
+    ) {
+      return;
+    }
+
+    setAgentSearchQuery('');
+  }, [agentOptionsKey, filteredAgentOptions.length, hasAgentSearchQuery, isAgentLoading, isOpen, showAgentSection]);
+
+  useEffect(() => {
+    if (!showSkillSection) {
+      previousSkillOptionsKeyRef.current = skillOptionsKey;
+      return;
+    }
+
+    const previousSkillOptionsKey = previousSkillOptionsKeyRef.current;
+    previousSkillOptionsKeyRef.current = skillOptionsKey;
+
+    if (
+      !isOpen ||
+      !hasSkillSearchQuery ||
+      isSkillLoading ||
+      !previousSkillOptionsKey ||
+      previousSkillOptionsKey === skillOptionsKey ||
+      filteredSkillOptions.length > 0
+    ) {
+      return;
+    }
+
+    setSkillSearchQuery('');
+  }, [hasSkillSearchQuery, isOpen, isSkillLoading, showSkillSection, skillOptionsKey, filteredSkillOptions.length]);
 
   const sessionControlSections = [
     onSelectThinkingLevel && thinkingLevelOptions.length > 0
@@ -385,143 +473,165 @@ export function ChatSessionContextDrawer({
           );
         })}
 
-        <section className="mt-5">
-          <div className="mb-3">
-            <h3 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-              {t('chat.page.selectAgent')}
-            </h3>
-            <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-              {t('chat.page.agentSelectionDescription')}
-            </p>
-          </div>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-            <Input
-              type="text"
-              value={agentSearchQuery}
-              onChange={(event) => setAgentSearchQuery(event.target.value)}
-              placeholder={t('chat.page.searchAgentsPlaceholder')}
-              className="h-11 rounded-2xl border-zinc-200/80 bg-white pl-10 shadow-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900"
-            />
-          </div>
-          <div className="mt-3 space-y-2">
-            {isAgentLoading ? (
-              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-                {t('common.loading')}
-              </div>
-            ) : filteredAgentOptions.length > 0 ? (
-              filteredAgentOptions.map((option) => {
-                const isSelected = option.id === selectedAgentId;
-                return (
-                  <button
-                    key={option.id ?? '__default_agent__'}
-                    type="button"
-                    onClick={() => onSelectAgent(option.id)}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
-                      isSelected
-                        ? 'border-primary-500/35 bg-primary-500/8 text-primary-700 dark:border-primary-500/40 dark:bg-primary-500/10 dark:text-primary-300'
-                        : 'border-zinc-200/80 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-700 dark:hover:bg-zinc-900/80',
-                    )}
-                  >
-                    <div
+        {showAgentSection ? (
+          <section className="mt-5">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                {t('chat.page.selectAgent')}
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {t('chat.page.agentSelectionDescription')}
+              </p>
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <Input
+                type="text"
+                value={agentSearchQuery}
+                onChange={(event) => setAgentSearchQuery(event.target.value)}
+                placeholder={t('chat.page.searchAgentsPlaceholder')}
+                className="h-11 rounded-2xl border-zinc-200/80 bg-white pl-10 shadow-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900"
+              />
+            </div>
+            <div className="mt-3 space-y-2">
+              {isAgentLoading ? (
+                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                  {t('common.loading')}
+                </div>
+              ) : filteredAgentOptions.length > 0 ? (
+                filteredAgentOptions.map((option) => {
+                  const isSelected = option.id === selectedAgentId;
+                  return (
+                    <button
+                      key={option.id ?? '__default_agent__'}
+                      type="button"
+                      onClick={() => onSelectAgent(option.id)}
                       className={cn(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold',
+                        'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
                         isSelected
-                          ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-500/20 dark:text-primary-300'
-                          : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+                          ? 'border-primary-500/35 bg-primary-500/8 text-primary-700 dark:border-primary-500/40 dark:bg-primary-500/10 dark:text-primary-300'
+                          : 'border-zinc-200/80 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-700 dark:hover:bg-zinc-900/80',
                       )}
                     >
-                      {option.id === null ? <UserCircle className="h-5 w-5" /> : getOptionInitials(option)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{option.name}</div>
-                      {option.description ? (
-                        <div className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
-                          {option.description}
-                        </div>
-                      ) : null}
-                    </div>
-                    {isSelected ? <Check className="h-4 w-4 shrink-0" /> : null}
-                  </button>
-                );
-              })
-            ) : (
-              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-                {t('chat.page.noMatchingAgents')}
-              </div>
-            )}
-          </div>
-        </section>
+                      <div
+                        className={cn(
+                          'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold',
+                          isSelected
+                            ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-500/20 dark:text-primary-300'
+                            : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+                        )}
+                      >
+                        {option.id === null ? <UserCircle className="h-5 w-5" /> : getOptionInitials(option)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{option.name}</div>
+                        {option.description ? (
+                          <div className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                            {option.description}
+                          </div>
+                        ) : null}
+                      </div>
+                      {isSelected ? <Check className="h-4 w-4 shrink-0" /> : null}
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                  <div>{t('chat.page.noMatchingAgents')}</div>
+                  {hasAgentSearchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => setAgentSearchQuery('')}
+                      className="mt-3 inline-flex items-center rounded-lg border border-zinc-200/80 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-600 dark:hover:text-zinc-50"
+                    >
+                      {t('common.reset')}
+                    </button>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </section>
+        ) : null}
 
-        <section className="mt-5">
-          <div className="mb-3">
-            <h3 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-              {t('chat.page.selectSkill')}
-            </h3>
-            <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-              {t('chat.page.skillSelectionDescription')}
-            </p>
-          </div>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-            <Input
-              type="text"
-              value={skillSearchQuery}
-              onChange={(event) => setSkillSearchQuery(event.target.value)}
-              placeholder={t('chat.page.searchSkillsPlaceholder')}
-              className="h-11 rounded-2xl border-zinc-200/80 bg-white pl-10 shadow-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900"
-            />
-          </div>
-          <div className="mt-3 space-y-2">
-            {isSkillLoading ? (
-              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-                {t('common.loading')}
-              </div>
-            ) : filteredSkillOptions.length > 0 ? (
-              filteredSkillOptions.map((option) => {
-                const isSelected = option.id === selectedSkillId;
-                return (
-                  <button
-                    key={option.id ?? '__default_skill__'}
-                    type="button"
-                    onClick={() => onSelectSkill(option.id)}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
-                      isSelected
-                        ? 'border-primary-500/35 bg-primary-500/8 text-primary-700 dark:border-primary-500/40 dark:bg-primary-500/10 dark:text-primary-300'
-                        : 'border-zinc-200/80 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-700 dark:hover:bg-zinc-900/80',
-                    )}
-                  >
-                    <div
+        {showSkillSection ? (
+          <section className="mt-5">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                {t('chat.page.selectSkill')}
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {t('chat.page.skillSelectionDescription')}
+              </p>
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <Input
+                type="text"
+                value={skillSearchQuery}
+                onChange={(event) => setSkillSearchQuery(event.target.value)}
+                placeholder={t('chat.page.searchSkillsPlaceholder')}
+                className="h-11 rounded-2xl border-zinc-200/80 bg-white pl-10 shadow-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900"
+              />
+            </div>
+            <div className="mt-3 space-y-2">
+              {isSkillLoading ? (
+                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                  {t('common.loading')}
+                </div>
+              ) : filteredSkillOptions.length > 0 ? (
+                filteredSkillOptions.map((option) => {
+                  const isSelected = option.id === selectedSkillId;
+                  return (
+                    <button
+                      key={option.id ?? '__default_skill__'}
+                      type="button"
+                      onClick={() => onSelectSkill(option.id)}
                       className={cn(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold',
+                        'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
                         isSelected
-                          ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-500/20 dark:text-primary-300'
-                          : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+                          ? 'border-primary-500/35 bg-primary-500/8 text-primary-700 dark:border-primary-500/40 dark:bg-primary-500/10 dark:text-primary-300'
+                          : 'border-zinc-200/80 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-700 dark:hover:bg-zinc-900/80',
                       )}
                     >
-                      {option.id === null ? <Package className="h-5 w-5" /> : getOptionInitials(option)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{option.name}</div>
-                      {option.description ? (
-                        <div className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
-                          {option.description}
-                        </div>
-                      ) : null}
-                    </div>
-                    {isSelected ? <Check className="h-4 w-4 shrink-0" /> : null}
-                  </button>
-                );
-              })
-            ) : (
-              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-                {t('chat.page.noMatchingSkills')}
-              </div>
-            )}
-          </div>
-        </section>
+                      <div
+                        className={cn(
+                          'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold',
+                          isSelected
+                            ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-500/20 dark:text-primary-300'
+                            : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+                        )}
+                      >
+                        {option.id === null ? <Package className="h-5 w-5" /> : getOptionInitials(option)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{option.name}</div>
+                        {option.description ? (
+                          <div className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                            {option.description}
+                          </div>
+                        ) : null}
+                      </div>
+                      {isSelected ? <Check className="h-4 w-4 shrink-0" /> : null}
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                  <div>{t('chat.page.noMatchingSkills')}</div>
+                  {hasSkillSearchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => setSkillSearchQuery('')}
+                      className="mt-3 inline-flex items-center rounded-lg border border-zinc-200/80 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-600 dark:hover:text-zinc-50"
+                    >
+                      {t('common.reset')}
+                    </button>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </section>
+        ) : null}
       </div>
     </OverlaySurface>
   );

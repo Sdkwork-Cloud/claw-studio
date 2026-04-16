@@ -19,6 +19,7 @@ export function ChatSidebar({
   className,
   onSessionSelect,
   onClose,
+  isChatSupported = true,
   isOpenClawGateway = false,
   openClawAgentId = null,
   newSessionModel,
@@ -26,6 +27,7 @@ export function ChatSidebar({
   className?: string;
   onSessionSelect?: () => void;
   onClose?: () => void;
+  isChatSupported?: boolean;
   isOpenClawGateway?: boolean;
   openClawAgentId?: string | null;
   newSessionModel?: string;
@@ -43,18 +45,20 @@ export function ChatSidebar({
   const activeSessionId = activeSessionIdByInstance[getScopeKey(activeInstanceId)] ?? null;
 
   const handleNewChat = () => {
-    if (activeInstanceId) {
-      if (isOpenClawGateway) {
-        void startNewSession(newSessionModel, activeInstanceId, {
-          openClawAgentId,
-        });
-      } else {
-        void createSession(newSessionModel, activeInstanceId, {
-          openClawAgentId,
-        });
-      }
-      onSessionSelect?.();
+    if (!activeInstanceId || !isChatSupported) {
+      return;
     }
+
+    if (isOpenClawGateway) {
+      void startNewSession(newSessionModel, activeInstanceId, {
+        openClawAgentId,
+      });
+    } else {
+      void createSession(newSessionModel, activeInstanceId, {
+        openClawAgentId,
+      });
+    }
+    onSessionSelect?.();
   };
 
   const instanceSessions = sessions.filter(
@@ -64,6 +68,7 @@ export function ChatSidebar({
   const { visibleSessions, effectiveActiveSessionId } = resolveChatSessionViewState({
     sessions: instanceSessions,
     activeSessionId,
+    isChatSupported,
     isOpenClawGateway,
     openClawAgentId,
   });
@@ -169,7 +174,8 @@ export function ChatSidebar({
       <div className="flex items-center gap-3 p-4">
         <button
           onClick={handleNewChat}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 font-medium text-zinc-900 shadow-sm transition-all hover:bg-zinc-50 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+          disabled={!activeInstanceId || !isChatSupported}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 font-medium text-zinc-900 shadow-sm transition-all hover:bg-zinc-50 hover:shadow-md disabled:cursor-not-allowed disabled:border-zinc-200/70 disabled:bg-zinc-100 disabled:text-zinc-400 disabled:shadow-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:disabled:border-zinc-800 dark:disabled:bg-zinc-900 dark:disabled:text-zinc-500"
         >
           <Plus className="h-4 w-4" />
           <span className="text-[14px]">{t('chat.sidebar.newChat')}</span>

@@ -359,6 +359,42 @@ await runTest('lifecycle operations delegate to the studio bridge when the insta
   assert.deepEqual(calls, ['start', 'stop', 'restart']);
 });
 
+await runTest('deleteInstance rejects built-in managed instances before calling the studio bridge', async () => {
+  let deleteCalls = 0;
+  const detail = createOpenClawDetail('local-built-in', {
+    instance: {
+      ...createOpenClawDetail('local-built-in').instance,
+      isBuiltIn: true,
+      isDefault: true,
+      deploymentMode: 'local-managed',
+      host: '127.0.0.1',
+    },
+    lifecycle: {
+      ...createOpenClawDetail('local-built-in').lifecycle,
+      owner: 'appManaged',
+      startStopSupported: true,
+      configWritable: true,
+      workbenchManaged: true,
+      lifecycleControllable: true,
+    },
+  });
+  const service = createInstanceService({
+    studioApi: {
+      getInstanceDetail: async () => detail,
+      deleteInstance: async () => {
+        deleteCalls += 1;
+        return true;
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => service.deleteInstance('local-built-in'),
+    /built-in|uninstall|delete/i,
+  );
+  assert.equal(deleteCalls, 0);
+});
+
 await runTest(
   'instance service rejects local-managed Hermes instances before calling the studio bridge',
   async () => {
@@ -801,6 +837,65 @@ await runTest(
 
     assert.equal(content, '{\n  "agents": {}\n}\n');
     assert.deepEqual(calls, ['D:/OpenClaw/.openclaw/openclaw.json']);
+  },
+);
+
+await runTest(
+  'getManagedOpenClawConfigDocument reports a product-level error when the attached config file is missing offline',
+  async () => {
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createOpenClawDetail('missing-config-openclaw', {
+            instance: {
+              ...createOpenClawDetail('missing-config-openclaw').instance,
+              deploymentMode: 'local-external',
+              status: 'offline',
+            },
+            lifecycle: {
+              ...createOpenClawDetail('missing-config-openclaw').lifecycle,
+              configWritable: false,
+            },
+            dataAccess: {
+              routes: [
+                {
+                  id: 'config',
+                  label: 'Configuration',
+                  scope: 'config',
+                  mode: 'managedFile',
+                  status: 'ready',
+                  target: 'D:/Missing/.openclaw/openclaw.json',
+                  readonly: true,
+                  authoritative: true,
+                  detail: 'Managed config file is readable.',
+                  source: 'integration',
+                },
+              ],
+            },
+          }),
+      },
+      openClawConfigService: {
+        getConfigDocumentPathInfo: async (configPath: string) => ({
+          path: configPath,
+          name: 'openclaw.json',
+          kind: 'missing' as const,
+          size: null,
+          extension: '.json',
+          exists: false,
+          lastModifiedMs: null,
+        }),
+        readConfigDocument: async () => {
+          throw new Error(
+            'filesystem.readTextFile failed for read_text_file: io error: 系统找不到指定的文件。 (os error 2)',
+          );
+        },
+      },
+    });
+
+    await assert.rejects(
+      () => service.getManagedOpenClawConfigDocument('missing-config-openclaw'),
+      /attached OpenClaw config file is no longer available on disk/i,
+    );
   },
 );
 

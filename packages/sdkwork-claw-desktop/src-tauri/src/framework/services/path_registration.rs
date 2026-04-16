@@ -19,10 +19,7 @@ impl PathRegistrationService {
         Self
     }
 
-    pub fn install_openclaw_shims(
-        &self,
-        paths: &AppPaths,
-    ) -> Result<()> {
+    pub fn install_openclaw_shims(&self, paths: &AppPaths) -> Result<()> {
         fs::create_dir_all(&paths.user_bin_dir)?;
         let launcher_path = resolve_launcher_executable_path()?;
 

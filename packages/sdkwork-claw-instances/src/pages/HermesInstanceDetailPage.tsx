@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Globe, Server, ShieldCheck, Waypoints } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Globe, Server, ShieldCheck, Waypoints, Wrench } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { openExternalUrl } from '@sdkwork/claw-infrastructure';
+import { toast } from 'sonner';
 import { Button } from '@sdkwork/claw-ui';
 import {
+  buildInstanceConsoleHandlers,
   formatWorkbenchLabel,
   getHermesInstanceDetailModulePayload,
   type InstanceBaseDetail,
@@ -159,6 +161,27 @@ export function HermesInstanceDetailPage({
   }
 
   const detail = baseDetail;
+  const consoleAvailability = detail.management.consoleAvailability ?? null;
+  const canOpenControlPage = Boolean(
+    consoleAvailability?.available && (consoleAvailability.autoLoginUrl || consoleAvailability.entryUrl),
+  );
+  const consoleHandlers = buildInstanceConsoleHandlers({
+    consoleTarget: consoleAvailability
+      ? {
+          url: consoleAvailability.entryUrl,
+          autoLoginUrl: consoleAvailability.autoLoginUrl,
+          reason: consoleAvailability.reason,
+        }
+      : null,
+    openExternalLink: openExternalUrl,
+    reportInfo: (message) => {
+      toast.info(message);
+    },
+    reportError: (message) => {
+      toast.error(message);
+    },
+    t,
+  });
 
   return (
     <div className="w-full p-4 md:p-6 xl:p-8 2xl:p-10">
@@ -171,6 +194,15 @@ export function HermesInstanceDetailPage({
       </button>
 
       <div className="rounded-[2rem] bg-white/80 p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur dark:bg-zinc-900/82 md:p-8">
+        {canOpenControlPage ? (
+          <div className="mb-6 flex justify-end">
+            <Button variant="outline" onClick={() => void consoleHandlers.onOpenControlPage()}>
+              <Wrench className="h-4 w-4" />
+              {t('instances.detail.actions.openControlPage')}
+            </Button>
+          </div>
+        ) : null}
+
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(18rem,0.95fr)]">
           <section className="rounded-[1.75rem] bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(20,83,45,0.88))] p-6 text-white">
             <div className="flex flex-wrap items-center gap-3">

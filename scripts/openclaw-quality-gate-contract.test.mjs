@@ -48,13 +48,11 @@ runTest('OpenClaw quality gate keeps fact-source tests in parity runners', () =>
   const instancesRunner = read('scripts/run-sdkwork-instances-check.mjs');
   const agentRunner = read('scripts/run-sdkwork-agent-check.mjs');
   const channelsRunner = read('scripts/run-sdkwork-channels-check.mjs');
-  const marketRunner = read('scripts/run-sdkwork-market-check.mjs');
 
   assert.match(packageJson.scripts['check:parity'], /pnpm check:sdkwork-foundation/);
   assert.match(packageJson.scripts['check:parity'], /pnpm check:sdkwork-agent/);
   assert.match(packageJson.scripts['check:parity'], /pnpm check:sdkwork-channels/);
   assert.match(packageJson.scripts['check:parity'], /pnpm check:sdkwork-instances/);
-  assert.match(packageJson.scripts['check:parity'], /pnpm check:sdkwork-market/);
   assert.match(
     packageJson.scripts['check:sdkwork-hosts'],
     /node scripts\/desktop-window-chrome-contract\.test\.mjs/,
@@ -80,11 +78,6 @@ runTest('OpenClaw quality gate keeps fact-source tests in parity runners', () =>
     packageJson.scripts['check:sdkwork-instances'],
     /node scripts\/run-sdkwork-instances-check\.mjs/,
     'check:sdkwork-instances must execute the shared instances runner',
-  );
-  assert.match(
-    packageJson.scripts['check:sdkwork-market'],
-    /node scripts\/run-sdkwork-market-check\.mjs/,
-    'check:sdkwork-market must execute the shared market runner',
   );
 
   assert.match(
@@ -121,11 +114,6 @@ runTest('OpenClaw quality gate keeps fact-source tests in parity runners', () =>
     instancesRunner,
     /packages\/sdkwork-claw-instances\/src\/services\/instanceOnboardingService\.test\.ts/,
     'instances runner must execute OpenClaw onboarding association coverage',
-  );
-  assert.match(
-    marketRunner,
-    /packages\/sdkwork-claw-market\/src\/services\/marketService\.test\.ts/,
-    'market runner must execute marketService fact-source coverage',
   );
   assert.match(
     packageJson.scripts['check:sdkwork-instances'],

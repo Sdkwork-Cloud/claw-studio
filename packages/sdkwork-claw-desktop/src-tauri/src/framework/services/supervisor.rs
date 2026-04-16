@@ -458,14 +458,11 @@ impl SupervisorService {
 
         let failure = last_failure.unwrap_or_else(|| {
             FrameworkError::Internal(
-                "openclaw gateway start loop exhausted without producing a final result".to_string(),
+                "openclaw gateway start loop exhausted without producing a final result"
+                    .to_string(),
             )
         });
-        let _ = self.record_stopped(
-            SERVICE_ID_OPENCLAW_GATEWAY,
-            None,
-            Some(failure.to_string()),
-        );
+        let _ = self.record_stopped(SERVICE_ID_OPENCLAW_GATEWAY, None, Some(failure.to_string()));
         Err(failure)
     }
 
@@ -683,9 +680,7 @@ impl SupervisorService {
 
     fn lock_openclaw_gateway_operation(&self) -> Result<MutexGuard<'_, ()>> {
         self.openclaw_gateway_operation.lock().map_err(|_| {
-            FrameworkError::Internal(
-                "openclaw gateway operation lock poisoned".to_string(),
-            )
+            FrameworkError::Internal("openclaw gateway operation lock poisoned".to_string())
         })
     }
 
@@ -1057,10 +1052,10 @@ fn probe_gateway_invoke_ready(runtime: &ActivatedOpenClawRuntime) -> GatewayProb
             )
         }
         Err(error) => {
-        return GatewayProbeStatus::Pending(format!(
-            "invoke probe read failed for {}: {}",
-            loopback, error
-        ));
+            return GatewayProbeStatus::Pending(format!(
+                "invoke probe read failed for {}: {}",
+                loopback, error
+            ));
         }
     };
 
@@ -1261,7 +1256,7 @@ fn reap_stale_openclaw_gateway_processes(paths: &AppPaths) -> Result<()> {
 
     Err(FrameworkError::Timeout(format!(
         "stale openclaw gateway processes did not stop within 5000ms under {} ({port_diagnostic}; remaining processes: {})",
-        paths.openclaw_runtime_dir.display(),
+        managed_openclaw_runtime_dir(paths).display(),
         if remaining_processes.is_empty() {
             "none".to_string()
         } else {
@@ -1287,13 +1282,27 @@ fn configured_managed_openclaw_gateway_port(paths: &AppPaths) -> Option<u16> {
 
 fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     let authority_path = KernelRuntimeAuthorityService::new()
-        .active_openclaw_config_path(paths)
-        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone());
+        .active_managed_config_path("openclaw", paths)
+        .unwrap_or_else(|_| default_managed_openclaw_config_path(paths));
     if authority_path.exists() || !paths.openclaw_config_file.exists() {
         authority_path
     } else {
         paths.openclaw_config_file.clone()
     }
+}
+
+fn default_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    paths
+        .kernel_paths("openclaw")
+        .map(|kernel| kernel.managed_config_file)
+        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+}
+
+fn managed_openclaw_runtime_dir(paths: &AppPaths) -> PathBuf {
+    paths
+        .kernel_paths("openclaw")
+        .map(|kernel| kernel.runtime_dir)
+        .unwrap_or_else(|_| paths.openclaw_runtime_dir.clone())
 }
 
 fn is_loopback_port_accepting(port: u16) -> bool {
@@ -1367,9 +1376,9 @@ fn find_stale_openclaw_gateway_process_ids(paths: &AppPaths) -> Result<Vec<u32>>
 
 fn openclaw_owned_runtime_roots(paths: &AppPaths) -> Vec<PathBuf> {
     KernelRuntimeAuthorityService::new()
-        .openclaw_contract(paths)
+        .contract("openclaw", paths)
         .map(|contract| contract.owned_runtime_roots)
-        .unwrap_or_else(|_| vec![paths.openclaw_runtime_dir.clone()])
+        .unwrap_or_else(|_| vec![managed_openclaw_runtime_dir(paths)])
 }
 
 fn command_matches_managed_openclaw_gateway<S>(
@@ -1568,8 +1577,7 @@ fn force_process_shutdown(child: &mut Child) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        command_matches_managed_openclaw_gateway,
-        configured_managed_openclaw_gateway_port,
+        command_matches_managed_openclaw_gateway, configured_managed_openclaw_gateway_port,
         force_process_shutdown,
     };
     use super::{
@@ -2297,8 +2305,13 @@ mod tests {
         paths: &crate::framework::paths::AppPaths,
     ) -> std::path::PathBuf {
         KernelRuntimeAuthorityService::new()
-            .active_openclaw_config_path(paths)
-            .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            .active_managed_config_path("openclaw", paths)
+            .unwrap_or_else(|_| {
+                paths
+                    .kernel_paths("openclaw")
+                    .map(|kernel| kernel.managed_config_file)
+                    .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+            })
     }
 
     #[cfg(windows)]
@@ -2378,6 +2391,72 @@ mod tests {
     }
 
     #[test]
+    fn configured_gateway_port_uses_canonical_managed_config_path_when_compatibility_field_drifts()
+    {
+        let root = tempfile::tempdir().expect("temp dir");
+        let mut paths = resolve_paths_for_root(root.path()).expect("paths");
+        let openclaw = paths
+            .kernel_paths("openclaw")
+            .expect("openclaw kernel paths");
+        let managed_port = 28_903;
+
+        fs::remove_file(&openclaw.authority_file).expect("remove canonical authority state");
+        paths.openclaw_authority_file = root
+            .path()
+            .join("compatibility-only")
+            .join("authority.json");
+        paths.openclaw_managed_config_file = root
+            .path()
+            .join("compatibility-only")
+            .join("managed-config")
+            .join("openclaw.json");
+
+        fs::create_dir_all(
+            openclaw
+                .managed_config_file
+                .parent()
+                .expect("managed config parent directory"),
+        )
+        .expect("managed config dir");
+        fs::write(
+            &openclaw.managed_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {managed_port}\n  }}\n}}\n"),
+        )
+        .expect("managed config");
+
+        assert_eq!(
+            configured_managed_openclaw_gateway_port(&paths),
+            Some(managed_port)
+        );
+    }
+
+    #[test]
+    fn managed_openclaw_runtime_dir_uses_canonical_runtime_path_when_compatibility_field_drifts() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let mut paths = resolve_paths_for_root(root.path()).expect("paths");
+        let openclaw = paths
+            .kernel_paths("openclaw")
+            .expect("openclaw kernel paths");
+
+        paths.openclaw_runtime_dir = root.path().join("compatibility-only").join("runtime");
+
+        assert_eq!(
+            super::managed_openclaw_runtime_dir(&paths),
+            openclaw.runtime_dir
+        );
+    }
+
+    #[test]
+    fn supervisor_production_code_does_not_call_openclaw_specific_config_wrapper() {
+        let production_source = include_str!("supervisor.rs")
+            .split("mod tests {")
+            .next()
+            .expect("production source");
+
+        assert!(!production_source.contains(".active_openclaw_config_path("));
+    }
+
+    #[test]
     fn stale_gateway_command_matching_accepts_legacy_runtime_roots() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
@@ -2401,7 +2480,7 @@ mod tests {
         assert!(command_matches_managed_openclaw_gateway(
             &command,
             &KernelRuntimeAuthorityService::new()
-                .openclaw_contract(&paths)
+                .contract("openclaw", &paths)
                 .expect("contract")
                 .owned_runtime_roots,
         ));
@@ -2421,7 +2500,7 @@ mod tests {
         assert!(!command_matches_managed_openclaw_gateway(
             &command,
             &KernelRuntimeAuthorityService::new()
-                .openclaw_contract(&paths)
+                .contract("openclaw", &paths)
                 .expect("contract")
                 .owned_runtime_roots,
         ));

@@ -164,15 +164,9 @@ runTest('sdkwork-claw-core owns shared account and settings wrappers for remote 
   assert.match(settingsServiceSource, /client\.notification\.getNotificationSettings/);
 });
 
-runTest('sdkwork-claw-core avoids ineffective lazy-loading for shared app sdk client helpers', () => {
-  const appStoreCatalogServiceSource = read(
-    'packages/sdkwork-claw-core/src/services/appStoreCatalogService.ts',
-  );
+runTest('sdkwork-claw-core keeps browser-root sdk services eager while allowing node-safe commerce loading', () => {
   const clawHubServiceSource = read(
     'packages/sdkwork-claw-core/src/services/clawHubService.ts',
-  );
-  const clawMallServiceSource = read(
-    'packages/sdkwork-claw-core/src/services/clawMallService.ts',
   );
   const communityServiceSource = read(
     'packages/sdkwork-claw-core/src/services/communityService.ts',
@@ -185,15 +179,43 @@ runTest('sdkwork-claw-core avoids ineffective lazy-loading for shared app sdk cl
   );
 
   for (const source of [
-    appStoreCatalogServiceSource,
     clawHubServiceSource,
-    clawMallServiceSource,
     communityServiceSource,
-    dashboardCommerceServiceSource,
     feedbackCenterServiceSource,
   ]) {
     assert.doesNotMatch(source, /await import\('\.\.\/sdk\/useAppSdkClient\.ts'\)/);
   }
+
+  assert.match(
+    dashboardCommerceServiceSource,
+    /let dashboardCommerceSdkRuntimePromise: Promise<DashboardCommerceSdkRuntime> \| null = null;/,
+  );
+  assert.match(
+    dashboardCommerceServiceSource,
+    /dashboardCommerceSdkRuntimePromise = import\('\.\.\/sdk\/useAppSdkClient\.ts'\);/,
+  );
+  assert.match(
+    dashboardCommerceServiceSource,
+    /const \{ getAppSdkClientWithSession \} = await loadDashboardCommerceSdkRuntime\(\);/,
+  );
+  assert.match(
+    dashboardCommerceServiceSource,
+    /const \{ readAppSdkSessionTokens \} = await loadDashboardCommerceSdkRuntime\(\);/,
+  );
+});
+
+runTest('sdkwork-claw-core drops retired app-store, mall, and points shared wrappers from the public service surface', () => {
+  const servicesIndexSource = read('packages/sdkwork-claw-core/src/services/index.ts');
+
+  assert.equal(exists('packages/sdkwork-claw-core/src/services/appStoreCatalogService.ts'), false);
+  assert.equal(exists('packages/sdkwork-claw-core/src/services/appStoreCatalogService.test.ts'), false);
+  assert.equal(exists('packages/sdkwork-claw-core/src/services/clawMallService.ts'), false);
+  assert.equal(exists('packages/sdkwork-claw-core/src/services/clawMallService.test.ts'), false);
+  assert.equal(exists('packages/sdkwork-claw-core/src/services/pointsWalletService.ts'), false);
+  assert.equal(exists('packages/sdkwork-claw-core/src/services/pointsWalletService.test.ts'), false);
+  assert.doesNotMatch(servicesIndexSource, /appStoreCatalogService/);
+  assert.doesNotMatch(servicesIndexSource, /clawMallService/);
+  assert.doesNotMatch(servicesIndexSource, /pointsWalletService/);
 });
 
 runTest('sdkwork-claw-core app store persists sidebar width for shell chrome resizing', () => {

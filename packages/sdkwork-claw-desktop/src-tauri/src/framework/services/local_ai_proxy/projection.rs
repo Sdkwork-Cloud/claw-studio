@@ -119,7 +119,7 @@ fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
 
 fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
-        .active_openclaw_config_path(paths)
+        .active_managed_config_path("openclaw", paths)
         .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
 }
 
