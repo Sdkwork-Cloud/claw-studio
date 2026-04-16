@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
-const releaseConfigPath = path.join(rootDir, 'config', 'openclaw-release.json');
+const releaseConfigPath = path.join(rootDir, 'config', 'kernel-releases', 'openclaw.json');
 
 export function loadOpenClawReleaseConfig({
   readFileImpl = (filePath) => fs.readFileSync(filePath, 'utf8'),

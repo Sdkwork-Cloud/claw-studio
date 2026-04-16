@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
-const releaseConfigPath = path.join(rootDir, 'config', 'openclaw-release.json');
+const releaseConfigPath = path.join(rootDir, 'config', 'kernel-releases', 'openclaw.json');
 const prepareRuntimeSource = readFileSync(
   path.join(rootDir, 'scripts', 'prepare-openclaw-runtime.mjs'),
   'utf8',
@@ -125,7 +125,7 @@ assert.match(
 );
 assert.match(
   desktopBuildScriptSource,
-  /OPENCLAW_RELEASE_CONFIG_RELATIVE_PATH:.*config\/openclaw-release\.json/s,
+  /OPENCLAW_RELEASE_CONFIG_RELATIVE_PATH:.*config\/kernel-releases\/openclaw\.json/s,
   'desktop build script must read the shared OpenClaw release config during clean-clone cargo builds',
 );
 assert.match(
@@ -150,8 +150,18 @@ assert.doesNotMatch(
 );
 assert.match(
   clawTypesIndexSource,
+  /export \* from '\.\/kernelReleaseCatalog\.ts';/,
+  '@sdkwork/claw-types must export the shared kernel release catalog for frontend/runtime consumers',
+);
+assert.match(
+  clawTypesIndexSource,
   /export \* from '\.\/openclawRelease\.ts';/,
   '@sdkwork/claw-types must export the shared OpenClaw release metadata for frontend/runtime consumers',
+);
+assert.match(
+  clawTypesOpenClawReleaseSource,
+  /from '\.\/kernelReleaseCatalog\.ts'/,
+  '@sdkwork/claw-types OpenClaw release metadata must resolve from the shared kernel release catalog',
 );
 assert.match(
   clawTypesOpenClawReleaseSource,

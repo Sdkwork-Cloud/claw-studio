@@ -7,7 +7,8 @@ use std::{
 const FRONTEND_DIST_RELATIVE_PATH: &str = "../dist";
 const GENERATED_BUNDLED_RELATIVE_PATH: &str = "generated/bundled";
 const GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME: &str = "placeholder.txt";
-const OPENCLAW_RELEASE_CONFIG_RELATIVE_PATH: &str = "../../../config/openclaw-release.json";
+const OPENCLAW_RELEASE_CONFIG_RELATIVE_PATH: &str =
+    "../../../config/kernel-releases/openclaw.json";
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]

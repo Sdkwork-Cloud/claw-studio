@@ -13,11 +13,15 @@ function createJson(filePath, value) {
 }
 
 function createReleaseConfig(workspaceRootDir, stableVersion) {
-  createJson(path.join(workspaceRootDir, 'config', 'openclaw-release.json'), {
+  createJson(path.join(workspaceRootDir, 'config', 'kernel-releases', 'openclaw.json'), {
     stableVersion,
+    kernelId: 'openclaw',
+    defaultChannel: 'stable',
+    supportedChannels: ['stable'],
     nodeVersion: '22.16.0',
     packageName: 'openclaw',
     runtimeSupplementalPackages: [],
+    runtimeSupplementalPackageExceptions: [],
   });
 }
 
@@ -45,7 +49,7 @@ test('applyOpenClawUpgrade refuses to mutate release config when readiness is bl
     );
 
     const releaseConfig = JSON.parse(
-      readFileSync(path.join(tempRoot, 'config', 'openclaw-release.json'), 'utf8'),
+      readFileSync(path.join(tempRoot, 'config', 'kernel-releases', 'openclaw.json'), 'utf8'),
     );
     assert.equal(releaseConfig.stableVersion, '2026.4.9');
   } finally {
@@ -220,11 +224,11 @@ test('applyOpenClawUpgrade restores the previous release baseline if a downstrea
           }
         },
       }),
-      /restored config\/openclaw-release\.json/i,
+      /restored config\/kernel-releases\/openclaw\.json/i,
     );
 
     const releaseConfig = JSON.parse(
-      readFileSync(path.join(tempRoot, 'config', 'openclaw-release.json'), 'utf8'),
+      readFileSync(path.join(tempRoot, 'config', 'kernel-releases', 'openclaw.json'), 'utf8'),
     );
     assert.equal(releaseConfig.stableVersion, '2026.4.9');
   } finally {

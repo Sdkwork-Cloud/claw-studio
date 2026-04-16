@@ -27,7 +27,7 @@ export async function readOpenClawVersionState({
   workspaceRootDir = rootDir,
 } = {}) {
   const releaseConfig = await readJsonFile(
-    path.join(workspaceRootDir, 'config', 'openclaw-release.json'),
+    path.join(workspaceRootDir, 'config', 'kernel-releases', 'openclaw.json'),
   );
   const bundledManifest = await readJsonFile(
     path.join(
@@ -155,7 +155,12 @@ export async function applyOpenClawUpgrade({
     );
   }
 
-  const releaseConfigPath = path.join(workspaceRootDir, 'config', 'openclaw-release.json');
+  const releaseConfigPath = path.join(
+    workspaceRootDir,
+    'config',
+    'kernel-releases',
+    'openclaw.json',
+  );
   const originalReleaseConfigText = await readFile(releaseConfigPath, 'utf8');
   const releaseConfig = JSON.parse(originalReleaseConfigText);
   const nextReleaseConfig = {
@@ -199,7 +204,7 @@ export async function applyOpenClawUpgrade({
   } catch (error) {
     await writeFile(releaseConfigPath, originalReleaseConfigText, 'utf8');
     throw new Error(
-      `OpenClaw upgrade application failed after restored config/openclaw-release.json: ${error instanceof Error ? error.message : String(error)}`,
+      `OpenClaw upgrade application failed after restored config/kernel-releases/openclaw.json: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }

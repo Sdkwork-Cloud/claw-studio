@@ -1,0 +1,11 @@
+{
+  "kernelId": "hermes",
+  "stableVersion": "v0.8.0",
+  "defaultChannel": "stable",
+  "supportedChannels": ["stable"],
+  "packageName": "hermes-agent",
+  "runtimeRequirements": {
+    "required": ["python", "uv"],
+    "optional": ["nodejs"]
+  }
+}
