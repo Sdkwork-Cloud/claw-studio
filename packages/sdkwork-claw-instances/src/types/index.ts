@@ -16,6 +16,8 @@ import type {
   StudioWorkbenchTaskExecutionRecord,
   StudioWorkbenchTaskRecord,
   StudioWorkbenchToolRecord,
+  type KernelAuthority,
+  type KernelConfig,
 } from '@sdkwork/claw-types';
 import type {
   OpenClawAuthCooldownsConfigSnapshot,
@@ -120,6 +122,8 @@ export interface InstanceWorkbenchSnapshot {
   token: string;
   logs: string;
   detail: StudioInstanceDetailRecord;
+  kernelConfig?: KernelConfig | null;
+  kernelAuthority?: KernelAuthority | null;
   managedConfigPath?: string | null;
   managedChannels?: OpenClawChannelSnapshot[];
   managedConfigInsights?: InstanceManagedOpenClawConfigInsights | null;

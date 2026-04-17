@@ -4,6 +4,7 @@ export * from './service.ts';
 export * from './openclawMirror.ts';
 export * from './kernelReleaseCatalog.ts';
 export * from './openclawRelease.ts';
+export * from './kernelModel.ts';
 
 export interface Agent {
   id: string;
