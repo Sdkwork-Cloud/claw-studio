@@ -47,10 +47,27 @@ import {
   normalizeOpenClawAgentFileId,
   normalizeOpenClawAgentId,
 } from './openClawSupport.ts';
+import { buildKernelConfigProjection } from './kernelConfigProjection.ts';
 
 type OpenClawChannelCatalogSource = {
   getChannelDefinitions(): OpenClawChannelDefinition[];
 };
+
+function buildSnapshotKernelConfig(
+  detail: StudioInstanceDetailRecord,
+  configPath: string | null | undefined,
+) {
+  return buildKernelConfigProjection({
+    runtimeKind: detail.instance.runtimeKind,
+    configPath,
+    configWritable: detail.lifecycle.configWritable,
+    schemaVersion: null,
+  });
+}
+
+function getKernelConfigSectionCount(config: ReturnType<typeof buildSnapshotKernelConfig>) {
+  return config?.resolved ? 1 : 0;
+}
 
 export interface OpenClawGatewaySections {
   channels: InstanceWorkbenchChannel[];
@@ -291,6 +308,8 @@ export function mapBackendWorkbench(
     managedConfigPath,
     managedConfigSnapshot,
   );
+  const kernelConfig = buildSnapshotKernelConfig(detail, managedConfigPath);
+  const configSectionCount = getKernelConfigSectionCount(kernelConfig);
   const connectedChannelCount = mappedChannels.filter(
     (channel) => channel.status === 'connected' && channel.enabled,
   ).length;
@@ -310,7 +329,7 @@ export function mapBackendWorkbench(
     files: mappedFiles.length,
     memory: mappedMemories.length,
     tools: mappedTools.length,
-    config: managedConfigWorkbenchState.configSectionCount,
+    config: configSectionCount,
   } as const;
 
   return {
@@ -319,6 +338,7 @@ export function mapBackendWorkbench(
     token: detail.config.authToken || '',
     logs: detail.logs,
     detail,
+    kernelConfig,
     managedConfigPath: managedConfigWorkbenchState.managedConfigPath,
     managedChannels: managedConfigWorkbenchState.managedChannels,
     managedConfigInsights: managedConfigWorkbenchState.managedConfigInsights,
@@ -432,7 +452,8 @@ export function finalizeOpenClawSnapshot(
     managedConfigPath,
     managedConfigSnapshot,
   );
-  const configSectionCount = managedConfigWorkbenchState.configSectionCount;
+  const kernelConfig = buildSnapshotKernelConfig(detail, managedConfigPath);
+  const configSectionCount = getKernelConfigSectionCount(kernelConfig);
   const llmProviders =
     isProviderCenterManagedOpenClawDetail(detail) &&
     (managedConfigSnapshot?.providerSnapshots.length || 0) > 0
@@ -464,6 +485,7 @@ export function finalizeOpenClawSnapshot(
 
   return {
     ...finalizedSnapshot,
+    kernelConfig,
     ...managedConfigWorkbenchState,
     sectionCounts: {
       ...finalizedSnapshot.sectionCounts,
@@ -495,6 +517,8 @@ export function buildDetailOnlyWorkbenchSnapshot(
     managedConfigPath,
     managedConfigSnapshot,
   );
+  const kernelConfig = buildSnapshotKernelConfig(detail, managedConfigPath);
+  const configSectionCount = getKernelConfigSectionCount(kernelConfig);
   const emptySectionCounts = {
     channels: 0,
     cronTasks: 0,
@@ -504,7 +528,7 @@ export function buildDetailOnlyWorkbenchSnapshot(
     files: 0,
     memory: 0,
     tools: 0,
-    config: managedConfigWorkbenchState.configSectionCount,
+    config: configSectionCount,
   } as const;
 
   return {
@@ -513,6 +537,7 @@ export function buildDetailOnlyWorkbenchSnapshot(
     token: detail.config.authToken || '',
     logs: detail.logs,
     detail,
+    kernelConfig,
     ...managedConfigWorkbenchState,
     healthScore: detail.health.score,
     runtimeStatus: detail.health.status,

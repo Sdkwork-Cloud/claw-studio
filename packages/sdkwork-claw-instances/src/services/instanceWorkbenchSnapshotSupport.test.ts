@@ -241,6 +241,17 @@ await runTest(
       managedConfigSnapshot,
     );
 
+    assert.deepEqual(snapshot?.kernelConfig, {
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configRoot: 'D:/OpenClaw/.openclaw',
+      userRoot: 'D:/OpenClaw',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    });
     assert.equal(snapshot?.managedConfigPath, 'D:/OpenClaw/.openclaw/openclaw.json');
     assert.equal(snapshot?.sectionCounts.overview, 8);
     assert.equal(snapshot?.sectionCounts.config, 1);
@@ -524,6 +535,17 @@ await runTest(
       ],
     );
 
+    assert.deepEqual(finalized?.kernelConfig, {
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configRoot: 'D:/OpenClaw/.openclaw',
+      userRoot: 'D:/OpenClaw',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    });
     assert.equal(finalized?.managedConfigPath, 'D:/OpenClaw/.openclaw/openclaw.json');
     assert.equal(finalized?.sectionCounts.config, 1);
     assert.equal(finalized?.sectionAvailability.config.status, 'ready');

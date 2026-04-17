@@ -2447,6 +2447,7 @@ await runTest(
 
     const workbench = await service.getInstanceWorkbench('metadata-only-openclaw');
 
+    assert.equal(workbench?.kernelConfig, null);
     assert.equal(workbench?.managedConfigPath, null);
     assert.equal(readConfigSnapshotCalls, 0);
   },
@@ -2601,6 +2602,17 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
     assert.ok(workbench);
     assert.equal(workbench?.sectionCounts.config, 1);
     assert.equal(workbench?.sectionAvailability.config.status, 'ready');
+    assert.deepEqual(workbench?.kernelConfig, {
+      configFile: managedConfigPath,
+      configRoot: 'D:/OpenClaw/.openclaw',
+      userRoot: 'D:/OpenClaw',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    });
     assert.equal(workbench?.managedConfigPath, managedConfigPath);
     assert.equal(workbench?.managedChannels?.some((channel) => channel.id === 'qq'), true);
     assert.equal(workbench?.managedChannels?.some((channel) => channel.id === 'whatsapp'), true);
@@ -2738,6 +2750,7 @@ await runTest(
 
     const workbench = await service.getInstanceWorkbench('offline-missing-config-openclaw');
 
+    assert.equal(workbench?.kernelConfig, null);
     assert.equal(workbench?.managedConfigPath, null);
     assert.equal(workbench?.sectionCounts.config, 0);
     assert.equal(workbench?.sectionAvailability.config.status, 'planned');
