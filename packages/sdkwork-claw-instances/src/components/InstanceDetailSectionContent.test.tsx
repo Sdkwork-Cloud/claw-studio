@@ -226,3 +226,40 @@ await runTest(
     assert.match(markup, /agent-section/);
   },
 );
+
+await runTest(
+  'InstanceDetailSectionContent opens the config workbench when kernelConfig exposes a config file even if legacy managedConfigPath is absent',
+  () => {
+    const markup = renderToStaticMarkup(
+      <InstanceDetailSectionContent
+        {...createBaseProps()}
+        activeSection="config"
+        workbench={{
+          channels: [],
+          skills: [],
+          managedConfigPath: null,
+          kernelConfig: {
+            configFile: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+            configRoot: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw',
+            userRoot: 'C:/Users/admin/.sdkwork/crawstudio',
+            format: 'json',
+            access: 'localFs',
+            provenance: 'standardUserRoot',
+            writable: true,
+            resolved: true,
+            schemaVersion: null,
+          },
+          sectionAvailability: {
+            config: {
+              status: 'ready',
+              detail: 'Config workbench is ready.',
+            },
+          },
+        } as any}
+      />,
+    );
+
+    assert.match(markup, /label:loading/);
+    assert.doesNotMatch(markup, /instances\.detail\.instanceWorkbench\.empty\.config/);
+  },
+);

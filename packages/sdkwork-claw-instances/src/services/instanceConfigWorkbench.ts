@@ -1,6 +1,8 @@
 import { analyzeOpenClawConfigDocument, parseOpenClawConfigDocument } from '@sdkwork/claw-core';
 import type { InstanceManagedOpenClawConfigInsights } from '../types/index.ts';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
+import { buildKernelAuthorityProjection } from './kernelAuthorityProjection.ts';
+import { buildKernelConfigProjection } from './kernelConfigProjection.ts';
 
 export type InstanceConfigWorkbenchModeId = 'config' | 'raw';
 
@@ -753,6 +755,16 @@ export function buildInstanceConfigWorkbenchModel(input: {
   rawDocument: string;
 }): InstanceConfigWorkbenchModel {
   const { workbench, rawDocument } = input;
+  const kernelConfig =
+    workbench.kernelConfig ||
+    buildKernelConfigProjection({
+      runtimeKind: workbench.detail.instance.runtimeKind,
+      configPath: workbench.managedConfigPath,
+      configWritable: workbench.detail.lifecycle.configWritable,
+      schemaVersion: null,
+    });
+  const kernelAuthority =
+    workbench.kernelAuthority || buildKernelAuthorityProjection(workbench.detail);
   const managedChannels = workbench.managedChannels || [];
   const managedConfigInsights = workbench.managedConfigInsights || null;
   const rawAnalysis = analyzeOpenClawConfigDocument(rawDocument);
@@ -769,9 +781,8 @@ export function buildInstanceConfigWorkbenchModel(input: {
 
   return {
     document: {
-      configPath: workbench.managedConfigPath || null,
-      isWritable:
-        Boolean(workbench.detail.lifecycle.configWritable) && Boolean(workbench.managedConfigPath),
+      configPath: kernelConfig?.configFile || workbench.managedConfigPath || null,
+      isWritable: Boolean(kernelConfig?.writable && kernelAuthority?.configControl),
       defaultAgentId: managedConfigInsights?.defaultAgentId || null,
       defaultModelRef: managedConfigInsights?.defaultModelRef || null,
       sessionsVisibility: managedConfigInsights?.sessionsVisibility || null,

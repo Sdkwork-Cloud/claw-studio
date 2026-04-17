@@ -13,7 +13,7 @@ const knownWorkbenchLabels: Record<string, string> = {
   localExternal: 'Local External',
   customHttp: 'Custom HTTP',
   customWs: 'Custom WebSocket',
-  managedFile: 'Managed File',
+  managedFile: 'Config File',
   managedDirectory: 'Managed Directory',
   storageBinding: 'Storage Binding',
   remoteEndpoint: 'Remote Endpoint',

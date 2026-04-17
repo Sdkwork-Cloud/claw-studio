@@ -493,6 +493,47 @@ await runTest(
 );
 
 await runTest(
+  'buildInstanceConfigWorkbenchModel prefers kernel config truth and authority writability over legacy managed config path fields',
+  () => {
+    const workbench = createWorkbench();
+    workbench.managedConfigPath = 'D:/Legacy/managed/openclaw.json';
+    workbench.kernelConfig = {
+      configFile: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+      configRoot: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw',
+      userRoot: 'C:/Users/admin/.sdkwork/crawstudio',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    };
+    workbench.kernelAuthority = {
+      owner: 'appManaged',
+      controlPlane: 'desktopHost',
+      lifecycleControl: true,
+      configControl: false,
+      upgradeControl: true,
+      doctorSupport: true,
+      migrationSupport: true,
+      observable: true,
+      writable: false,
+    };
+
+    const model = buildInstanceConfigWorkbenchModel({
+      workbench,
+      rawDocument: '{ models: { providers: {} } }',
+    });
+
+    assert.equal(
+      model.document.configPath,
+      'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+    );
+    assert.equal(model.document.isWritable, false);
+  },
+);
+
+await runTest(
   'computeInstanceConfigWorkbenchDiff lists path-level changes between parsed config snapshots',
   () => {
     const diff = computeInstanceConfigWorkbenchDiff(

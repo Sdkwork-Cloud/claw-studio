@@ -147,6 +147,8 @@ export function InstanceDetailSectionContent({
   onReloadFiles,
   onReloadConfig,
 }: InstanceDetailSectionContentProps) {
+  const configFilePath =
+    workbench?.kernelConfig?.configFile || workbench?.managedConfigPath || null;
   const sectionLoadingFallback = (
     <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
       {formatWorkbenchLabel('loading')}
@@ -241,7 +243,7 @@ export function InstanceDetailSectionContent({
     case 'tools':
       return <>{toolsSection}</>;
     case 'config':
-      if (!workbench?.managedConfigPath || !instanceId) {
+      if (!configFilePath || !instanceId || !workbench) {
         return renderSectionAvailability('config', 'instances.detail.instanceWorkbench.empty.config');
       }
       return (

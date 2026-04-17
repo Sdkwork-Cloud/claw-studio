@@ -492,7 +492,7 @@
           "sessionsVisibility": "Session Visibility",
           "agentToAgent": "Agent-to-Agent",
           "allowList": "Allow List",
-          "managedFile": "Config Access",
+          "managedFile": "Config File",
           "rawStatus": "Draft Validity",
           "parseReady": "Ready",
           "parseInvalid": "Invalid Draft",
@@ -1101,7 +1101,7 @@
           "labels": {
             "controlPlane": "Control Plane",
             "installMethod": "Install Method",
-            "configAuthority": "Config Authority",
+            "configAuthority": "Config File",
             "defaultWorkspace": "Default Workspace",
             "managementScope": "Management Scope"
           },
@@ -1229,7 +1229,7 @@
         },
         "panel": {
           "badge": "OpenClaw Providers",
-          "managedConfig": "Managed Config",
+          "managedConfig": "Config File",
           "description": "Provider and model CRUD write back to the real config-backed OpenClaw config and keep defaults plus agent model references synchronized.",
           "newProvider": "New Provider",
           "emptyTitle": "No providers configured",
@@ -1297,7 +1297,7 @@
         },
         "panel": {
           "badge": "OpenClaw Agents",
-          "managedConfig": "Managed Config",
+          "managedConfig": "Config File",
           "descriptionPrefix": "Agent identity, workspace, per-agent model overrides, and state directories are written back to the real config-backed OpenClaw config. Credentials still live inside each agent's",
           "authProfilesFile": "auth-profiles.json",
           "descriptionMiddle": "under its",

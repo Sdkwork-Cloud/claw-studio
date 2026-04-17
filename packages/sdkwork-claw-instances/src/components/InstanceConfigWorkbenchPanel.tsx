@@ -257,6 +257,8 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
   const isZh = i18n.language.startsWith('zh');
   const tr: Translate = (key, en, zh, options = {}) =>
     t(key, { ...options, defaultValue: isZh ? zh : en });
+  const configFilePath =
+    props.workbench.kernelConfig?.configFile || props.workbench.managedConfigPath || null;
 
   const [activeMode, setActiveMode] = useState<InstanceConfigWorkbenchModeId>('config');
   const [activeSectionKey, setActiveSectionKey] = useState<string | null>(null);
@@ -279,10 +281,10 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
 
   const loadWorkbench = async () => {
     setRawSensitiveVisible(false);
-    const nextSourceKey = `${props.instanceId}:${props.workbench.managedConfigPath || ''}`;
+    const nextSourceKey = `${props.instanceId}:${configFilePath || ''}`;
     const sourceChanged = loadedSourceKeyRef.current !== nextSourceKey;
 
-    if (!props.workbench.managedConfigPath) {
+    if (!configFilePath) {
       setRawDocument('');
       setRawDraft('');
       setSchemaSnapshot(null);
@@ -346,11 +348,11 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
 
   useEffect(() => {
     void loadWorkbench();
-  }, [props.instanceId, props.workbench.managedConfigPath]);
+  }, [configFilePath, props.instanceId]);
 
   useEffect(() => {
     setSearchQuery('');
-  }, [props.instanceId, props.workbench.managedConfigPath]);
+  }, [configFilePath, props.instanceId]);
 
   const model = useMemo(
     () =>

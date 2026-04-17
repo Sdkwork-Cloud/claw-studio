@@ -16,8 +16,8 @@ import type {
   StudioWorkbenchTaskExecutionRecord,
   StudioWorkbenchTaskRecord,
   StudioWorkbenchToolRecord,
-  type KernelAuthority,
-  type KernelConfig,
+  KernelAuthority,
+  KernelConfig,
 } from '@sdkwork/claw-types';
 import type {
   OpenClawAuthCooldownsConfigSnapshot,

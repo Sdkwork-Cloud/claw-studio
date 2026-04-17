@@ -54,6 +54,12 @@ export interface OpenClawProviderWorkspaceSyncState {
   providerRequestDrafts: Record<string, string>;
 }
 
+function isProviderWorkspaceStateInput(
+  input: BuildOpenClawProviderWorkspaceStateInput | StudioInstanceDetailRecord | null | undefined,
+): input is BuildOpenClawProviderWorkspaceStateInput {
+  return Boolean(input && typeof input === 'object' && 'detail' in input);
+}
+
 function resolveProviderWorkspaceInput(
   input:
     | BuildOpenClawProviderWorkspaceStateInput
@@ -61,7 +67,7 @@ function resolveProviderWorkspaceInput(
     | null
     | undefined,
 ): BuildOpenClawProviderWorkspaceStateInput {
-  if (input && typeof input === 'object' && ('detail' in input || 'kernelAuthority' in input)) {
+  if (isProviderWorkspaceStateInput(input)) {
     return {
       detail: input.detail || null,
       kernelConfig: input.kernelConfig,

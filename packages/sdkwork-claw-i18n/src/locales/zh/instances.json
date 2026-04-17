@@ -486,7 +486,7 @@
           "sessionsVisibility": "会话可见性",
           "agentToAgent": "智能体互调",
           "allowList": "允许列表",
-          "managedFile": "配置访问",
+          "managedFile": "配置文件",
           "none": "无",
           "notConfigured": "未配置"
         },
@@ -1056,7 +1056,7 @@
           "labels": {
             "controlPlane": "管理平面",
             "installMethod": "安装方式",
-            "configAuthority": "配置权威来源",
+            "configAuthority": "配置文件",
             "defaultWorkspace": "默认工作区",
             "managementScope": "可管范围"
           },
@@ -1184,7 +1184,7 @@
         },
         "panel": {
           "badge": "OpenClaw Providers",
-          "managedConfig": "托管配置",
+          "managedConfig": "配置文件",
           "description": "提供方和模型的增删改会回写到真实的 config-backed OpenClaw 配置中，并保持默认模型与智能体模型引用同步。",
           "newProvider": "新建提供方",
           "emptyTitle": "还没有配置提供方",
@@ -1252,7 +1252,7 @@
         },
         "panel": {
           "badge": "OpenClaw Agents",
-          "managedConfig": "托管配置",
+          "managedConfig": "配置文件",
           "descriptionPrefix": "智能体身份、工作区、单智能体模型覆盖和状态目录都会回写到真实的 config-backed OpenClaw 配置里。凭据仍保存在每个智能体自己的",
           "authProfilesFile": "auth-profiles.json",
           "descriptionMiddle": "以及",
