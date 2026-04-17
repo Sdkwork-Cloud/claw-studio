@@ -215,9 +215,9 @@ pub async fn desktop_storage_info(
 #[cfg(test)]
 mod tests {
     use super::{
-        desktop_kernel_info_from_state, desktop_storage_info_from_state,
-        list_local_ai_proxy_message_logs_from_state, list_local_ai_proxy_request_logs_from_state,
-        test_local_ai_proxy_route_from_state,
+        desktop_kernel_info_from_state, desktop_kernel_status_from_state,
+        desktop_storage_info_from_state, list_local_ai_proxy_message_logs_from_state,
+        list_local_ai_proxy_request_logs_from_state, test_local_ai_proxy_route_from_state,
     };
     use crate::{
         framework::{
@@ -347,6 +347,21 @@ mod tests {
         assert!(info.local_ai_proxy.route_tests.is_empty());
         assert!(!info.local_ai_proxy.message_capture_enabled);
         let payload = serde_json::to_value(&info).expect("kernel info json");
+        assert_eq!(payload["activeRuntime"]["runtimeId"], "openclaw");
+        assert_eq!(payload["activeRuntime"]["state"], "stopped");
+        assert_eq!(payload["activeRuntime"]["health"], "degraded");
+        assert!(normalize_path_suffix(
+            payload["activeRuntime"]["configPath"]
+                .as_str()
+                .expect("active runtime config path"),
+        )
+        .ends_with("user-home/.openclaw/openclaw.json"));
+        assert!(normalize_path_suffix(
+            payload["activeRuntime"]["authority"]["managedConfigPath"]
+                .as_str()
+                .expect("active runtime managed config path"),
+        )
+        .ends_with("user-home/.openclaw/openclaw.json"));
         assert_eq!(payload["openClawRuntime"]["runtimeId"], "openclaw");
         assert_eq!(payload["openClawRuntime"]["lifecycle"], "inactive");
         assert!(normalize_path_suffix(
@@ -354,47 +369,39 @@ mod tests {
                 .as_str()
                 .expect("runtime home dir"),
         )
-        .ends_with("user-home/openclaw-home"));
-        assert!(normalize_path_suffix(
-            payload["openClawRuntime"]["stateDir"]
-                .as_str()
-                .expect("runtime state dir"),
-        )
-        .ends_with("user-home/openclaw-home/.openclaw"));
+        .ends_with("user-home/.openclaw"));
+        assert!(
+            payload["openClawRuntime"]["stateDir"].is_null(),
+            "openClawRuntime.stateDir should not be published once .openclaw is the single canonical root",
+        );
         assert!(normalize_path_suffix(
             payload["openClawRuntime"]["workspaceDir"]
                 .as_str()
                 .expect("runtime workspace dir"),
         )
-        .ends_with("user-home/openclaw-home/.openclaw/workspace"));
+        .ends_with("user-home/.openclaw/workspace"));
         assert!(normalize_path_suffix(
             payload["openClawRuntime"]["configPath"]
                 .as_str()
                 .expect("runtime config path"),
         )
-        .ends_with("machine/state/kernels/openclaw/managed-config/openclaw.json"));
+        .ends_with("user-home/.openclaw/openclaw.json"));
         assert!(normalize_path_suffix(
             payload["openClawRuntime"]["authority"]["managedConfigPath"]
                 .as_str()
                 .expect("authority managed config path"),
         )
-        .ends_with("machine/state/kernels/openclaw/managed-config/openclaw.json"));
+        .ends_with("user-home/.openclaw/openclaw.json"));
         let owned_runtime_roots = payload["openClawRuntime"]["authority"]["ownedRuntimeRoots"]
             .as_array()
             .expect("authority owned runtime roots");
-        assert_eq!(owned_runtime_roots.len(), 2);
+        assert_eq!(owned_runtime_roots.len(), 1);
         assert!(normalize_path_suffix(
             owned_runtime_roots[0]
                 .as_str()
                 .expect("primary owned runtime root"),
         )
         .ends_with("install/runtimes/openclaw"));
-        assert!(normalize_path_suffix(
-            owned_runtime_roots[1]
-                .as_str()
-                .expect("legacy owned runtime root"),
-        )
-        .ends_with("machine/runtime/runtimes/openclaw"));
         assert_eq!(
             payload["openClawRuntime"]["authority"]["readinessProbe"]
                 ["supportsLoopbackHealthProbe"],
@@ -664,6 +671,55 @@ mod tests {
             payload["bundledComponents"]["defaultEnabledKernelIds"][0],
             "hermes"
         );
+    }
+
+    #[test]
+    fn desktop_kernel_status_aligns_runtime_provenance_with_hermes_only_bundle_profiles() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        fs::create_dir_all(&paths.foundation_components_dir).expect("foundation components dir");
+        fs::write(
+            paths.foundation_components_dir.join("bundle-manifest.json"),
+            r#"{
+  "version": 1,
+  "packageProfileId": "hermes-only",
+  "includedKernelIds": ["hermes"],
+  "defaultEnabledKernelIds": ["hermes"]
+}
+"#,
+        )
+        .expect("bundle manifest");
+        let logger = init_logger(&paths).expect("logger");
+        let context = Arc::new(FrameworkContext::from_parts(
+            paths.clone(),
+            AppConfig::default(),
+            logger,
+        ));
+        let state = AppState::from_context(context);
+
+        let status = desktop_kernel_status_from_state(&state).expect("kernel status");
+        let info = desktop_kernel_info_from_state(&state).expect("kernel info");
+
+        assert_eq!(status.provenance.runtime_id, "hermes");
+        assert_eq!(info.host.provenance.runtime_id, "hermes");
+        assert_eq!(info.active_runtime.runtime_id, "hermes");
+        assert_eq!(info.active_runtime.state, info.host.runtime.state);
+        assert_eq!(info.active_runtime.install_source.as_str(), "bundled");
+        assert_eq!(
+            info.active_runtime
+                .authority
+                .as_ref()
+                .map(|authority| authority.runtime_id.as_str()),
+            Some("hermes")
+        );
+        assert_eq!(info.bundled_components.package_profile_id, "hermes-only");
+        assert_eq!(
+            info.bundled_components.default_enabled_kernel_ids,
+            vec!["hermes"]
+        );
+        let payload = serde_json::to_value(&info).expect("kernel info json");
+        assert_eq!(payload["activeRuntime"]["runtimeId"], "hermes");
+        assert_eq!(payload["activeRuntime"]["authority"]["runtimeId"], "hermes");
     }
 
     #[test]

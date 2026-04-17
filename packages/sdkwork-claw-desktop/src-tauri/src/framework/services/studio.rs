@@ -41,7 +41,7 @@ use serde::{de::Error as SerdeDeError, Deserialize, Deserializer, Serialize, Ser
 use serde_json::{Map, Number, Value};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env, fs,
+    fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -3352,10 +3352,8 @@ fn build_local_external_openclaw_console_access(
         .map(|(_, record)| console_install_method_from_install_record(record))
         .unwrap_or(StudioInstanceConsoleInstallMethod::Unknown);
 
-    if let Some((installer_home, record)) = install_record.as_ref() {
-        if let Some(config_path) =
-            discover_openclaw_config_path(paths, installer_home.as_path(), record, &install_method)
-        {
+    if install_record.is_some() {
+        if let Some(config_path) = discover_openclaw_config_path(paths, &install_method) {
             let root = read_json5_object(&config_path)?;
             return Ok(build_openclaw_console_access(
                 instance,
@@ -3960,71 +3958,15 @@ fn console_install_method_from_manifest_name(
 
 fn discover_openclaw_config_path(
     paths: &AppPaths,
-    installer_home: &Path,
-    record: &InstallRecord,
     install_method: &StudioInstanceConsoleInstallMethod,
 ) -> Option<PathBuf> {
-    let mut candidates = Vec::new();
     match install_method {
-        StudioInstanceConsoleInstallMethod::Wsl => {}
-        StudioInstanceConsoleInstallMethod::Docker => {
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root)
-                    .join("config")
-                    .join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root).join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root)
-                    .join(".openclaw")
-                    .join("openclaw.json"),
-            );
-        }
-        StudioInstanceConsoleInstallMethod::Podman => {}
-        _ => {
-            for root in openclaw_home_root_candidates(paths, installer_home) {
-                push_unique_path(
-                    &mut candidates,
-                    root.join(".openclaw").join("openclaw.json"),
-                );
-            }
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.work_root)
-                    .join(".openclaw")
-                    .join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.install_root)
-                    .join(".openclaw")
-                    .join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root)
-                    .join("config")
-                    .join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root).join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root)
-                    .join(".openclaw")
-                    .join("openclaw.json"),
-            );
-        }
+        StudioInstanceConsoleInstallMethod::Wsl
+        | StudioInstanceConsoleInstallMethod::Docker
+        | StudioInstanceConsoleInstallMethod::Podman => None,
+        _ if paths.openclaw_config_file.is_file() => Some(paths.openclaw_config_file.clone()),
+        _ => None,
     }
-
-    candidates.into_iter().find(|path| path.is_file())
 }
 
 fn discover_local_external_openclaw_config_path(
@@ -4043,38 +3985,8 @@ fn discover_local_external_openclaw_config_path(
             .flatten()?;
     let install_method = console_install_method_from_install_record(&install_record);
 
-    discover_openclaw_config_path(
-        paths,
-        installer_home.as_path(),
-        &install_record,
-        &install_method,
-    )
-}
-
-fn openclaw_home_root_candidates(paths: &AppPaths, installer_home: &Path) -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
-    push_unique_path(&mut candidates, paths.user_root.clone());
-
-    if let Some(home) = env::var_os("USERPROFILE")
-        .or_else(|| env::var_os("HOME"))
-        .map(PathBuf::from)
-    {
-        push_unique_path(&mut candidates, home);
-    }
-
-    let mut current = installer_home.parent();
-    while let Some(path) = current {
-        push_unique_path(&mut candidates, path.to_path_buf());
-        current = path.parent();
-    }
-
-    candidates
-}
-
-fn push_unique_path(target: &mut Vec<PathBuf>, value: PathBuf) {
-    if !target.iter().any(|existing| existing == &value) {
-        target.push(value);
-    }
+    let _ = installer_home;
+    discover_openclaw_config_path(paths, &install_method)
 }
 
 fn missing_openclaw_console_config_reason(
@@ -5755,12 +5667,7 @@ fn managed_openclaw_runtime_dir(paths: &AppPaths) -> PathBuf {
 }
 
 fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
-    let authority_path = authority_managed_openclaw_config_path(paths);
-    if authority_path.exists() || !paths.openclaw_config_file.exists() {
-        authority_path
-    } else {
-        paths.openclaw_config_file.clone()
-    }
+    authority_managed_openclaw_config_path(paths)
 }
 
 fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
@@ -5770,7 +5677,7 @@ fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
             paths
                 .kernel_paths("openclaw")
                 .map(|kernel| kernel.managed_config_file)
-                .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                .unwrap_or_else(|_| paths.openclaw_config_file.clone())
         })
 }
 
@@ -6053,7 +5960,7 @@ mod tests {
                 paths
                     .kernel_paths("openclaw")
                     .map(|kernel| kernel.managed_config_file)
-                    .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                    .unwrap_or_else(|_| paths.openclaw_config_file.clone())
             })
     }
 
@@ -6615,8 +6522,8 @@ mod tests {
                 runtime_dir,
                 node_path,
                 cli_path,
-                home_dir: paths.openclaw_home_dir.clone(),
-                state_dir: paths.openclaw_state_dir.clone(),
+                home_dir: paths.openclaw_root_dir.clone(),
+                state_dir: paths.openclaw_root_dir.clone(),
                 workspace_dir: paths.openclaw_workspace_dir.clone(),
                 config_path: managed_openclaw_config_path(paths),
                 gateway_port,
@@ -7139,6 +7046,77 @@ mod tests {
         assert_eq!(built_in.config.port, "19876");
         assert_eq!(built_in.base_url, None);
         assert_eq!(built_in.config.base_url, None);
+        assert_eq!(built_in.config.auth_token.as_deref(), Some("studio-token"));
+    }
+
+    #[test]
+    fn built_in_instance_ignores_legacy_authority_managed_config_path_when_reading_http_auth() {
+        let (_root, paths, config, storage, service) = studio_context();
+        let legacy_managed_config_path = paths
+            .openclaw_kernel_dir
+            .join("managed-config")
+            .join("openclaw.json");
+        let canonical_managed_config_path = paths.openclaw_config_file.clone();
+        fs::create_dir_all(
+            legacy_managed_config_path
+                .parent()
+                .expect("legacy managed config parent"),
+        )
+        .expect("legacy managed config dir");
+        fs::write(
+            &legacy_managed_config_path,
+            r#"{
+  gateway: {
+    port: 19877,
+    auth: {
+      mode: "token",
+      token: "legacy-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("seed legacy managed config");
+        fs::write(
+            &canonical_managed_config_path,
+            r#"{
+  gateway: {
+    port: 19876,
+    auth: {
+      mode: "token",
+      token: "studio-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("seed canonical managed config");
+
+        let mut authority = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_authority_file).expect("authority state"),
+        )
+        .expect("authority state json");
+        authority["managedConfigPath"] =
+            Value::String(legacy_managed_config_path.to_string_lossy().into_owned());
+        fs::write(
+            &paths.openclaw_authority_file,
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&authority).expect("authority json")
+            ),
+        )
+        .expect("write authority state");
+
+        let instances = service
+            .list_instances(&paths, &config, &storage)
+            .expect("list instances");
+        let built_in = instances
+            .into_iter()
+            .find(|instance| instance.id == DEFAULT_INSTANCE_ID)
+            .expect("built-in instance");
+
+        assert_eq!(built_in.port, Some(19876));
+        assert_eq!(built_in.config.port, "19876");
         assert_eq!(built_in.config.auth_token.as_deref(), Some("studio-token"));
     }
 
@@ -8238,13 +8216,13 @@ mod tests {
         let install_root = root.path().join("external-install");
         let work_root = root.path().join("external-work");
         let data_root = root.path().join("external-data");
-        let host_openclaw_home = paths.user_root.join(".openclaw");
+        let host_openclaw_root = paths.user_root.join(".openclaw");
         fs::create_dir_all(&install_root).expect("create install root");
         fs::create_dir_all(&work_root).expect("create work root");
         fs::create_dir_all(&data_root).expect("create data root");
-        fs::create_dir_all(&host_openclaw_home).expect("create host openclaw home");
+        fs::create_dir_all(&host_openclaw_root).expect("create host openclaw root");
         fs::write(
-            host_openclaw_home.join("openclaw.json"),
+            host_openclaw_root.join("openclaw.json"),
             r#"{
   gateway: {
     port: 28789,
@@ -8356,7 +8334,7 @@ mod tests {
             && !route.readonly
             && route.target.as_deref()
                 == Some(
-                    host_openclaw_home
+                    host_openclaw_root
                         .join("openclaw.json")
                         .to_string_lossy()
                         .as_ref()
@@ -8366,7 +8344,7 @@ mod tests {
             && !artifact.readonly
             && artifact.location.as_deref()
                 == Some(
-                    host_openclaw_home
+                    host_openclaw_root
                         .join("openclaw.json")
                         .to_string_lossy()
                         .as_ref()
@@ -8379,13 +8357,13 @@ mod tests {
         let install_root = root.path().join("external-install");
         let work_root = root.path().join("external-work");
         let data_root = root.path().join("external-data");
-        let host_openclaw_home = paths.user_root.join(".openclaw");
+        let host_openclaw_root = paths.user_root.join(".openclaw");
         fs::create_dir_all(&install_root).expect("create install root");
         fs::create_dir_all(&work_root).expect("create work root");
         fs::create_dir_all(&data_root).expect("create data root");
-        fs::create_dir_all(&host_openclaw_home).expect("create host openclaw home");
+        fs::create_dir_all(&host_openclaw_root).expect("create host openclaw root");
         fs::write(
-            host_openclaw_home.join("openclaw.json"),
+            host_openclaw_root.join("openclaw.json"),
             r#"{
   gateway: {
     port: 28789,
@@ -8463,19 +8441,140 @@ mod tests {
     }
 
     #[test]
+    fn local_external_openclaw_detail_ignores_legacy_data_root_config_candidates() {
+        let (root, paths, config, storage, service) = studio_context();
+        let install_root = root.path().join("external-install");
+        let work_root = root.path().join("external-work");
+        let data_root = root.path().join("external-data");
+        let legacy_config_path = data_root.join("config").join("openclaw.json");
+        fs::create_dir_all(&install_root).expect("create install root");
+        fs::create_dir_all(&work_root).expect("create work root");
+        fs::create_dir_all(legacy_config_path.parent().expect("legacy config parent"))
+            .expect("create legacy config dir");
+        fs::write(
+            &legacy_config_path,
+            r#"{
+  gateway: {
+    port: 28789,
+    controlUi: {
+      basePath: "/console",
+    },
+    auth: {
+      mode: "token",
+      token: "legacy-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("write legacy config");
+        write_openclaw_install_record(
+            &paths,
+            "openclaw-npm",
+            &install_root,
+            &work_root,
+            &data_root,
+            EffectiveRuntimePlatform::Windows,
+            InstallControlLevel::Partial,
+        );
+
+        let instance = service
+            .create_instance(
+                &paths,
+                &config,
+                &storage,
+                StudioCreateInstanceInput {
+                    name: "Legacy Candidate OpenClaw".to_string(),
+                    description: Some("Legacy config candidate should be ignored".to_string()),
+                    runtime_kind: StudioRuntimeKind::Openclaw,
+                    deployment_mode: StudioInstanceDeploymentMode::LocalExternal,
+                    transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
+                    icon_type: None,
+                    version: Some("1.0.0".to_string()),
+                    type_label: Some("OpenClaw External".to_string()),
+                    host: Some("127.0.0.1".to_string()),
+                    port: Some(28789),
+                    base_url: Some("http://127.0.0.1:28789".to_string()),
+                    websocket_url: Some("ws://127.0.0.1:28789".to_string()),
+                    storage: None,
+                    config: Some(super::PartialStudioInstanceConfig {
+                        base_url: Some("http://127.0.0.1:28789".to_string()),
+                        websocket_url: Some("ws://127.0.0.1:28789".to_string()),
+                        port: Some("28789".to_string()),
+                        ..super::PartialStudioInstanceConfig::default()
+                    }),
+                },
+            )
+            .expect("create local external openclaw");
+
+        service
+            .update_instance(
+                &paths,
+                &config,
+                &storage,
+                &instance.id,
+                super::StudioUpdateInstanceInput {
+                    status: Some(StudioInstanceStatus::Online),
+                    ..super::StudioUpdateInstanceInput::default()
+                },
+            )
+            .expect("mark local external runtime online");
+
+        let detail = service
+            .get_instance_detail(&paths, &config, &storage, &instance.id)
+            .expect("load instance detail")
+            .expect("local external detail");
+        let serialized = serde_json::to_value(&detail).expect("serialize detail");
+        let console_access = serialized
+            .get("consoleAccess")
+            .and_then(Value::as_object)
+            .expect("detail should include console access");
+        let config_route = detail
+            .data_access
+            .routes
+            .iter()
+            .find(|route| route.scope == StudioInstanceDataAccessScope::Config)
+            .expect("config route");
+
+        assert_eq!(
+            console_access.get("available").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(console_access.get("autoLoginUrl"), None);
+        assert_ne!(
+            console_access.get("authSource").and_then(Value::as_str),
+            Some("installRecord")
+        );
+        assert_eq!(
+            config_route.mode,
+            StudioInstanceDataAccessMode::MetadataOnly
+        );
+        assert_eq!(config_route.authoritative, false);
+        assert_eq!(
+            config_route.target.as_deref(),
+            Some("studio.instances registry metadata")
+        );
+        assert!(!detail.artifacts.iter().any(|artifact| {
+            artifact.kind == StudioInstanceArtifactKind::ConfigFile
+                && artifact.location.as_deref()
+                    == Some(legacy_config_path.to_string_lossy().as_ref())
+        }));
+    }
+
+    #[test]
     fn local_external_openclaw_detail_reads_profile_specific_install_record_shape() {
         let (root, paths, config, storage, service) = studio_context();
         let install_root = root.path().join("profile-install");
         let work_root = root.path().join("profile-work");
         let data_root = root.path().join("profile-data");
-        let host_openclaw_home = paths.user_root.join(".openclaw");
+        let host_openclaw_root = paths.user_root.join(".openclaw");
         let installer_home = paths.user_root.join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         fs::create_dir_all(&install_root).expect("create install root");
         fs::create_dir_all(&work_root).expect("create work root");
         fs::create_dir_all(&data_root).expect("create data root");
-        fs::create_dir_all(&host_openclaw_home).expect("create host openclaw home");
+        fs::create_dir_all(&host_openclaw_root).expect("create host openclaw root");
         fs::write(
-            host_openclaw_home.join("openclaw.json"),
+            host_openclaw_root.join("openclaw.json"),
             r#"{
   gateway: {
     port: 28789,
@@ -8682,7 +8781,7 @@ mod tests {
     #[test]
     fn local_external_openclaw_detail_prefers_install_record_matching_instance_workspace() {
         let (root, paths, config, storage, service) = studio_context();
-        let host_openclaw_home = paths.user_root.join(".openclaw");
+        let host_openclaw_root = paths.user_root.join(".openclaw");
         let installer_home = paths.user_root.join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         let profile_work_root = root.path().join("target-work");
         let profile_install_root = root.path().join("target-install");
@@ -8690,7 +8789,7 @@ mod tests {
         let other_work_root = root.path().join("other-work");
         let other_install_root = root.path().join("other-install");
         let other_data_root = root.path().join("other-data");
-        fs::create_dir_all(&host_openclaw_home).expect("create host openclaw home");
+        fs::create_dir_all(&host_openclaw_root).expect("create host openclaw root");
         fs::create_dir_all(&profile_work_root).expect("create target work root");
         fs::create_dir_all(&profile_install_root).expect("create target install root");
         fs::create_dir_all(&profile_data_root).expect("create target data root");
@@ -8698,7 +8797,7 @@ mod tests {
         fs::create_dir_all(&other_install_root).expect("create other install root");
         fs::create_dir_all(&other_data_root).expect("create other data root");
         fs::write(
-            host_openclaw_home.join("openclaw.json"),
+            host_openclaw_root.join("openclaw.json"),
             r#"{
   gateway: {
     port: 28789,
@@ -8821,17 +8920,17 @@ mod tests {
     #[test]
     fn local_external_openclaw_detail_reads_from_preferred_install_record_home() {
         let (root, paths, config, storage, service) = studio_context();
-        let host_openclaw_home = paths.user_root.join(".openclaw");
+        let host_openclaw_root = paths.user_root.join(".openclaw");
         let preferred_installer_home = paths.user_root.join(OPENCLAW_INSTALL_RECORDS_HOME_NAME);
         let preferred_install_root = root.path().join("preferred-install");
         let preferred_work_root = root.path().join("preferred-work");
         let preferred_data_root = root.path().join("preferred-data");
-        fs::create_dir_all(&host_openclaw_home).expect("create host openclaw home");
+        fs::create_dir_all(&host_openclaw_root).expect("create host openclaw root");
         fs::create_dir_all(&preferred_install_root).expect("create preferred install root");
         fs::create_dir_all(&preferred_work_root).expect("create preferred work root");
         fs::create_dir_all(&preferred_data_root).expect("create preferred data root");
         fs::write(
-            host_openclaw_home.join("openclaw.json"),
+            host_openclaw_root.join("openclaw.json"),
             r#"{
   gateway: {
     port: 28789,
@@ -9337,10 +9436,10 @@ Reads runtime diagnostics and summarizes them.
         let (_root, paths, config, storage, service) = studio_context();
         let (supervisor, server) = configured_openclaw_supervisor(&paths);
 
-        fs::create_dir_all(paths.openclaw_state_dir.join("cron").join("runs"))
+        fs::create_dir_all(paths.openclaw_root_dir.join("cron").join("runs"))
             .expect("cron run dir");
         fs::write(
-            paths.openclaw_state_dir.join("cron").join("jobs.json"),
+            paths.openclaw_root_dir.join("cron").join("jobs.json"),
             r#"{
   "version": 1,
   "jobs": [
@@ -9389,7 +9488,7 @@ Reads runtime diagnostics and summarizes them.
         .expect("jobs store");
         fs::write(
             paths
-                .openclaw_state_dir
+                .openclaw_root_dir
                 .join("cron")
                 .join("runs")
                 .join("job-1.jsonl"),

@@ -15,13 +15,6 @@ const CANONICAL_WORKSPACE_ROOT = resolveCanonicalWorkspaceRootDir(import.meta.di
 const WORKSPACE_PACKAGES_ROOT = path.resolve(WORKSPACE_ROOT, 'packages');
 const EXTRA_WORKSPACE_PACKAGE_SOURCE_SPECS = [
   {
-    packageName: '@sdkwork/craw-chat-sdk',
-    packageRoot: WORKSPACE_ROOT,
-    entryBySubpath: {
-      '.': 'scripts/shims/craw-chat-sdk-compat.ts',
-    },
-  },
-  {
     packageName: '@sdkwork/craw-chat-backend-sdk',
     packageRoot: path.resolve(
       CANONICAL_WORKSPACE_ROOT,

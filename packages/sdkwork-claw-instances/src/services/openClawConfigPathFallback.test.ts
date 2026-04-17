@@ -93,3 +93,32 @@ await runTest(
     );
   },
 );
+
+await runTest(
+  'resolveFallbackInstanceConfigPath canonicalizes built-in managed OpenClaw config routes when legacy targets drift',
+  () => {
+    assert.equal(
+      configPathFallbackModule?.resolveFallbackInstanceConfigPath({
+        instance: {
+          runtimeKind: 'openclaw',
+          deploymentMode: 'local-managed',
+          isBuiltIn: true,
+          config: {
+            workspacePath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+          },
+        },
+        dataAccess: {
+          routes: [
+            {
+              scope: 'config',
+              mode: 'managedFile',
+              target:
+                'C:/ProgramData/SdkWork/CrawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+            },
+          ],
+        },
+      } as any),
+      'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+    );
+  },
+);

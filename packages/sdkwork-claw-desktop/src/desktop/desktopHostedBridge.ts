@@ -263,6 +263,38 @@ export function createDeferredDesktopHostedStudioPlatform(
   });
 }
 
+function createInactiveOpenClawRuntimeRecord(
+  descriptor: DesktopHostedRuntimeDescriptor,
+): ManageOpenClawRuntimeRecord {
+  return {
+    runtimeKind: 'openclaw',
+    lifecycle: 'inactive',
+    endpointId: null,
+    requestedPort: null,
+    activePort: null,
+    baseUrl: null,
+    websocketUrl: null,
+    managedBy: descriptor.mode,
+    updatedAt: 0,
+  };
+}
+
+function createInactiveOpenClawGatewayRecord(
+  descriptor: DesktopHostedRuntimeDescriptor,
+): ManageOpenClawGatewayRecord {
+  return {
+    gatewayKind: 'openclawGateway',
+    lifecycle: 'inactive',
+    endpointId: null,
+    requestedPort: null,
+    activePort: null,
+    baseUrl: null,
+    websocketUrl: null,
+    managedBy: descriptor.mode,
+    updatedAt: 0,
+  };
+}
+
 export async function probeDesktopHostedControlPlane(
   descriptor: DesktopHostedRuntimeDescriptor,
   fetchImpl?: DesktopHostedFetch,
@@ -298,11 +330,17 @@ export async function probeDesktopHostedRuntimeReadiness(
   const internal = createDesktopHostedInternalPlatform(normalizedDescriptor, fetchImpl);
   const manage = createDesktopHostedManagePlatform(normalizedDescriptor, fetchImpl);
   const studio = createDesktopHostedStudioPlatform(normalizedDescriptor, fetchImpl);
+  const openClawRuntimePromise = requiresManagedOpenClawEvidence
+    ? manage.getOpenClawRuntime()
+    : Promise.resolve(createInactiveOpenClawRuntimeRecord(normalizedDescriptor));
+  const openClawGatewayPromise = requiresManagedOpenClawEvidence
+    ? manage.getOpenClawGateway()
+    : Promise.resolve(createInactiveOpenClawGatewayRecord(normalizedDescriptor));
   const [hostPlatformStatus, hostEndpoints, openClawRuntime, openClawGateway, instances] = await Promise.all([
     internal.getHostPlatformStatus(),
     manage.getHostEndpoints(),
-    manage.getOpenClawRuntime(),
-    manage.getOpenClawGateway(),
+    openClawRuntimePromise,
+    openClawGatewayPromise,
     studio.listInstances(),
   ]);
 

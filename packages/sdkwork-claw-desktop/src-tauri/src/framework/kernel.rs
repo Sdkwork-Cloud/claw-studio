@@ -272,7 +272,6 @@ pub struct DesktopOpenClawRuntimeInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime_dir: Option<String>,
     pub home_dir: String,
-    pub state_dir: String,
     pub workspace_dir: String,
     pub config_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -285,6 +284,62 @@ pub struct DesktopOpenClawRuntimeInfo {
     pub authority: DesktopOpenClawRuntimeAuthorityInfo,
     pub provider_projection: DesktopOpenClawProviderProjectionInfo,
     pub startup_chain: Vec<DesktopOpenClawRuntimeStageInfo>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopKernelRuntimeAuthorityProbeInfo {
+    pub supports_loopback_health_probe: bool,
+    pub health_probe_timeout_ms: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopKernelRuntimeAuthorityInfo {
+    pub runtime_id: String,
+    pub managed_config_path: String,
+    pub owned_runtime_roots: Vec<String>,
+    pub readiness_probe: DesktopKernelRuntimeAuthorityProbeInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub install_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_home_dir: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_install_dir: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopActiveKernelRuntimeInfo {
+    pub runtime_id: String,
+    pub state: String,
+    pub health: String,
+    pub reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub install_key: Option<String>,
+    pub install_source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_version: Option<String>,
+    pub platform: String,
+    pub arch: String,
+    pub config_path: String,
+    pub runtime_home_dir: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_install_dir: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authority: Option<DesktopKernelRuntimeAuthorityInfo>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -537,7 +592,9 @@ pub struct DesktopKernelInfo {
     pub payments: DesktopPaymentInfo,
     pub integrations: DesktopIntegrationInfo,
     pub supervisor: DesktopSupervisorInfo,
+    pub active_runtime: DesktopActiveKernelRuntimeInfo,
     pub open_claw_runtime: DesktopOpenClawRuntimeInfo,
+    pub runtime_authorities: Vec<DesktopKernelRuntimeAuthorityInfo>,
     pub local_ai_proxy: DesktopLocalAiProxyInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub desktop_startup_evidence: Option<DesktopStartupEvidenceInfo>,

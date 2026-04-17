@@ -552,6 +552,16 @@ test('tauriBridge keeps canonical host-manage placeholders and startup metadata 
   assert.match(runtimeContractSource, /hostActivePort\?: number \| null;/);
   assert.match(runtimeContractSource, /runtimeDataDir\?: string \| null;/);
   assert.match(runtimeContractSource, /webDistDir\?: string \| null;/);
+  assert.match(runtimeContractSource, /export interface RuntimeDesktopActiveKernelRuntimeInfo \{/);
+  assert.doesNotMatch(
+    runtimeContractSource,
+    /export interface RuntimeDesktopOpenClawRuntimeInfo \{[\s\S]*stateDir: string;/,
+  );
+  assert.match(
+    runtimeContractSource,
+    /export interface RuntimeDesktopKernelInfo \{[\s\S]*activeRuntime: RuntimeDesktopActiveKernelRuntimeInfo;[\s\S]*openClawRuntime\?: RuntimeDesktopOpenClawRuntimeInfo \| null;/,
+  );
+  assert.match(tauriBridgeSource, /export interface DesktopKernelInfo extends RuntimeDesktopKernelInfo \{\}/);
   assert.match(tauriBridgeSource, /export async function getHostEndpoints\(\)/);
   assert.match(tauriBridgeSource, /export async function getOpenClawRuntime\(\)/);
   assert.match(tauriBridgeSource, /export async function getOpenClawGateway\(\)/);

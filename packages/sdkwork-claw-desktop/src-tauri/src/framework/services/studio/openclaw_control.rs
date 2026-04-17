@@ -205,7 +205,7 @@ fn read_openclaw_task_definition(paths: &AppPaths, task_id: &str) -> Result<Valu
 }
 
 fn resolve_openclaw_jobs_store_path(paths: &AppPaths) -> std::path::PathBuf {
-    paths.openclaw_state_dir.join("cron").join("jobs.json")
+    paths.openclaw_root_dir.join("cron").join("jobs.json")
 }
 
 fn read_json_document(path: &Path) -> Result<Value> {
@@ -571,9 +571,9 @@ mod tests {
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let (runtime, server) = create_runtime_fixture(&paths);
 
-        fs::create_dir_all(paths.openclaw_state_dir.join("cron")).expect("cron dir");
+        fs::create_dir_all(paths.openclaw_root_dir.join("cron")).expect("cron dir");
         fs::write(
-            paths.openclaw_state_dir.join("cron").join("jobs.json"),
+            paths.openclaw_root_dir.join("cron").join("jobs.json"),
             r#"{
   "version": 1,
   "jobs": [
@@ -819,8 +819,8 @@ mod tests {
                 runtime_dir,
                 node_path,
                 cli_path,
-                home_dir: paths.openclaw_home_dir.clone(),
-                state_dir: paths.openclaw_state_dir.clone(),
+                home_dir: paths.openclaw_root_dir.clone(),
+                state_dir: paths.openclaw_root_dir.clone(),
                 workspace_dir: paths.openclaw_workspace_dir.clone(),
                 config_path: paths.openclaw_config_file.clone(),
                 gateway_port,

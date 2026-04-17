@@ -23,6 +23,7 @@ use crate::config::{
     resolve_server_accelerator_profile, resolve_server_deployment_family,
     ResolvedServerRuntimeConfig, CLAW_SERVER_DEFAULT_STATE_STORE_DRIVER,
 };
+use crate::http::api_surface::PublishedProxyTarget;
 use crate::http::auth::{BasicAuthCredentials, ServerAuthConfig};
 use crate::service::{
     current_service_platform, ServerRuntimeContract, ServerServiceControlPlaneHandle,
@@ -46,6 +47,7 @@ pub struct ServerStateOverrides {
     pub executable_path: Option<PathBuf>,
     pub service_control_plane: Option<ServerServiceControlPlaneHandle>,
     pub manage_openclaw_provider: Option<ManageOpenClawProviderHandle>,
+    pub local_ai_proxy_target_provider: Option<LocalAiProxyTargetProviderHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +90,7 @@ pub trait ManageOpenClawProvider: Send + Sync {
     fn get_runtime(&self, updated_at: u64) -> Result<OpenClawRuntimeProjection, String>;
     fn get_gateway(&self, updated_at: u64) -> Result<OpenClawGatewayProjection, String>;
     fn gateway_invoke_is_available(&self, updated_at: u64) -> bool;
+    fn gateway_proxy_target(&self, updated_at: u64) -> Option<PublishedProxyTarget>;
     fn invoke_gateway(
         &self,
         request: OpenClawGatewayInvokeRequest,
@@ -119,6 +122,10 @@ impl ManageOpenClawProviderHandle {
 
     pub fn gateway_invoke_is_available(&self, updated_at: u64) -> bool {
         self.inner.gateway_invoke_is_available(updated_at)
+    }
+
+    pub fn gateway_proxy_target(&self, updated_at: u64) -> Option<PublishedProxyTarget> {
+        self.inner.gateway_proxy_target(updated_at)
     }
 
     pub fn invoke_gateway(
@@ -156,6 +163,19 @@ impl ManageOpenClawProvider for ControlPlaneManageOpenClawProvider {
 
     fn gateway_invoke_is_available(&self, updated_at: u64) -> bool {
         self.openclaw_control_plane.get_gateway(updated_at).lifecycle == "ready"
+    }
+
+    fn gateway_proxy_target(&self, updated_at: u64) -> Option<PublishedProxyTarget> {
+        let gateway = self.openclaw_control_plane.get_gateway(updated_at);
+        if gateway.lifecycle != "ready" {
+            return None;
+        }
+
+        gateway.base_url.map(|base_url| PublishedProxyTarget {
+            id: "openclaw-gateway",
+            base_url,
+            auth_token: None,
+        })
     }
 
     fn invoke_gateway(
@@ -215,6 +235,31 @@ pub fn host_platform_capability_keys_for_mode(mode: &str) -> Vec<String> {
     capability_keys
 }
 
+pub trait LocalAiProxyTargetProvider: Send + Sync {
+    fn local_ai_proxy_target(&self) -> Option<PublishedProxyTarget>;
+}
+
+#[derive(Clone)]
+pub struct LocalAiProxyTargetProviderHandle {
+    inner: Arc<dyn LocalAiProxyTargetProvider>,
+}
+
+impl LocalAiProxyTargetProviderHandle {
+    pub fn new(inner: Arc<dyn LocalAiProxyTargetProvider>) -> Self {
+        Self { inner }
+    }
+
+    pub fn local_ai_proxy_target(&self) -> Option<PublishedProxyTarget> {
+        self.inner.local_ai_proxy_target()
+    }
+}
+
+impl fmt::Debug for LocalAiProxyTargetProviderHandle {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("LocalAiProxyTargetProviderHandle(..)")
+    }
+}
+
 #[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, Clone)]
 pub struct ServerState {
@@ -235,6 +280,7 @@ pub struct ServerState {
     pub service_control_plane: ServerServiceControlPlaneHandle,
     pub openclaw_control_plane: Arc<OpenClawControlPlane>,
     pub manage_openclaw_provider: ManageOpenClawProviderHandle,
+    pub local_ai_proxy_target_provider: Option<LocalAiProxyTargetProviderHandle>,
     pub rollout_control_plane: Arc<RolloutControlPlane>,
     pub node_session_registry: Arc<NodeSessionRegistry>,
     pub studio_public_api: Option<Arc<dyn StudioPublicApiProvider>>,
@@ -293,6 +339,17 @@ impl ServerState {
 
     pub fn supports_manage_service_api(&self) -> bool {
         self.capabilities.manage_service_api
+    }
+
+    pub fn local_ai_proxy_target(&self) -> Option<PublishedProxyTarget> {
+        self.local_ai_proxy_target_provider
+            .as_ref()
+            .and_then(LocalAiProxyTargetProviderHandle::local_ai_proxy_target)
+    }
+
+    pub fn openclaw_gateway_target(&self) -> Option<PublishedProxyTarget> {
+        self.manage_openclaw_provider
+            .gateway_proxy_target(self.resource_projection_updated_at())
     }
 
     pub fn host_platform_supported_capability_keys(&self) -> Vec<String> {
@@ -387,6 +444,7 @@ fn try_build_server_state_from_runtime_contract(
         config_path: effective_config_path,
         runtime_config: config.clone(),
     };
+    let resource_projection_updated_at = unix_timestamp_ms();
     let openclaw_control_plane = Arc::new(build_server_openclaw_control_plane(&bound_endpoint));
     let manage_openclaw_provider =
         build_control_plane_manage_openclaw_provider(openclaw_control_plane.clone());
@@ -398,7 +456,7 @@ fn try_build_server_state_from_runtime_contract(
     Ok(ServerState {
         mode: "server",
         capabilities: ServerHostCapabilities::server(),
-        resource_projection_updated_at: unix_timestamp_ms(),
+        resource_projection_updated_at,
         deployment_family: config.deployment_family.as_contract_str().to_string(),
         accelerator_profile: config
             .accelerator_profile
@@ -414,6 +472,7 @@ fn try_build_server_state_from_runtime_contract(
         service_control_plane: ServerServiceControlPlaneHandle::os(),
         openclaw_control_plane,
         manage_openclaw_provider,
+        local_ai_proxy_target_provider: None,
         rollout_control_plane: Arc::new(rollout_control_plane),
         node_session_registry: Arc::new(node_session_registry),
         studio_public_api: Some(studio_public_api),
@@ -541,6 +600,7 @@ fn try_build_server_state_with_overrides(
         config_path: effective_config_path,
         runtime_config,
     };
+    let resource_projection_updated_at = unix_timestamp_ms();
     let openclaw_control_plane = Arc::new(build_server_openclaw_control_plane(
         &ServerBoundEndpointContext {
             bind_host: host.clone(),
@@ -561,7 +621,7 @@ fn try_build_server_state_with_overrides(
     Ok(ServerState {
         mode: "server",
         capabilities: ServerHostCapabilities::server(),
-        resource_projection_updated_at: unix_timestamp_ms(),
+        resource_projection_updated_at,
         deployment_family: deployment_family.as_contract_str().to_string(),
         accelerator_profile: accelerator_profile
             .as_ref()
@@ -578,6 +638,7 @@ fn try_build_server_state_with_overrides(
             .unwrap_or_else(ServerServiceControlPlaneHandle::os),
         openclaw_control_plane,
         manage_openclaw_provider,
+        local_ai_proxy_target_provider: overrides.local_ai_proxy_target_provider,
         rollout_control_plane: Arc::new(rollout_control_plane),
         node_session_registry: Arc::new(node_session_registry),
         studio_public_api: Some(studio_public_api),

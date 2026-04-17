@@ -195,8 +195,8 @@ await runTest(
       skill: {
         skillKey: 'calendar',
         scope: 'workspace',
-        baseDir: '.openclaw/skills/calendar',
-        filePath: '.openclaw/skills/calendar/index.ts',
+        baseDir: 'D:/OpenClaw/.openclaw/workspace/skills/calendar',
+        filePath: 'D:/OpenClaw/.openclaw/workspace/skills/calendar/index.ts',
       } as any,
       setPendingKeys: () => undefined,
       executeRemove: async (input) => {
@@ -224,8 +224,8 @@ await runTest(
         skillKey: 'calendar',
         scope: 'workspace',
         workspacePath: 'D:/OpenClaw/.openclaw/workspace',
-        baseDir: '.openclaw/skills/calendar',
-        filePath: '.openclaw/skills/calendar/index.ts',
+        baseDir: 'D:/OpenClaw/.openclaw/workspace/skills/calendar',
+        filePath: 'D:/OpenClaw/.openclaw/workspace/skills/calendar/index.ts',
       },
     ]);
   },
@@ -298,8 +298,8 @@ await runTest(
     await skippedHandlers.onRemoveAgentSkill({
       skillKey: 'calendar',
       scope: 'workspace',
-      baseDir: '.openclaw/skills/calendar',
-      filePath: '.openclaw/skills/calendar/index.ts',
+      baseDir: 'D:/OpenClaw/.openclaw/workspace/skills/calendar',
+      filePath: 'D:/OpenClaw/.openclaw/workspace/skills/calendar/index.ts',
     });
 
     assert.deepEqual(executedRequests, []);
@@ -333,8 +333,8 @@ await runTest(
     await activeHandlers.onRemoveAgentSkill({
       skillKey: 'calendar',
       scope: 'workspace',
-      baseDir: '.openclaw/skills/calendar',
-      filePath: '.openclaw/skills/calendar/index.ts',
+      baseDir: 'D:/OpenClaw/.openclaw/workspace/skills/calendar',
+      filePath: 'D:/OpenClaw/.openclaw/workspace/skills/calendar/index.ts',
     });
 
     assert.equal(executedRequests.length, 3);

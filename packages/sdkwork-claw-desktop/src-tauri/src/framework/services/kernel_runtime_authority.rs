@@ -4,7 +4,7 @@ use crate::framework::{
         ActiveState, KernelAuthorityState, KernelMigrationState, RuntimeUpgradeStateEntry,
         RuntimeUpgradesState,
     },
-    paths::AppPaths,
+    paths::{AppPaths, HERMES_KERNEL_ID, OPENCLAW_KERNEL_ID},
     services::openclaw_runtime::{load_manifest, validate_installed_openclaw_runtime},
     FrameworkError, Result,
 };
@@ -18,7 +18,6 @@ use std::{
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 const OPENCLAW_HEALTH_PROBE_TIMEOUT_MS: u64 = 750;
-const OPENCLAW_RUNTIME_ID: &str = "openclaw";
 
 struct KernelRuntimeStatePaths {
     authority_file: PathBuf,
@@ -26,7 +25,6 @@ struct KernelRuntimeStatePaths {
     runtime_upgrades_file: PathBuf,
     managed_config_file: PathBuf,
     quarantine_dir: PathBuf,
-    runtime_install_dir: PathBuf,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,11 +75,6 @@ impl KernelRuntimeAuthorityService {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub fn openclaw_contract(&self, paths: &AppPaths) -> Result<KernelRuntimeContract> {
-        self.contract(OPENCLAW_RUNTIME_ID, paths)
-    }
-
     fn contract_for_adapter(
         &self,
         adapter: &dyn KernelRuntimeAdapter,
@@ -92,7 +85,8 @@ impl KernelRuntimeAuthorityService {
 
     fn adapter_for_runtime_id(&self, runtime_id: &str) -> Option<Box<dyn KernelRuntimeAdapter>> {
         match normalize_runtime_id(runtime_id) {
-            OPENCLAW_RUNTIME_ID => Some(Box::new(OpenClawKernelAdapter::new())),
+            OPENCLAW_KERNEL_ID => Some(Box::new(OpenClawKernelAdapter::new())),
+            HERMES_KERNEL_ID => Some(Box::new(HermesKernelAdapter::new())),
             _ => None,
         }
     }
@@ -102,7 +96,16 @@ impl KernelRuntimeAuthorityService {
         runtime_id: &str,
         paths: &AppPaths,
     ) -> Result<PathBuf> {
+        let normalized_runtime_id = normalize_runtime_id(runtime_id);
         let state_paths = resolve_runtime_state_paths(runtime_id, paths)?;
+        let contract = self.contract(normalized_runtime_id, paths)?;
+        if normalized_runtime_id == OPENCLAW_KERNEL_ID {
+            let _ = reconcile_openclaw_authority_managed_config_path(
+                &state_paths.authority_file,
+                &contract.managed_config_path,
+            );
+            return Ok(contract.managed_config_path);
+        }
         let authority = read_json_file::<KernelAuthorityState>(&state_paths.authority_file)?;
 
         Ok(authority
@@ -110,11 +113,6 @@ impl KernelRuntimeAuthorityService {
             .filter(|value| !value.trim().is_empty())
             .map(PathBuf::from)
             .unwrap_or(state_paths.managed_config_file))
-    }
-
-    #[allow(dead_code)]
-    pub fn active_openclaw_config_path(&self, paths: &AppPaths) -> Result<PathBuf> {
-        self.active_managed_config_path(OPENCLAW_RUNTIME_ID, paths)
     }
 
     pub fn import_or_default_openclaw_config(
@@ -133,10 +131,12 @@ impl KernelRuntimeAuthorityService {
             });
         }
 
-        if paths.openclaw_config_file.exists() {
+        if let Some(source_path) =
+            resolve_legacy_openclaw_config_source_path(paths, managed_config_path)?
+        {
             return Ok(ImportedOpenClawConfig {
-                root: read_json5_object(&paths.openclaw_config_file)?,
-                source_path: Some(paths.openclaw_config_file.clone()),
+                root: read_json5_object(&source_path)?,
+                source_path: Some(source_path),
             });
         }
 
@@ -144,16 +144,6 @@ impl KernelRuntimeAuthorityService {
             root: Value::Object(Map::new()),
             source_path: None,
         })
-    }
-
-    #[allow(dead_code)]
-    pub fn record_openclaw_config_migration(
-        &self,
-        paths: &AppPaths,
-        source_path: Option<&Path>,
-        managed_config_path: &Path,
-    ) -> Result<()> {
-        self.record_config_migration(OPENCLAW_RUNTIME_ID, paths, source_path, managed_config_path)
     }
 
     pub fn record_config_migration(
@@ -177,12 +167,7 @@ impl KernelRuntimeAuthorityService {
             .iter()
             .map(|root| path_string(root))
             .collect();
-        authority.legacy_runtime_roots = contract
-            .owned_runtime_roots
-            .iter()
-            .filter(|root| *root != &state_paths.runtime_install_dir)
-            .map(|root| path_string(root))
-            .collect();
+        authority.legacy_runtime_roots.clear();
         authority.last_error = None;
 
         migrations.runtime_id = normalized_runtime_id.to_string();
@@ -208,16 +193,6 @@ impl KernelRuntimeAuthorityService {
         write_json_file(&state_paths.authority_file, &authority)?;
         write_json_file(&state_paths.migrations_file, &migrations)?;
         Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub fn record_openclaw_activation_result(
-        &self,
-        paths: &AppPaths,
-        install_key: &str,
-        last_error: Option<&str>,
-    ) -> Result<()> {
-        self.record_activation_result(OPENCLAW_RUNTIME_ID, paths, install_key, last_error)
     }
 
     pub fn record_activation_result(
@@ -248,12 +223,7 @@ impl KernelRuntimeAuthorityService {
             .iter()
             .map(|root| path_string(root))
             .collect();
-        authority.legacy_runtime_roots = contract
-            .owned_runtime_roots
-            .iter()
-            .filter(|root| *root != &state_paths.runtime_install_dir)
-            .map(|root| path_string(root))
-            .collect();
+        authority.legacy_runtime_roots.clear();
         authority.last_error = last_error.map(str::to_string);
         runtime_upgrade_entry.last_attempted_at = Some(attempted_at);
         if let Some(last_error) = last_error {
@@ -340,15 +310,15 @@ impl OpenClawKernelAdapter {
 
 impl KernelRuntimeAdapter for OpenClawKernelAdapter {
     fn runtime_id(&self) -> &'static str {
-        OPENCLAW_RUNTIME_ID
+        OPENCLAW_KERNEL_ID
     }
 
     fn contract(&self, paths: &AppPaths) -> Result<KernelRuntimeContract> {
         let openclaw = paths.kernel_paths(self.runtime_id())?;
         Ok(KernelRuntimeContract {
             runtime_id: self.runtime_id().to_string(),
-            managed_config_path: openclaw.managed_config_file.clone(),
-            owned_runtime_roots: vec![openclaw.runtime_dir.clone(), openclaw.legacy_runtime_dir],
+            managed_config_path: paths.openclaw_config_file.clone(),
+            owned_runtime_roots: vec![openclaw.runtime_dir.clone()],
             readiness_probe: KernelRuntimeReadinessProbe {
                 supports_loopback_health_probe: true,
                 health_probe_timeout_ms: OPENCLAW_HEALTH_PROBE_TIMEOUT_MS,
@@ -374,8 +344,92 @@ impl KernelRuntimeAdapter for OpenClawKernelAdapter {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+struct HermesKernelAdapter;
+
+impl HermesKernelAdapter {
+    fn new() -> Self {
+        Self
+    }
+}
+
+impl KernelRuntimeAdapter for HermesKernelAdapter {
+    fn runtime_id(&self) -> &'static str {
+        HERMES_KERNEL_ID
+    }
+
+    fn contract(&self, paths: &AppPaths) -> Result<KernelRuntimeContract> {
+        let hermes = paths.kernel_paths(self.runtime_id())?;
+        Ok(KernelRuntimeContract {
+            runtime_id: self.runtime_id().to_string(),
+            managed_config_path: hermes.managed_config_file.clone(),
+            owned_runtime_roots: vec![hermes.runtime_dir.clone()],
+            readiness_probe: KernelRuntimeReadinessProbe {
+                supports_loopback_health_probe: false,
+                health_probe_timeout_ms: 0,
+            },
+        })
+    }
+}
+
 fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
+}
+
+fn legacy_openclaw_managed_config_path(paths: &AppPaths) -> PathBuf {
+    paths
+        .openclaw_kernel_dir
+        .join("managed-config")
+        .join("openclaw.json")
+}
+
+fn push_unique_path(target: &mut Vec<PathBuf>, value: PathBuf) {
+    if !target.iter().any(|existing| existing == &value) {
+        target.push(value);
+    }
+}
+
+fn resolve_legacy_openclaw_config_source_path(
+    paths: &AppPaths,
+    managed_config_path: &Path,
+) -> Result<Option<PathBuf>> {
+    let mut candidates = Vec::new();
+    if paths.openclaw_authority_file.is_file() {
+        let authority = read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)?;
+        if let Some(stored_path) = authority
+            .managed_config_path
+            .filter(|value| !value.trim().is_empty())
+            .map(PathBuf::from)
+        {
+            push_unique_path(&mut candidates, stored_path);
+        }
+    }
+    push_unique_path(&mut candidates, legacy_openclaw_managed_config_path(paths));
+
+    Ok(candidates
+        .into_iter()
+        .find(|candidate| candidate != managed_config_path && candidate.is_file()))
+}
+
+fn reconcile_openclaw_authority_managed_config_path(
+    authority_file: &Path,
+    managed_config_path: &Path,
+) -> Result<()> {
+    if !authority_file.is_file() {
+        return Ok(());
+    }
+
+    let mut authority = read_json_file::<KernelAuthorityState>(authority_file)?;
+    let canonical_path = path_string(managed_config_path);
+    if authority.managed_config_path.as_deref() == Some(canonical_path.as_str())
+        && authority.legacy_runtime_roots.is_empty()
+    {
+        return Ok(());
+    }
+
+    authority.managed_config_path = Some(canonical_path);
+    authority.legacy_runtime_roots.clear();
+    write_json_file(authority_file, &authority)
 }
 
 fn normalize_runtime_id(runtime_id: &str) -> &str {
@@ -400,7 +454,6 @@ fn resolve_runtime_state_paths(
         runtime_upgrades_file: kernel_paths.runtime_upgrades_file,
         managed_config_file: kernel_paths.managed_config_file,
         quarantine_dir: kernel_paths.quarantine_dir,
-        runtime_install_dir: kernel_paths.runtime_dir,
     })
 }
 
@@ -591,7 +644,10 @@ fn unix_timestamp_ms() -> Result<u128> {
 
 #[cfg(test)]
 mod tests {
-    use super::KernelRuntimeAuthorityService;
+    use super::{
+        legacy_openclaw_managed_config_path, path_string, read_json_file, write_json_file,
+        KernelAuthorityState, KernelRuntimeAuthorityService,
+    };
     use crate::framework::{layout::initialize_machine_state, paths::resolve_paths_for_root};
     use serde_json::Value;
     use std::{fs, path::Path};
@@ -645,7 +701,7 @@ mod tests {
     }
 
     #[test]
-    fn production_sources_do_not_call_openclaw_specific_config_wrapper() {
+    fn production_sources_do_not_call_removed_openclaw_specific_runtime_authority_wrappers() {
         for (label, source) in [
             (
                 "framework/kernel_host/mod.rs",
@@ -671,13 +727,13 @@ mod tests {
             let production_source = strip_test_module(source);
             assert!(
                 !production_source.contains(".active_openclaw_config_path("),
-                "{label} still calls the OpenClaw-specific config wrapper in production code"
+                "{label} still calls a removed OpenClaw-specific runtime authority wrapper in production code"
             );
         }
     }
 
     #[test]
-    fn source_tree_does_not_use_openclaw_compatibility_wrappers_outside_authority_owner() {
+    fn source_tree_does_not_use_removed_openclaw_specific_runtime_authority_wrappers() {
         let src_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
         let authority_owner = src_root
             .join("framework")
@@ -699,13 +755,14 @@ mod tests {
             }
 
             let source = fs::read_to_string(&path).expect("read rust source");
+            let production_source = strip_test_module(&source);
             let relative_path = path
                 .strip_prefix(&src_root)
                 .expect("source under src root")
                 .to_string_lossy()
                 .replace('\\', "/");
 
-            for (index, line) in source.lines().enumerate() {
+            for (index, line) in production_source.lines().enumerate() {
                 for pattern in forbidden_patterns {
                     if line.contains(pattern) && !line.contains("contains(\"") {
                         offenders.push(format!("{relative_path}:{}:{}", index + 1, line.trim()));
@@ -716,7 +773,7 @@ mod tests {
 
         assert!(
             offenders.is_empty(),
-            "OpenClaw compatibility wrappers must stay confined to kernel_runtime_authority.rs:\n{}",
+            "Removed OpenClaw-specific runtime authority wrappers should not appear in the source tree:\n{}",
             offenders.join("\n")
         );
     }
@@ -730,31 +787,159 @@ mod tests {
             .expect("openclaw contract");
 
         assert_eq!(contract.runtime_id, "openclaw");
-        assert_eq!(
-            contract.managed_config_path,
-            paths.openclaw_managed_config_file
-        );
+        assert_eq!(contract.managed_config_path, paths.openclaw_config_file);
         assert_eq!(
             contract.owned_runtime_roots,
-            vec![
-                paths.openclaw_runtime_dir.clone(),
-                paths.machine_runtime_dir.join("runtimes").join("openclaw"),
-            ]
+            vec![paths.openclaw_runtime_dir.clone()]
         );
         assert!(contract.readiness_probe.supports_loopback_health_probe);
         assert_eq!(contract.readiness_probe.health_probe_timeout_ms, 750);
     }
 
     #[test]
-    fn runtime_contract_rejects_unknown_runtime_id() {
+    fn runtime_contract_supports_hermes_managed_state() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let contract = KernelRuntimeAuthorityService::new()
+            .contract("hermes", &paths)
+            .expect("hermes contract");
+
+        assert_eq!(contract.runtime_id, "hermes");
+        assert_eq!(
+            contract.managed_config_path,
+            paths
+                .kernel_paths("hermes")
+                .expect("hermes kernel paths")
+                .managed_config_file
+        );
+        assert_eq!(
+            contract.owned_runtime_roots,
+            vec![paths.managed_runtimes_dir.join("hermes")]
+        );
+        assert!(!contract.readiness_probe.supports_loopback_health_probe);
+        assert_eq!(contract.readiness_probe.health_probe_timeout_ms, 0);
 
         let error = KernelRuntimeAuthorityService::new()
-            .contract("hermes", &paths)
-            .expect_err("unknown kernel runtime should be rejected until adapter exists");
-
+            .contract("unsupported-kernel", &paths)
+            .expect_err("unknown kernel runtime should still be rejected");
         assert!(!error.to_string().trim().is_empty());
+    }
+
+    #[test]
+    fn import_or_default_openclaw_config_ignores_stray_sibling_config() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let stray_config_path = paths
+            .user_root
+            .join("stray-openclaw-root")
+            .join(".openclaw")
+            .join("openclaw.json");
+        let managed_config_path = paths
+            .kernel_paths("openclaw")
+            .expect("openclaw kernel paths")
+            .managed_config_file;
+
+        fs::create_dir_all(stray_config_path.parent().expect("stray config parent"))
+            .expect("stray config dir");
+        fs::write(
+            &stray_config_path,
+            "{\n  gateway: {\n    port: 19888,\n  },\n}\n",
+        )
+        .expect("stray config");
+        if managed_config_path.exists() {
+            fs::remove_file(&managed_config_path).expect("remove managed config");
+        }
+
+        let imported = KernelRuntimeAuthorityService::new()
+            .import_or_default_openclaw_config(&paths, &managed_config_path)
+            .expect("import config");
+
+        assert_eq!(imported.root, Value::Object(Default::default()));
+        assert_eq!(imported.source_path, None);
+    }
+
+    #[test]
+    fn active_managed_config_path_uses_canonical_openclaw_path_when_authority_is_legacy() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let legacy_managed_config_path = legacy_openclaw_managed_config_path(&paths);
+        let mut authority =
+            read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)
+                .expect("authority state");
+        authority.managed_config_path = Some(path_string(&legacy_managed_config_path));
+        write_json_file(&paths.openclaw_authority_file, &authority).expect("write authority");
+
+        let resolved = KernelRuntimeAuthorityService::new()
+            .active_managed_config_path("openclaw", &paths)
+            .expect("resolve managed config path");
+
+        assert_eq!(resolved, paths.openclaw_config_file);
+    }
+
+    #[test]
+    fn active_managed_config_path_repairs_legacy_openclaw_authority_path_on_disk() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let legacy_managed_config_path = legacy_openclaw_managed_config_path(&paths);
+        let mut authority =
+            read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)
+                .expect("authority state");
+        authority.managed_config_path = Some(path_string(&legacy_managed_config_path));
+        write_json_file(&paths.openclaw_authority_file, &authority).expect("write authority");
+
+        KernelRuntimeAuthorityService::new()
+            .active_managed_config_path("openclaw", &paths)
+            .expect("resolve managed config path");
+
+        let repaired_authority =
+            read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)
+                .expect("reloaded authority state");
+        assert_eq!(
+            repaired_authority.managed_config_path.as_deref(),
+            Some(paths.openclaw_config_file.to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
+    fn import_or_default_openclaw_config_imports_legacy_authority_managed_config() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let managed_config_path = paths.openclaw_config_file.clone();
+        let legacy_managed_config_path = legacy_openclaw_managed_config_path(&paths);
+
+        fs::create_dir_all(legacy_managed_config_path.parent().expect("legacy config parent"))
+            .expect("legacy config dir");
+        fs::write(
+            &legacy_managed_config_path,
+            "{\n  commands: {\n    ownerDisplay: \"compact\",\n  },\n}\n",
+        )
+        .expect("seed legacy config");
+
+        let mut authority =
+            read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)
+                .expect("authority state");
+        authority.managed_config_path = Some(path_string(&legacy_managed_config_path));
+        write_json_file(&paths.openclaw_authority_file, &authority).expect("write authority");
+
+        if managed_config_path.exists() {
+            fs::remove_file(&managed_config_path).expect("remove canonical config");
+        }
+
+        let imported = KernelRuntimeAuthorityService::new()
+            .import_or_default_openclaw_config(&paths, &managed_config_path)
+            .expect("import config");
+
+        assert_eq!(
+            imported.source_path.as_deref(),
+            Some(legacy_managed_config_path.as_path())
+        );
+        assert_eq!(
+            imported
+                .root
+                .pointer("/commands/ownerDisplay")
+                .and_then(Value::as_str),
+            Some("compact")
+        );
     }
 
     #[test]

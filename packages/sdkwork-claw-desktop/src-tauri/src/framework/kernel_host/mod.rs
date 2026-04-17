@@ -44,7 +44,7 @@ mod tests {
     };
     use crate::framework::{
         kernel::{DesktopSupervisorInfo, DesktopSupervisorServiceInfo},
-        paths::resolve_paths_for_root,
+        paths::{resolve_paths_for_root, OPENCLAW_KERNEL_ID},
         services::openclaw_runtime::ActivatedOpenClawRuntime,
     };
     use std::{fs, net::TcpListener, path::PathBuf};
@@ -73,8 +73,8 @@ mod tests {
                 .join("node_modules")
                 .join("openclaw")
                 .join("openclaw.mjs"),
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: paths.openclaw_config_file.clone(),
             gateway_port,
@@ -226,8 +226,13 @@ mod tests {
         )
         .expect("write marker");
 
-        let info = build_desktop_kernel_host_info(&paths, Some(&runtime), &stopped_supervisor())
-            .expect("host info");
+        let info = build_desktop_kernel_host_info(
+            &paths,
+            Some(&runtime),
+            &stopped_supervisor(),
+            OPENCLAW_KERNEL_ID,
+        )
+        .expect("host info");
 
         assert_native_service(&info, gateway_port);
     }
@@ -297,6 +302,7 @@ pub fn build_desktop_kernel_host_info(
     paths: &AppPaths,
     runtime: Option<&ActivatedOpenClawRuntime>,
     supervisor: &DesktopSupervisorInfo,
+    runtime_id: &str,
 ) -> Result<DesktopKernelHostInfo> {
     let service_spec = resolve_current_platform_service_spec(paths);
     let managed_service = supervisor
@@ -348,6 +354,12 @@ pub fn build_desktop_kernel_host_info(
     } else {
         "appSupervisor"
     };
+    let runtime_label = match runtime_id.trim() {
+        OPENCLAW_RUNTIME_ID => "OpenClaw",
+        "hermes" => "Hermes",
+        _ => "managed runtime",
+    };
+    let runtime_kernel_paths = paths.kernel_paths(runtime_id).ok();
 
     Ok(DesktopKernelHostInfo {
         topology: DesktopKernelTopologyInfo {
@@ -361,9 +373,9 @@ pub fn build_desktop_kernel_host_info(
             health: runtime_health.to_string(),
             reason: match runtime_state {
                 "running" if native_host_running => {
-                    "Kernel attached to a healthy native-service OpenClaw host.".to_string()
+                    format!("Kernel attached to a healthy native-service {runtime_label} host.")
                 }
-                "running" => "Kernel attached to a healthy local OpenClaw gateway.".to_string(),
+                "running" => format!("Kernel attached to a healthy local {runtime_label} host."),
                 "starting" => "Kernel launch is in progress.".to_string(),
                 "failedSafe" => {
                     "Kernel entered failed-safe mode after exhausting restart attempts.".to_string()
@@ -403,7 +415,7 @@ pub fn build_desktop_kernel_host_info(
             }),
         },
         provenance: DesktopKernelProvenanceInfo {
-            runtime_id: OPENCLAW_RUNTIME_ID.to_string(),
+            runtime_id: runtime_id.trim().to_string(),
             install_key,
             runtime_version: manifest.as_ref().map(|item| item.openclaw_version.clone()),
             node_version: manifest
@@ -418,25 +430,54 @@ pub fn build_desktop_kernel_host_info(
                 .map(|item| item.arch.clone())
                 .unwrap_or_else(|| crate::platform::current_arch().to_string()),
             install_source: "bundled".to_string(),
-            config_path: runtime
-                .map(|configured| configured.config_path.to_string_lossy().into_owned())
-                .unwrap_or_else(|| {
-                    KernelRuntimeAuthorityService::new()
-                        .active_managed_config_path("openclaw", paths)
-                        .unwrap_or_else(|_| {
-                            paths
-                                .kernel_paths("openclaw")
-                                .map(|kernel| kernel.managed_config_file)
-                                .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
-                        })
-                        .to_string_lossy()
-                        .into_owned()
-                }),
+            config_path: if runtime_id.trim() == OPENCLAW_RUNTIME_ID {
+                runtime
+                    .map(|configured| configured.config_path.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| {
+                        KernelRuntimeAuthorityService::new()
+                            .active_managed_config_path(runtime_id, paths)
+                            .unwrap_or_else(|_| {
+                                runtime_kernel_paths
+                                    .as_ref()
+                                    .map(|kernel| kernel.managed_config_file.clone())
+                                    .unwrap_or_else(|| paths.openclaw_config_file.clone())
+                            })
+                            .to_string_lossy()
+                            .into_owned()
+                    })
+            } else {
+                KernelRuntimeAuthorityService::new()
+                    .active_managed_config_path(runtime_id, paths)
+                    .unwrap_or_else(|_| {
+                        runtime_kernel_paths
+                            .as_ref()
+                            .map(|kernel| kernel.managed_config_file.clone())
+                            .unwrap_or_else(|| {
+                                paths
+                                    .kernels_state_dir
+                                    .join(runtime_id.trim())
+                                    .join("managed-config")
+                                    .join(format!("{}.json", runtime_id.trim()))
+                            })
+                    })
+                    .to_string_lossy()
+                    .into_owned()
+            },
             runtime_home_dir: runtime
                 .map(|configured| configured.home_dir.to_string_lossy().into_owned())
-                .unwrap_or_else(|| paths.openclaw_home_dir.to_string_lossy().into_owned()),
+                .or_else(|| {
+                    runtime_kernel_paths
+                        .as_ref()
+                        .map(|kernel| kernel.kernel_state_dir.to_string_lossy().into_owned())
+                })
+                .unwrap_or_else(|| paths.openclaw_root_dir.to_string_lossy().into_owned()),
             runtime_install_dir: runtime
-                .map(|configured| configured.install_dir.to_string_lossy().into_owned()),
+                .map(|configured| configured.install_dir.to_string_lossy().into_owned())
+                .or_else(|| {
+                    runtime_kernel_paths
+                        .as_ref()
+                        .map(|kernel| kernel.runtime_dir.to_string_lossy().into_owned())
+                }),
         },
     })
 }

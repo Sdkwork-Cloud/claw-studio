@@ -737,8 +737,8 @@ mod tests {
                 .join("node_modules")
                 .join("openclaw")
                 .join("openclaw.mjs"),
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: paths.openclaw_config_file.clone(),
             gateway_port,

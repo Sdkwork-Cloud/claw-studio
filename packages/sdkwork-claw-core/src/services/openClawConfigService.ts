@@ -41,6 +41,17 @@ export interface OpenClawConfigBackedArtifact {
 }
 
 export interface OpenClawConfigBackedDetail {
+  instance?: {
+    runtimeKind?: string;
+    deploymentMode?: string;
+    isBuiltIn?: boolean;
+    config?: {
+      workspacePath?: string | null;
+    } | null;
+  } | null;
+  config?: {
+    workspacePath?: string | null;
+  } | null;
   dataAccess?: {
     routes?: OpenClawConfigBackedRoute[];
   } | null;
@@ -621,6 +632,56 @@ function normalizeJoinedPath(path: string) {
   return normalizePath(path)
     .replace(/\/\.\//g, '/')
     .replace(/\/{2,}/g, '/');
+}
+
+function isBuiltInManagedOpenClawDetail(
+  detail: OpenClawConfigBackedDetail | null | undefined,
+) {
+  return detail?.instance?.runtimeKind === 'openclaw'
+    && detail.instance.deploymentMode === 'local-managed'
+    && detail.instance.isBuiltIn === true;
+}
+
+function resolveBuiltInManagedOpenClawWorkspacePath(
+  detail: OpenClawConfigBackedDetail | null | undefined,
+) {
+  const workspaceCandidates = [
+    detail?.config?.workspacePath,
+    detail?.instance?.config?.workspacePath,
+    detail?.dataAccess?.routes?.find((route) => route.scope === 'files')?.target,
+    detail?.artifacts?.find((artifact) => artifact.kind === 'workspaceDirectory')?.location,
+  ];
+
+  for (const candidate of workspaceCandidates) {
+    const normalized = normalizePath(candidate || '').trim();
+    if (normalized.endsWith('/.openclaw/workspace')) {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
+function canonicalizeBuiltInManagedOpenClawConfigPath(
+  detail: OpenClawConfigBackedDetail | null | undefined,
+  configPath: string | null,
+) {
+  if (!configPath || !isBuiltInManagedOpenClawDetail(detail)) {
+    return configPath;
+  }
+
+  if (configPath.endsWith('/.openclaw/openclaw.json')) {
+    return configPath;
+  }
+
+  const workspacePath = resolveBuiltInManagedOpenClawWorkspacePath(detail);
+  if (!workspacePath) {
+    return configPath;
+  }
+
+  return normalizeJoinedPath(
+    `${workspacePath.slice(0, -'/workspace'.length)}/openclaw.json`,
+  );
 }
 
 function isAbsolutePath(path: string) {
@@ -3702,7 +3763,10 @@ class OpenClawConfigService {
     const configRoute = detail?.dataAccess?.routes?.find((route) => route.scope === 'config');
     if (configRoute) {
       if (configRoute.mode === 'managedFile' && configRoute.target) {
-        return normalizePath(configRoute.target);
+        return canonicalizeBuiltInManagedOpenClawConfigPath(
+          detail,
+          normalizePath(configRoute.target),
+        );
       }
 
       return null;
@@ -3712,7 +3776,10 @@ class OpenClawConfigService {
       (artifact) => artifact.kind === 'configFile' && artifact.location,
     );
     if (configArtifact?.location) {
-      return normalizePath(configArtifact.location);
+      return canonicalizeBuiltInManagedOpenClawConfigPath(
+        detail,
+        normalizePath(configArtifact.location),
+      );
     }
 
     return null;

@@ -2,6 +2,7 @@ use crate::framework::{
     config::AppConfig,
     paths::AppPaths,
     services::{
+        local_ai_proxy::LocalAiProxyService,
         storage::StorageService,
         studio::{
             StudioConversationRecord, StudioCreateInstanceInput, StudioInstanceConfig,
@@ -24,12 +25,15 @@ use sdkwork_claw_host_studio::{
 };
 use sdkwork_claw_server::{
     bootstrap::{
-        build_server_state_from_runtime_contract, ManageOpenClawProvider,
-        ManageOpenClawProviderHandle, ServerBoundEndpointContext, ServerState,
-        ServerStateStoreSnapshot,
+        build_server_state_from_runtime_contract, LocalAiProxyTargetProvider,
+        LocalAiProxyTargetProviderHandle, ManageOpenClawProvider, ManageOpenClawProviderHandle,
+        ServerBoundEndpointContext, ServerState, ServerStateStoreSnapshot,
     },
     config::{
         ResolvedServerAuthConfig, ResolvedServerRuntimeConfig, ResolvedServerStateStoreConfig,
+    },
+    http::api_surface::{
+        build_openapi_startup_catalog, write_runtime_openapi_snapshots, PublishedProxyTarget,
     },
     http::router::build_router,
 };
@@ -149,6 +153,7 @@ pub fn start_embedded_host_server(
     paths: &AppPaths,
     config: &AppConfig,
     supervisor: &SupervisorService,
+    local_ai_proxy: &LocalAiProxyService,
     bind_host: &str,
     requested_port: u16,
     allow_dynamic_port: bool,
@@ -170,6 +175,7 @@ pub fn start_embedded_host_server(
         paths,
         config,
         supervisor,
+        local_ai_proxy,
         bind_host,
         requested_port,
         active_port,
@@ -432,6 +438,7 @@ fn build_embedded_host_server_state(
     paths: &AppPaths,
     config: &AppConfig,
     supervisor: &SupervisorService,
+    local_ai_proxy: &LocalAiProxyService,
     bind_host: String,
     requested_port: u16,
     active_port: u16,
@@ -479,6 +486,9 @@ fn build_embedded_host_server_state(
     );
     server_state.auth.browser_session_token = Some(Uuid::new_v4().simple().to_string());
     server_state.set_mode(DESKTOP_EMBEDDED_HOST_MODE);
+    server_state.local_ai_proxy_target_provider = Some(build_desktop_local_ai_proxy_target_provider(
+        local_ai_proxy,
+    ));
 
     let endpoint = server_state
         .openclaw_control_plane
@@ -534,6 +544,15 @@ fn build_embedded_host_server_state(
     server_state.studio_public_api = Some(build_typed_studio_public_api_provider(
         DesktopStudioPublicApiBackend::new(paths, config, supervisor, shared_workbench_api),
     ));
+    write_runtime_openapi_snapshots(&server_state, snapshot.browser_base_url.as_str())?;
+    println!(
+        "{}",
+        serde_json::to_string(&build_openapi_startup_catalog(
+            &server_state,
+            snapshot.browser_base_url.as_str(),
+        ))
+        .expect("desktop openapi startup catalog should serialize to json")
+    );
 
     Ok((server_state, snapshot))
 }
@@ -944,6 +963,36 @@ struct DesktopManageOpenClawProvider {
     desktop_host_snapshot: EmbeddedHostRuntimeSnapshot,
 }
 
+#[derive(Clone, Debug)]
+struct DesktopLocalAiProxyTargetProvider {
+    local_ai_proxy: LocalAiProxyService,
+}
+
+impl LocalAiProxyTargetProvider for DesktopLocalAiProxyTargetProvider {
+    fn local_ai_proxy_target(&self) -> Option<PublishedProxyTarget> {
+        let status = self.local_ai_proxy.status().ok()?;
+        let health = status.health?;
+        let base_url = if health.loopback_only {
+            format!("http://127.0.0.1:{}", health.active_port)
+        } else {
+            health.base_url.trim_end_matches("/v1").to_string()
+        };
+        Some(PublishedProxyTarget {
+            id: "local-ai-proxy",
+            base_url,
+            auth_token: None,
+        })
+    }
+}
+
+fn build_desktop_local_ai_proxy_target_provider(
+    local_ai_proxy: &LocalAiProxyService,
+) -> LocalAiProxyTargetProviderHandle {
+    LocalAiProxyTargetProviderHandle::new(Arc::new(DesktopLocalAiProxyTargetProvider {
+        local_ai_proxy: local_ai_proxy.clone(),
+    }))
+}
+
 impl DesktopManageOpenClawProvider {
     fn new(
         paths: &AppPaths,
@@ -1015,6 +1064,20 @@ impl ManageOpenClawProvider for DesktopManageOpenClawProvider {
             .is_ok_and(|projection| projection.lifecycle == "ready")
     }
 
+    fn gateway_proxy_target(&self, updated_at: u64) -> Option<PublishedProxyTarget> {
+        let gateway = self.get_gateway(updated_at).ok()?;
+        if gateway.lifecycle != "ready" {
+            return None;
+        }
+
+        let runtime = self.supervisor.configured_openclaw_runtime().ok().flatten()?;
+        Some(PublishedProxyTarget {
+            id: "openclaw-gateway",
+            base_url: gateway.base_url?,
+            auth_token: Some(runtime.gateway_auth_token),
+        })
+    }
+
     fn invoke_gateway(
         &self,
         request: sdkwork_claw_host_core::openclaw_control_plane::OpenClawGatewayInvokeRequest,
@@ -1061,7 +1124,9 @@ mod tests {
         logging::init_logger,
         paths::{resolve_paths_for_root, AppPaths},
         services::{
+            local_ai_proxy::LocalAiProxyService,
             openclaw_runtime::ActivatedOpenClawRuntime,
+            storage::StorageService,
             studio::{
                 StudioConversationRecord, StudioCreateInstanceInput, StudioInstanceConfig,
                 StudioInstanceDetailRecord, StudioInstanceRecord, StudioInstanceStatus,
@@ -1281,8 +1346,8 @@ mod tests {
                 .join("node_modules")
                 .join("openclaw")
                 .join("openclaw.mjs"),
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: paths.openclaw_config_file.clone(),
             gateway_port: reserve_available_loopback_port(),
@@ -1359,11 +1424,13 @@ mod tests {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let supervisor = SupervisorService::for_paths(&paths);
+        let local_ai_proxy = LocalAiProxyService::new();
 
         let (server_state, snapshot) = build_embedded_host_server_state(
             &paths,
             &AppConfig::default(),
             &supervisor,
+            &local_ai_proxy,
             "127.0.0.1".to_string(),
             18_797,
             18_797,
@@ -1387,15 +1454,54 @@ mod tests {
     }
 
     #[test]
-    fn embedded_host_server_state_binds_manage_openclaw_provider_to_live_supervisor_runtime() {
+    fn embedded_host_server_state_projects_local_ai_proxy_target_when_the_proxy_is_running() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        let supervisor = configured_running_supervisor(&paths);
+        let supervisor = SupervisorService::for_paths(&paths);
+        let local_ai_proxy = LocalAiProxyService::new();
+        let storage = StorageService::new();
+        let snapshot = local_ai_proxy
+            .ensure_snapshot(&paths, &AppConfig::default(), &storage)
+            .expect("local ai proxy snapshot");
+        local_ai_proxy
+            .start(&paths, snapshot)
+            .expect("start local ai proxy");
 
         let (server_state, _snapshot) = build_embedded_host_server_state(
             &paths,
             &AppConfig::default(),
             &supervisor,
+            &local_ai_proxy,
+            "127.0.0.1".to_string(),
+            18_797,
+            18_797,
+            false,
+            None,
+        )
+        .expect("embedded host state");
+
+        let target = server_state
+            .local_ai_proxy_target()
+            .expect("local ai proxy target");
+
+        assert!(target.base_url.starts_with("http://127.0.0.1:"));
+        assert!(!target.base_url.ends_with("/v1"));
+
+        local_ai_proxy.stop().expect("stop local ai proxy");
+    }
+
+    #[test]
+    fn embedded_host_server_state_binds_manage_openclaw_provider_to_live_supervisor_runtime() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let supervisor = configured_running_supervisor(&paths);
+        let local_ai_proxy = LocalAiProxyService::new();
+
+        let (server_state, _snapshot) = build_embedded_host_server_state(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &local_ai_proxy,
             "127.0.0.1".to_string(),
             18_797,
             18_797,
@@ -1434,11 +1540,13 @@ mod tests {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let supervisor = configured_running_supervisor(&paths);
+        let local_ai_proxy = LocalAiProxyService::new();
 
         let (server_state, _snapshot) = build_embedded_host_server_state(
             &paths,
             &AppConfig::default(),
             &supervisor,
+            &local_ai_proxy,
             "127.0.0.1".to_string(),
             18_797,
             18_797,
@@ -1498,11 +1606,13 @@ mod tests {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let supervisor = SupervisorService::for_paths(&paths);
+        let local_ai_proxy = LocalAiProxyService::new();
 
         let handle = start_embedded_host_server(
             &paths,
             &AppConfig::default(),
             &supervisor,
+            &local_ai_proxy,
             DESKTOP_EMBEDDED_HOST_DEFAULT_BIND_HOST,
             AppConfig::default().desktop_host.port,
             true,

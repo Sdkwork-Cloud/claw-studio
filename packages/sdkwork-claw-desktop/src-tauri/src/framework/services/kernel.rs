@@ -1,7 +1,8 @@
 use crate::framework::{
     kernel::{
-        DesktopBundledComponentsInfo, DesktopCapabilityInfo, DesktopCapabilityStatus,
-        DesktopFileSystemInfo, DesktopIntegrationInfo, DesktopKernelDirectories, DesktopKernelInfo,
+        DesktopActiveKernelRuntimeInfo, DesktopBundledComponentsInfo, DesktopCapabilityInfo,
+        DesktopCapabilityStatus, DesktopFileSystemInfo, DesktopIntegrationInfo,
+        DesktopKernelDirectories, DesktopKernelInfo, DesktopKernelRuntimeAuthorityInfo,
         DesktopLocalAiProxyInfo, DesktopNotificationInfo, DesktopOpenClawRuntimeInfo,
         DesktopPaymentInfo, DesktopPermissionsInfo, DesktopProcessInfo, DesktopSecurityInfo,
         DesktopStartupEvidenceInfo, DesktopSupervisorInfo,
@@ -27,6 +28,7 @@ pub struct KernelDomainSnapshots {
     pub integrations: DesktopIntegrationInfo,
     pub supervisor: DesktopSupervisorInfo,
     pub open_claw_runtime: DesktopOpenClawRuntimeInfo,
+    pub runtime_authorities: Vec<DesktopKernelRuntimeAuthorityInfo>,
     pub local_ai_proxy: DesktopLocalAiProxyInfo,
     pub desktop_startup_evidence: Option<DesktopStartupEvidenceInfo>,
     pub bundled_components: DesktopBundledComponentsInfo,
@@ -247,6 +249,11 @@ impl KernelService {
         paths: &AppPaths,
         domains: KernelDomainSnapshots,
     ) -> DesktopKernelInfo {
+        let active_runtime = resolve_active_runtime(
+            &domains.host,
+            &domains.runtime_authorities,
+            &domains.open_claw_runtime,
+        );
         let capabilities = vec![
             DesktopCapabilityInfo {
                 key: "filesystem".to_string(),
@@ -403,13 +410,111 @@ impl KernelService {
             payments: domains.payments,
             integrations: domains.integrations,
             supervisor: domains.supervisor,
+            active_runtime,
             open_claw_runtime: domains.open_claw_runtime,
+            runtime_authorities: domains.runtime_authorities,
             local_ai_proxy: domains.local_ai_proxy,
             desktop_startup_evidence: domains.desktop_startup_evidence,
             bundled_components: domains.bundled_components,
             storage: domains.storage,
             host: domains.host,
         }
+    }
+}
+
+fn resolve_active_runtime(
+    host: &DesktopKernelHostInfo,
+    runtime_authorities: &[DesktopKernelRuntimeAuthorityInfo],
+    open_claw_runtime: &DesktopOpenClawRuntimeInfo,
+) -> DesktopActiveKernelRuntimeInfo {
+    let runtime_id = host.provenance.runtime_id.clone();
+    let authority = runtime_authorities
+        .iter()
+        .find(|authority| authority.runtime_id == runtime_id)
+        .cloned();
+    let is_openclaw_runtime = runtime_id == open_claw_runtime.runtime_id;
+
+    DesktopActiveKernelRuntimeInfo {
+        runtime_id,
+        state: host.runtime.state.clone(),
+        health: host.runtime.health.clone(),
+        reason: host.runtime.reason.clone(),
+        install_key: host.provenance.install_key.clone(),
+        install_source: authority
+            .as_ref()
+            .and_then(|authority| authority.install_source.clone())
+            .unwrap_or_else(|| host.provenance.install_source.clone()),
+        runtime_version: authority
+            .as_ref()
+            .and_then(|authority| authority.runtime_version.clone())
+            .or_else(|| {
+                if is_openclaw_runtime {
+                    open_claw_runtime.openclaw_version.clone()
+                } else {
+                    host.provenance.runtime_version.clone()
+                }
+            }),
+        node_version: authority
+            .as_ref()
+            .and_then(|authority| authority.node_version.clone())
+            .or_else(|| {
+                if is_openclaw_runtime {
+                    open_claw_runtime.node_version.clone()
+                } else {
+                    host.provenance.node_version.clone()
+                }
+            }),
+        platform: authority
+            .as_ref()
+            .and_then(|authority| authority.platform.clone())
+            .unwrap_or_else(|| {
+                if is_openclaw_runtime {
+                    open_claw_runtime.platform.clone()
+                } else {
+                    host.provenance.platform.clone()
+                }
+            }),
+        arch: authority
+            .as_ref()
+            .and_then(|authority| authority.arch.clone())
+            .unwrap_or_else(|| {
+                if is_openclaw_runtime {
+                    open_claw_runtime.arch.clone()
+                } else {
+                    host.provenance.arch.clone()
+                }
+            }),
+        config_path: authority
+            .as_ref()
+            .and_then(|authority| authority.config_path.clone())
+            .unwrap_or_else(|| {
+                if is_openclaw_runtime {
+                    open_claw_runtime.config_path.clone()
+                } else {
+                    host.provenance.config_path.clone()
+                }
+            }),
+        runtime_home_dir: authority
+            .as_ref()
+            .and_then(|authority| authority.runtime_home_dir.clone())
+            .unwrap_or_else(|| {
+                if is_openclaw_runtime {
+                    open_claw_runtime.home_dir.clone()
+                } else {
+                    host.provenance.runtime_home_dir.clone()
+                }
+            }),
+        runtime_install_dir: authority
+            .as_ref()
+            .and_then(|authority| authority.runtime_install_dir.clone())
+            .or_else(|| {
+                if is_openclaw_runtime {
+                    open_claw_runtime.install_dir.clone()
+                } else {
+                    host.provenance.runtime_install_dir.clone()
+                }
+            }),
+        authority,
     }
 }
 

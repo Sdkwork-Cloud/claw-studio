@@ -23,10 +23,6 @@ const expectedCorePcReactAppRoot = path.resolve(
   canonicalWorkspaceRoot,
   '../sdkwork-core/sdkwork-core-pc-react/src/app/index.ts',
 );
-const expectedCrawChatCompatRoot = path.resolve(
-  currentWorkspaceRoot,
-  'scripts/shims/craw-chat-sdk-compat.ts',
-);
 const expectedCrawChatBackendSdkRoot = path.resolve(
   canonicalWorkspaceRoot,
   '../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi/dist/index.js',
@@ -54,13 +50,10 @@ test('resolveWorkspacePackageEntry maps @sdkwork workspace packages into the cur
     expectedCorePcReactAppRoot,
   );
   assert.equal(
-    resolveWorkspacePackageEntry('@sdkwork/craw-chat-sdk', packagesRoot),
-    expectedCrawChatCompatRoot,
-  );
-  assert.equal(
     resolveWorkspacePackageEntry('@sdkwork/craw-chat-backend-sdk', packagesRoot),
     expectedCrawChatBackendSdkRoot,
   );
+  assert.equal(resolveWorkspacePackageEntry('@sdkwork/craw-chat-sdk', packagesRoot), null);
   assert.equal(resolveWorkspacePackageEntry('react', packagesRoot), null);
 });
 
@@ -72,7 +65,6 @@ test('resolveWorkspacePackageAliases creates direct aliases for local @sdkwork/c
   const corePcReactAppAlias = aliases.find((entry) => entry.find === '@sdkwork/core-pc-react/app');
   const corePcReactEnvAlias = aliases.find((entry) => entry.find === '@sdkwork/core-pc-react/env');
   const corePcReactRuntimeAlias = aliases.find((entry) => entry.find === '@sdkwork/core-pc-react/runtime');
-  const crawChatCompatAlias = aliases.find((entry) => entry.find === '@sdkwork/craw-chat-sdk');
   const crawChatBackendSdkAlias = aliases.find((entry) => entry.find === '@sdkwork/craw-chat-backend-sdk');
 
   assert.ok(infrastructureAlias);
@@ -93,13 +85,15 @@ test('resolveWorkspacePackageAliases creates direct aliases for local @sdkwork/c
   assert.ok(corePcReactRootAlias);
   assert.ok(corePcReactEnvAlias);
   assert.ok(corePcReactRuntimeAlias);
-  assert.ok(crawChatCompatAlias);
   assert.ok(crawChatBackendSdkAlias);
   assert.ok(aliases.indexOf(corePcReactAppAlias) < aliases.indexOf(corePcReactRootAlias));
   assert.ok(aliases.indexOf(corePcReactEnvAlias) < aliases.indexOf(corePcReactRootAlias));
   assert.ok(aliases.indexOf(corePcReactRuntimeAlias) < aliases.indexOf(corePcReactRootAlias));
-  assert.equal(crawChatCompatAlias?.replacement, expectedCrawChatCompatRoot);
   assert.equal(crawChatBackendSdkAlias?.replacement, expectedCrawChatBackendSdkRoot);
+  assert.equal(
+    aliases.some((entry) => entry.find === '@sdkwork/craw-chat-sdk'),
+    false,
+  );
   assert.equal(
     aliases.some((entry) => entry.find === '@sdkwork/app-sdk'),
     false,

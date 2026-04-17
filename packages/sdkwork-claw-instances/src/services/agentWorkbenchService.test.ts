@@ -889,3 +889,58 @@ await runTest(
     assert.equal(snapshot.model.source, 'runtime');
   },
 );
+
+await runTest(
+  'agentWorkbenchService infers workspace skill scope from canonical embedded workspace paths when agent workspace metadata is unavailable',
+  async () => {
+    const service = createAgentWorkbenchService({
+      readOpenClawConfigSnapshot: async () => null as any,
+      openClawGatewayClient: {
+        getSkillsStatus: async (_instanceId, args = {}) => ({
+          agentId: typeof args.agentId === 'string' ? args.agentId : 'research',
+          skills: [
+            {
+              id: 'research-skill',
+              name: 'Research Skill',
+              description: 'Research workflows',
+              author: 'OpenClaw',
+              readme: '# Research Skill',
+              bundled: false,
+              skillKey: 'research-skill',
+              source: 'local',
+              filePath:
+                'C:/OpenClaw/.openclaw/workspace-research/skills/research-skill/SKILL.md',
+              baseDir: 'C:/OpenClaw/.openclaw/workspace-research/skills/research-skill',
+              eligible: true,
+              disabled: false,
+              blockedByAllowlist: false,
+            },
+          ],
+        }),
+        getToolsCatalog: async () => ({ profiles: [], groups: [] }),
+      } as any,
+    });
+
+    const workbench = createWorkbench();
+    workbench.agents = workbench.agents.map((agent) =>
+      agent.agent.id === 'research'
+        ? {
+            ...agent,
+            workspace: undefined as any,
+          }
+        : agent,
+    );
+
+    const snapshot = await service.getAgentWorkbench({
+      instanceId: 'instance-openclaw',
+      workbench,
+      agentId: 'research',
+    });
+
+    assert.equal(snapshot.skills[0]?.scope, 'workspace');
+    assert.equal(
+      snapshot.skills[0]?.baseDir,
+      'C:/OpenClaw/.openclaw/workspace-research/skills/research-skill',
+    );
+  },
+);

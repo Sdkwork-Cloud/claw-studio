@@ -9,7 +9,6 @@ use crate::framework::{
 };
 use serde_json::Value;
 use std::{
-    env,
     ffi::OsString,
     fs,
     path::{Component, Path, PathBuf},
@@ -296,9 +295,7 @@ fn discover_registered_openclaw_roots(paths: &AppPaths) -> Vec<PathBuf> {
         let Some(record) = read_installed_openclaw_install_record(&installer_home) else {
             continue;
         };
-        let Some(config_path) =
-            discover_registered_openclaw_config_path(paths, &installer_home, &record)
-        else {
+        let Some(config_path) = discover_registered_openclaw_config_path(paths, &record) else {
             continue;
         };
 
@@ -324,90 +321,13 @@ fn read_installed_openclaw_install_record(installer_home: &Path) -> Option<Insta
 
 fn discover_registered_openclaw_config_path(
     paths: &AppPaths,
-    installer_home: &Path,
     record: &InstallRecord,
 ) -> Option<PathBuf> {
-    let mut candidates = Vec::new();
-
     match record.manifest_name.as_str() {
-        "openclaw-wsl" | "openclaw-podman" => {}
-        "openclaw-docker" => {
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root)
-                    .join("config")
-                    .join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root).join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root)
-                    .join(".openclaw")
-                    .join("openclaw.json"),
-            );
-        }
-        _ => {
-            for root in openclaw_home_root_candidates(paths, installer_home) {
-                push_unique_path(
-                    &mut candidates,
-                    root.join(".openclaw").join("openclaw.json"),
-                );
-            }
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.work_root)
-                    .join(".openclaw")
-                    .join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.install_root)
-                    .join(".openclaw")
-                    .join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root)
-                    .join("config")
-                    .join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root).join("openclaw.json"),
-            );
-            push_unique_path(
-                &mut candidates,
-                PathBuf::from(&record.data_root)
-                    .join(".openclaw")
-                    .join("openclaw.json"),
-            );
-        }
+        "openclaw-wsl" | "openclaw-podman" | "openclaw-docker" => None,
+        _ if paths.openclaw_config_file.is_file() => Some(paths.openclaw_config_file.clone()),
+        _ => None,
     }
-
-    candidates.into_iter().find(|path| path.is_file())
-}
-
-fn openclaw_home_root_candidates(paths: &AppPaths, installer_home: &Path) -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
-    push_unique_path(&mut candidates, paths.user_root.clone());
-
-    if let Some(home) = env::var_os("USERPROFILE")
-        .or_else(|| env::var_os("HOME"))
-        .map(PathBuf::from)
-    {
-        push_unique_path(&mut candidates, home);
-    }
-
-    let mut current = installer_home.parent();
-    while let Some(path) = current {
-        push_unique_path(&mut candidates, path.to_path_buf());
-        current = path.parent();
-    }
-
-    candidates
 }
 
 fn resolve_openclaw_state_root(config_path: &Path) -> PathBuf {
@@ -646,7 +566,7 @@ mod tests {
         let install_root = root.path().join("external-install");
         let work_root = root.path().join("external-work");
         let data_root = root.path().join("external-data");
-        let config_path = data_root.join("config").join("openclaw.json");
+        let config_path = paths.openclaw_config_file.clone();
         let workspace_file = root
             .path()
             .join("agent-market")
@@ -684,8 +604,8 @@ mod tests {
         let record = InstallRecord {
             schema_version: "1.0".to_string(),
             software_name: "openclaw".to_string(),
-            manifest_name: "openclaw-docker".to_string(),
-            manifest_path: "./manifests/openclaw-docker.hub.yaml".to_string(),
+            manifest_name: "openclaw-pnpm".to_string(),
+            manifest_path: "./manifests/openclaw-pnpm.hub.yaml".to_string(),
             manifest_source_input: "bundled-registry".to_string(),
             manifest_source_kind: "registry".to_string(),
             platform: SupportedPlatform::Windows,
@@ -721,6 +641,89 @@ mod tests {
 
         assert_eq!(resolved_config, config_path);
         assert_eq!(resolved_workspace, workspace_file);
+    }
+
+    #[test]
+    fn rejects_legacy_local_external_openclaw_config_candidates() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let install_root = root.path().join("external-install");
+        let work_root = root.path().join("external-work");
+        let data_root = root.path().join("external-data");
+        let legacy_config_path = data_root.join("config").join("openclaw.json");
+        let workspace_file = root
+            .path()
+            .join("agent-market")
+            .join("workspace")
+            .join("orchestrator")
+            .join("AGENTS.md");
+        let workspace_root = workspace_file
+            .parent()
+            .and_then(|path| path.parent())
+            .expect("workspace root")
+            .to_path_buf();
+        let installer_home = paths.user_root.join("openclaw-install");
+
+        std::fs::create_dir_all(&install_root).expect("create install root");
+        std::fs::create_dir_all(&work_root).expect("create work root");
+        std::fs::create_dir_all(&data_root).expect("create data root");
+        std::fs::create_dir_all(legacy_config_path.parent().expect("legacy config parent"))
+            .expect("create legacy config parent");
+        std::fs::write(
+            &legacy_config_path,
+            format!(
+                r#"{{
+  agents: {{
+    defaults: {{
+      workspace: "{}",
+    }},
+  }},
+}}
+"#,
+                workspace_root.to_string_lossy().replace('\\', "\\\\")
+            ),
+        )
+        .expect("write legacy external config");
+
+        let record = InstallRecord {
+            schema_version: "1.0".to_string(),
+            software_name: "openclaw".to_string(),
+            manifest_name: "openclaw-docker".to_string(),
+            manifest_path: "./manifests/openclaw-docker.hub.yaml".to_string(),
+            manifest_source_input: "bundled-registry".to_string(),
+            manifest_source_kind: "registry".to_string(),
+            platform: SupportedPlatform::Windows,
+            effective_runtime_platform: EffectiveRuntimePlatform::Windows,
+            installer_home: installer_home.to_string_lossy().into_owned(),
+            install_scope: InstallScope::User,
+            install_root: install_root.to_string_lossy().into_owned(),
+            work_root: work_root.to_string_lossy().into_owned(),
+            bin_dir: install_root.join("bin").to_string_lossy().into_owned(),
+            data_root: data_root.to_string_lossy().into_owned(),
+            install_control_level: InstallControlLevel::Partial,
+            status: InstallRecordStatus::Installed,
+            installed_at: Some("2026-03-21T00:00:00Z".to_string()),
+            updated_at: "2026-03-21T00:00:00Z".to_string(),
+        };
+
+        write_install_record(
+            installer_home.to_string_lossy().as_ref(),
+            "openclaw",
+            &record,
+        )
+        .expect("write install record");
+
+        let config_error =
+            resolve_managed_path(&paths, &legacy_config_path).expect_err("legacy config denied");
+        let workspace_error =
+            resolve_managed_path(&paths, &workspace_file).expect_err("legacy workspace denied");
+
+        assert!(config_error
+            .to_string()
+            .contains("outside managed runtime directories"));
+        assert!(workspace_error
+            .to_string()
+            .contains("outside managed runtime directories"));
     }
 
     #[test]

@@ -505,8 +505,6 @@ impl Default for RetentionState {
 }
 
 pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
-    let openclaw = paths.kernel_paths("openclaw")?;
-
     write_json_if_missing(&paths.layout_file, &LayoutState::from_paths(paths))?;
     write_json_if_missing(&paths.active_file, &ActiveState::default())?;
     write_json_if_missing(&paths.inventory_file, &InventoryState::default())?;
@@ -518,12 +516,15 @@ pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
     write_json_if_missing(&paths.service_file, &ServiceState::default())?;
     write_json_if_missing(&paths.components_file, &ComponentsState::default())?;
     write_json_if_missing(&paths.upgrades_file, &UpgradesState::default())?;
-    write_json_if_missing(&openclaw.authority_file, &KernelAuthorityState::default())?;
-    write_json_if_missing(&openclaw.migrations_file, &KernelMigrationState::default())?;
-    write_json_if_missing(
-        &openclaw.runtime_upgrades_file,
-        &RuntimeUpgradesState::default(),
-    )?;
+    for runtime_id in crate::framework::paths::supported_kernel_ids() {
+        let kernel = paths.kernel_paths(runtime_id)?;
+        write_json_if_missing(&kernel.authority_file, &KernelAuthorityState::default())?;
+        write_json_if_missing(&kernel.migrations_file, &KernelMigrationState::default())?;
+        write_json_if_missing(
+            &kernel.runtime_upgrades_file,
+            &RuntimeUpgradesState::default(),
+        )?;
+    }
     Ok(())
 }
 
@@ -701,6 +702,7 @@ mod tests {
             &std::fs::read_to_string(&paths.upgrades_file).expect("upgrades file"),
         )
         .expect("upgrades json");
+        let hermes = paths.kernel_paths("hermes").expect("hermes kernel paths");
         assert_eq!(layout.layout_version, 1);
         assert!(layout.install_root.replace('\\', "/").ends_with("install"));
         assert!(layout.machine_root.replace('\\', "/").ends_with("machine"));
@@ -713,6 +715,9 @@ mod tests {
         assert_eq!(retention.runtimes.historical_packages, 2);
         assert!(pinned.modules.is_empty());
         assert!(pinned.runtimes.is_empty());
+        assert!(hermes.authority_file.exists());
+        assert!(hermes.migrations_file.exists());
+        assert!(hermes.runtime_upgrades_file.exists());
         assert_eq!(
             channels.get("layoutVersion").and_then(Value::as_u64),
             Some(1)

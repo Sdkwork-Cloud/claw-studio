@@ -35,6 +35,13 @@ function joinPath(root?: string | null, ...segments: string[]) {
   return [normalizedRoot.replace(/\/+$/g, ''), ...segments].join('/');
 }
 
+function isEmbeddedWorkspaceSkillsPath(path?: string | null) {
+  const normalized = normalizePath(path);
+  return normalized
+    ? /\/\.openclaw\/workspace(?:-[^/]+)?\/skills(?:\/|$)/.test(normalized)
+    : false;
+}
+
 function countMissingRequirements(entry: Record<string, unknown>) {
   const missing = isRecord(entry.missing) ? entry.missing : undefined;
   if (!missing) {
@@ -67,6 +74,10 @@ function resolveSkillScope(entry: Record<string, unknown>, workspacePath?: strin
         (filePath === workspaceSkillsPath || filePath.startsWith(`${workspaceSkillsPath}/`))) ||
       source.includes('workspace'))
   ) {
+    return 'workspace' as const;
+  }
+
+  if (isEmbeddedWorkspaceSkillsPath(baseDir) || isEmbeddedWorkspaceSkillsPath(filePath)) {
     return 'workspace' as const;
   }
 

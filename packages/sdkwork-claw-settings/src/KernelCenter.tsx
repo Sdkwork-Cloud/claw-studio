@@ -367,7 +367,8 @@ export function KernelCenter() {
   const noneLabel = t('settings.kernelCenter.values.none');
   const runtimeLabel = translateRuntimeState(
     t,
-    dashboard?.snapshot?.runtimeState ?? dashboard?.info?.openClawRuntime?.lifecycle,
+    dashboard?.snapshot?.runtimeState
+      ?? dashboard?.info?.host?.runtime.state,
   );
   const topologyLabel = translateTopologyKind(
     t,

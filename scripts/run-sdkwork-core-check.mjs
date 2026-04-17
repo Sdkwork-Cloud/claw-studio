@@ -1,7 +1,6 @@
 import { runNodeTypeScriptChecks } from './run-node-typescript-check.mjs';
 
 runNodeTypeScriptChecks([
-  'scripts/craw-chat-sdk-compat.test.ts',
   'scripts/sdkwork-core-contract.test.ts',
   'packages/sdkwork-claw-core/src/node.test.ts',
   'packages/sdkwork-claw-core/src/lib/llmService.test.ts',

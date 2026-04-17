@@ -339,6 +339,13 @@ function mapSkillInstallOptions(entry: OpenClawSkillStatusRecord) {
   }));
 }
 
+function isEmbeddedWorkspaceSkillsPath(path?: string | null) {
+  const normalized = normalizePath(path);
+  return normalized
+    ? /\/\.openclaw\/workspace(?:-[^/]+)?\/skills(?:\/|$)/.test(normalized)
+    : false;
+}
+
 function resolveSkillScope(
   entry: OpenClawSkillStatusRecord,
   workspacePath?: string | null,
@@ -359,6 +366,10 @@ function resolveSkillScope(
         (filePath === workspaceSkillsPath || filePath.startsWith(`${workspaceSkillsPath}/`))) ||
       source.includes('workspace'))
   ) {
+    return 'workspace';
+  }
+
+  if (isEmbeddedWorkspaceSkillsPath(baseDir) || isEmbeddedWorkspaceSkillsPath(filePath)) {
     return 'workspace';
   }
 

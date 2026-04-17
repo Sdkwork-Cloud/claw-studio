@@ -103,11 +103,8 @@ assert.equal(
 
 assert.equal(
   loader.resolveWorkspacePackageSourceAliasPath('@sdkwork/craw-chat-sdk'),
-  path.resolve(
-    workspaceRoot,
-    'scripts/shims/craw-chat-sdk-compat.ts',
-  ),
-  'workspace package resolution must route craw-chat SDK imports through the local compatibility shim',
+  null,
+  'workspace package resolution must not shadow the craw-chat SDK package with a claw host shim',
 );
 
 assert.equal(

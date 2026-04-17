@@ -70,7 +70,7 @@ impl OpenClawRuntimeSnapshotService {
             .find(|service| service.id == SERVICE_ID_OPENCLAW_GATEWAY);
         let local_ai_proxy_status = local_ai_proxy.status()?;
         let (config_root, config_error) =
-            load_openclaw_config_root(&readable_managed_openclaw_config_path(paths));
+            load_openclaw_config_root(&readable_openclaw_config_path(paths));
         let provider_projection = build_provider_projection(
             &config_root,
             config_error.as_deref(),
@@ -120,10 +120,9 @@ impl OpenClawRuntimeSnapshotService {
             runtime_dir: configured_runtime
                 .as_ref()
                 .map(|runtime| path_string(&runtime.runtime_dir)),
-            home_dir: path_string(&paths.openclaw_home_dir),
-            state_dir: path_string(&paths.openclaw_state_dir),
+            home_dir: path_string(&paths.openclaw_root_dir),
             workspace_dir: path_string(&paths.openclaw_workspace_dir),
-            config_path: path_string(&authority_managed_openclaw_config_path(paths)),
+            config_path: path_string(&active_openclaw_config_path(paths)),
             gateway_port: configured_runtime
                 .as_ref()
                 .map(|runtime| runtime.gateway_port),
@@ -488,23 +487,18 @@ fn load_openclaw_config_root(path: &Path) -> (Value, Option<String>) {
     }
 }
 
-fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
-    let authority_path = authority_managed_openclaw_config_path(paths);
-    if authority_path.exists() || !paths.openclaw_config_file.exists() {
-        authority_path
-    } else {
-        paths.openclaw_config_file.clone()
-    }
+fn readable_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    active_openclaw_config_path(paths)
 }
 
-fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+fn active_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
         .active_managed_config_path("openclaw", paths)
         .unwrap_or_else(|_| {
             paths
                 .kernel_paths("openclaw")
                 .map(|kernel| kernel.managed_config_file)
-                .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                .unwrap_or_else(|_| paths.openclaw_config_file.clone())
         })
 }
 

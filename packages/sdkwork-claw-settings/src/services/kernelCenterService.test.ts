@@ -69,8 +69,8 @@ function createSnapshot(overrides: Record<string, unknown> = {}) {
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
-      configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
-      runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+      configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+      runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio',
       runtimeInstallDir:
         `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-windows-x64`,
     },
@@ -219,7 +219,7 @@ function createRuntimeInfo(overrides: Record<string, unknown> = {}) {
       hostDynamicPort: false,
       stateStoreDriver: 'sqlite',
       stateStoreProfileId: 'default-sqlite',
-      runtimeDataDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+      runtimeDataDir: 'C:/Users/admin/.sdkwork/crawstudio',
       webDistDir: 'C:/Program Files/Claw Studio/resources/web-dist',
     },
     ...overrides,
@@ -319,7 +319,7 @@ if (kernelCenterServiceModule) {
       assert.equal(dashboard.provenance.runtimeVersion, DEFAULT_RUNTIME_VERSION);
       assert.equal(dashboard.provenance.nodeVersion, DEFAULT_NODE_VERSION);
       assert.equal(dashboard.hostRuntimeContract.hostMode, 'desktopCombined');
-      assert.equal(dashboard.hostRuntimeContract.runtimeDataDir, 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home');
+      assert.equal(dashboard.hostRuntimeContract.runtimeDataDir, 'C:/Users/admin/.sdkwork/crawstudio');
       assert.equal(dashboard.hostEndpoints.rows[0]?.portBindingLabel, '18801 -> 18819');
       assert.equal(dashboard.rollouts.latestUpdatedAt, 1_743_100_300_000);
     },
@@ -350,8 +350,8 @@ if (kernelCenterServiceModule) {
           arch: 'x64',
           installDir:
             `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-windows-x64`,
-          homeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
-          configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+          homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+          configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
           startupChain: [{ id: 'configureOpenClawGateway', status: 'ready', detail: 'configured' }],
         },
       });
@@ -386,8 +386,8 @@ if (kernelCenterServiceModule) {
       assert.equal(dashboard.provenance.runtimeVersion, DEFAULT_RUNTIME_VERSION);
       assert.equal(dashboard.provenance.nodeVersion, DEFAULT_NODE_VERSION);
       assert.equal(dashboard.provenance.platformLabel, 'windows/x64');
-      assert.equal(dashboard.provenance.configPath, 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json');
-      assert.equal(dashboard.provenance.runtimeHomeDir, 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home');
+      assert.equal(dashboard.provenance.configPath, 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json');
+      assert.equal(dashboard.provenance.runtimeHomeDir, 'C:/Users/admin/.sdkwork/crawstudio');
     },
   );
 
@@ -420,8 +420,8 @@ if (kernelCenterServiceModule) {
           arch: 'x64',
           installDir:
             `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-windows-x64`,
-          homeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
-          configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+          homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+          configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
           startupChain: [{ id: 'configureOpenClawGateway', status: 'ready', detail: 'configured' }],
         },
       });
@@ -453,6 +453,216 @@ if (kernelCenterServiceModule) {
 
       const dashboard = await service.getDashboard();
 
+      assert.equal(dashboard.provenance.installSource, 'external');
+      assert.equal(dashboard.provenance.runtimeVersion, '2026.4.13');
+      assert.equal(dashboard.provenance.nodeVersion, null);
+      assert.equal(dashboard.provenance.platformLabel, 'linux/x64');
+      assert.equal(dashboard.provenance.configPath, '/srv/hermes/config.yaml');
+      assert.equal(dashboard.provenance.runtimeHomeDir, '/srv/hermes');
+      assert.equal(dashboard.provenance.runtimeInstallDir, '/opt/hermes');
+    },
+  );
+
+  await runTest(
+    'kernelCenterService prefers generic managed runtime authority for non-openclaw active kernels',
+    async () => {
+      const { createKernelCenterService } = kernelCenterServiceModule;
+
+      const snapshot = createSnapshot({
+        runtimeId: 'hermes',
+        runtimeVersion: '2026.4.13',
+        nodeVersion: null,
+      });
+      snapshot.raw.provenance.runtimeId = 'hermes';
+      snapshot.raw.provenance.runtimeVersion = '2026.4.13';
+      snapshot.raw.provenance.nodeVersion = null;
+      snapshot.raw.provenance.platform = 'linux';
+      snapshot.raw.provenance.arch = 'x64';
+      snapshot.raw.provenance.installSource = 'external';
+      snapshot.raw.provenance.configPath = '/srv/hermes/config.yaml';
+      snapshot.raw.provenance.runtimeHomeDir = '/srv/hermes';
+      snapshot.raw.provenance.runtimeInstallDir = '/opt/hermes';
+
+      const info = createKernelInfo({
+        runtimeAuthorities: [
+          {
+            runtimeId: 'hermes',
+            managedConfigPath: '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+            ownedRuntimeRoots: ['/opt/hermes', '/srv/hermes/runtime'],
+            readinessProbe: {
+              supportsLoopbackHealthProbe: false,
+              healthProbeTimeoutMs: 0,
+            },
+            runtimeVersion: '2026.4.13',
+            nodeVersion: null,
+            platform: 'linux',
+            arch: 'x64',
+            installSource: 'external',
+            configPath: '/srv/hermes/config.yaml',
+            runtimeHomeDir: '/srv/hermes',
+            runtimeInstallDir: '/opt/hermes',
+          },
+        ],
+        openClawRuntime: {
+          runtimeId: 'openclaw',
+          openclawVersion: DEFAULT_RUNTIME_VERSION,
+          nodeVersion: DEFAULT_NODE_VERSION,
+          platform: 'windows',
+          arch: 'x64',
+          installDir:
+            `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-windows-x64`,
+          homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+          configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          authority: {
+            managedConfigPath:
+              'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+            ownedRuntimeRoots: [
+              'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
+            ],
+            readinessProbe: {
+              supportsLoopbackHealthProbe: true,
+              healthProbeTimeoutMs: 750,
+            },
+          },
+          startupChain: [{ id: 'configureOpenClawGateway', status: 'ready', detail: 'configured' }],
+        },
+      });
+
+      const service = createKernelCenterService({
+        kernelPlatformService: {
+          getInfo: async () => info,
+          getStatus: async () => snapshot,
+          ensureRunning: async () => snapshot,
+          restart: async () => snapshot,
+        },
+        hostPlatformService: {
+          getStatus: async () => createHostPlatformStatus(),
+        },
+        rolloutService: {
+          list: async () => createRolloutListResult(),
+          summarizePhases: () => ({
+            active: 1,
+            failed: 1,
+            completed: 0,
+            paused: 0,
+            drafts: 0,
+          }),
+        },
+        runtimeApi: {
+          getRuntimeInfo: async () => createRuntimeInfo(),
+        },
+      });
+
+      const dashboard = await service.getDashboard();
+
+      assert.equal(
+        dashboard.runtimeAuthority.managedConfigPath,
+        '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+      );
+      assert.deepEqual(dashboard.runtimeAuthority.ownedRuntimeRoots, ['/opt/hermes', '/srv/hermes/runtime']);
+      assert.equal(dashboard.runtimeAuthority.supportsLoopbackHealthProbe, false);
+      assert.equal(dashboard.runtimeAuthority.healthProbeTimeoutMs, 0);
+      assert.equal(dashboard.provenance.installSource, 'external');
+      assert.equal(dashboard.provenance.runtimeVersion, '2026.4.13');
+      assert.equal(dashboard.provenance.nodeVersion, null);
+      assert.equal(dashboard.provenance.platformLabel, 'linux/x64');
+      assert.equal(dashboard.provenance.configPath, '/srv/hermes/config.yaml');
+      assert.equal(dashboard.provenance.runtimeHomeDir, '/srv/hermes');
+      assert.equal(dashboard.provenance.runtimeInstallDir, '/opt/hermes');
+    },
+  );
+
+  await runTest(
+    'kernelCenterService consumes generic activeRuntime authority when dedicated runtime-specific payloads are absent',
+    async () => {
+      const { createKernelCenterService } = kernelCenterServiceModule;
+
+      const snapshot = createSnapshot({
+        runtimeId: 'hermes',
+        runtimeVersion: '2026.4.13',
+        nodeVersion: null,
+      });
+      snapshot.raw.provenance.runtimeId = 'hermes';
+      snapshot.raw.provenance.runtimeVersion = '2026.4.13';
+      snapshot.raw.provenance.nodeVersion = null;
+      snapshot.raw.provenance.platform = 'linux';
+      snapshot.raw.provenance.arch = 'x64';
+      snapshot.raw.provenance.installSource = 'external';
+      snapshot.raw.provenance.configPath = '/srv/hermes/config.yaml';
+      snapshot.raw.provenance.runtimeHomeDir = '/srv/hermes';
+      snapshot.raw.provenance.runtimeInstallDir = '/opt/hermes';
+
+      const info = createKernelInfo({
+        runtimeAuthorities: [],
+        openClawRuntime: null,
+        activeRuntime: {
+          runtimeId: 'hermes',
+          state: 'running',
+          health: 'healthy',
+          reason: 'Kernel attached to a healthy hermes host.',
+          installKey: null,
+          installSource: 'external',
+          runtimeVersion: '2026.4.13',
+          nodeVersion: null,
+          platform: 'linux',
+          arch: 'x64',
+          configPath: '/srv/hermes/config.yaml',
+          runtimeHomeDir: '/srv/hermes',
+          runtimeInstallDir: '/opt/hermes',
+          authority: {
+            runtimeId: 'hermes',
+            managedConfigPath: '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+            ownedRuntimeRoots: ['/opt/hermes', '/srv/hermes/runtime'],
+            readinessProbe: {
+              supportsLoopbackHealthProbe: false,
+              healthProbeTimeoutMs: 0,
+            },
+            runtimeVersion: '2026.4.13',
+            nodeVersion: null,
+            platform: 'linux',
+            arch: 'x64',
+            installSource: 'external',
+            configPath: '/srv/hermes/config.yaml',
+            runtimeHomeDir: '/srv/hermes',
+            runtimeInstallDir: '/opt/hermes',
+          },
+        },
+      });
+
+      const service = createKernelCenterService({
+        kernelPlatformService: {
+          getInfo: async () => info,
+          getStatus: async () => snapshot,
+          ensureRunning: async () => snapshot,
+          restart: async () => snapshot,
+        },
+        hostPlatformService: {
+          getStatus: async () => createHostPlatformStatus(),
+        },
+        rolloutService: {
+          list: async () => createRolloutListResult(),
+          summarizePhases: () => ({
+            active: 1,
+            failed: 1,
+            completed: 0,
+            paused: 0,
+            drafts: 0,
+          }),
+        },
+        runtimeApi: {
+          getRuntimeInfo: async () => createRuntimeInfo(),
+        },
+      });
+
+      const dashboard = await service.getDashboard();
+
+      assert.equal(
+        dashboard.runtimeAuthority.managedConfigPath,
+        '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+      );
+      assert.deepEqual(dashboard.runtimeAuthority.ownedRuntimeRoots, ['/opt/hermes', '/srv/hermes/runtime']);
+      assert.equal(dashboard.runtimeAuthority.supportsLoopbackHealthProbe, false);
+      assert.equal(dashboard.runtimeAuthority.healthProbeTimeoutMs, 0);
       assert.equal(dashboard.provenance.installSource, 'external');
       assert.equal(dashboard.provenance.runtimeVersion, '2026.4.13');
       assert.equal(dashboard.provenance.nodeVersion, null);
@@ -688,10 +898,9 @@ if (kernelCenterServiceModule) {
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
         runtimeDir:
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64/runtime`,
-        homeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
-        stateDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw',
-        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/workspace',
-        configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+        homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+        configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
         gatewayPort: 18789,
         gatewayBaseUrl: 'http://127.0.0.1:18789',
         localAiProxyBaseUrl: LOCAL_AI_PROXY_BASE_URL,
@@ -699,7 +908,7 @@ if (kernelCenterServiceModule) {
           'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
         authority: {
           managedConfigPath:
-            'C:/ProgramData/SdkWork/ClawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+            'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
           ownedRuntimeRoots: [
             'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
             'C:/ProgramData/SdkWork/ClawStudio/runtime/runtimes/openclaw',
@@ -763,11 +972,11 @@ if (kernelCenterServiceModule) {
       assert.equal(dashboard.provenance.platformLabel, 'windows/x64');
       assert.equal(
         dashboard.provenance.configPath,
-        'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+        'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
       );
       assert.equal(
         dashboard.provenance.runtimeHomeDir,
-        'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+        'C:/Users/admin/.sdkwork/crawstudio',
       );
       assert.equal(
         dashboard.provenance.runtimeInstallDir,
@@ -798,10 +1007,9 @@ if (kernelCenterServiceModule) {
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
         runtimeDir:
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64/runtime`,
-        homeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
-        stateDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw',
-        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/workspace',
-        configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+        homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+        configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
         gatewayPort: 18789,
         gatewayBaseUrl: 'http://127.0.0.1:18789',
         localAiProxyBaseUrl: LOCAL_AI_PROXY_BASE_URL,
@@ -809,7 +1017,7 @@ if (kernelCenterServiceModule) {
           'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
         authority: {
           managedConfigPath:
-            'C:/ProgramData/SdkWork/ClawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+            'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
           ownedRuntimeRoots: [
             'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
             'C:/ProgramData/SdkWork/ClawStudio/runtime/runtimes/openclaw',
@@ -870,7 +1078,7 @@ if (kernelCenterServiceModule) {
 
       assert.equal(
         dashboard.runtimeAuthority.managedConfigPath,
-        'C:/ProgramData/SdkWork/ClawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+        'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
       );
       assert.deepEqual(dashboard.runtimeAuthority.ownedRuntimeRoots, [
         'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
@@ -1380,7 +1588,7 @@ if (kernelCenterServiceModule) {
   );
 
   await runTest(
-    'kernelCenterService uses the OpenClaw runtime ready lifecycle when kernel status is temporarily unavailable',
+    'kernelCenterService keeps the published host runtime state when dedicated OpenClaw diagnostics report ready but kernel status is unavailable',
     async () => {
       const { createKernelCenterService } = kernelCenterServiceModule;
 
@@ -1400,10 +1608,9 @@ if (kernelCenterServiceModule) {
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
         runtimeDir:
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64/runtime`,
-        homeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
-        stateDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw',
-        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/workspace',
-        configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+        homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+        configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
         gatewayPort: 18789,
         gatewayBaseUrl: 'http://127.0.0.1:18789',
         localAiProxyBaseUrl: LOCAL_AI_PROXY_BASE_URL,
@@ -1411,7 +1618,7 @@ if (kernelCenterServiceModule) {
           'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
         authority: {
           managedConfigPath:
-            'C:/ProgramData/SdkWork/ClawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+            'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
           ownedRuntimeRoots: [
             'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
           ],
@@ -1470,7 +1677,7 @@ if (kernelCenterServiceModule) {
       const dashboard = await service.getDashboard();
 
       assert.equal(dashboard.snapshot, null);
-      assert.equal(dashboard.statusTitle, 'Ready');
+      assert.equal(dashboard.statusTitle, 'Running');
       assert.equal(dashboard.host.serviceManagerLabel, 'Windows Service');
       assert.equal(dashboard.host.ownershipLabel, 'App Supervisor Fallback');
       assert.equal(dashboard.endpoint.activePort, 18845);
@@ -1479,7 +1686,7 @@ if (kernelCenterServiceModule) {
   );
 
   await runTest(
-    'kernelCenterService maps inactive OpenClaw runtime fallback as an inactive dashboard state',
+    'kernelCenterService does not let inactive OpenClaw diagnostics override the published host runtime state when kernel status is unavailable',
     async () => {
       const { createKernelCenterService } = kernelCenterServiceModule;
 
@@ -1492,15 +1699,14 @@ if (kernelCenterServiceModule) {
         configured: false,
         platform: 'windows',
         arch: 'x64',
-        homeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
-        stateDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw',
-        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/workspace',
-        configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+        homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+        configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
         localAiProxySnapshotPath:
           'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
         authority: {
           managedConfigPath:
-            'C:/ProgramData/SdkWork/ClawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+            'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
           ownedRuntimeRoots: [
             'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
           ],
@@ -1555,16 +1761,55 @@ if (kernelCenterServiceModule) {
       const dashboard = await service.getDashboard();
 
       assert.equal(dashboard.snapshot, null);
-      assert.equal(dashboard.statusTitle, 'Inactive');
+      assert.equal(dashboard.statusTitle, 'Running');
     },
   );
 
   await runTest(
-    'kernelCenterService maps stopping OpenClaw runtime fallback as a stopping dashboard state',
+    'kernelCenterService does not let OpenClaw-only diagnostics override a hermes host when kernel status is unavailable',
     async () => {
       const { createKernelCenterService } = kernelCenterServiceModule;
 
       const kernelInfo = createKernelInfo();
+      kernelInfo.host = {
+        ...kernelInfo.host,
+        runtime: {
+          ...kernelInfo.host.runtime,
+          state: 'running',
+          reason: 'Kernel attached to a healthy hermes host.',
+        },
+        provenance: {
+          ...kernelInfo.host.provenance,
+          runtimeId: 'hermes',
+          runtimeVersion: '2026.4.13',
+          nodeVersion: null,
+          platform: 'linux',
+          arch: 'x64',
+          installSource: 'external',
+          configPath: '/srv/hermes/config.yaml',
+          runtimeHomeDir: '/srv/hermes',
+          runtimeInstallDir: '/opt/hermes',
+        },
+      };
+      kernelInfo.runtimeAuthorities = [
+        {
+          runtimeId: 'hermes',
+          managedConfigPath: '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+          ownedRuntimeRoots: ['/opt/hermes', '/srv/hermes/runtime'],
+          readinessProbe: {
+            supportsLoopbackHealthProbe: false,
+            healthProbeTimeoutMs: 0,
+          },
+          runtimeVersion: '2026.4.13',
+          nodeVersion: null,
+          platform: 'linux',
+          arch: 'x64',
+          installSource: 'external',
+          configPath: '/srv/hermes/config.yaml',
+          runtimeHomeDir: '/srv/hermes',
+          runtimeInstallDir: '/opt/hermes',
+        },
+      ];
       (kernelInfo as RuntimeDesktopKernelInfo & {
         openClawRuntime?: Record<string, unknown>;
       }).openClawRuntime = {
@@ -1573,15 +1818,14 @@ if (kernelCenterServiceModule) {
         configured: true,
         platform: 'windows',
         arch: 'x64',
-        homeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
-        stateDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw',
-        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/workspace',
-        configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+        homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+        configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
         localAiProxySnapshotPath:
           'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
         authority: {
           managedConfigPath:
-            'C:/ProgramData/SdkWork/ClawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+            'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
           ownedRuntimeRoots: [
             'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
           ],
@@ -1636,7 +1880,19 @@ if (kernelCenterServiceModule) {
       const dashboard = await service.getDashboard();
 
       assert.equal(dashboard.snapshot, null);
-      assert.equal(dashboard.statusTitle, 'Stopping');
+      assert.equal(dashboard.statusTitle, 'Running');
+      assert.equal(dashboard.statusSummary, 'Kernel attached to a healthy hermes host.');
+      assert.equal(dashboard.provenance.installSource, 'external');
+      assert.equal(dashboard.provenance.runtimeVersion, '2026.4.13');
+      assert.equal(dashboard.provenance.nodeVersion, null);
+      assert.equal(dashboard.provenance.platformLabel, 'linux/x64');
+      assert.equal(dashboard.provenance.configPath, '/srv/hermes/config.yaml');
+      assert.equal(dashboard.provenance.runtimeHomeDir, '/srv/hermes');
+      assert.equal(dashboard.provenance.runtimeInstallDir, '/opt/hermes');
+      assert.equal(
+        dashboard.runtimeAuthority.managedConfigPath,
+        '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+      );
     },
   );
 } else {
@@ -1662,8 +1918,9 @@ if (kernelCenterServiceModule) {
       const source = await readKernelCenterServiceSource();
 
       assert.match(source, /function resolvePreferredOpenClawRuntime\(/);
-      assert.match(source, /if \(snapshot\?\.runtimeId === 'openclaw'\) \{/);
-      assert.match(source, /if \(!snapshot && openClawRuntime\?\.runtimeId === 'openclaw'\) \{/);
+      assert.match(source, /const activeRuntimeId = snapshot\?\.runtimeId \?\? info\?\.host\?\.provenance\.runtimeId \?\? null;/);
+      assert.match(source, /if \(activeRuntimeId\) \{/);
+      assert.match(source, /return activeRuntimeId === 'openclaw' \? openClawRuntime : null;/);
       assert.match(source, /const kernelHost = snapshot\?\.raw \?\? info\?\.host \?\? null;/);
       assert.match(source, /const openClawRuntime = resolvePreferredOpenClawRuntime\(snapshot, info\);/);
       assert.match(

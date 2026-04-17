@@ -17,6 +17,7 @@ use crate::{
         resolve_server_effective_config_path, resolve_server_runtime_config,
         ServerRuntimeConfigResolutionRequest,
     },
+    http::api_surface::{build_openapi_startup_catalog, write_runtime_openapi_snapshots},
     http::router::build_router,
     port_governance::bind_server_listener,
     service::{
@@ -86,11 +87,16 @@ async fn main() {
                 },
             );
             let mode = state.mode;
-            let app = build_router(state);
             let requested_host = binding.requested_host.clone();
             let requested_port = binding.requested_port;
             let active_base_url = binding.base_url();
             let dynamic_port = binding.dynamic_port;
+            write_runtime_openapi_snapshots(&state, &active_base_url).unwrap_or_else(|error| {
+                eprintln!("failed to write runtime openapi snapshots: {error}");
+                std::process::exit(1);
+            });
+            let openapi_catalog = build_openapi_startup_catalog(&state, &active_base_url);
+            let app = build_router(state);
             let listener = binding.into_tokio_listener().unwrap_or_else(|error| {
                 eprintln!("{error}");
                 std::process::exit(1);
@@ -107,6 +113,11 @@ async fn main() {
                     metadata.package_name, mode, active_base_url
                 );
             }
+            println!(
+                "{}",
+                serde_json::to_string(&openapi_catalog)
+                    .expect("openapi startup catalog should serialize to json")
+            );
 
             serve(listener, app)
                 .await
@@ -224,6 +235,7 @@ mod tests {
     use serde_json::{json, Value};
     use tower::ServiceExt;
 
+    use crate::http::api_surface::PublishedProxyTarget;
     use crate::http::auth::{BasicAuthCredentials, ServerAuthConfig};
     use crate::{
         bootstrap::{
@@ -263,6 +275,18 @@ mod tests {
 
         fn gateway_invoke_is_available(&self, _updated_at: u64) -> bool {
             self.gateway.lifecycle == "ready"
+        }
+
+        fn gateway_proxy_target(&self, _updated_at: u64) -> Option<PublishedProxyTarget> {
+            if self.gateway.lifecycle != "ready" {
+                return None;
+            }
+
+            self.gateway.base_url.clone().map(|base_url| PublishedProxyTarget {
+                id: "openclaw-gateway",
+                base_url,
+                auth_token: None,
+            })
         }
 
         fn invoke_gateway(
@@ -3139,6 +3163,149 @@ mod tests {
         assert_eq!(first_status, StatusCode::OK);
         assert_eq!(second_status, StatusCode::OK);
         assert_eq!(first_generated_at, second_generated_at);
+    }
+
+    #[tokio::test]
+    async fn openapi_discovery_route_describes_governed_openclaw_gateway_document_when_available() {
+        let provider = ManageOpenClawProviderHandle::new(Arc::new(FakeManageOpenClawProvider {
+            host_endpoints: vec![HostEndpointRecord {
+                endpoint_id: "openclaw-gateway".to_string(),
+                bind_host: "127.0.0.1".to_string(),
+                requested_port: 18_871,
+                active_port: Some(18_871),
+                scheme: "http".to_string(),
+                base_url: Some("http://127.0.0.1:18871".to_string()),
+                websocket_url: Some("ws://127.0.0.1:18871".to_string()),
+                loopback_only: true,
+                dynamic_port: false,
+                last_conflict_at: None,
+                last_conflict_reason: None,
+            }],
+            runtime: OpenClawRuntimeProjection {
+                runtime_kind: "openclaw".to_string(),
+                lifecycle: "ready".to_string(),
+                endpoint_id: Some("openclaw-gateway".to_string()),
+                requested_port: Some(18_871),
+                active_port: Some(18_871),
+                base_url: Some("http://127.0.0.1:18871".to_string()),
+                websocket_url: Some("ws://127.0.0.1:18871".to_string()),
+                managed_by: "claw-server".to_string(),
+                updated_at: 123,
+            },
+            gateway: OpenClawGatewayProjection {
+                gateway_kind: "openclawGateway".to_string(),
+                lifecycle: "ready".to_string(),
+                endpoint_id: Some("openclaw-gateway".to_string()),
+                requested_port: Some(18_871),
+                active_port: Some(18_871),
+                base_url: Some("http://127.0.0.1:18871".to_string()),
+                websocket_url: Some("ws://127.0.0.1:18871".to_string()),
+                managed_by: "claw-server".to_string(),
+                updated_at: 123,
+            },
+        }));
+        let app = build_router(build_server_state_with_overrides(
+            create_test_rollout_data_dir("openapi-discovery-openclaw-gateway"),
+            ServerStateOverrides {
+                manage_openclaw_provider: Some(provider),
+                ..ServerStateOverrides::default()
+            },
+        ));
+        let response = app
+            .oneshot(
+                Request::get("/claw/openapi/discovery")
+                    .body(Body::empty())
+                    .expect("openapi discovery request should build"),
+            )
+            .await
+            .expect("openapi discovery request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_json(response).await;
+        let documents = body
+            .get("documents")
+            .and_then(Value::as_array)
+            .expect("openapi discovery should include document entries");
+
+        assert!(documents.iter().any(|document| {
+            document.get("id").and_then(Value::as_str) == Some("claw-native-v1")
+                && document.get("proxyTarget").and_then(Value::as_str) == Some("native-host")
+                && document.get("runtimeCapability").and_then(Value::as_str) == Some("always")
+        }));
+        assert!(documents.iter().any(|document| {
+            document.get("id").and_then(Value::as_str) == Some("openclaw-gateway-v1")
+                && document.get("url").and_then(Value::as_str)
+                    == Some("/claw/openapi/openclaw-gateway-v1.json")
+                && document.get("proxyTarget").and_then(Value::as_str)
+                    == Some("openclaw-gateway")
+                && document.get("runtimeCapability").and_then(Value::as_str)
+                    == Some("openclaw-gateway-http")
+        }));
+    }
+
+    #[tokio::test]
+    async fn openapi_governed_proxy_document_route_describes_openclaw_gateway_paths() {
+        let provider = ManageOpenClawProviderHandle::new(Arc::new(FakeManageOpenClawProvider {
+            host_endpoints: vec![HostEndpointRecord {
+                endpoint_id: "openclaw-gateway".to_string(),
+                bind_host: "127.0.0.1".to_string(),
+                requested_port: 18_871,
+                active_port: Some(18_871),
+                scheme: "http".to_string(),
+                base_url: Some("http://127.0.0.1:18871".to_string()),
+                websocket_url: Some("ws://127.0.0.1:18871".to_string()),
+                loopback_only: true,
+                dynamic_port: false,
+                last_conflict_at: None,
+                last_conflict_reason: None,
+            }],
+            runtime: OpenClawRuntimeProjection {
+                runtime_kind: "openclaw".to_string(),
+                lifecycle: "ready".to_string(),
+                endpoint_id: Some("openclaw-gateway".to_string()),
+                requested_port: Some(18_871),
+                active_port: Some(18_871),
+                base_url: Some("http://127.0.0.1:18871".to_string()),
+                websocket_url: Some("ws://127.0.0.1:18871".to_string()),
+                managed_by: "claw-server".to_string(),
+                updated_at: 123,
+            },
+            gateway: OpenClawGatewayProjection {
+                gateway_kind: "openclawGateway".to_string(),
+                lifecycle: "ready".to_string(),
+                endpoint_id: Some("openclaw-gateway".to_string()),
+                requested_port: Some(18_871),
+                active_port: Some(18_871),
+                base_url: Some("http://127.0.0.1:18871".to_string()),
+                websocket_url: Some("ws://127.0.0.1:18871".to_string()),
+                managed_by: "claw-server".to_string(),
+                updated_at: 123,
+            },
+        }));
+        let app = build_router(build_server_state_with_overrides(
+            create_test_rollout_data_dir("openapi-openclaw-gateway-document"),
+            ServerStateOverrides {
+                manage_openclaw_provider: Some(provider),
+                ..ServerStateOverrides::default()
+            },
+        ));
+        let response = app
+            .oneshot(
+                Request::get("/claw/openapi/openclaw-gateway-v1.json")
+                    .body(Body::empty())
+                    .expect("governed proxy openapi request should build"),
+            )
+            .await
+            .expect("governed proxy openapi request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_json(response).await;
+        let paths = body
+            .get("paths")
+            .and_then(Value::as_object)
+            .expect("governed proxy openapi document should include paths");
+
+        assert!(paths.contains_key("/claw/gateway/openclaw/tools/invoke"));
     }
 
     #[tokio::test]

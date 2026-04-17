@@ -18,9 +18,11 @@ use crate::http::cors_policy::{
 use crate::http::routes::api_public::api_public_routes;
 use crate::http::routes::health::health_routes;
 use crate::http::routes::internal_node_sessions::internal_node_session_routes;
+use crate::http::routes::local_ai_compat::local_ai_compat_routes;
 use crate::http::routes::manage_openclaw::manage_openclaw_routes;
 use crate::http::routes::manage_rollouts::manage_rollout_routes;
 use crate::http::routes::manage_service::manage_service_routes;
+use crate::http::routes::openclaw_gateway_proxy::openclaw_gateway_proxy_routes;
 use crate::http::routes::openapi::openapi_routes;
 use crate::http::static_assets::StaticAssetMount;
 
@@ -33,12 +35,17 @@ pub fn build_router(state: ServerState) -> Router {
     } else {
         manage_rollout_routes().merge(manage_openclaw_routes())
     };
-    let router = Router::new()
+    let mut router = Router::new()
         .nest("/claw/health", health_routes())
         .nest("/claw/api/v1", api_public_routes())
         .nest("/claw/openapi", openapi_routes())
         .nest("/claw/internal/v1", internal_node_session_routes())
-        .nest("/claw/manage/v1", manage_router);
+        .nest("/claw/manage/v1", manage_router)
+        .merge(openclaw_gateway_proxy_routes());
+
+    if state.local_ai_proxy_target_provider.is_some() {
+        router = router.merge(local_ai_compat_routes());
+    }
 
     assets
         .attach(router)

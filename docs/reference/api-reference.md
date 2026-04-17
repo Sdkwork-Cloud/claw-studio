@@ -2,58 +2,88 @@
 
 ## Scope
 
-This page is the entry point for the currently published native Claw Studio API surface.
+This page is the entry point for the HTTP APIs currently published by the built-in Claw host.
 
-It documents the route families that are already implemented in the Rust host and explains how they relate to runtime mode, authentication, and OpenAPI publication.
+The host now exposes one unified external base URL and splits ownership into three explicit route namespaces:
 
-## Base Path Policy
+- native platform APIs under `/claw/*`
+- root-native local AI compatibility routes at `/health`, `/v1/*`, and `/v1beta/*`
+- governed OpenClaw gateway proxy routes under `/claw/gateway/openclaw/*`
 
-The current native platform API is published under `/claw/*`.
+Static assets, `/`, and `/sdkwork-claw-bootstrap.json` are still host surfaces, but they are not OpenAPI-managed APIs.
 
-Implemented route families:
+## Unified Host Route Taxonomy
 
-| Family | Base Path | Purpose |
+| Surface | Base Path | Purpose |
 | --- | --- | --- |
-| Health | `/claw/health/*` | liveness and readiness checks |
-| Public API | `/claw/api/v1/*` | public native discovery and bootstrap metadata |
-| OpenAPI | `/claw/openapi/*` | machine-readable API discovery and OpenAPI publication |
-| Internal | `/claw/internal/v1/*` | host runtime coordination and node-session state |
-| Manage | `/claw/manage/v1/*` | operator-facing rollout and control-plane reads/actions |
+| Native platform | `/claw/*` | platform-owned health, public API, OpenAPI, internal, and manage routes |
+| Local AI compatibility | `/health`, `/v1/*`, `/v1beta/*` | provider-compatible local proxy routes on the same host port |
+| OpenClaw gateway proxy | `/claw/gateway/openclaw/*` | governed proxy routes for the managed OpenClaw gateway |
+
+Rules:
+
+- `/claw/*` stays reserved for platform-native APIs.
+- `local-ai-proxy` keeps exact root-native compatibility paths. There is no `/claw/gateway/local-ai/*` alias.
+- OpenClaw proxy routes stay governed under `/claw/gateway/openclaw/*` and do not claim `/v1/*`.
+- Every OpenAPI document is generated from the live mounted route set, so optional route families only appear when their runtime surface is active.
 
 ## How To Resolve The Base URL
 
-The same product surface can run in different host modes, but the canonical `/claw/*` HTTP API is only available when a Rust host is present.
+The same host contract is used in more than one shell, but the unified HTTP API only exists when a Rust host is present.
 
-| Mode | Native API Access | Base URL |
+| Mode | Unified Host Access | Base URL |
 | --- | --- | --- |
-| Web workspace | not stable; browser preview uses the default mock or preview bridge | not a published `/claw/*` endpoint |
-| Desktop runtime | embedded loopback HTTP for canonical hosted flows; server lifecycle routes stay disabled | resolve from runtime `browserBaseUrl` metadata, typically `http://127.0.0.1:<dynamic-port>` |
-| Native server | same-origin HTTP | `http://<host>:<port>` |
-| Container | same-origin HTTP through the exposed container port | `http://<host>:<port>` or ingress URL |
-| Kubernetes | same-origin HTTP through service or ingress | `https://<domain>` or service URL |
+| Web workspace | preview-only bridge or mock bridge | not a published built-in host |
+| Desktop runtime | embedded loopback host | resolve from runtime `browserBaseUrl`, typically `http://127.0.0.1:<dynamic-port>` |
+| Native server | same-origin host | `http://<host>:<port>` |
+| Container | same-origin host through the exposed container port | `http://<host>:<port>` or ingress URL |
+| Kubernetes | same-origin host through service or ingress | `https://<domain>` or service URL |
 
-For current packaged server bundles, the default local address remains `http://127.0.0.1:18797` unless `CLAW_SERVER_HOST` or `CLAW_SERVER_PORT` is overridden.
+For packaged server bundles, the default local address remains `http://127.0.0.1:18797` unless `CLAW_SERVER_HOST` or `CLAW_SERVER_PORT` is overridden.
 
-## Discovery Endpoints
+## Discovery And OpenAPI Documents
 
-The Rust host currently publishes two discovery surfaces in `server` mode and in hosted `desktopCombined` browser flows:
+The built-in host publishes one discovery surface for public native metadata and one discovery surface for live OpenAPI documents.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /claw/api/v1/discovery` | public native API discovery for browser/bootstrap and future SDK consumers |
-| `GET /claw/openapi/discovery` | OpenAPI document discovery |
-| `GET /claw/openapi/v1.json` | OpenAPI 3.1 JSON document for currently implemented native routes |
+| `GET /claw/api/v1/discovery` | public native discovery for browser bootstrap and future SDK consumers |
+| `GET /claw/openapi/discovery` | live OpenAPI document discovery |
+| `GET /claw/openapi/v1.json` | native platform OpenAPI 3.1 document |
+| `GET /claw/openapi/local-ai-compat-v1.json` | local AI compatibility OpenAPI 3.1 document, only when the local AI proxy is active |
+| `GET /claw/openapi/openclaw-gateway-v1.json` | OpenClaw gateway proxy OpenAPI 3.1 document, only when the managed gateway HTTP surface is active |
+
+`GET /claw/openapi/discovery` returns:
+
+- `family`
+- `hostMode`
+- `generatedAt`
+- `documents[]`
+
+Each `documents[]` entry currently exposes:
+
+- `id`
+- `title`
+- `version`
+- `format`
+- `url`
+- `apiFamilies`
+- `proxyTarget`
+- `runtimeCapability`
+- `generatedAt`
 
 ## Current Endpoint Matrix
 
-### Health
+### Native Platform
+
+#### Health
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/claw/health/live` | liveness probe |
 | `GET` | `/claw/health/ready` | readiness probe |
 
-### Public API
+#### Public API
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -74,14 +104,16 @@ The Rust host currently publishes two discovery surfaces in `server` mode and in
 | `PUT` | `/claw/api/v1/studio/conversations/{conversationId}` | upsert one conversation |
 | `DELETE` | `/claw/api/v1/studio/conversations/{conversationId}` | delete one conversation |
 
-### OpenAPI
+#### OpenAPI
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/claw/openapi/discovery` | discover published OpenAPI documents |
-| `GET` | `/claw/openapi/v1.json` | download the current OpenAPI 3.1 document |
+| `GET` | `/claw/openapi/discovery` | discover live OpenAPI documents |
+| `GET` | `/claw/openapi/v1.json` | download the native platform OpenAPI 3.1 document |
+| `GET` | `/claw/openapi/local-ai-compat-v1.json` | download the local AI compatibility document when active |
+| `GET` | `/claw/openapi/openclaw-gateway-v1.json` | download the OpenClaw gateway proxy document when active |
 
-### Internal
+#### Internal
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -94,7 +126,7 @@ The Rust host currently publishes two discovery surfaces in `server` mode and in
 | `POST` | `/claw/internal/v1/node-sessions/{sessionId}:ack-desired-state` | record apply or reject results for a desired-state revision |
 | `POST` | `/claw/internal/v1/node-sessions/{sessionId}:close` | gracefully close a live session |
 
-### Manage
+#### Manage
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -108,7 +140,7 @@ The Rust host currently publishes two discovery surfaces in `server` mode and in
 | `GET` | `/claw/manage/v1/host-endpoints` | list canonical host endpoint records |
 | `GET` | `/claw/manage/v1/openclaw/runtime` | read managed OpenClaw runtime projection |
 | `GET` | `/claw/manage/v1/openclaw/gateway` | read managed OpenClaw gateway projection |
-| `POST` | `/claw/manage/v1/openclaw/gateway/invoke` | invoke the managed OpenClaw gateway |
+| `POST` | `/claw/manage/v1/openclaw/gateway/invoke` | invoke the managed OpenClaw gateway through the control plane |
 | `GET` | `/claw/manage/v1/service` | read native service status projection, `server` mode only |
 | `POST` | `/claw/manage/v1/service:install` | install native service, `server` mode only |
 | `POST` | `/claw/manage/v1/service:start` | start native service, `server` mode only |
@@ -117,12 +149,49 @@ The Rust host currently publishes two discovery surfaces in `server` mode and in
 
 Important mode note:
 
-- `desktopCombined` publishes the canonical hosted `studio`, `internal`, `openapi`, and non-service `manage` flows through its embedded loopback host.
-- `/claw/manage/v1/service*` is intentionally omitted from `desktopCombined` and only exists in `server` mode.
+- `desktopCombined` publishes the same native `api`, `openapi`, `internal`, and non-service `manage` flows through its embedded loopback host.
+- `/claw/manage/v1/service*` remains server-only.
 
-## Authentication Model
+### Local AI Compatibility
 
-Authentication is currently optional and based on HTTP basic auth.
+These routes are mounted on the same host port only when `local-ai-proxy` is active.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | root health probe for compatibility clients |
+| `GET` | `/v1/health` | OpenAI-style health probe |
+| `GET` | `/v1/models` | list compatible models |
+| `POST` | `/v1/chat/completions` | OpenAI-compatible chat completions |
+| `POST` | `/v1/responses` | OpenAI-compatible responses |
+| `POST` | `/v1/embeddings` | OpenAI-compatible embeddings |
+| `POST` | `/v1/messages` | Anthropic-compatible messages |
+| `GET` | `/v1beta/models` | Gemini-compatible model discovery |
+| `POST` | `/v1beta/models/{modelAction}` | Gemini-compatible model action |
+| `POST` | `/v1/models/{modelAction}` | Gemini-compatible model action under `/v1/models/*` |
+
+Compatibility notes:
+
+- callers only need to change `baseURL` and `apiKey`
+- there is no extra host prefix in front of these routes
+- the host preserves method, body, query string, content type, and forwarded request headers needed by the upstream surface
+
+### Governed OpenClaw Gateway Proxy
+
+These routes are mounted on the same host port only when the managed OpenClaw gateway HTTP surface is active.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/claw/gateway/openclaw/tools/invoke` | invoke the governed OpenClaw gateway proxy route |
+
+Governance notes:
+
+- this surface is separate from the manage control-plane route `POST /claw/manage/v1/openclaw/gateway/invoke`
+- the host strips the external governed prefix before proxying upstream
+- root-native provider-compatible routes remain reserved for `local-ai-proxy`
+
+## Authentication And Proxy Behavior
+
+Authentication is optional for the native control-plane routes and based on HTTP basic auth.
 
 | Surface | Default | Optional Credentials |
 | --- | --- | --- |
@@ -134,6 +203,8 @@ Important behavior:
 
 - when internal credentials are omitted, the internal surface falls back to the manage credentials
 - when manage credentials are configured, browser shell routes and static assets share the same basic-auth challenge as `/claw/manage/v1/*`
+- local AI compatibility routes preserve provider-facing auth headers so upstream-compatible clients can keep their normal request shape
+- governed OpenClaw gateway proxy routes use host-governed upstream credentials instead of forwarding a caller-provided bearer token to the managed gateway
 
 ## Quick Examples
 
@@ -149,89 +220,31 @@ Readiness probe:
 curl -i "$CLAW_BASE_URL/claw/health/ready"
 ```
 
-Public discovery:
+OpenAPI discovery:
 
 ```bash
-curl "$CLAW_BASE_URL/claw/api/v1/discovery"
+curl "$CLAW_BASE_URL/claw/openapi/discovery"
 ```
 
-Download the current OpenAPI document:
+Local AI model discovery on the same host port:
 
 ```bash
-curl "$CLAW_BASE_URL/claw/openapi/v1.json"
+curl -H "Authorization: Bearer $OPENAI_API_KEY" \
+  "$CLAW_BASE_URL/v1/models"
 ```
 
-List rollouts with HTTP basic auth enabled:
+Governed OpenClaw gateway invocation on the same host port:
 
 ```bash
-curl -u operator:manage-secret \
-  "$CLAW_BASE_URL/claw/manage/v1/rollouts"
-```
-
-Preview one rollout:
-
-```bash
-curl -u operator:manage-secret \
-  -H "Content-Type: application/json" \
+curl -H "Content-Type: application/json" \
   -X POST \
-  -d '{"includeTargets":true,"forceRecompute":false}' \
-  "$CLAW_BASE_URL/claw/manage/v1/rollouts/rollout-a:preview"
+  -d '{"tool":"ping"}' \
+  "$CLAW_BASE_URL/claw/gateway/openclaw/tools/invoke"
 ```
-
-Read host platform status with dedicated internal credentials:
-
-```bash
-curl -u internal:internal-secret \
-  "$CLAW_BASE_URL/claw/internal/v1/host-platform"
-```
-
-## Route Family Details
-
-### Health
-
-- `GET /claw/health/live`
-- `GET /claw/health/ready`
-
-Use these for load balancers, uptime probes, and deployment readiness checks.
-
-### Public API
-
-- `GET /claw/api/v1/discovery`
-
-This is intentionally the first published public native route. It exposes discovery metadata rather than full product-domain resources.
-
-### Internal API
-
-Current internal routes include:
-
-- `GET /claw/internal/v1/host-platform`
-- `GET /claw/internal/v1/node-sessions`
-- `POST /claw/internal/v1/node-sessions:hello`
-- `POST /claw/internal/v1/node-sessions/{sessionId}:admit`
-- `POST /claw/internal/v1/node-sessions/{sessionId}:heartbeat`
-- `POST /claw/internal/v1/node-sessions/{sessionId}:pull-desired-state`
-- `POST /claw/internal/v1/node-sessions/{sessionId}:ack-desired-state`
-- `POST /claw/internal/v1/node-sessions/{sessionId}:close`
-
-These routes are intended for runtime coordination, live session state, and desired-state flow control.
-
-### Manage API
-
-Current manage routes include:
-
-- `GET /claw/manage/v1/rollouts`
-- `GET /claw/manage/v1/rollouts/{rolloutId}`
-- `GET /claw/manage/v1/rollouts/{rolloutId}/targets`
-- `GET /claw/manage/v1/rollouts/{rolloutId}/targets/{nodeId}`
-- `GET /claw/manage/v1/rollouts/{rolloutId}/waves`
-- `POST /claw/manage/v1/rollouts/{rolloutId}:preview`
-- `POST /claw/manage/v1/rollouts/{rolloutId}:start`
-
-These routes support the first native rollout control-plane slice.
 
 ## Example Payloads
 
-Public discovery example:
+Public native discovery example:
 
 ```json
 {
@@ -245,6 +258,29 @@ Public discovery example:
   "healthReadyUrl": "/claw/health/ready",
   "capabilityKeys": ["api.discovery.read"],
   "generatedAt": 1743600000000
+}
+```
+
+OpenAPI discovery example:
+
+```json
+{
+  "family": "openapi",
+  "hostMode": "server",
+  "generatedAt": 1743600000000,
+  "documents": [
+    {
+      "id": "claw-native-v1",
+      "title": "Claw Native Platform API",
+      "version": "v1",
+      "format": "openapi+json",
+      "url": "/claw/openapi/v1.json",
+      "apiFamilies": ["health", "api", "internal", "manage"],
+      "proxyTarget": "native-host",
+      "runtimeCapability": "always",
+      "generatedAt": 1743600000000
+    }
+  ]
 }
 ```
 
@@ -264,52 +300,24 @@ Error envelope example:
 }
 ```
 
-You should treat the `x-claw-correlation-id` response header as the primary request trace id for logs, browser diagnostics, and operator support workflows.
+Treat the `x-claw-correlation-id` response header as the primary request trace id for logs, browser diagnostics, and operator support workflows.
 
-## Error Model
+## OpenAPI Ownership Boundary
 
-Migrated internal and manage routes return a machine-readable JSON error envelope rather than plain-text failures.
+The built-in host now publishes multiple live OpenAPI documents:
 
-The current error body includes fields such as:
+- `claw-native-v1` for `/claw/*` platform APIs
+- `local-ai-compat-v1` for root-native compatibility paths
+- `openclaw-gateway-v1` for `/claw/gateway/openclaw/*`
 
-- `error.code`
-- `error.category`
-- `error.httpStatus`
-- `error.retryable`
-- `error.resolution`
-- `error.correlationId`
+Boundary rules:
 
-Responses also include the `x-claw-correlation-id` header.
+- no published path appears in more than one live document
+- optional documents are advertised only when their runtime surface is active
+- all published documents use `openapi: 3.1.0`
+- generated schema files are runtime artifacts, not committed source files
 
-## Versioning And Stability
-
-- The currently published native surface uses `v1` path versioning.
-- The OpenAPI document is intentionally truth-first and only publishes routes that are already implemented.
-- The route family layout is stable enough for tooling and operator automation, but product-domain public APIs beyond discovery are still deferred.
-
-## Current OpenAPI Boundary
-
-The published OpenAPI document is intentionally limited to already-implemented native routes. It currently covers:
-
-- `health`
-- `api`
-- `internal`
-- `manage`
-
-It does not yet claim:
-
-- unimplemented product-domain `/claw/api/v1/*` resources
-- plugin-managed HTTP surfaces
-- compatibility gateway aliases that are still architecture-only
-
-## Compatibility Gateway Boundary
-
-Claw Studio architecture work also defines compatibility gateway surfaces for upstream ecosystems such as OpenAI, Claude, and Gemini. Those compatibility paths must preserve upstream path conventions such as `/v1/*` or `/v1beta/*` on the same domain when enabled.
-
-Important boundary:
-
-- those compatibility gateways are not part of the currently published native `/claw/*` OpenAPI document
-- this reference site documents them only when they are implemented and shipped
+For runtime schema snapshots and startup catalog output, see [Claw Server Runtime](/reference/claw-server-runtime).
 
 ## Related Documents
 

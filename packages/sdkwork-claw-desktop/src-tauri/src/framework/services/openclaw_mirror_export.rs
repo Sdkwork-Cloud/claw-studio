@@ -440,8 +440,8 @@ mod tests {
                 .join("0.4.0-windows-x64")
                 .join("runtime")
                 .join("openclaw.cjs"),
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: paths.openclaw_config_file.clone(),
             gateway_port: 18_789,
@@ -450,13 +450,13 @@ mod tests {
     }
 
     fn seed_managed_openclaw_tree(paths: &AppPaths) {
-        fs::create_dir_all(paths.openclaw_state_dir.join("agents").join("main"))
+        fs::create_dir_all(paths.openclaw_root_dir.join("agents").join("main"))
             .expect("agents dir");
         fs::create_dir_all(&paths.openclaw_workspace_dir).expect("workspace dir");
         fs::write(&paths.openclaw_config_file, "{ \"agents\": {} }").expect("config");
         fs::write(
             paths
-                .openclaw_state_dir
+                .openclaw_root_dir
                 .join("agents")
                 .join("main")
                 .join("profile.json"),

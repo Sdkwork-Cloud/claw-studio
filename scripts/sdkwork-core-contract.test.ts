@@ -303,6 +303,7 @@ runTest('claw host tsconfig paths align TypeScript shared sdk resolution with th
     assert.match(source, /"@sdkwork\/sdk-common"/);
     assert.match(source, /sdkwork-sdk-common-typescript/);
     assert.match(source, /"@sdkwork\/claw-\*"/);
+    assert.doesNotMatch(source, /"@sdkwork\/craw-chat-sdk"/);
   }
 });
 

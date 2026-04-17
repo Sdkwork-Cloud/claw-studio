@@ -12,13 +12,6 @@ const EXTRA_WORKSPACE_PACKAGE_CONFIGS: Array<{
   entryBySubpath: Record<string, string>;
 }> = [
   {
-    packageName: '@sdkwork/craw-chat-sdk',
-    relativePackageDir: '..',
-    entryBySubpath: {
-      '.': 'scripts/shims/craw-chat-sdk-compat.ts',
-    },
-  },
-  {
     packageName: '@sdkwork/craw-chat-backend-sdk',
     relativePackageDir: '../../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi',
     entryBySubpath: {

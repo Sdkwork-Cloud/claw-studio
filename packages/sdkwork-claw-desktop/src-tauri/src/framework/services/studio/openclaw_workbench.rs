@@ -96,7 +96,7 @@ fn build_openclaw_cron_tasks_snapshot(
     paths: &AppPaths,
     channel_name_map: &BTreeMap<String, String>,
 ) -> Result<StudioWorkbenchCronTasksSnapshot> {
-    let cron_jobs_path = paths.openclaw_state_dir.join("cron").join("jobs.json");
+    let cron_jobs_path = paths.openclaw_root_dir.join("cron").join("jobs.json");
     let jobs_root = read_json_value(&cron_jobs_path)?;
     let jobs = array_at_path(&jobs_root, &["jobs"])
         .cloned()
@@ -255,7 +255,7 @@ fn collect_openclaw_agent_contexts(paths: &AppPaths, config: &Value) -> Vec<Open
         }
     }
 
-    let agents_dir = paths.openclaw_state_dir.join("agents");
+    let agents_dir = paths.openclaw_root_dir.join("agents");
     if let Ok(entries) = fs::read_dir(&agents_dir) {
         for entry in entries.flatten().take(MAX_SCAN_ENTRIES) {
             if entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
@@ -379,7 +379,7 @@ fn build_openclaw_skills(
             bundled_version,
         ),
         (
-            paths.openclaw_state_dir.join("skills"),
+            paths.openclaw_root_dir.join("skills"),
             "Managed OpenClaw".to_string(),
             None,
         ),
@@ -486,7 +486,7 @@ fn build_openclaw_files(
         paths,
         &writable_roots,
         &mut files,
-        &paths.openclaw_state_dir.join("cron").join("jobs.json"),
+        &paths.openclaw_root_dir.join("cron").join("jobs.json"),
         "dataset",
         "generated",
         "OpenClaw cron job store for the managed runtime.",
@@ -507,7 +507,7 @@ fn build_openclaw_files(
         "Bundled OpenClaw package manifest.",
     );
 
-    let run_logs_dir = paths.openclaw_state_dir.join("cron").join("runs");
+    let run_logs_dir = paths.openclaw_root_dir.join("cron").join("runs");
     if let Ok(entries) = fs::read_dir(&run_logs_dir) {
         for entry in entries.flatten().take(MAX_SCAN_ENTRIES) {
             let path = entry.path();
@@ -1080,7 +1080,7 @@ pub(super) fn read_openclaw_cron_run_entries(
     job_id: &str,
 ) -> Result<Vec<StudioWorkbenchTaskExecutionRecord>> {
     let run_log_path = paths
-        .openclaw_state_dir
+        .openclaw_root_dir
         .join("cron")
         .join("runs")
         .join(format!("{job_id}.jsonl"));
@@ -1541,7 +1541,7 @@ fn resolve_openclaw_agent_workspace(
     }
 
     paths
-        .openclaw_state_dir
+        .openclaw_root_dir
         .join(format!("workspace-{}", agent_id.trim()))
 }
 
@@ -1557,7 +1557,7 @@ fn resolve_openclaw_user_path(paths: &AppPaths, raw: &str) -> PathBuf {
     if let Some(stripped) = trimmed.strip_prefix("~/") {
         return paths.user_root.join(stripped);
     }
-    paths.openclaw_state_dir.join(trimmed)
+    paths.openclaw_root_dir.join(trimmed)
 }
 
 fn load_agent_prompt_summary(workspace: &Path) -> String {
@@ -1884,12 +1884,7 @@ fn is_openclaw_workbench_file_writable(
 }
 
 fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
-    let authority_path = authority_managed_openclaw_config_path(paths);
-    if authority_path.exists() || !paths.openclaw_config_file.exists() {
-        authority_path
-    } else {
-        paths.openclaw_config_file.clone()
-    }
+    authority_managed_openclaw_config_path(paths)
 }
 
 fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
@@ -1899,7 +1894,7 @@ fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
             paths
                 .kernel_paths("openclaw")
                 .map(|kernel| kernel.managed_config_file)
-                .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                .unwrap_or_else(|_| paths.openclaw_config_file.clone())
         })
 }
 
@@ -2007,7 +2002,9 @@ mod tests {
     #[test]
     fn build_openclaw_llm_providers_reads_runtime_params_from_defaults_model_catalog() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
-        let config_path = temp_dir.path().join("openclaw.json");
+        let openclaw_root = temp_dir.path().join(".openclaw");
+        let config_path = openclaw_root.join("openclaw.json");
+        std::fs::create_dir_all(&openclaw_root).expect("create openclaw root");
         std::fs::write(&config_path, "{}").expect("seed config path");
 
         let providers = build_openclaw_llm_providers(

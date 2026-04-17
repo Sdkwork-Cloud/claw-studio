@@ -1,18 +1,22 @@
 # Claw Server 运行时参考
 
-本文记录当前 `packages/sdkwork-claw-server` 已经落地的服务端运行时基线。此阶段的重点不再只是“能启动一个 Rust Web Server”，而是开始把它打磨成可运维、可配置、可持续演进的 server shell。
+本文记录当前 `packages/sdkwork-claw-server` 的内置宿主运行时，以及被桌面嵌入式宿主复用的同一套路由契约。
 
 ## 目标
 
-当前 server 运行时已经具备这些基础能力：
+当前运行时已经完成这些事情：
 
 1. 启动原生 Axum Web Server。
-2. 在 `/claw/*` 下挂载健康检查、public discovery、openapi、internal、manage 等原生路由族。
-3. 直接托管浏览器前端静态资源，而不是维护第二套前端。
-4. 通过原生 Rust 路由提供 rollout 与 node-session 控制面能力。
-5. 支持 `run`、`print-config` 与 `service print-manifest` 三个原生命令。
-6. 支持通过 `--config` 指向 JSON 配置文件。
-7. 支持端口冲突时自动回退到可用端口。
+2. 把内置宿主端口作为唯一的外部 HTTP 入口。
+3. 在 `/claw/*` 下发布平台原生 API。
+4. 在 `local-ai-proxy` 激活时，把 root-native 本地 AI 兼容接口挂到同一个端口上。
+5. 在受管 OpenClaw gateway HTTP 能力激活时，把 `/claw/gateway/openclaw/*` 代理接口挂到同一个端口上。
+6. 用同一个宿主对外提供浏览器前端静态资源。
+7. 通过 host-core 存储层持久化 rollout 与 node-session 状态。
+8. 基于真实挂载路由集合发布实时 OpenAPI 3.1 discovery 和分文档 schema。
+9. 启动时把运行时 OpenAPI 快照写入 `<runtime_data_dir>/openapi/`。
+10. 启动时输出一份机器可读的 catalog JSON，列出当前文档 URL 与 API gateway 端点。
+11. 在 `server` 模式下继续暴露 service 生命周期 CLI 与对应的 HTTP manage 接口。
 
 ## 原生命令
 
@@ -25,57 +29,33 @@ cargo run --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml -- se
 cargo run --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml -- service status
 ```
 
-当前命令语义：
+当前命令说明：
 
-- `run` 是默认命令，因此直接执行 `cargo run --manifest-path ...` 或打包后的 `claw-server` 二进制时，会默认进入 server 启动流程。
-- `print-config` 会打印当前生效配置，方便排查配置来源与优先级问题。
-- `service print-manifest --platform <linux|macos|windows>` 会输出可移植的服务清单元数据，以及对应平台的 `systemd`、`launchd` 或 `windowsService` 单元内容。
-- `service install`、`service start`、`service stop`、`service restart` 与 `service status` 会直接驱动当前平台的服务管理器，并继续复用同一套运行时配置解析逻辑。
-- `--config <path>` 用于指定 JSON 配置文件。
-- `--host <value>` 与 `--port <value>` 可同时覆盖 `run`、`print-config` 与所有 `service *` 子命令的解析结果。
+- 打包后的命令形态是 `claw-server run`、`claw-server print-config`、`claw-server service print-manifest --platform <linux|macos|windows>` 与 `claw-server service <install|start|stop|restart|status>`
+- `run` 是默认命令
+- `print-config` 会输出当前生效的运行时配置
+- `service print-manifest` 会输出跨平台服务清单元数据，以及对应平台的单元内容
+- `service install/start/stop/restart/status` 全部复用同一套运行时配置解析逻辑
 
-## 服务清单投影
+## 服务清单与生命周期
 
-当前这一轮产品化先聚焦“统一生成服务清单”，还没有进入真正的 install / start / stop / restart 生命周期控制。现在已经支持：
+当前服务清单投影：
 
-```bash
-cargo run --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml -- service print-manifest --platform linux
-cargo run --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml -- service print-manifest --platform macos
-cargo run --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml -- service print-manifest --platform windows
-```
+- Linux 使用 `systemd`，目标路径为 `/etc/systemd/system/claw-server.service`
+- macOS 使用 `launchd`，目标路径为 `/Library/LaunchDaemons/ai.sdkwork.claw.server.plist`
+- Windows 使用 `windowsService`，目标路径为 `<CLAW_SERVER_DATA_DIR>/service/windows-service.json`
+- 当 `CLAW_SERVER_CONFIG` 与 `--config` 都未提供时，默认配置文件路径为 `<CLAW_SERVER_DATA_DIR>/claw-server.config.json`
 
-当前语义说明：
+当前服务生命周期说明：
 
-- Linux 输出 `systemd` 语义，目标单元路径为 `/etc/systemd/system/claw-server.service`
-- macOS 输出 `launchd` 语义，目标单元路径为 `/Library/LaunchDaemons/ai.sdkwork.claw.server.plist`
-- Windows 输出 `windowsService` 语义，配套 manifest 路径为 `<CLAW_SERVER_DATA_DIR>/service/windows-service.json`
-- 输出中会包含生效后的可执行文件路径、配置文件路径、运行参数、环境变量、工作目录、日志路径以及 runtime config 快照
-- 如果没有显式提供 `--config` 或 `CLAW_SERVER_CONFIG`，则服务清单会默认把配置文件路径投影为 `<CLAW_SERVER_DATA_DIR>/claw-server.config.json`
-
-## 服务生命周期命令
-
-当前已经支持：
-
-```bash
-cargo run --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml -- service install
-cargo run --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml -- service start
-cargo run --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml -- service stop
-cargo run --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml -- service restart
-cargo run --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml -- service status
-```
-
-当前语义说明：
-
-- Linux 通过 `systemctl` 管理 system service，并写入 `/etc/systemd/system/claw-server.service`
-- macOS 通过 `launchctl` 管理 system domain，并写入 `/Library/LaunchDaemons/ai.sdkwork.claw.server.plist`
-- Windows 通过 `sc.exe` 管理服务，并继续使用 `<CLAW_SERVER_DATA_DIR>/service/windows-service.json` 作为配套 manifest
-- `service install` 会先落盘解析后的 `claw-server.config.json`，再写入服务单元，最后执行最小必要的 enable 或 register 命令
-- `service status` 即使服务未启动、未加载或未安装，也会输出结构化 JSON，而不是直接崩溃退出
-- 这些命令当前要求操作者具备平台服务管理器所要求的权限
+- Linux 通过 `systemctl`
+- macOS 通过 `launchctl`
+- Windows 通过 `sc.exe`
+- `GET /claw/manage/v1/service` 与 `POST /claw/manage/v1/service:install|start|stop|restart` 复用与 CLI 相同的 service control plane
 
 ## 环境变量
 
-当前 server shell 支持以下环境变量：
+当前 server shell 读取：
 
 ```bash
 CLAW_SERVER_CONFIG=
@@ -94,75 +74,272 @@ CLAW_SERVER_INTERNAL_PASSWORD=
 CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND=false
 ```
 
-当前优先级规则：
+当前行为说明：
 
-- 配置优先级为 `CLI 覆盖 -> 配置文件 -> 环境变量 -> 内置默认值`。
-- `CLAW_SERVER_CONFIG` 用于给 `claw-server` 指定 JSON 配置文件。
-- 当 `service print-manifest` 未显式提供配置文件时，会默认投影到 `<CLAW_SERVER_DATA_DIR>/claw-server.config.json`，便于后续安装器或打包流程写入稳定配置。
-- `service install`、`service start`、`service stop`、`service restart` 与 `service status` 也会复用同一套优先级，不会额外引入第二套 service 配置解析逻辑。
-- `CLAW_SERVER_HOST` 默认是 `127.0.0.1`，保持 loopback-first。
-- `CLAW_SERVER_PORT` 默认是 `18797`。
-- `CLAW_SERVER_STATE_STORE_DRIVER` 当前支持 `json-file` 与 `sqlite`。
-- `CLAW_SERVER_INTERNAL_*` 未单独配置时，会回退复用 manage 凭据。
-- 当 `CLAW_SERVER_HOST` 不是 loopback 时，现在必须配置 control-plane Basic Auth；只有显式设置 `CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND=true` 才允许在可信环境里跳过该保护。
-- `CLAW_SERVER_STATE_STORE_DRIVER=postgres` 当前会直接失败，并明确提示 PostgreSQL 还只是 metadata-only 投影，不是可激活的运行时驱动。
+- 配置优先级是 `CLI 覆盖 -> 配置文件 -> 环境变量 -> 内置默认值`
+- `CLAW_SERVER_HOST` 默认是 `127.0.0.1`
+- `CLAW_SERVER_PORT` 默认是 `18797`
+- `CLAW_SERVER_DATA_DIR` 是 server 运行时数据根目录
+- `CLAW_SERVER_STATE_STORE_DRIVER` 当前支持 `json-file` 与 `sqlite`
+- 当启用 `sqlite` 且未显式指定路径时，默认使用 `<CLAW_SERVER_DATA_DIR>/host-state.sqlite3`
+- `CLAW_SERVER_MANAGE_*` 保护浏览器壳与 `/claw/manage/v1/*`
+- `CLAW_SERVER_INTERNAL_*` 保护 `/claw/internal/v1/*`，未配置时回退到 `manage` 凭据
+- 如果绑定到非 loopback 地址，默认必须配置控制面凭据；只有显式设置 `CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND=true` 才允许跳过
 
 ## 启动行为
 
-当前启动流程如下：
+Server 入口位于 `packages/sdkwork-claw-server/src-host/src/main.rs`。
 
-1. 解析 CLI 命令，默认进入 `run`。
-2. 解析生效配置。
-3. 按 `CLI -> 配置文件 -> 环境变量 -> 默认值` 合成最终运行时配置。
-4. 尝试绑定 requested port。
-5. 如果 requested port 被占用，则自动回退到一个可用的 active port。
-6. 基于最终运行配置构建 `ServerState`。
-7. 挂载 Axum Router 并开始提供服务。
+启动流程如下：
 
-当前端口治理语义：
+1. 解析 CLI 命令。
+2. 解析生效运行时配置。
+3. 绑定 requested host 与 requested port。
+4. 当请求端口被占用且允许动态回退时，分配新的 active port。
+5. 构建 `ServerState`。
+6. 基于当前状态构建实时 API surface catalog。
+7. 把运行时 OpenAPI 快照写入 `<runtime_data_dir>/openapi/`。
+8. 基于同一份 catalog 构建启动 catalog JSON。
+9. 挂载 Axum Router。
+10. 输出当前监听地址。
+11. 输出启动 catalog JSON。
 
-- `requested port` 表示操作者希望绑定的端口。
-- `active port` 表示当前进程最终实际监听的端口。
-- 当 `requested port` 可用时，`active port` 与其一致。
-- 当 `requested port` 被占用时，server 会自动切换到新的 `active port`，而不是直接启动失败。
-- 启动日志会明确区分 `requested port` 与 `active port`。
-- `service print-manifest` 也会复用同一套配置解析结果，因此不会再出现单独一套 service 配置推导逻辑。
-- `service install` 到 `service status` 也会继续复用同一套解析结果，保证 CLI、manifest 和 service lifecycle 的配置来源完全一致。
+关键行为：
 
-## 发布打包说明
+- 运行时 OpenAPI 快照写入属于启动关键路径；写入失败会直接导致启动失败
+- 启动 catalog JSON 使用 `kind = "sdkworkClawOpenApiCatalog"`
+- 桌面嵌入式宿主也会复用同样的快照写入和启动 catalog 输出逻辑，只是 runtime data dir 不同
 
-当前与 server 运行时直接相关的发布命令包括：
+## 统一宿主路由发布模型
 
-```bash
-pnpm release:package:server
-pnpm release:package:container
-pnpm release:package:kubernetes
+当前内置宿主会在静态资源 fallback 之前挂载这些路由族：
+
+- `/claw/health/*`
+- `/claw/api/v1/*`
+- `/claw/openapi/*`
+- `/claw/internal/v1/*`
+- `/claw/manage/v1/*`
+- `/claw/gateway/openclaw/*`
+- `/health`
+- `/v1/*`
+- `/v1beta/*`
+
+规则：
+
+- `/claw/*` 保留给平台原生 API
+- `/health`、`/v1/*`、`/v1beta/*` 属于 `local-ai-proxy` 的 root-native 兼容路径
+- `/claw/gateway/openclaw/*` 属于受治理 OpenClaw gateway 代理命名空间
+- 不存在 `/claw/gateway/local-ai/*`
+- API 路由会先于浏览器 SPA fallback 挂载，避免 root-native 兼容接口被静态页面吞掉
+
+## 路由族
+
+### 原生平台
+
+当前原生路由族包括：
+
+- `/claw/health/*`
+- `/claw/api/v1/*`
+- `/claw/openapi/*`
+- `/claw/internal/v1/*`
+- `/claw/manage/v1/*`
+
+代表性接口：
+
+- `GET /claw/health/live`
+- `GET /claw/health/ready`
+- `GET /claw/api/v1/discovery`
+- `GET /claw/internal/v1/host-platform`
+- `GET /claw/manage/v1/rollouts`
+- `GET /claw/manage/v1/openclaw/runtime`
+- `GET /claw/manage/v1/openclaw/gateway`
+- `POST /claw/manage/v1/openclaw/gateway/invoke`
+
+### 本地 AI 兼容接口
+
+当 `local-ai-proxy` 激活时，宿主还会额外挂载：
+
+- `GET /health`
+- `GET /v1/health`
+- `GET /v1/models`
+- `POST /v1/chat/completions`
+- `POST /v1/responses`
+- `POST /v1/embeddings`
+- `POST /v1/messages`
+- `GET /v1beta/models`
+- `POST /v1beta/models/{modelAction}`
+- `POST /v1/models/{modelAction}`
+
+这些路径的设计目标就是保持 provider-compatible，因此调用方只需要替换 `baseURL` 与 `apiKey`。
+
+### 受治理 OpenClaw Gateway 代理
+
+当受管 OpenClaw gateway HTTP 能力激活时，宿主还会额外挂载：
+
+- `POST /claw/gateway/openclaw/tools/invoke`
+
+对外发布路径始终保持在 `/claw/gateway/openclaw/*`，但宿主向上游转发时会去掉这层治理前缀。
+
+## OpenAPI 发布模型
+
+当前内置宿主会发布一个 discovery 接口，以及最多三份实时 OpenAPI 3.1 文档。
+
+### Discovery
+
+- `GET /claw/openapi/discovery`
+
+当前 discovery 字段：
+
+- `family`
+- `hostMode`
+- `generatedAt`
+- `documents[]`
+
+每个 `documents[]` 元素当前包含：
+
+- `id`
+- `title`
+- `version`
+- `format`
+- `url`
+- `apiFamilies`
+- `proxyTarget`
+- `runtimeCapability`
+- `generatedAt`
+
+### 文档
+
+始终存在：
+
+- `GET /claw/openapi/v1.json`
+
+按能力条件存在：
+
+- `GET /claw/openapi/local-ai-compat-v1.json`
+- `GET /claw/openapi/openclaw-gateway-v1.json`
+
+当前文档所有权：
+
+- `claw-native-v1` 对应 `/claw/*` 原生平台 API
+- `local-ai-compat-v1` 对应 root-native 兼容路径
+- `openclaw-gateway-v1` 对应 `/claw/gateway/openclaw/*`
+
+规则：
+
+- 所有文档都使用 `openapi: 3.1.0`
+- 任意一个已发布路径只会出现在一份实时文档中
+- 可选文档只会在对应运行时能力激活时出现在 discovery 中
+
+## 运行时 OpenAPI 快照文件
+
+启动时，运行时会把当前 schema 集合写入：
+
+- `<runtime_data_dir>/openapi/discovery.json`
+- `<runtime_data_dir>/openapi/claw-native-v1.json`
+
+按能力条件追加：
+
+- `<runtime_data_dir>/openapi/local-ai-compat-v1.json`
+- `<runtime_data_dir>/openapi/openclaw-gateway-v1.json`
+
+文件写入采用原子方式，避免读取方看到半写入 JSON。
+
+## 启动 Catalog 输出
+
+宿主绑定成功后，会输出一份机器可读 JSON catalog，字段包括：
+
+- `kind`
+- `hostMode`
+- `hostBaseUrl`
+- `openapiDiscoveryUrl`
+- `documents[]`
+- `gatewayEndpoints[]`
+
+`gatewayEndpoints[]` 来自同一份实时 catalog，包含：
+
+- `/claw/openapi/discovery`
+- 当前激活的 OpenAPI 文档 URL
+- 当前激活的 root-native 本地 AI 兼容接口
+- 当前激活的受治理 OpenClaw 代理接口
+
+示例形状：
+
+```json
+{
+  "kind": "sdkworkClawOpenApiCatalog",
+  "hostMode": "server",
+  "hostBaseUrl": "http://127.0.0.1:18797",
+  "openapiDiscoveryUrl": "http://127.0.0.1:18797/claw/openapi/discovery",
+  "documents": [
+    {
+      "id": "claw-native-v1",
+      "url": "/claw/openapi/v1.json",
+      "absoluteUrl": "http://127.0.0.1:18797/claw/openapi/v1.json",
+      "proxyTarget": "native-host",
+      "runtimeCapability": "always",
+      "generatedAt": 1743600000000
+    }
+  ],
+  "gatewayEndpoints": [
+    "http://127.0.0.1:18797/claw/openapi/discovery",
+    "http://127.0.0.1:18797/claw/openapi/v1.json"
+  ]
+}
 ```
 
-说明：
+## 浏览器资源托管
 
-- `pnpm release:package:server` 在使用根级本地 wrapper 时，如果缺少原生 Server 二进制，会先自动补建再继续归档。
-- `pnpm release:package:container` 需要匹配目标架构的 Linux Server 二进制。根级本地 wrapper 现在会在缺失时先自动补建；在 Windows 上，如果存在可用的 WSL 发行版，`pnpm server:build -- --target x86_64-unknown-linux-gnu` 会自动桥接到 WSL；在其他非 Linux 主机上，这条回退路径仍然依赖显式准备好的 cross-build 工具链。
-- `pnpm release:package:kubernetes` 只会打包 Helm chart 与 release values，不要求本地先构建 Server 二进制。
+静态资源托管位于 `packages/sdkwork-claw-server/src-host/src/http/static_assets.rs`。
+
+当前行为：
+
+- 当配置了 manage 凭据时，浏览器壳与静态资源共享相同的 Basic Auth challenge
+- 先返回真实静态文件，再走 SPA fallback
+- 未命中的浏览器路由会回退到 `index.html`
+- 返回的 HTML 会注入 `sdkwork-claw-host-mode`、`sdkwork-claw-manage-base-path`、`sdkwork-claw-internal-base-path` 等宿主元数据
+
+## 桌面嵌入式宿主复用
+
+桌面端通过 `packages/sdkwork-claw-desktop/src-tauri/src/framework/embedded_host_server.rs` 复用同一套路由。
+
+桌面侧的补充说明：
+
+- 运行模式是 `desktopCombined`
+- 嵌入式宿主 base URL 通过 `browserBaseUrl` 暴露给前端
+- 运行时 OpenAPI 快照写入嵌入式宿主自己的 runtime data dir，当前为 `<machine_state_dir>/desktop-host/openapi/`
+- 桌面嵌入式宿主同样会输出相同形状的机器可读启动 catalog JSON
+- `/claw/manage/v1/service*` 在桌面模式下保持关闭
+
+## 验证命令
+
+当前这一条运行时实现的聚焦验证：
+
+```bash
+cargo test --manifest-path packages/sdkwork-claw-server/src-host/Cargo.toml
+cargo test --manifest-path packages/sdkwork-claw-desktop/src-tauri/Cargo.toml embedded_host_bootstrap
+```
+
+工作区层面仍常用：
+
+```bash
+pnpm lint
+pnpm check:server
+```
 
 ## 当前边界
 
 当前已经实现：
 
-- 原生 `/claw/*` 控制面路由族
-- public discovery 与 OpenAPI 发布
-- internal node-session 运行时
-- manage rollout 读取、preview 与 start
-- `run / print-config / service print-manifest / service install / start / stop / restart / status` 原生命令面
-- `CLAW_SERVER_CONFIG` 配置文件入口
-- `systemd / launchd / windowsService` 的服务清单投影
-- 面向 `systemd / launchd / windowsService` 的基础 service 生命周期控制
-- 浏览器管理端通过 `GET /claw/manage/v1/service` 与 `POST /claw/manage/v1/service:start` 等接口复用同一套原生 Rust service control plane
-- 请求端口与实际端口的基础治理
-- host-platform `stateStore` 投影中的 `projectionMode` 标准，用来明确区分真实运行时驱动条目与 metadata-only 占位条目
+- 单一内置宿主端口
+- `/claw/*` 原生平台 API
+- 同端口发布的 root-native 本地 AI 兼容接口
+- 同端口发布的 `/claw/gateway/openclaw/*` 受治理代理接口
+- 实时多文档 OpenAPI discovery
+- `<runtime_data_dir>/openapi/` 下的运行时 schema 快照
+- 机器可读启动 catalog 输出
 
 当前尚未实现：
 
-- 面向 systemd / launchd / Windows Service 的统一安装控制层
-- 更完整的 `/claw/api/v1/*` 对外产品 API
-- 将 requested port / active port 全量投影到前端设置中心与运行时状态页
+- 超出当前 `/claw/api/v1/*` 已发布集合之外的更广泛产品域 public API
+- 当前已落地接口面之外的更多受治理 OpenClaw 代理路径
+- 插件托管的 HTTP 接口面

@@ -6,6 +6,7 @@ import {
   type BundledOpenClawStartupAlert,
   type BundledOpenClawStartupAlertDiagnostic,
 } from './bundledOpenClawStartupAlert.ts';
+import { resolveFallbackInstanceConfigPath } from './openClawConfigPathFallback.ts';
 
 export type InstanceManagementEntryTone = 'neutral' | 'success' | 'warning';
 
@@ -95,10 +96,13 @@ function buildConfigAuthorityEntry(
 
   const configRoute = resolveConfigAuthorityRoute(workbench);
   if (configRoute?.target) {
+    const configAuthorityPath =
+      resolveFallbackInstanceConfigPath(workbench.detail) || configRoute.target;
+
     return {
       id: 'configAuthority',
       labelKey: 'instances.detail.instanceWorkbench.overview.management.labels.configAuthority',
-      value: configRoute.target,
+      value: configAuthorityPath,
       detailKey: getConfigAuthorityDetailKey(configRoute),
       tone:
         configRoute.mode === 'remoteEndpoint' || configRoute.mode === 'metadataOnly'

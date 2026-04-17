@@ -136,7 +136,7 @@ pub fn import_openclaw_mirror(
         }
 
         restore_manifest_payloads(prepared, runtime)?;
-        rebase_restored_managed_runtime_config(runtime, prepared.source_runtime_snapshot.as_ref())?;
+        rebase_restored_managed_runtime_config(runtime, &prepared.source_runtime_snapshot)?;
         repair_local_managed_plugin_installs(paths, runtime)?;
         if let Some(catalog) = prepared.provider_center_catalog.as_ref() {
             restore_provider_center_catalog(paths, config, storage, catalog)?;
@@ -156,7 +156,7 @@ pub fn import_openclaw_mirror(
             storage,
             local_ai_proxy,
             prepared.provider_center_catalog.as_ref(),
-            prepared.managed_assets_snapshot.as_ref(),
+            &prepared.managed_assets_snapshot,
             &local_proxy_projection,
             request.restart_gateway,
             gateway_running_after_import,
@@ -181,8 +181,8 @@ struct PreparedOpenClawMirrorArchive {
     staging_root: PathBuf,
     manifest: OpenClawMirrorManifestRecord,
     provider_center_catalog: Option<LocalAiProxyProviderCenterCatalogSnapshot>,
-    source_runtime_snapshot: Option<OpenClawMirrorRuntimeSnapshot>,
-    managed_assets_snapshot: Option<OpenClawMirrorManagedAssetsSnapshot>,
+    source_runtime_snapshot: OpenClawMirrorRuntimeSnapshot,
+    managed_assets_snapshot: OpenClawMirrorManagedAssetsSnapshot,
 }
 
 #[derive(Clone, Debug)]
@@ -212,14 +212,10 @@ fn with_prepared_import_archive<T>(
         validate_metadata_payloads(&staging_root, &manifest)?;
         let provider_center_catalog =
             load_optional_provider_center_catalog(&staging_root, &manifest)?;
-        let source_runtime_snapshot = load_optional_runtime_snapshot(&staging_root)?;
-        validate_manifest_runtime_summary(&manifest.runtime, source_runtime_snapshot.as_ref())?;
-        let managed_assets_snapshot = load_optional_managed_assets_snapshot(&staging_root)?;
-        validate_managed_assets_payloads(
-            &staging_root,
-            &manifest,
-            managed_assets_snapshot.as_ref(),
-        )?;
+        let source_runtime_snapshot = load_runtime_snapshot(&staging_root)?;
+        validate_manifest_runtime_summary(&manifest.runtime, &source_runtime_snapshot)?;
+        let managed_assets_snapshot = load_managed_assets_snapshot(&staging_root)?;
+        validate_managed_assets_payloads(&staging_root, &manifest, &managed_assets_snapshot)?;
         validate_component_payload_digests(&staging_root, &manifest)?;
         validate_component_payload_stats(&staging_root, &manifest)?;
 
@@ -270,7 +266,7 @@ fn restore_manifest_payloads(
 
 fn rebase_restored_managed_runtime_config(
     runtime: &ActivatedOpenClawRuntime,
-    source_runtime_snapshot: Option<&OpenClawMirrorRuntimeSnapshot>,
+    source_runtime_snapshot: &OpenClawMirrorRuntimeSnapshot,
 ) -> Result<()> {
     let config_text = fs::read_to_string(&runtime.config_path)?;
     let mut config_root = serde_json::from_str::<Value>(&config_text)?;
@@ -377,7 +373,6 @@ fn rebase_restored_managed_runtime_config(
 #[derive(Clone, Debug)]
 struct ManagedPathRebaser {
     exact_mappings: Vec<ManagedPathRootMapping>,
-    legacy_mappings: Vec<ManagedPathSuffixMapping>,
 }
 
 #[derive(Clone, Debug)]
@@ -386,44 +381,30 @@ struct ManagedPathRootMapping {
     target_root: PathBuf,
 }
 
-#[derive(Clone, Debug)]
-struct ManagedPathSuffixMapping {
-    source_suffix: String,
-    target_root: PathBuf,
-}
-
 impl ManagedPathRebaser {
     fn new(
-        source_runtime: Option<&OpenClawMirrorRuntimeSnapshot>,
+        source_runtime: &OpenClawMirrorRuntimeSnapshot,
         target_runtime: &ActivatedOpenClawRuntime,
     ) -> Self {
-        let exact_mappings = source_runtime
-            .map(|source_runtime| {
-                vec![
-                    ManagedPathRootMapping {
-                        source_root: normalize_rebased_path_input(&source_runtime.workspace_dir),
-                        target_root: target_runtime.workspace_dir.clone(),
-                    },
-                    ManagedPathRootMapping {
-                        source_root: normalize_rebased_path_input(&source_runtime.state_dir),
-                        target_root: target_runtime.state_dir.clone(),
-                    },
-                    ManagedPathRootMapping {
-                        source_root: normalize_rebased_path_input(&source_runtime.home_dir),
-                        target_root: target_runtime.home_dir.clone(),
-                    },
-                ]
-                .into_iter()
-                .filter(|mapping| !mapping.source_root.is_empty())
-                .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let legacy_mappings = build_legacy_managed_path_mappings(target_runtime);
+        let exact_mappings = vec![
+            ManagedPathRootMapping {
+                source_root: normalize_rebased_path_input(&source_runtime.workspace_dir),
+                target_root: target_runtime.workspace_dir.clone(),
+            },
+            ManagedPathRootMapping {
+                source_root: normalize_rebased_path_input(&source_runtime.state_dir),
+                target_root: target_runtime.state_dir.clone(),
+            },
+            ManagedPathRootMapping {
+                source_root: normalize_rebased_path_input(&source_runtime.home_dir),
+                target_root: target_runtime.home_dir.clone(),
+            },
+        ]
+        .into_iter()
+        .filter(|mapping| !mapping.source_root.is_empty())
+        .collect::<Vec<_>>();
 
-        Self {
-            exact_mappings,
-            legacy_mappings,
-        }
+        Self { exact_mappings }
     }
 
     fn rebase(&self, raw: &str) -> Option<String> {
@@ -442,112 +423,8 @@ impl ManagedPathRebaser {
             }
         }
 
-        for mapping in &self.legacy_mappings {
-            if let Some(rebased) = rebase_from_legacy_suffix_mapping(&normalized, mapping) {
-                return Some(rebased);
-            }
-        }
-
         None
     }
-}
-
-fn build_legacy_managed_path_mappings(
-    target_runtime: &ActivatedOpenClawRuntime,
-) -> Vec<ManagedPathSuffixMapping> {
-    let user_root_name = target_runtime
-        .home_dir
-        .parent()
-        .and_then(|path| path.file_name())
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let home_dir_name = target_runtime
-        .home_dir
-        .file_name()
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let state_relative =
-        normalized_relative_path(&target_runtime.home_dir, &target_runtime.state_dir);
-    let workspace_relative =
-        normalized_relative_path(&target_runtime.home_dir, &target_runtime.workspace_dir);
-
-    let Some(user_root_name) = user_root_name else {
-        return Vec::new();
-    };
-    let Some(home_dir_name) = home_dir_name else {
-        return Vec::new();
-    };
-    let Some(state_relative) = state_relative else {
-        return Vec::new();
-    };
-    let Some(workspace_relative) = workspace_relative else {
-        return Vec::new();
-    };
-
-    vec![
-        ManagedPathSuffixMapping {
-            source_suffix: join_normalized_segments(&[
-                user_root_name,
-                home_dir_name,
-                state_relative.as_str(),
-                "skills",
-            ]),
-            target_root: target_runtime.state_dir.join("skills"),
-        },
-        ManagedPathSuffixMapping {
-            source_suffix: join_normalized_segments(&[
-                user_root_name,
-                home_dir_name,
-                state_relative.as_str(),
-                "extensions",
-            ]),
-            target_root: target_runtime.state_dir.join("extensions"),
-        },
-        ManagedPathSuffixMapping {
-            source_suffix: join_normalized_segments(&[
-                user_root_name,
-                home_dir_name,
-                workspace_relative.as_str(),
-                ".openclaw",
-                "extensions",
-            ]),
-            target_root: target_runtime
-                .workspace_dir
-                .join(".openclaw")
-                .join("extensions"),
-        },
-        ManagedPathSuffixMapping {
-            source_suffix: join_normalized_segments(&[
-                user_root_name,
-                home_dir_name,
-                workspace_relative.as_str(),
-                "skills",
-            ]),
-            target_root: target_runtime.workspace_dir.join("skills"),
-        },
-    ]
-}
-
-fn normalized_relative_path(base: &Path, path: &Path) -> Option<String> {
-    let relative = path.strip_prefix(base).ok()?;
-    let normalized = normalize_rebased_path_input(relative.to_string_lossy().as_ref());
-    if normalized.is_empty() {
-        None
-    } else {
-        Some(normalized)
-    }
-}
-
-fn join_normalized_segments(segments: &[&str]) -> String {
-    segments
-        .iter()
-        .map(|segment| segment.trim().replace('\\', "/"))
-        .map(|segment| segment.trim_matches('/').to_string())
-        .filter(|segment| !segment.is_empty())
-        .collect::<Vec<_>>()
-        .join("/")
 }
 
 fn rebase_from_exact_mapping(normalized: &str, mapping: &ManagedPathRootMapping) -> Option<String> {
@@ -562,27 +439,6 @@ fn rebase_from_exact_mapping(normalized: &str, mapping: &ManagedPathRootMapping)
 
     let suffix = &normalized[prefix.len()..];
     Some(rebased_path_with_suffix(&mapping.target_root, suffix))
-}
-
-fn rebase_from_legacy_suffix_mapping(
-    normalized: &str,
-    mapping: &ManagedPathSuffixMapping,
-) -> Option<String> {
-    let match_index = normalized.rfind(&mapping.source_suffix)?;
-    if match_index > 0 && normalized.as_bytes()[match_index - 1] != b'/' {
-        return None;
-    }
-
-    let suffix_end = match_index + mapping.source_suffix.len();
-    if suffix_end < normalized.len() && normalized.as_bytes()[suffix_end] != b'/' {
-        return None;
-    }
-
-    let trailing_suffix = normalized[suffix_end..].trim_start_matches('/');
-    Some(rebased_path_with_suffix(
-        &mapping.target_root,
-        trailing_suffix,
-    ))
 }
 
 fn rebased_path_with_suffix(target_root: &Path, suffix: &str) -> String {
@@ -771,49 +627,47 @@ fn load_optional_provider_center_catalog(
     Ok(Some(catalog))
 }
 
-fn load_optional_runtime_snapshot(
-    staging_root: &Path,
-) -> Result<Option<OpenClawMirrorRuntimeSnapshot>> {
+fn load_runtime_snapshot(staging_root: &Path) -> Result<OpenClawMirrorRuntimeSnapshot> {
     let runtime_snapshot_path = staging_root.join(PRIVATE_RUNTIME_SNAPSHOT_FILE_NAME);
     if !runtime_snapshot_path.exists() {
-        return Ok(None);
+        return Err(FrameworkError::NotFound(format!(
+            "required openclaw mirror metadata file not found under {}",
+            normalize_path(&runtime_snapshot_path)
+        )));
     }
 
     let content = fs::read_to_string(runtime_snapshot_path)?;
-    let runtime_snapshot = serde_json::from_str::<OpenClawMirrorRuntimeSnapshot>(&content)?;
-    Ok(Some(runtime_snapshot))
+    serde_json::from_str::<OpenClawMirrorRuntimeSnapshot>(&content).map_err(Into::into)
 }
 
-fn load_optional_managed_assets_snapshot(
+fn load_managed_assets_snapshot(
     staging_root: &Path,
-) -> Result<Option<OpenClawMirrorManagedAssetsSnapshot>> {
+) -> Result<OpenClawMirrorManagedAssetsSnapshot> {
     let managed_assets_path = staging_root.join(PRIVATE_MANAGED_ASSETS_FILE_NAME);
     if !managed_assets_path.exists() {
-        return Ok(None);
+        return Err(FrameworkError::NotFound(format!(
+            "required openclaw mirror metadata file not found under {}",
+            normalize_path(&managed_assets_path)
+        )));
     }
 
     let content = fs::read_to_string(managed_assets_path)?;
-    let managed_assets = serde_json::from_str::<OpenClawMirrorManagedAssetsSnapshot>(&content)?;
-    Ok(Some(managed_assets))
+    serde_json::from_str::<OpenClawMirrorManagedAssetsSnapshot>(&content).map_err(Into::into)
 }
 
 fn validate_managed_assets_payloads(
     staging_root: &Path,
     manifest: &OpenClawMirrorManifestRecord,
-    managed_assets_snapshot: Option<&OpenClawMirrorManagedAssetsSnapshot>,
+    managed_assets_snapshot: &OpenClawMirrorManagedAssetsSnapshot,
 ) -> Result<()> {
-    let Some(snapshot) = managed_assets_snapshot else {
-        return Ok(());
-    };
-
-    if snapshot.schema_version != 1 {
+    if managed_assets_snapshot.schema_version != 1 {
         return Err(FrameworkError::ValidationFailed(format!(
             "unsupported managed asset inventory schema version: {}",
-            snapshot.schema_version
+            managed_assets_snapshot.schema_version
         )));
     }
 
-    for asset in &snapshot.skills {
+    for asset in &managed_assets_snapshot.skills {
         validate_managed_asset_canonical_root("skill", &asset.anchor, &asset.relative_path)?;
         let path = resolve_staged_managed_asset_path(
             staging_root,
@@ -835,7 +689,7 @@ fn validate_managed_assets_payloads(
         }
     }
 
-    for asset in &snapshot.plugins {
+    for asset in &managed_assets_snapshot.plugins {
         validate_managed_asset_canonical_root("plugin", &asset.anchor, &asset.relative_path)?;
         let path = resolve_staged_managed_asset_path(
             staging_root,
@@ -894,13 +748,16 @@ fn validate_managed_asset_canonical_root(
     }
 
     let canonical_root = match (asset_kind, anchor.trim()) {
-        ("skill", "state" | "workspace") => Some("skills"),
-        ("plugin", "state") => Some("extensions"),
-        ("plugin", "workspace") => Some(".openclaw/extensions"),
-        _ => None,
-    };
-    let Some(canonical_root) = canonical_root else {
-        return Ok(());
+        ("skill", "state") => "skills",
+        ("skill", "workspace") => "skills",
+        ("plugin", "state") => "extensions",
+        ("plugin", "workspace") => ".openclaw/extensions",
+        _ => {
+            return Err(FrameworkError::ValidationFailed(format!(
+                "unsupported managed {asset_kind} asset anchor in mirror archive: {}",
+                anchor.trim()
+            )))
+        }
     };
 
     if managed_asset_path_has_canonical_root(&normalized, canonical_root) {
@@ -934,12 +791,8 @@ fn managed_asset_path_has_canonical_root(relative_path: &str, canonical_root: &s
 
 fn validate_manifest_runtime_summary(
     manifest_runtime: &OpenClawMirrorManifestRuntimeSnapshot,
-    runtime_snapshot: Option<&OpenClawMirrorRuntimeSnapshot>,
+    runtime_snapshot: &OpenClawMirrorRuntimeSnapshot,
 ) -> Result<()> {
-    let Some(runtime_snapshot) = runtime_snapshot else {
-        return Ok(());
-    };
-
     validate_runtime_summary_field(
         "runtimeId",
         &manifest_runtime.runtime_id,
@@ -1085,13 +938,13 @@ fn build_post_restore_verification(
     storage: &StorageService,
     local_ai_proxy: &LocalAiProxyService,
     provider_center_catalog: Option<&LocalAiProxyProviderCenterCatalogSnapshot>,
-    managed_assets_snapshot: Option<&OpenClawMirrorManagedAssetsSnapshot>,
+    managed_assets_snapshot: &OpenClawMirrorManagedAssetsSnapshot,
     local_proxy_projection: &OpenClawMirrorLocalProxyReprojection,
     restart_gateway: bool,
     gateway_running_after_import: bool,
     checked_at: &str,
 ) -> OpenClawMirrorImportVerification {
-    let config_text = fs::read_to_string(&readable_managed_openclaw_config_path(paths)).ok();
+    let config_text = fs::read_to_string(&readable_openclaw_config_path(paths)).ok();
     let config_root = config_text
         .as_deref()
         .and_then(|content| serde_json::from_str::<Value>(content).ok());
@@ -1103,12 +956,12 @@ fn build_post_restore_verification(
         verify_managed_skills(
             paths,
             config_root.as_ref(),
-            managed_assets_snapshot.map(|snapshot| snapshot.skills.as_slice()),
+            Some(managed_assets_snapshot.skills.as_slice()),
         ),
         verify_managed_plugins(
             paths,
             config_root.as_ref(),
-            managed_assets_snapshot.map(|snapshot| snapshot.plugins.as_slice()),
+            Some(managed_assets_snapshot.plugins.as_slice()),
         ),
         verify_provider_center_catalog(paths, config, storage, provider_center_catalog),
         verify_local_proxy(local_ai_proxy, local_proxy_projection),
@@ -1135,7 +988,7 @@ fn verify_managed_config(
     paths: &AppPaths,
     config_root: Option<&Value>,
 ) -> OpenClawMirrorImportVerificationCheck {
-    let config_path = normalize_path(&authority_managed_openclaw_config_path(paths));
+    let config_path = normalize_path(&active_openclaw_config_path(paths));
     if config_root.is_some() {
         verification_check(
             "managed-config",
@@ -1153,29 +1006,24 @@ fn verify_managed_config(
     }
 }
 
-fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
-    let authority_path = authority_managed_openclaw_config_path(paths);
-    if authority_path.exists() || !paths.openclaw_config_file.exists() {
-        authority_path
-    } else {
-        paths.openclaw_config_file.clone()
-    }
+fn readable_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    active_openclaw_config_path(paths)
 }
 
-fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+fn active_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
         .active_managed_config_path("openclaw", paths)
         .unwrap_or_else(|_| {
             paths
                 .kernel_paths("openclaw")
                 .map(|kernel| kernel.managed_config_file)
-                .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                .unwrap_or_else(|_| paths.openclaw_config_file.clone())
         })
 }
 
 fn verify_managed_state(paths: &AppPaths) -> OpenClawMirrorImportVerificationCheck {
-    let state_path = normalize_path(&paths.openclaw_state_dir);
-    if paths.openclaw_state_dir.is_dir() {
+    let state_path = normalize_path(&paths.openclaw_root_dir);
+    if paths.openclaw_root_dir.is_dir() {
         verification_check(
             "managed-state",
             "Managed state restored",
@@ -1493,9 +1341,7 @@ fn managed_absolute_path(raw: &str, paths: &AppPaths) -> Option<PathBuf> {
 }
 
 fn is_path_within_managed_roots(path: &Path, paths: &AppPaths) -> bool {
-    path.starts_with(&paths.openclaw_home_dir)
-        || path.starts_with(&paths.openclaw_state_dir)
-        || path.starts_with(&paths.openclaw_workspace_dir)
+    path.starts_with(&paths.openclaw_root_dir) || path.starts_with(&paths.openclaw_workspace_dir)
 }
 
 fn resolve_managed_asset_path(
@@ -1504,9 +1350,8 @@ fn resolve_managed_asset_path(
     relative_path: &str,
 ) -> Option<PathBuf> {
     let base = match anchor.trim() {
-        "state" => paths.openclaw_state_dir.clone(),
+        "state" => paths.openclaw_root_dir.clone(),
         "workspace" => paths.openclaw_workspace_dir.clone(),
-        "home" => paths.openclaw_home_dir.clone(),
         _ => return None,
     };
 
@@ -2097,14 +1942,12 @@ fn validate_manifest(manifest: &OpenClawMirrorManifestRecord) -> Result<()> {
         )));
     }
 
-    if !manifest.metadata_files.is_empty() {
-        for required_metadata_id in [RUNTIME_SNAPSHOT_METADATA_ID, MANAGED_ASSETS_METADATA_ID] {
-            if !metadata_ids.contains(required_metadata_id) {
-                return Err(FrameworkError::ValidationFailed(format!(
-                    "incomplete openclaw mirror metadata file set: missing {}",
-                    required_metadata_id
-                )));
-            }
+    for required_metadata_id in [RUNTIME_SNAPSHOT_METADATA_ID, MANAGED_ASSETS_METADATA_ID] {
+        if !metadata_ids.contains(required_metadata_id) {
+            return Err(FrameworkError::ValidationFailed(format!(
+                "incomplete openclaw mirror metadata file set: missing {}",
+                required_metadata_id
+            )));
         }
     }
 
@@ -2716,8 +2559,8 @@ fn format_now() -> Result<String> {
 mod tests {
     use super::{
         extract_archive_to_staging, import_openclaw_mirror, inspect_openclaw_mirror_import,
-        normalize_native_path, normalize_path, OpenClawMirrorImportRequest,
-        MANAGED_ASSETS_METADATA_ID, PRIVATE_MANAGED_ASSETS_FILE_NAME,
+        normalize_native_path, normalize_path, validate_managed_asset_canonical_root,
+        OpenClawMirrorImportRequest, MANAGED_ASSETS_METADATA_ID, PRIVATE_MANAGED_ASSETS_FILE_NAME,
         PRIVATE_RUNTIME_SNAPSHOT_FILE_NAME, RUNTIME_SNAPSHOT_METADATA_ID,
     };
     use crate::framework::{
@@ -2757,7 +2600,7 @@ mod tests {
                 paths
                     .kernel_paths("openclaw")
                     .map(|kernel| kernel.managed_config_file)
-                    .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                    .unwrap_or_else(|_| paths.openclaw_config_file.clone())
             })
     }
 
@@ -2779,8 +2622,8 @@ mod tests {
                 .join("0.4.0-windows-x64")
                 .join("runtime")
                 .join("openclaw.cjs"),
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: managed_openclaw_config_path(paths),
             gateway_port: 18_789,
@@ -2789,7 +2632,7 @@ mod tests {
     }
 
     fn seed_managed_openclaw_tree(paths: &AppPaths, label: &str) {
-        fs::create_dir_all(paths.openclaw_state_dir.join("agents").join("main"))
+        fs::create_dir_all(paths.openclaw_root_dir.join("agents").join("main"))
             .expect("agents dir");
         fs::create_dir_all(&paths.openclaw_workspace_dir).expect("workspace dir");
         fs::write(
@@ -2799,7 +2642,7 @@ mod tests {
         .expect("config");
         fs::write(
             paths
-                .openclaw_state_dir
+                .openclaw_root_dir
                 .join("agents")
                 .join("main")
                 .join("profile.json"),
@@ -2987,39 +2830,17 @@ mod tests {
         let config = create_storage_config();
         let storage = StorageService::new();
         seed_managed_openclaw_tree(&paths, label);
-        fs::create_dir_all(
-            paths
-                .openclaw_state_dir
-                .join("skills")
-                .join("shared-calendar"),
-        )
-        .expect("shared skills dir");
-        fs::create_dir_all(
-            paths
-                .openclaw_workspace_dir
-                .join("skills")
-                .join("workspace-calendar"),
-        )
-        .expect("workspace skills dir");
+        fs::create_dir_all(paths.openclaw_skills_dir.join("shared-calendar"))
+            .expect("shared skills dir");
         fs::create_dir_all(&external_skills_dir).expect("external skills dir");
         fs::write(
             paths
-                .openclaw_state_dir
-                .join("skills")
+                .openclaw_skills_dir
                 .join("shared-calendar")
                 .join("SKILL.md"),
             "# shared calendar\n",
         )
         .expect("shared skill file");
-        fs::write(
-            paths
-                .openclaw_workspace_dir
-                .join("skills")
-                .join("workspace-calendar")
-                .join("SKILL.md"),
-            "# workspace calendar\n",
-        )
-        .expect("workspace skill file");
         fs::write(
             external_skills_dir.join("SKILL.md"),
             "# external calendar\n",
@@ -3034,8 +2855,7 @@ mod tests {
                     "skills": {
                         "load": {
                             "extraDirs": [
-                                normalize_path(&paths.openclaw_state_dir.join("skills")),
-                                normalize_path(&paths.openclaw_workspace_dir.join("skills")),
+                                normalize_path(&paths.openclaw_skills_dir),
                                 normalize_path(&external_skills_dir),
                             ]
                         }
@@ -3081,18 +2901,13 @@ mod tests {
         let paths = resolve_paths_for_root(&source_root).expect("source paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        let state_plugin_dir = paths
-            .openclaw_state_dir
-            .join("extensions")
-            .join("voice-call");
-        let workspace_plugin_dir = paths
-            .openclaw_workspace_dir
-            .join(".openclaw")
-            .join("extensions")
+        let state_plugin_dir = paths.openclaw_extensions_dir.join("voice-call");
+        let source_plugin_dir = paths
+            .openclaw_workspace_extensions_dir
             .join("workspace-voice-call");
         seed_managed_openclaw_tree(&paths, label);
         fs::create_dir_all(&state_plugin_dir).expect("state plugin dir");
-        fs::create_dir_all(&workspace_plugin_dir).expect("workspace plugin dir");
+        fs::create_dir_all(&source_plugin_dir).expect("source plugin dir");
         fs::create_dir_all(&external_plugins_dir).expect("external plugins dir");
         fs::write(
             state_plugin_dir.join("plugin.json"),
@@ -3100,10 +2915,10 @@ mod tests {
         )
         .expect("state plugin file");
         fs::write(
-            workspace_plugin_dir.join("plugin.json"),
-            "{ \"id\": \"workspace-voice-call\" }\n",
+            source_plugin_dir.join("plugin.json"),
+            "{ \"id\": \"source-voice-call\" }\n",
         )
-        .expect("workspace plugin file");
+        .expect("source plugin file");
         fs::write(
             external_plugins_dir.join("plugin.json"),
             "{ \"id\": \"external-plugin\" }\n",
@@ -3118,8 +2933,7 @@ mod tests {
                     "plugins": {
                         "load": {
                             "paths": [
-                                normalize_path(&paths.openclaw_state_dir.join("extensions")),
-                                normalize_path(&paths.openclaw_workspace_dir.join(".openclaw").join("extensions")),
+                                normalize_path(&paths.openclaw_extensions_dir),
                                 normalize_path(&external_plugins_dir),
                             ]
                         },
@@ -3127,7 +2941,7 @@ mod tests {
                             "voice-call": {
                                 "source": "local",
                                 "spec": "./extensions/voice-call",
-                                "sourcePath": normalize_path(&workspace_plugin_dir),
+                                "sourcePath": normalize_path(&source_plugin_dir),
                                 "installPath": normalize_path(&state_plugin_dir),
                                 "installedAt": "2026-04-03T00:00:00Z"
                             }
@@ -3175,52 +2989,25 @@ mod tests {
         let paths = resolve_paths_for_root(&source_root).expect("source paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        let state_plugin_dir = paths
-            .openclaw_state_dir
-            .join("extensions")
-            .join("voice-call");
-        let workspace_plugin_dir = paths
-            .openclaw_workspace_dir
-            .join(".openclaw")
-            .join("extensions")
+        let state_plugin_dir = paths.openclaw_extensions_dir.join("voice-call");
+        let source_plugin_dir = paths
+            .openclaw_workspace_extensions_dir
             .join("workspace-voice-call");
         seed_managed_openclaw_tree(&paths, label);
-        fs::create_dir_all(
-            paths
-                .openclaw_state_dir
-                .join("skills")
-                .join("shared-calendar"),
-        )
-        .expect("shared skills dir");
-        fs::create_dir_all(
-            paths
-                .openclaw_workspace_dir
-                .join("skills")
-                .join("workspace-calendar"),
-        )
-        .expect("workspace skills dir");
+        fs::create_dir_all(paths.openclaw_skills_dir.join("shared-calendar"))
+            .expect("shared skills dir");
         fs::create_dir_all(&state_plugin_dir).expect("state plugin dir");
-        fs::create_dir_all(&workspace_plugin_dir).expect("workspace plugin dir");
+        fs::create_dir_all(&source_plugin_dir).expect("source plugin dir");
         fs::create_dir_all(&external_skills_dir).expect("external skills dir");
         fs::create_dir_all(&external_plugins_dir).expect("external plugins dir");
         fs::write(
             paths
-                .openclaw_state_dir
-                .join("skills")
+                .openclaw_skills_dir
                 .join("shared-calendar")
                 .join("SKILL.md"),
             "# shared calendar\n",
         )
         .expect("shared skill file");
-        fs::write(
-            paths
-                .openclaw_workspace_dir
-                .join("skills")
-                .join("workspace-calendar")
-                .join("SKILL.md"),
-            "# workspace calendar\n",
-        )
-        .expect("workspace skill file");
         fs::write(
             external_skills_dir.join("SKILL.md"),
             "# external calendar\n",
@@ -3232,10 +3019,10 @@ mod tests {
         )
         .expect("state plugin file");
         fs::write(
-            workspace_plugin_dir.join("plugin.json"),
-            "{ \"id\": \"workspace-voice-call\" }\n",
+            source_plugin_dir.join("plugin.json"),
+            "{ \"id\": \"source-voice-call\" }\n",
         )
-        .expect("workspace plugin file");
+        .expect("source plugin file");
         fs::write(
             external_plugins_dir.join("plugin.json"),
             "{ \"id\": \"external-plugin\" }\n",
@@ -3250,8 +3037,7 @@ mod tests {
                     "skills": {
                         "load": {
                             "extraDirs": [
-                                normalize_path(&paths.openclaw_state_dir.join("skills")),
-                                normalize_path(&paths.openclaw_workspace_dir.join("skills")),
+                                normalize_path(&paths.openclaw_skills_dir),
                                 normalize_path(&external_skills_dir),
                             ]
                         }
@@ -3259,8 +3045,7 @@ mod tests {
                     "plugins": {
                         "load": {
                             "paths": [
-                                normalize_path(&paths.openclaw_state_dir.join("extensions")),
-                                normalize_path(&paths.openclaw_workspace_dir.join(".openclaw").join("extensions")),
+                                normalize_path(&paths.openclaw_extensions_dir),
                                 normalize_path(&external_plugins_dir),
                             ]
                         },
@@ -3268,7 +3053,7 @@ mod tests {
                             "voice-call": {
                                 "source": "local",
                                 "spec": "./extensions/voice-call",
-                                "sourcePath": normalize_path(&workspace_plugin_dir),
+                                "sourcePath": normalize_path(&source_plugin_dir),
                                 "installPath": normalize_path(&state_plugin_dir),
                                 "installedAt": "2026-04-03T00:00:00Z"
                             }
@@ -3314,14 +3099,9 @@ mod tests {
         let paths = resolve_paths_for_root(&source_root).expect("source paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        let state_plugin_dir = paths
-            .openclaw_state_dir
-            .join("extensions")
-            .join("voice-call");
-        let workspace_plugin_dir = paths
-            .openclaw_workspace_dir
-            .join(".openclaw")
-            .join("extensions")
+        let state_plugin_dir = paths.openclaw_extensions_dir.join("voice-call");
+        let source_plugin_dir = paths
+            .openclaw_workspace_extensions_dir
             .join("workspace-voice-call");
         seed_managed_openclaw_tree(&paths, label);
         fs::write(
@@ -3333,23 +3113,21 @@ mod tests {
                     "skills": {
                         "load": {
                             "extraDirs": [
-                                normalize_path(&paths.openclaw_state_dir.join("skills")),
-                                normalize_path(&paths.openclaw_workspace_dir.join("skills")),
+                                normalize_path(&paths.openclaw_skills_dir),
                             ]
                         }
                     },
                     "plugins": {
                         "load": {
                             "paths": [
-                                normalize_path(&paths.openclaw_state_dir.join("extensions")),
-                                normalize_path(&paths.openclaw_workspace_dir.join(".openclaw").join("extensions")),
+                                normalize_path(&paths.openclaw_extensions_dir),
                             ]
                         },
                         "installs": {
                             "voice-call": {
                                 "source": "local",
                                 "spec": "./extensions/voice-call",
-                                "sourcePath": normalize_path(&workspace_plugin_dir),
+                                "sourcePath": normalize_path(&source_plugin_dir),
                                 "installPath": normalize_path(&state_plugin_dir),
                                 "installedAt": "2026-04-03T00:00:00Z"
                             }
@@ -3395,22 +3173,17 @@ mod tests {
         let paths = resolve_paths_for_root(&source_root).expect("source paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        let workspace_plugin_dir = paths
-            .openclaw_workspace_dir
-            .join(".openclaw")
-            .join("extensions")
+        let source_plugin_dir = paths
+            .openclaw_workspace_extensions_dir
             .join("workspace-voice-call");
-        let state_plugin_dir = paths
-            .openclaw_state_dir
-            .join("extensions")
-            .join("voice-call");
+        let state_plugin_dir = paths.openclaw_extensions_dir.join("voice-call");
         seed_managed_openclaw_tree(&paths, label);
-        fs::create_dir_all(&workspace_plugin_dir).expect("workspace plugin dir");
+        fs::create_dir_all(&source_plugin_dir).expect("source plugin dir");
         fs::write(
-            workspace_plugin_dir.join("plugin.json"),
-            "{ \"id\": \"workspace-voice-call\" }\n",
+            source_plugin_dir.join("plugin.json"),
+            "{ \"id\": \"source-voice-call\" }\n",
         )
-        .expect("workspace plugin file");
+        .expect("source plugin file");
         fs::write(
             &managed_openclaw_config_path(&paths),
             format!(
@@ -3420,15 +3193,14 @@ mod tests {
                     "plugins": {
                         "load": {
                             "paths": [
-                                normalize_path(&paths.openclaw_state_dir.join("extensions")),
-                                normalize_path(&paths.openclaw_workspace_dir.join(".openclaw").join("extensions")),
+                                normalize_path(&paths.openclaw_extensions_dir),
                             ]
                         },
                         "installs": {
                             "voice-call": {
                                 "source": "local",
                                 "spec": "./extensions/voice-call",
-                                "sourcePath": normalize_path(&workspace_plugin_dir),
+                                "sourcePath": normalize_path(&source_plugin_dir),
                                 "installPath": normalize_path(&state_plugin_dir),
                                 "installedAt": "2026-04-03T00:00:00Z"
                             }
@@ -3474,24 +3246,36 @@ mod tests {
         let paths = resolve_paths_for_root(&source_root).expect("source paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        let managed_skill_dir = paths
-            .openclaw_state_dir
-            .join("skills")
-            .join("shared-calendar");
-        let managed_plugin_dir = paths
-            .openclaw_state_dir
-            .join("extensions")
-            .join("voice-call");
+        let managed_skill_dir = paths.openclaw_skills_dir.join("shared-calendar");
+        let managed_workspace_skill_dir = paths
+            .openclaw_workspace_skills_dir
+            .join("workspace-calendar");
+        let managed_plugin_dir = paths.openclaw_extensions_dir.join("voice-call");
+        let managed_workspace_plugin_dir = paths
+            .openclaw_workspace_extensions_dir
+            .join("workspace-voice-call");
         seed_managed_openclaw_tree(&paths, label);
         fs::create_dir_all(&managed_skill_dir).expect("managed skill dir");
+        fs::create_dir_all(&managed_workspace_skill_dir).expect("managed workspace skill dir");
         fs::create_dir_all(&managed_plugin_dir).expect("managed plugin dir");
+        fs::create_dir_all(&managed_workspace_plugin_dir).expect("managed workspace plugin dir");
         fs::write(managed_skill_dir.join("SKILL.md"), "# shared calendar\n")
             .expect("managed skill file");
+        fs::write(
+            managed_workspace_skill_dir.join("SKILL.md"),
+            "# workspace calendar\n",
+        )
+        .expect("managed workspace skill file");
         fs::write(
             managed_plugin_dir.join("plugin.json"),
             "{ \"id\": \"voice-call\" }\n",
         )
         .expect("managed plugin file");
+        fs::write(
+            managed_workspace_plugin_dir.join("plugin.json"),
+            "{ \"id\": \"workspace-voice-call\" }\n",
+        )
+        .expect("managed workspace plugin file");
         fs::write(
             &managed_openclaw_config_path(&paths),
             format!(
@@ -3501,14 +3285,14 @@ mod tests {
                     "skills": {
                         "load": {
                             "extraDirs": [
-                                normalize_path(&paths.openclaw_state_dir.join("skills")),
+                                normalize_path(&paths.openclaw_skills_dir),
                             ]
                         }
                     },
                     "plugins": {
                         "load": {
                             "paths": [
-                                normalize_path(&paths.openclaw_state_dir.join("extensions")),
+                                normalize_path(&paths.openclaw_extensions_dir),
                             ]
                         }
                     }
@@ -4176,7 +3960,7 @@ mod tests {
     }
 
     fn doctor_marker_path(paths: &AppPaths) -> std::path::PathBuf {
-        paths.openclaw_state_dir.join("doctor-ran.json")
+        paths.openclaw_root_dir.join("doctor-ran.json")
     }
 
     fn assert_json_path_value(value: &Value, expected: &Path) {
@@ -4219,8 +4003,8 @@ mod tests {
             runtime_dir,
             node_path,
             cli_path,
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: managed_openclaw_config_path(paths),
             gateway_port,
@@ -4253,8 +4037,8 @@ mod tests {
             runtime_dir,
             node_path,
             cli_path,
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: managed_openclaw_config_path(paths),
             gateway_port,
@@ -4704,7 +4488,7 @@ mod tests {
             &archive_path,
             label,
             PRIVATE_RUNTIME_SNAPSHOT_FILE_NAME,
-            "{\n  \"runtimeId\": \"openclaw\",\n  \"installKey\": \"0.4.0-windows-x64\",\n  \"openclawVersion\": \"0.4.0\",\n  \"nodeVersion\": null,\n  \"platform\": \"windows\",\n  \"arch\": \"x64\",\n  \"homeDir\": \"D:/tampered/home\",\n  \"stateDir\": \"D:/tampered/home/state\",\n  \"workspaceDir\": \"D:/tampered/home/workspace\",\n  \"configPath\": \"D:/tampered/home/openclaw.json\",\n  \"gatewayPort\": 19999\n}\n",
+            "{\n  \"runtimeId\": \"openclaw\",\n  \"installKey\": \"0.4.0-windows-x64\",\n  \"openclawVersion\": \"0.4.0\",\n  \"nodeVersion\": null,\n  \"platform\": \"windows\",\n  \"arch\": \"x64\",\n  \"homeDir\": \"D:/tampered/home/.openclaw\",\n  \"stateDir\": \"D:/tampered/home/.openclaw\",\n  \"workspaceDir\": \"D:/tampered/home/.openclaw/workspace\",\n  \"configPath\": \"D:/tampered/home/.openclaw/openclaw.json\",\n  \"gatewayPort\": 19999\n}\n",
         );
 
         let error = inspect_openclaw_mirror_import(&corrupted_archive_path)
@@ -4713,6 +4497,28 @@ mod tests {
         let error_text = error.to_string();
         assert!(
             error_text.contains("openclaw mirror metadata"),
+            "unexpected error: {error_text}"
+        );
+        assert!(
+            error_text.contains("runtime-snapshot"),
+            "unexpected error: {error_text}"
+        );
+    }
+
+    #[test]
+    fn openclaw_mirror_import_rejects_archives_without_required_private_metadata_files() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let label = "missing-private-metadata";
+        let archive_path = export_fixture_archive(root.path(), label);
+        let legacy_archive_path =
+            create_legacy_archive_without_runtime_snapshot(root.path(), &archive_path, label);
+
+        let error = inspect_openclaw_mirror_import(&legacy_archive_path)
+            .expect_err("archives without required metadata should be rejected");
+
+        let error_text = error.to_string();
+        assert!(
+            error_text.contains("incomplete openclaw mirror metadata file set"),
             "unexpected error: {error_text}"
         );
         assert!(
@@ -4792,15 +4598,15 @@ mod tests {
             root.path(),
             &archive_path,
             label,
-            "components/workspace/rogue-plugin/plugin.json",
+            "components/state/rogue-plugin/plugin.json",
             "{\n  \"name\": \"rogue-plugin\"\n}\n",
-            "workspace",
+            "state",
         );
         let corrupted_archive_path = create_archive_with_rewritten_managed_assets_snapshot(
             root.path(),
             &archive_with_plugin,
             label,
-            "{\n  \"schemaVersion\": 1,\n  \"skills\": [],\n  \"plugins\": [\n    {\n      \"anchor\": \"workspace\",\n      \"relativePath\": \"rogue-plugin\",\n      \"entryKind\": \"directory\"\n    }\n  ]\n}\n",
+            "{\n  \"schemaVersion\": 1,\n  \"skills\": [],\n  \"plugins\": [\n    {\n      \"anchor\": \"state\",\n      \"relativePath\": \"rogue-plugin\",\n      \"entryKind\": \"directory\"\n    }\n  ]\n}\n",
         );
 
         let error = inspect_openclaw_mirror_import(&corrupted_archive_path)
@@ -4816,6 +4622,18 @@ mod tests {
             error_text.contains("rogue-plugin"),
             "unexpected error: {error_text}"
         );
+    }
+
+    #[test]
+    fn openclaw_mirror_import_accepts_workspace_managed_asset_canonical_roots() {
+        validate_managed_asset_canonical_root("skill", "workspace", "skills/workspace-calendar")
+            .expect("workspace skills root should be accepted");
+        validate_managed_asset_canonical_root(
+            "plugin",
+            "workspace",
+            ".openclaw/extensions/workspace-voice-call",
+        )
+        .expect("workspace plugin root should be accepted");
     }
 
     #[test]
@@ -4889,7 +4707,7 @@ mod tests {
             .expect("restored config text");
         let state_text = fs::read_to_string(
             paths
-                .openclaw_state_dir
+                .openclaw_root_dir
                 .join("agents")
                 .join("main")
                 .join("profile.json"),
@@ -5050,7 +4868,7 @@ mod tests {
     }
 
     #[test]
-    fn openclaw_mirror_import_verification_detects_missing_managed_assets() {
+    fn openclaw_mirror_import_verification_detects_missing_managed_plugin_assets() {
         let root = tempfile::tempdir().expect("temp dir");
         let archive_path = export_fixture_archive_with_missing_managed_skill_and_plugin_assets(
             root.path(),
@@ -5084,11 +4902,6 @@ mod tests {
         .expect("import mirror");
 
         assert_eq!(result.verification.status, "degraded");
-        assert!(result
-            .verification
-            .checks
-            .iter()
-            .any(|check| check.id == "managed-skills" && check.status == "failed"));
         assert!(result
             .verification
             .checks
@@ -5133,7 +4946,7 @@ mod tests {
         .expect("import mirror");
 
         let install_root = paths
-            .openclaw_state_dir
+            .openclaw_root_dir
             .join("extensions")
             .join("voice-call");
         assert!(install_root.is_dir());
@@ -5161,6 +4974,8 @@ mod tests {
             &[
                 "components/state/skills/shared-calendar",
                 "components/state/extensions/voice-call",
+                "components/workspace/skills/workspace-calendar",
+                "components/workspace/.openclaw/extensions/workspace-voice-call",
             ],
         );
         let target_root = root.path().join("managed-asset-entries-target");
@@ -5175,7 +4990,7 @@ mod tests {
             .expect("original workspace");
         let original_profile = fs::read_to_string(
             paths
-                .openclaw_state_dir
+                .openclaw_root_dir
                 .join("agents")
                 .join("main")
                 .join("profile.json"),
@@ -5221,7 +5036,7 @@ mod tests {
         assert_eq!(
             fs::read_to_string(
                 paths
-                    .openclaw_state_dir
+                    .openclaw_root_dir
                     .join("agents")
                     .join("main")
                     .join("profile.json"),
@@ -5256,7 +5071,7 @@ mod tests {
             .expect("original workspace");
         let original_profile = fs::read_to_string(
             paths
-                .openclaw_state_dir
+                .openclaw_root_dir
                 .join("agents")
                 .join("main")
                 .join("profile.json"),
@@ -5301,7 +5116,7 @@ mod tests {
         assert_eq!(
             fs::read_to_string(
                 paths
-                    .openclaw_state_dir
+                    .openclaw_root_dir
                     .join("agents")
                     .join("main")
                     .join("profile.json"),
@@ -5381,19 +5196,19 @@ mod tests {
         assert_json_path_value(
             &main_agent["agentDir"],
             &paths
-                .openclaw_state_dir
+                .openclaw_root_dir
                 .join("agents")
                 .join("main")
                 .join("agent"),
         );
         assert_json_path_value(
             &writer_agent["workspace"],
-            &paths.openclaw_state_dir.join("workspace-writer"),
+            &paths.openclaw_root_dir.join("workspace-writer"),
         );
         assert_json_path_value(
             &writer_agent["agentDir"],
             &paths
-                .openclaw_state_dir
+                .openclaw_root_dir
                 .join("agents")
                 .join("writer")
                 .join("agent"),
@@ -5444,10 +5259,9 @@ mod tests {
             .as_array()
             .expect("extraDirs array");
 
-        assert_eq!(extra_dirs.len(), 3);
-        assert_json_path_value(&extra_dirs[0], &paths.openclaw_state_dir.join("skills"));
-        assert_json_path_value(&extra_dirs[1], &paths.openclaw_workspace_dir.join("skills"));
-        assert_json_path_value(&extra_dirs[2], &external_skills_dir);
+        assert_eq!(extra_dirs.len(), 2);
+        assert_json_path_value(&extra_dirs[0], &paths.openclaw_skills_dir);
+        assert_json_path_value(&extra_dirs[1], &external_skills_dir);
 
         local_ai_proxy.stop().expect("stop local ai proxy");
     }
@@ -5497,32 +5311,17 @@ mod tests {
             .as_object()
             .expect("plugin install root");
 
-        assert_eq!(plugin_paths.len(), 3);
-        assert_json_path_value(
-            &plugin_paths[0],
-            &paths.openclaw_state_dir.join("extensions"),
-        );
-        assert_json_path_value(
-            &plugin_paths[1],
-            &paths
-                .openclaw_workspace_dir
-                .join(".openclaw")
-                .join("extensions"),
-        );
-        assert_json_path_value(&plugin_paths[2], &external_plugins_dir);
+        assert_eq!(plugin_paths.len(), 2);
+        assert_json_path_value(&plugin_paths[0], &paths.openclaw_extensions_dir);
+        assert_json_path_value(&plugin_paths[1], &external_plugins_dir);
         assert_json_path_value(
             install_root.get("installPath").expect("install path"),
-            &paths
-                .openclaw_state_dir
-                .join("extensions")
-                .join("voice-call"),
+            &paths.openclaw_extensions_dir.join("voice-call"),
         );
         assert_json_path_value(
             install_root.get("sourcePath").expect("source path"),
             &paths
-                .openclaw_workspace_dir
-                .join(".openclaw")
-                .join("extensions")
+                .openclaw_workspace_extensions_dir
                 .join("workspace-voice-call"),
         );
 
@@ -5530,7 +5329,7 @@ mod tests {
     }
 
     #[test]
-    fn openclaw_mirror_import_rebases_legacy_archives_without_runtime_diagnostics() {
+    fn openclaw_mirror_import_rejects_legacy_archives_without_runtime_diagnostics() {
         let root = tempfile::tempdir().expect("temp dir");
         let label = "legacy-rebase-source";
         let archive_path =
@@ -5538,8 +5337,6 @@ mod tests {
         let legacy_archive_path =
             create_legacy_archive_without_runtime_snapshot(root.path(), &archive_path, label);
         let target_root = root.path().join("legacy-rebase-target");
-        let external_skills_dir = root.path().join(format!("external-{label}-skills"));
-        let external_plugins_dir = root.path().join(format!("external-{label}-plugins"));
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
@@ -5551,7 +5348,7 @@ mod tests {
             .configure_openclaw_gateway(&runtime)
             .expect("configure runtime");
 
-        import_openclaw_mirror(
+        let error = import_openclaw_mirror(
             &paths,
             &config,
             &storage,
@@ -5564,55 +5361,16 @@ mod tests {
                 restart_gateway: false,
             },
         )
-        .expect("import legacy mirror");
+        .expect_err("legacy mirror should be rejected");
 
-        let restored_openclaw_config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&managed_openclaw_config_path(&paths))
-                .expect("restored config text"),
-        )
-        .expect("restored config json");
-        let extra_dirs = restored_openclaw_config["skills"]["load"]["extraDirs"]
-            .as_array()
-            .expect("extraDirs array");
-        let plugin_paths = restored_openclaw_config["plugins"]["load"]["paths"]
-            .as_array()
-            .expect("plugin load paths array");
-        let install_root = restored_openclaw_config["plugins"]["installs"]["voice-call"]
-            .as_object()
-            .expect("plugin install root");
-
-        assert_eq!(extra_dirs.len(), 3);
-        assert_json_path_value(&extra_dirs[0], &paths.openclaw_state_dir.join("skills"));
-        assert_json_path_value(&extra_dirs[1], &paths.openclaw_workspace_dir.join("skills"));
-        assert_json_path_value(&extra_dirs[2], &external_skills_dir);
-
-        assert_eq!(plugin_paths.len(), 3);
-        assert_json_path_value(
-            &plugin_paths[0],
-            &paths.openclaw_state_dir.join("extensions"),
+        let error_text = error.to_string();
+        assert!(
+            error_text.contains("incomplete openclaw mirror metadata file set"),
+            "unexpected error: {error_text}"
         );
-        assert_json_path_value(
-            &plugin_paths[1],
-            &paths
-                .openclaw_workspace_dir
-                .join(".openclaw")
-                .join("extensions"),
-        );
-        assert_json_path_value(&plugin_paths[2], &external_plugins_dir);
-        assert_json_path_value(
-            install_root.get("installPath").expect("install path"),
-            &paths
-                .openclaw_state_dir
-                .join("extensions")
-                .join("voice-call"),
-        );
-        assert_json_path_value(
-            install_root.get("sourcePath").expect("source path"),
-            &paths
-                .openclaw_workspace_dir
-                .join(".openclaw")
-                .join("extensions")
-                .join("workspace-voice-call"),
+        assert!(
+            error_text.contains("runtime-snapshot"),
+            "unexpected error: {error_text}"
         );
 
         local_ai_proxy.stop().expect("stop local ai proxy");

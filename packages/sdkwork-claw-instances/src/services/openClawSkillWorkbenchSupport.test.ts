@@ -222,3 +222,37 @@ await runTest(
     );
   },
 );
+
+await runTest(
+  'buildOpenClawSkills infers workspace scope from canonical embedded workspace paths when the gateway omits workspace metadata',
+  () => {
+    const skills = skillWorkbenchSupportModule?.buildOpenClawSkills({
+      entries: [
+        {
+          id: 'workspace-browser',
+          name: 'Workspace Browser',
+          description: 'Inspects browser state from the embedded workspace.',
+          source: 'local',
+          bundled: false,
+          disabled: false,
+          eligible: true,
+          blockedByAllowlist: false,
+          filePath: 'D:/OpenClaw/.openclaw/workspace/skills/workspace-browser/SKILL.md',
+          baseDir: 'D:/OpenClaw/.openclaw/workspace/skills/workspace-browser',
+          missing: {
+            bins: [],
+            anyBins: [],
+            env: [],
+            config: [],
+          },
+        },
+      ],
+    } as any);
+
+    assert.equal(skills?.[0]?.instanceAsset?.scope, 'workspace');
+    assert.equal(
+      skills?.[0]?.instanceAsset?.baseDir,
+      'D:/OpenClaw/.openclaw/workspace/skills/workspace-browser',
+    );
+  },
+);

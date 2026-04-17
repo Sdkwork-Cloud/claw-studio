@@ -84,8 +84,8 @@ if (kernelPlatformServiceModule) {
               platform: 'windows',
               arch: 'x64',
               installSource: 'bundled',
-              configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
-              runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+              configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+              runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio',
               runtimeInstallDir:
                 `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-windows-x64`,
             },
@@ -186,8 +186,8 @@ if (kernelPlatformServiceModule) {
           platform: 'linux',
           arch: 'x64',
           installSource: 'bundled',
-          configPath: '/home/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
-          runtimeHomeDir: '/home/admin/.sdkwork/crawstudio/openclaw-home',
+          configPath: '/home/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          runtimeHomeDir: '/home/admin/.sdkwork/crawstudio',
           runtimeInstallDir:
             `/opt/sdkwork/crawstudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-linux-x64`,
         },

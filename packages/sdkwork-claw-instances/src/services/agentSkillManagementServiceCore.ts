@@ -1,4 +1,5 @@
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
+import { resolveFallbackInstanceConfigPath } from './openClawConfigPathFallback.ts';
 
 export interface AgentSkillManagementDependencies {
   studioApi: {
@@ -140,20 +141,13 @@ async function updateTrackedWorkspaceSkillLockfile(params: {
     return;
   }
 
-  const candidatePaths = [
-    joinPath(workspacePath, '.clawhub', 'lock.json'),
-    joinPath(workspacePath, '.clawdhub', 'lock.json'),
-  ].filter((value): value is string => Boolean(value));
-
-  let lockfilePath: string | null = null;
-  for (const candidatePath of candidatePaths) {
-    if (await params.platform.pathExists(candidatePath)) {
-      lockfilePath = candidatePath;
-      break;
-    }
-  }
+  const lockfilePath = joinPath(workspacePath, '.clawhub', 'lock.json');
 
   if (!lockfilePath) {
+    return;
+  }
+
+  if (!(await params.platform.pathExists(lockfilePath))) {
     return;
   }
 
@@ -343,21 +337,7 @@ function createDefaultDependencies(): AgentSkillManagementDependencies {
       updateSkill: createMissingAsyncDependency('openClawGatewayClient.updateSkill'),
     },
     openClawConfigService: {
-      resolveInstanceConfigPath: (detail) => {
-        const configRoute = detail?.dataAccess?.routes?.find((route) => route.scope === 'config');
-        if (configRoute) {
-          if (configRoute.mode === 'managedFile' && configRoute.target) {
-            return configRoute.target;
-          }
-
-          return null;
-        }
-
-        const configArtifact = detail?.artifacts?.find(
-          (artifact) => artifact.kind === 'configFile' && artifact.location,
-        );
-        return configArtifact?.location || null;
-      },
+      resolveInstanceConfigPath: resolveFallbackInstanceConfigPath,
       saveSkillEntry: createMissingAsyncDependency('openClawConfigService.saveSkillEntry'),
       deleteSkillEntry: createMissingAsyncDependency('openClawConfigService.deleteSkillEntry'),
     },

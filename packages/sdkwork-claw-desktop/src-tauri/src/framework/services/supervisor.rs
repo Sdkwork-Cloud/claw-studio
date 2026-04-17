@@ -1281,21 +1281,13 @@ fn configured_managed_openclaw_gateway_port(paths: &AppPaths) -> Option<u16> {
 }
 
 fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
-    let authority_path = KernelRuntimeAuthorityService::new()
+    KernelRuntimeAuthorityService::new()
         .active_managed_config_path("openclaw", paths)
-        .unwrap_or_else(|_| default_managed_openclaw_config_path(paths));
-    if authority_path.exists() || !paths.openclaw_config_file.exists() {
-        authority_path
-    } else {
-        paths.openclaw_config_file.clone()
-    }
+        .unwrap_or_else(|_| default_managed_openclaw_config_path(paths))
 }
 
 fn default_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
-    paths
-        .kernel_paths("openclaw")
-        .map(|kernel| kernel.managed_config_file)
-        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+    paths.user_root.join(".openclaw").join("openclaw.json")
 }
 
 fn managed_openclaw_runtime_dir(paths: &AppPaths) -> PathBuf {
@@ -2011,6 +2003,7 @@ mod tests {
         gateway.envs(runtime.managed_env());
         let mut gateway = gateway.spawn().expect("spawn gateway");
 
+        wait_for_test_loopback_listener(runtime.gateway_port, 5_000);
         let readiness = wait_for_gateway_ready(&mut gateway, &runtime, &paths, 5_000);
 
         let _ = force_process_shutdown(&mut gateway);
@@ -2037,6 +2030,7 @@ mod tests {
         gateway.envs(runtime.managed_env());
         let mut gateway = gateway.spawn().expect("spawn gateway");
 
+        wait_for_test_loopback_listener(runtime.gateway_port, 5_000);
         let readiness = wait_for_gateway_ready(&mut gateway, &runtime, &paths, 5_000);
 
         let _ = force_process_shutdown(&mut gateway);
@@ -2065,6 +2059,7 @@ mod tests {
         gateway.envs(runtime.managed_env());
         let mut gateway = gateway.spawn().expect("spawn gateway");
 
+        wait_for_test_loopback_listener(runtime.gateway_port, 5_000);
         let readiness = wait_for_gateway_ready(&mut gateway, &runtime, &paths, 5_000);
 
         let _ = force_process_shutdown(&mut gateway);
@@ -2093,7 +2088,7 @@ mod tests {
         gateway.envs(runtime.managed_env());
         let mut gateway = gateway.spawn().expect("spawn gateway");
 
-        thread::sleep(Duration::from_millis(200));
+        wait_for_test_loopback_listener(runtime.gateway_port, 5_000);
         let readiness = super::probe_gateway_cli_health_ready(&runtime, &paths, 1_500);
 
         let _ = force_process_shutdown(&mut gateway);
@@ -2292,8 +2287,8 @@ mod tests {
             runtime_dir,
             node_path,
             cli_path,
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path,
             gateway_port,
@@ -2310,7 +2305,7 @@ mod tests {
                 paths
                     .kernel_paths("openclaw")
                     .map(|kernel| kernel.managed_config_file)
-                    .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                    .unwrap_or_else(|_| paths.openclaw_config_file.clone())
             })
     }
 
@@ -2336,14 +2331,31 @@ mod tests {
         port
     }
 
+    fn wait_for_test_loopback_listener(port: u16, timeout_ms: u64) {
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+        while Instant::now() < deadline {
+            if super::is_loopback_port_accepting(port) {
+                return;
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+
+        panic!("test gateway listener did not start on 127.0.0.1:{port} in time");
+    }
+
     #[test]
-    fn configured_gateway_port_prefers_managed_config_over_legacy_config_when_authority_state_is_missing(
+    fn configured_gateway_port_prefers_canonical_config_over_stray_sibling_config_when_authority_state_is_missing(
     ) {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let managed_port = 28_901;
-        let legacy_port = 18_901;
+        let stray_port = 18_901;
         let managed_config_path = managed_openclaw_config_path(&paths);
+        let stray_config_path = paths
+            .user_root
+            .join("stray-openclaw-root")
+            .join(".openclaw")
+            .join("openclaw.json");
 
         fs::remove_file(&paths.openclaw_authority_file).expect("remove authority state");
 
@@ -2358,11 +2370,13 @@ mod tests {
             format!("{{\n  \"gateway\": {{\n    \"port\": {managed_port}\n  }}\n}}\n"),
         )
         .expect("managed config");
+        fs::create_dir_all(stray_config_path.parent().expect("stray config parent"))
+            .expect("stray config dir");
         fs::write(
-            &paths.openclaw_config_file,
-            format!("{{\n  \"gateway\": {{\n    \"port\": {legacy_port}\n  }}\n}}\n"),
+            &stray_config_path,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {stray_port}\n  }}\n}}\n"),
         )
-        .expect("legacy config");
+        .expect("stray config");
 
         assert_eq!(
             configured_managed_openclaw_gateway_port(&paths),
@@ -2371,23 +2385,26 @@ mod tests {
     }
 
     #[test]
-    fn configured_gateway_port_falls_back_to_legacy_config_before_managed_config_exists() {
+    fn configured_gateway_port_ignores_stray_sibling_config_before_canonical_config_exists() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        let legacy_port = 18_902;
+        let stray_config_path = paths
+            .user_root
+            .join("stray-openclaw-root")
+            .join(".openclaw")
+            .join("openclaw.json");
 
         fs::remove_file(&paths.openclaw_authority_file).expect("remove authority state");
 
+        fs::create_dir_all(stray_config_path.parent().expect("stray config parent"))
+            .expect("stray config dir");
         fs::write(
-            &paths.openclaw_config_file,
-            format!("{{\n  \"gateway\": {{\n    \"port\": {legacy_port}\n  }}\n}}\n"),
+            &stray_config_path,
+            "{\n  \"gateway\": {\n    \"port\": 18902\n  }\n}\n",
         )
-        .expect("legacy config");
+        .expect("stray config");
 
-        assert_eq!(
-            configured_managed_openclaw_gateway_port(&paths),
-            Some(legacy_port)
-        );
+        assert_eq!(configured_managed_openclaw_gateway_port(&paths), None);
     }
 
     #[test]
@@ -2405,10 +2422,10 @@ mod tests {
             .path()
             .join("compatibility-only")
             .join("authority.json");
-        paths.openclaw_managed_config_file = root
+        paths.openclaw_config_file = root
             .path()
             .join("compatibility-only")
-            .join("managed-config")
+            .join(".openclaw")
             .join("openclaw.json");
 
         fs::create_dir_all(
@@ -2457,15 +2474,13 @@ mod tests {
     }
 
     #[test]
-    fn stale_gateway_command_matching_accepts_legacy_runtime_roots() {
+    fn stale_gateway_command_matching_accepts_canonical_runtime_roots() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let command = vec![
             "C:\\Program Files\\nodejs\\node.exe".to_string(),
             paths
-                .machine_runtime_dir
-                .join("runtimes")
-                .join("openclaw")
+                .openclaw_runtime_dir
                 .join("2026.3.28-windows-x64")
                 .join("runtime")
                 .join("package")

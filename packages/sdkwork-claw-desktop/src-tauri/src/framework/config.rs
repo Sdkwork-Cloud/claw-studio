@@ -22,6 +22,46 @@ pub const APP_LANGUAGE_PREFERENCE_INDONESIAN: &str = "id";
 pub const HOST_PLATFORM_DESIRED_STATE_PROJECTION_VERSION: &str = "phase1";
 pub const HOST_PLATFORM_ROLLOUT_ENGINE_VERSION: &str = "phase1";
 const CURRENT_APP_CONFIG_VERSION: u32 = 2;
+const REQUIRED_APP_CONFIG_FIELDS: [&str; 15] = [
+    "version",
+    "distribution",
+    "logLevel",
+    "theme",
+    "language",
+    "telemetryEnabled",
+    "security",
+    "storage",
+    "notifications",
+    "payments",
+    "integrations",
+    "embeddedOpenclaw",
+    "desktopHost",
+    "process",
+    "componentUpgrades",
+];
+const REQUIRED_SECURITY_CONFIG_FIELDS: [&str; 3] = [
+    "strictPathPolicy",
+    "allowExternalHttp",
+    "allowCustomProcessCwd",
+];
+const REQUIRED_STORAGE_CONFIG_FIELDS: [&str; 2] = ["activeProfileId", "profiles"];
+const REQUIRED_STORAGE_PROFILE_CONFIG_FIELDS: [&str; 5] =
+    ["id", "label", "provider", "namespace", "readOnly"];
+const REQUIRED_NOTIFICATION_CONFIG_FIELDS: [&str; 3] =
+    ["enabled", "provider", "requireUserConsent"];
+const REQUIRED_PAYMENT_CONFIG_FIELDS: [&str; 2] = ["provider", "sandbox"];
+const REQUIRED_INTEGRATION_CONFIG_FIELDS: [&str; 3] =
+    ["pluginsEnabled", "remoteApiEnabled", "allowUnsignedPlugins"];
+const REQUIRED_EMBEDDED_OPENCLAW_CONFIG_FIELDS: [&str; 1] = ["exposeCliToShell"];
+const REQUIRED_DESKTOP_HOST_CONFIG_FIELDS: [&str; 4] =
+    ["enabled", "bindHost", "port", "allowDynamicPort"];
+const REQUIRED_PROCESS_CONFIG_FIELDS: [&str; 2] = ["defaultTimeoutMs", "maxConcurrentJobs"];
+const REQUIRED_COMPONENT_UPGRADE_CONFIG_FIELDS: [&str; 4] = [
+    "autoUpgradeEnabled",
+    "approvalMode",
+    "defaultChannel",
+    "maxRetainedHistoricalPackages",
+];
 
 pub fn normalize_app_language_preference(value: &str) -> &'static str {
     let normalized = value.trim().to_lowercase().replace('_', "-");
@@ -319,7 +359,9 @@ pub fn load_or_create_config(paths: &AppPaths) -> Result<AppConfig> {
         let config = if content.trim().is_empty() {
             AppConfig::default()
         } else {
-            serde_json::from_str::<AppConfig>(&content)?.normalized()
+            let document = serde_json::from_str::<serde_json::Value>(&content)?;
+            validate_app_config_document(&document)?;
+            serde_json::from_value::<AppConfig>(document)?.normalized()
         };
         write_config(paths, &config)?;
         return Ok(config);
@@ -345,13 +387,7 @@ pub fn write_config(paths: &AppPaths, config: &AppConfig) -> Result<()> {
 impl AppConfig {
     pub fn normalized(&self) -> Self {
         let mut next = self.clone();
-        if next.version == 0 {
-            next.version = 1;
-        }
-        if next.version < CURRENT_APP_CONFIG_VERSION {
-            next.embedded_openclaw.expose_cli_to_shell = true;
-            next.version = CURRENT_APP_CONFIG_VERSION;
-        }
+        next.version = CURRENT_APP_CONFIG_VERSION;
         next.language = normalize_app_language_preference(&next.language).to_string();
         next.storage = next.storage.normalized();
         if next.desktop_host.bind_host.trim().is_empty() {
@@ -387,6 +423,131 @@ impl AppConfig {
             component_upgrades: normalized.component_upgrades,
         }
     }
+}
+
+fn validate_app_config_document(document: &serde_json::Value) -> Result<()> {
+    let root = document.as_object().ok_or_else(|| {
+        crate::framework::FrameworkError::ValidationFailed(
+            "app config must be a JSON object".to_string(),
+        )
+    })?;
+
+    let version = root
+        .get("version")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| {
+            crate::framework::FrameworkError::ValidationFailed(
+                "missing required app config field version".to_string(),
+            )
+        })?;
+
+    if version != u64::from(CURRENT_APP_CONFIG_VERSION) {
+        return Err(crate::framework::FrameworkError::ValidationFailed(format!(
+            "unsupported app config version {version}; expected {}",
+            CURRENT_APP_CONFIG_VERSION
+        )));
+    }
+
+    for field in REQUIRED_APP_CONFIG_FIELDS.iter().copied() {
+        if !root.contains_key(field) {
+            return Err(crate::framework::FrameworkError::ValidationFailed(format!(
+                "missing required app config field {field}"
+            )));
+        }
+    }
+
+    validate_required_object_fields(root, "security", &REQUIRED_SECURITY_CONFIG_FIELDS)?;
+    validate_required_object_fields(root, "storage", &REQUIRED_STORAGE_CONFIG_FIELDS)?;
+    validate_required_array_object_fields(
+        root,
+        "storage",
+        "profiles",
+        &REQUIRED_STORAGE_PROFILE_CONFIG_FIELDS,
+    )?;
+    validate_required_object_fields(root, "notifications", &REQUIRED_NOTIFICATION_CONFIG_FIELDS)?;
+    validate_required_object_fields(root, "payments", &REQUIRED_PAYMENT_CONFIG_FIELDS)?;
+    validate_required_object_fields(root, "integrations", &REQUIRED_INTEGRATION_CONFIG_FIELDS)?;
+    validate_required_object_fields(
+        root,
+        "embeddedOpenclaw",
+        &REQUIRED_EMBEDDED_OPENCLAW_CONFIG_FIELDS,
+    )?;
+    validate_required_object_fields(root, "desktopHost", &REQUIRED_DESKTOP_HOST_CONFIG_FIELDS)?;
+    validate_required_object_fields(root, "process", &REQUIRED_PROCESS_CONFIG_FIELDS)?;
+    validate_required_object_fields(
+        root,
+        "componentUpgrades",
+        &REQUIRED_COMPONENT_UPGRADE_CONFIG_FIELDS,
+    )?;
+
+    Ok(())
+}
+
+fn validate_required_array_object_fields(
+    root: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    array_field: &str,
+    required_fields: &[&str],
+) -> Result<()> {
+    let section = root
+        .get(field)
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            crate::framework::FrameworkError::ValidationFailed(format!(
+                "app config field {field} must be an object"
+            ))
+        })?;
+    let items = section
+        .get(array_field)
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            crate::framework::FrameworkError::ValidationFailed(format!(
+                "app config field {field}.{array_field} must be an array"
+            ))
+        })?;
+
+    for (index, item) in items.iter().enumerate() {
+        let entry = item.as_object().ok_or_else(|| {
+            crate::framework::FrameworkError::ValidationFailed(format!(
+                "app config field {field}.{array_field}[{index}] must be an object"
+            ))
+        })?;
+
+        for required_field in required_fields.iter().copied() {
+            if !entry.contains_key(required_field) {
+                return Err(crate::framework::FrameworkError::ValidationFailed(format!(
+                    "missing required app config field {field}.{array_field}[{index}].{required_field}"
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_required_object_fields(
+    root: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    required_fields: &[&str],
+) -> Result<()> {
+    let section = root
+        .get(field)
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            crate::framework::FrameworkError::ValidationFailed(format!(
+                "app config field {field} must be an object"
+            ))
+        })?;
+
+    for required_field in required_fields.iter().copied() {
+        if !section.contains_key(required_field) {
+            return Err(crate::framework::FrameworkError::ValidationFailed(format!(
+                "missing required app config field {field}.{required_field}"
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 fn project_storage_config(config: &StorageConfig) -> PublicStorageConfig {
@@ -496,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    fn normalizes_legacy_embedded_openclaw_shell_exposure_to_enabled() {
+    fn rejects_outdated_config_version() {
         let config = AppConfig {
             version: 1,
             embedded_openclaw: super::EmbeddedOpenClawConfig {
@@ -504,13 +665,19 @@ mod tests {
             },
             ..AppConfig::default()
         };
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
 
-        let normalized = config.normalized();
+        std::fs::write(
+            &paths.config_file,
+            serde_json::to_string_pretty(&config).expect("serialize outdated config"),
+        )
+        .expect("write outdated config");
+        let error = load_or_create_config(&paths).expect_err("outdated config rejected");
 
-        assert_eq!(normalized.version, AppConfig::default().version);
         assert!(
-            normalized.embedded_openclaw.expose_cli_to_shell,
-            "legacy configs should be migrated so embedded openclaw stays on the shell path"
+            error.to_string().contains("unsupported app config version"),
+            "outdated configs should be rejected instead of migrated"
         );
     }
 
@@ -552,23 +719,88 @@ mod tests {
     }
 
     #[test]
-    fn loads_legacy_config_without_kernel_sections() {
+    fn rejects_config_missing_required_sections() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
 
         std::fs::write(
             &paths.config_file,
             r#"{
+        "version": 2,
         "distribution": "cn",
         "theme": "dark"
       }"#,
         )
-        .expect("legacy config");
+        .expect("partial config");
 
-        let config = load_or_create_config(&paths).expect("legacy config should load");
+        let error = load_or_create_config(&paths).expect_err("partial config rejected");
 
-        assert_eq!(config.distribution, "cn");
-        assert_eq!(config.theme, "dark");
+        assert!(
+            error
+                .to_string()
+                .contains("missing required app config field"),
+            "partial configs should be rejected instead of default-filled"
+        );
+    }
+
+    #[test]
+    fn rejects_config_with_partial_desktop_host_section() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let mut document = serde_json::to_value(AppConfig::default()).expect("default config json");
+
+        document["desktopHost"] = serde_json::json!({
+            "enabled": true
+        });
+
+        std::fs::write(
+            &paths.config_file,
+            serde_json::to_string_pretty(&document).expect("serialize partial desktop host"),
+        )
+        .expect("write partial desktop host config");
+
+        let error =
+            load_or_create_config(&paths).expect_err("partial desktop host config rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("missing required app config field desktopHost.bindHost"),
+            "nested config sections should be complete and explicit"
+        );
+    }
+
+    #[test]
+    fn rejects_config_with_partial_storage_profile_section() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let mut document = serde_json::to_value(AppConfig::default()).expect("default config json");
+
+        document["storage"] = serde_json::json!({
+            "activeProfileId": "team-postgres",
+            "profiles": [
+                {
+                    "id": "team-postgres",
+                    "label": "Team DB"
+                }
+            ]
+        });
+
+        std::fs::write(
+            &paths.config_file,
+            serde_json::to_string_pretty(&document).expect("serialize partial storage config"),
+        )
+        .expect("write partial storage config");
+
+        let error =
+            load_or_create_config(&paths).expect_err("partial storage config should be rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("missing required app config field storage.profiles[0].provider"),
+            "storage profiles should be complete and explicit"
+        );
     }
 
     #[test]

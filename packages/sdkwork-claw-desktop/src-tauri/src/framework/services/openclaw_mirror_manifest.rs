@@ -634,7 +634,8 @@ fn looks_like_openclaw_version_label(value: &str) -> bool {
 mod tests {
     use super::{
         build_managed_runtime_snapshot, build_phase1_full_private_components,
-        build_phase1_full_private_manifest,
+        build_phase1_full_private_managed_assets_snapshot, build_phase1_full_private_manifest,
+        OpenClawMirrorManagedPluginAssetRecord, OpenClawMirrorManagedSkillAssetRecord,
     };
     use crate::framework::{
         paths::{resolve_paths_for_root, AppPaths},
@@ -661,8 +662,8 @@ mod tests {
                 .join("0.4.0-windows-x64")
                 .join("runtime")
                 .join("openclaw.cjs"),
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: paths.openclaw_config_file.clone(),
             gateway_port: 18_789,
@@ -673,7 +674,7 @@ mod tests {
     fn seed_managed_openclaw_tree(paths: &AppPaths) {
         fs::create_dir_all(&paths.openclaw_workspace_dir).expect("workspace dir");
         fs::write(&paths.openclaw_config_file, "{ \"agents\": {} }").expect("config");
-        fs::create_dir_all(paths.openclaw_state_dir.join("agents").join("main"))
+        fs::create_dir_all(paths.openclaw_root_dir.join("agents").join("main"))
             .expect("agents dir");
         fs::write(
             paths.openclaw_workspace_dir.join("AGENTS.md"),
@@ -698,9 +699,12 @@ mod tests {
         assert_eq!(snapshot.runtime_id, "openclaw");
         assert_eq!(snapshot.install_key.as_deref(), Some("0.4.0-windows-x64"));
         assert_eq!(snapshot.gateway_port, 18_789);
+        assert!(snapshot.home_dir.ends_with(".openclaw"));
         assert!(snapshot.state_dir.ends_with(".openclaw"));
         assert!(snapshot.workspace_dir.ends_with(".openclaw/workspace"));
-        assert!(snapshot.config_path.ends_with(".openclaw/openclaw.json"));
+        assert!(snapshot
+            .config_path
+            .ends_with("user-home/.openclaw/openclaw.json"));
     }
 
     #[test]
@@ -777,6 +781,95 @@ mod tests {
         assert_eq!(
             manifest.components[0].relative_path,
             "components/config/openclaw.json"
+        );
+    }
+
+    #[test]
+    fn openclaw_mirror_manifest_collects_managed_assets_from_canonical_openclaw_roots_only() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        seed_managed_openclaw_tree(&paths);
+        let runtime = create_runtime(&paths);
+
+        fs::create_dir_all(paths.openclaw_skills_dir.join("shared-calendar"))
+            .expect("shared skills dir");
+        fs::write(
+            paths
+                .openclaw_skills_dir
+                .join("shared-calendar")
+                .join("SKILL.md"),
+            "# shared calendar\n",
+        )
+        .expect("shared skill file");
+        fs::create_dir_all(paths.openclaw_extensions_dir.join("voice-call"))
+            .expect("managed extension dir");
+        fs::write(
+            paths
+                .openclaw_extensions_dir
+                .join("voice-call")
+                .join("plugin.json"),
+            "{ \"id\": \"voice-call\" }\n",
+        )
+        .expect("managed extension file");
+        fs::create_dir_all(
+            paths
+                .openclaw_workspace_skills_dir
+                .join("workspace-calendar"),
+        )
+        .expect("workspace skills dir");
+        fs::write(
+            paths
+                .openclaw_workspace_skills_dir
+                .join("workspace-calendar")
+                .join("SKILL.md"),
+            "# workspace calendar\n",
+        )
+        .expect("workspace skill file");
+        fs::create_dir_all(
+            paths
+                .openclaw_workspace_extensions_dir
+                .join("workspace-voice-call"),
+        )
+        .expect("workspace extension dir");
+        fs::write(
+            paths
+                .openclaw_workspace_extensions_dir
+                .join("workspace-voice-call")
+                .join("plugin.json"),
+            "{ \"id\": \"workspace-voice-call\" }\n",
+        )
+        .expect("workspace extension file");
+
+        let snapshot =
+            build_phase1_full_private_managed_assets_snapshot(&runtime).expect("asset snapshot");
+
+        assert_eq!(
+            snapshot.skills,
+            vec![
+                OpenClawMirrorManagedSkillAssetRecord {
+                    anchor: "state".to_string(),
+                    relative_path: "skills/shared-calendar".to_string(),
+                },
+                OpenClawMirrorManagedSkillAssetRecord {
+                    anchor: "workspace".to_string(),
+                    relative_path: "skills/workspace-calendar".to_string(),
+                },
+            ]
+        );
+        assert_eq!(
+            snapshot.plugins,
+            vec![
+                OpenClawMirrorManagedPluginAssetRecord {
+                    anchor: "state".to_string(),
+                    relative_path: "extensions/voice-call".to_string(),
+                    entry_kind: "directory".to_string(),
+                },
+                OpenClawMirrorManagedPluginAssetRecord {
+                    anchor: "workspace".to_string(),
+                    relative_path: ".openclaw/extensions/workspace-voice-call".to_string(),
+                    entry_kind: "directory".to_string(),
+                },
+            ]
         );
     }
 

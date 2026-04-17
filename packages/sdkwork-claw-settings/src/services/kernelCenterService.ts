@@ -537,16 +537,42 @@ function resolvePreferredOpenClawRuntime(
   info: RuntimeDesktopKernelInfo | null,
 ) {
   const openClawRuntime = info?.openClawRuntime ?? null;
-
-  if (snapshot?.runtimeId === 'openclaw') {
-    return openClawRuntime;
+  if (openClawRuntime?.runtimeId !== 'openclaw') {
+    return null;
   }
 
-  if (!snapshot && openClawRuntime?.runtimeId === 'openclaw') {
-    return openClawRuntime;
+  const activeRuntimeId = snapshot?.runtimeId ?? info?.host?.provenance.runtimeId ?? null;
+  if (activeRuntimeId) {
+    return activeRuntimeId === 'openclaw' ? openClawRuntime : null;
   }
 
-  return null;
+  return openClawRuntime;
+}
+
+function resolveActiveRuntimeContract(info: RuntimeDesktopKernelInfo | null) {
+  return info?.activeRuntime ?? null;
+}
+
+function resolvePreferredRuntimeAuthority(
+  snapshot: KernelPlatformSnapshot | null,
+  info: RuntimeDesktopKernelInfo | null,
+) {
+  const runtimeAuthorities = info?.runtimeAuthorities ?? [];
+  if (runtimeAuthorities.length === 0) {
+    return null;
+  }
+
+  const activeRuntimeId = snapshot?.runtimeId ?? info?.host?.provenance.runtimeId ?? null;
+  if (activeRuntimeId) {
+    const matchedAuthority = runtimeAuthorities.find(
+      (authority) => authority.runtimeId === activeRuntimeId,
+    );
+    if (matchedAuthority) {
+      return matchedAuthority;
+    }
+  }
+
+  return runtimeAuthorities[0] ?? null;
 }
 
 function resolveSnapshotResult(
@@ -621,7 +647,11 @@ function mapDashboard(
   const activeProfile = info?.storage.profiles.find((profile) => profile.active) ?? null;
   const kernelHost = snapshot?.raw ?? info?.host ?? null;
   const controlSocket = kernelHost?.host.controlSocket ?? null;
+  const activeRuntime = resolveActiveRuntimeContract(info);
   const openClawRuntime = resolvePreferredOpenClawRuntime(snapshot, info);
+  const runtimeAuthority =
+    activeRuntime?.authority
+    ?? resolvePreferredRuntimeAuthority(snapshot, info);
   const startupEvidence = info?.desktopStartupEvidence ?? null;
   const readyKeys =
     info?.capabilities
@@ -641,12 +671,17 @@ function mapDashboard(
     ),
     statusTitle: formatRuntimeState(
       snapshot?.runtimeState
-      ?? openClawRuntime?.lifecycle
+      ?? activeRuntime?.state
       ?? kernelHost?.runtime.state
+      ?? openClawRuntime?.lifecycle
       ?? null,
     ),
     statusSummary:
-      normalizeOptionalText(snapshot?.raw.runtime.reason ?? kernelHost?.runtime.reason)
+      normalizeOptionalText(
+        snapshot?.raw.runtime.reason
+        ?? activeRuntime?.reason
+        ?? kernelHost?.runtime.reason,
+      )
       ?? (startupEvidence?.errorMessage
         ? startupEvidence.errorMessage
         : startupEvidence?.phase && startupEvidence?.recordedAt
@@ -730,12 +765,22 @@ function mapDashboard(
       profileCount: info?.storage.profiles.length ?? 0,
     },
     runtimeAuthority: {
-      managedConfigPath: openClawRuntime?.authority?.managedConfigPath ?? null,
-      ownedRuntimeRoots: openClawRuntime?.authority?.ownedRuntimeRoots ?? [],
+      managedConfigPath:
+        runtimeAuthority?.managedConfigPath
+        ?? openClawRuntime?.authority?.managedConfigPath
+        ?? null,
+      ownedRuntimeRoots:
+        runtimeAuthority?.ownedRuntimeRoots
+        ?? openClawRuntime?.authority?.ownedRuntimeRoots
+        ?? [],
       supportsLoopbackHealthProbe:
-        openClawRuntime?.authority?.readinessProbe?.supportsLoopbackHealthProbe ?? null,
+        runtimeAuthority?.readinessProbe?.supportsLoopbackHealthProbe
+        ?? openClawRuntime?.authority?.readinessProbe?.supportsLoopbackHealthProbe
+        ?? null,
       healthProbeTimeoutMs:
-        openClawRuntime?.authority?.readinessProbe?.healthProbeTimeoutMs ?? null,
+        runtimeAuthority?.readinessProbe?.healthProbeTimeoutMs
+        ?? openClawRuntime?.authority?.readinessProbe?.healthProbeTimeoutMs
+        ?? null,
     },
     capabilities: {
       readyKeys,
@@ -779,23 +824,46 @@ function mapDashboard(
     provenance: {
       installSource: kernelHost?.provenance.installSource ?? null,
       platformLabel: formatPlatformLabel(
-        openClawRuntime?.platform ?? kernelHost?.provenance.platform,
-        openClawRuntime?.arch ?? kernelHost?.provenance.arch,
+        activeRuntime?.platform
+        ?? runtimeAuthority?.platform
+        ?? openClawRuntime?.platform
+        ?? kernelHost?.provenance.platform,
+        activeRuntime?.arch
+        ?? runtimeAuthority?.arch
+        ?? openClawRuntime?.arch
+        ?? kernelHost?.provenance.arch,
       ),
       runtimeVersion:
-        openClawRuntime?.openclawVersion
+        activeRuntime?.runtimeVersion
+        ?? runtimeAuthority?.runtimeVersion
+        ?? openClawRuntime?.openclawVersion
         ?? snapshot?.runtimeVersion
         ?? kernelHost?.provenance.runtimeVersion
         ?? null,
       nodeVersion:
-        openClawRuntime?.nodeVersion
+        activeRuntime?.nodeVersion
+        ?? runtimeAuthority?.nodeVersion
+        ?? openClawRuntime?.nodeVersion
         ?? snapshot?.nodeVersion
         ?? kernelHost?.provenance.nodeVersion
         ?? null,
-      configPath: openClawRuntime?.configPath ?? kernelHost?.provenance.configPath ?? null,
-      runtimeHomeDir: openClawRuntime?.homeDir ?? kernelHost?.provenance.runtimeHomeDir ?? null,
+      configPath:
+        activeRuntime?.configPath
+        ?? runtimeAuthority?.configPath
+        ?? openClawRuntime?.configPath
+        ?? kernelHost?.provenance.configPath
+        ?? null,
+      runtimeHomeDir:
+        activeRuntime?.runtimeHomeDir
+        ?? (runtimeAuthority
+          ? runtimeAuthority.runtimeHomeDir ?? null
+          : openClawRuntime?.homeDir ?? kernelHost?.provenance.runtimeHomeDir ?? null),
       runtimeInstallDir:
-        openClawRuntime?.installDir ?? kernelHost?.provenance.runtimeInstallDir ?? null,
+        activeRuntime?.runtimeInstallDir
+        ?? runtimeAuthority?.runtimeInstallDir
+        ?? openClawRuntime?.installDir
+        ?? kernelHost?.provenance.runtimeInstallDir
+        ?? null,
     },
   };
 }

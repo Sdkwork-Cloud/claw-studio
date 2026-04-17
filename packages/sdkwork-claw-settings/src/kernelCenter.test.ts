@@ -198,7 +198,7 @@ await runTest(
 );
 
 await runTest(
-  'KernelCenter runtime state treats ready OpenClaw runtime fallback as a first-class localized state',
+  'KernelCenter runtime state is derived from the shared kernel snapshot and published host state without direct OpenClaw-specific fallback wiring',
   async () => {
     const kernelCenterSource = fs.readFileSync(
       new URL('./KernelCenter.tsx', import.meta.url),
@@ -221,7 +221,11 @@ await runTest(
     assert.match(kernelCenterSource, /settings\.kernelCenter\.runtimeStates\.ready/);
     assert.match(
       kernelCenterSource,
-      /dashboard\?\.snapshot\?\.runtimeState\s*\?\?\s*dashboard\?\.info\?\.openClawRuntime\?\.lifecycle/,
+      /dashboard\?\.snapshot\?\.runtimeState\s*\?\?\s*dashboard\?\.info\?\.host\?\.runtime\.state/,
+    );
+    assert.doesNotMatch(
+      kernelCenterSource,
+      /dashboard\?\.info\?\.openClawRuntime\?\.lifecycle/,
     );
 
     assert.equal(typeof enSettings.kernelCenter.runtimeStates.ready, 'string');

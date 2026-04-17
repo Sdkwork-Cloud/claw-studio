@@ -313,33 +313,36 @@ await runTest('desktop hosted bridge readiness probe validates hosted internal, 
   assert.equal(result.evidence.openClawGatewayWebsocketUrl, 'ws://127.0.0.1:18871');
   assert.equal(result.evidence.builtInInstanceWebsocketUrl, 'ws://127.0.0.1:18871');
   assert.deepEqual(webSocketProbe.urls, ['ws://127.0.0.1:18871']);
-  assert.deepEqual(requests, [
-    {
-      input: 'http://127.0.0.1:18797/claw/internal/v1/host-platform',
-      method: 'GET',
-      browserSessionToken: 'desktop-session-token',
-    },
-    {
-      input: 'http://127.0.0.1:18797/claw/manage/v1/host-endpoints',
-      method: 'GET',
-      browserSessionToken: 'desktop-session-token',
-    },
-    {
-      input: 'http://127.0.0.1:18797/claw/manage/v1/openclaw/runtime',
-      method: 'GET',
-      browserSessionToken: 'desktop-session-token',
-    },
-    {
-      input: 'http://127.0.0.1:18797/claw/manage/v1/openclaw/gateway',
-      method: 'GET',
-      browserSessionToken: 'desktop-session-token',
-    },
-    {
-      input: 'http://127.0.0.1:18797/claw/api/v1/studio/instances',
-      method: 'GET',
-      browserSessionToken: 'desktop-session-token',
-    },
-  ]);
+  assert.deepEqual(
+    [...requests].sort((left, right) => left.input.localeCompare(right.input)),
+    [
+      {
+        input: 'http://127.0.0.1:18797/claw/internal/v1/host-platform',
+        method: 'GET',
+        browserSessionToken: 'desktop-session-token',
+      },
+      {
+        input: 'http://127.0.0.1:18797/claw/manage/v1/host-endpoints',
+        method: 'GET',
+        browserSessionToken: 'desktop-session-token',
+      },
+      {
+        input: 'http://127.0.0.1:18797/claw/manage/v1/openclaw/runtime',
+        method: 'GET',
+        browserSessionToken: 'desktop-session-token',
+      },
+      {
+        input: 'http://127.0.0.1:18797/claw/manage/v1/openclaw/gateway',
+        method: 'GET',
+        browserSessionToken: 'desktop-session-token',
+      },
+      {
+        input: 'http://127.0.0.1:18797/claw/api/v1/studio/instances',
+        method: 'GET',
+        browserSessionToken: 'desktop-session-token',
+      },
+    ].sort((left, right) => left.input.localeCompare(right.input)),
+  );
 });
 
 await runTest('desktop hosted bridge readiness probe rejects when the managed OpenClaw gateway websocket is not dialable yet', async () => {
@@ -819,7 +822,9 @@ await runTest('desktop hosted bridge readiness probe rejects a hosted runtime th
 });
 
 await runTest('desktop hosted bridge readiness probe accepts non-openclaw package profiles when the hosted shell is ready without managed OpenClaw surfaces', async () => {
+  const requests: string[] = [];
   const fetchImpl = async (input: string) => {
+    requests.push(input);
     if (input === 'http://127.0.0.1:18797/claw/internal/v1/host-platform') {
       return createJsonResponse({
         mode: 'desktopCombined',
@@ -858,34 +863,6 @@ await runTest('desktop hosted bridge readiness probe accepts non-openclaw packag
       ]);
     }
 
-    if (input === 'http://127.0.0.1:18797/claw/manage/v1/openclaw/runtime') {
-      return createJsonResponse({
-        runtimeKind: 'openclaw',
-        lifecycle: 'inactive',
-        endpointId: null,
-        requestedPort: null,
-        activePort: null,
-        baseUrl: null,
-        websocketUrl: null,
-        managedBy: 'desktopCombined',
-        updatedAt: 1,
-      });
-    }
-
-    if (input === 'http://127.0.0.1:18797/claw/manage/v1/openclaw/gateway') {
-      return createJsonResponse({
-        gatewayKind: 'openclawGateway',
-        lifecycle: 'inactive',
-        endpointId: null,
-        requestedPort: null,
-        activePort: null,
-        baseUrl: null,
-        websocketUrl: null,
-        managedBy: 'desktopCombined',
-        updatedAt: 1,
-      });
-    }
-
     if (input === 'http://127.0.0.1:18797/claw/api/v1/studio/instances') {
       return createJsonResponse([
         {
@@ -920,6 +897,11 @@ await runTest('desktop hosted bridge readiness probe accepts non-openclaw packag
   assert.equal(result.evidence.openClawGatewayReady, false);
   assert.equal(result.evidence.builtInInstanceReady, false);
   assert.equal(result.evidence.ready, true);
+  assert.deepEqual(requests, [
+    'http://127.0.0.1:18797/claw/internal/v1/host-platform',
+    'http://127.0.0.1:18797/claw/manage/v1/host-endpoints',
+    'http://127.0.0.1:18797/claw/api/v1/studio/instances',
+  ]);
 });
 
 await runTest('desktop hosted bridge readiness evidence marks built-in instance as not ready when the gateway websocket drifts from the built-in projection', async () => {

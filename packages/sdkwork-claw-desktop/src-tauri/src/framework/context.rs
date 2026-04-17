@@ -63,6 +63,7 @@ impl FrameworkContext {
             &self.paths,
             &self.config,
             &self.services.supervisor,
+            &self.services.local_ai_proxy,
             &self.logger,
         )?;
         Ok(())
@@ -194,6 +195,7 @@ mod tests {
             &context.paths,
             &context.config,
             &context.services.supervisor,
+            &context.services.local_ai_proxy,
             &context.logger,
         )
         .expect("bootstrap desktop host")

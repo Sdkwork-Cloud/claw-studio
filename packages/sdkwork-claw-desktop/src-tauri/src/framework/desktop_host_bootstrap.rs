@@ -6,7 +6,7 @@ use crate::framework::{
     },
     logging::AppLogger,
     paths::AppPaths,
-    services::supervisor::SupervisorService,
+    services::{local_ai_proxy::LocalAiProxyService, supervisor::SupervisorService},
     Result,
 };
 
@@ -35,6 +35,7 @@ pub fn bootstrap_desktop_host_runtime(
     paths: &AppPaths,
     config: &AppConfig,
     supervisor: &SupervisorService,
+    local_ai_proxy: &LocalAiProxyService,
     logger: &AppLogger,
 ) -> Result<Option<DesktopHostRuntime>> {
     if !config.desktop_host.enabled {
@@ -47,6 +48,7 @@ pub fn bootstrap_desktop_host_runtime(
         paths,
         config,
         supervisor,
+        local_ai_proxy,
         config.desktop_host.bind_host.as_str(),
         config.desktop_host.port,
         config.desktop_host.allow_dynamic_port,
@@ -75,7 +77,9 @@ mod tests {
         logging::init_logger,
         paths::resolve_paths_for_root,
         services::{
+            local_ai_proxy::LocalAiProxyService,
             openclaw_runtime::ActivatedOpenClawRuntime,
+            storage::StorageService,
             supervisor::{SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY},
         },
     };
@@ -90,10 +94,15 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let supervisor = SupervisorService::for_paths(&paths);
 
-        let runtime =
-            bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
-                .expect("bootstrap desktop host")
-                .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         assert_eq!(snapshot.mode, DESKTOP_EMBEDDED_HOST_MODE);
@@ -145,9 +154,15 @@ mod tests {
             ..AppConfig::default()
         };
 
-        let runtime = bootstrap_desktop_host_runtime(&paths, &config, &supervisor, &logger)
-            .expect("bootstrap desktop host")
-            .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &config,
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         assert_eq!(snapshot.endpoint.requested_port, requested_port);
@@ -173,9 +188,15 @@ mod tests {
             ..AppConfig::default()
         };
 
-        let runtime = bootstrap_desktop_host_runtime(&paths, &config, &supervisor, &logger)
-            .expect("bootstrap desktop host")
-            .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &config,
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         assert_eq!(snapshot.mode, DESKTOP_EMBEDDED_HOST_MODE);
@@ -197,10 +218,15 @@ mod tests {
         )
         .expect("embedded host index");
 
-        let runtime =
-            bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
-                .expect("bootstrap desktop host")
-                .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         let response = tokio::runtime::Builder::new_current_thread()
@@ -241,10 +267,15 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let supervisor = SupervisorService::for_paths(&paths);
 
-        let runtime =
-            bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
-                .expect("bootstrap desktop host")
-                .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         let response = tokio::runtime::Builder::new_current_thread()
@@ -297,16 +328,118 @@ mod tests {
     }
 
     #[test]
+    fn embedded_host_bootstrap_exposes_root_native_local_ai_proxy_routes() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let logger = init_logger(&paths).expect("logger");
+        let supervisor = configured_running_supervisor(&paths);
+        let local_ai_proxy = start_running_local_ai_proxy(&paths, &AppConfig::default());
+
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &local_ai_proxy,
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
+        let snapshot = runtime.snapshot().clone();
+
+        let responses = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime")
+            .block_on(async {
+                let host_health = reqwest::get(format!("{}/health", snapshot.browser_base_url))
+                    .await
+                    .expect("root health response");
+                let host_v1_health =
+                    reqwest::get(format!("{}/v1/health", snapshot.browser_base_url))
+                        .await
+                        .expect("root v1 health response");
+                let discovery = reqwest::get(format!(
+                    "{}/claw/openapi/discovery",
+                    snapshot.browser_base_url
+                ))
+                .await
+                .expect("openapi discovery response");
+
+                (
+                    (host_health.status(), host_health.text().await),
+                    (host_v1_health.status(), host_v1_health.text().await),
+                    (
+                        discovery.status(),
+                        discovery
+                            .json::<Value>()
+                            .await
+                            .unwrap_or_else(|_| Value::String("invalid-json".to_string())),
+                    ),
+                )
+            });
+
+        assert_eq!(
+            responses.0 .0,
+            StatusCode::OK,
+            "desktop embedded host must expose the root-native local-ai-proxy /health route"
+        );
+        assert_eq!(
+            responses.1 .0,
+            StatusCode::OK,
+            "desktop embedded host must expose the root-native local-ai-proxy /v1/health route"
+        );
+        assert_eq!(
+            responses.2 .0,
+            StatusCode::OK,
+            "desktop embedded host must expose openapi discovery for optional proxy documents"
+        );
+        assert!(
+            responses
+                .2
+                 .1
+                .get("documents")
+                .and_then(Value::as_array)
+                .is_some_and(|documents| documents.iter().any(|document| {
+                    document.get("id").and_then(Value::as_str) == Some("local-ai-compat-v1")
+                        && document.get("url").and_then(Value::as_str)
+                            == Some("/claw/openapi/local-ai-compat-v1.json")
+                })),
+            "desktop embedded host discovery must advertise the local-ai compatibility document when the local ai proxy is active"
+        );
+        assert!(
+            responses
+                .2
+                 .1
+                .get("documents")
+                .and_then(Value::as_array)
+                .is_some_and(|documents| documents.iter().any(|document| {
+                    document.get("id").and_then(Value::as_str) == Some("openclaw-gateway-v1")
+                        && document.get("url").and_then(Value::as_str)
+                            == Some("/claw/openapi/openclaw-gateway-v1.json")
+                })),
+            "desktop embedded host discovery must advertise the governed openclaw gateway document when the managed gateway is active"
+        );
+
+        runtime.shutdown().expect("shutdown desktop host");
+        local_ai_proxy.stop().expect("stop local ai proxy");
+    }
+
+    #[test]
     fn embedded_host_bootstrap_exposes_canonical_server_route_families() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let logger = init_logger(&paths).expect("logger");
         let supervisor = SupervisorService::for_paths(&paths);
 
-        let runtime =
-            bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
-                .expect("bootstrap desktop host")
-                .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         let responses = tokio::runtime::Builder::new_current_thread()
@@ -415,10 +548,15 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let supervisor = SupervisorService::for_paths(&paths);
 
-        let runtime =
-            bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
-                .expect("bootstrap desktop host")
-                .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         let responses = tokio::runtime::Builder::new_current_thread()
@@ -572,10 +710,15 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let supervisor = SupervisorService::for_paths(&paths);
 
-        let runtime =
-            bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
-                .expect("bootstrap desktop host")
-                .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         let responses = tokio::runtime::Builder::new_current_thread()
@@ -692,10 +835,15 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let supervisor = SupervisorService::for_paths(&paths);
 
-        let runtime =
-            bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
-                .expect("bootstrap desktop host")
-                .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         let responses = tokio::runtime::Builder::new_current_thread()
@@ -907,10 +1055,15 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let supervisor = configured_running_supervisor(&paths);
 
-        let runtime =
-            bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
-                .expect("bootstrap desktop host")
-                .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         let responses = tokio::runtime::Builder::new_current_thread()
@@ -1180,10 +1333,15 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let supervisor = configured_running_supervisor(&paths);
 
-        let runtime =
-            bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
-                .expect("bootstrap desktop host")
-                .expect("desktop host runtime");
+        let runtime = bootstrap_desktop_host_runtime(
+            &paths,
+            &AppConfig::default(),
+            &supervisor,
+            &LocalAiProxyService::new(),
+            &logger,
+        )
+        .expect("bootstrap desktop host")
+        .expect("desktop host runtime");
         let snapshot = runtime.snapshot().clone();
 
         let responses = tokio::runtime::Builder::new_current_thread()
@@ -1350,8 +1508,8 @@ mod tests {
                 .join("node_modules")
                 .join("openclaw")
                 .join("openclaw.mjs"),
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: paths.openclaw_config_file.clone(),
             gateway_port: reserve_available_loopback_port(),
@@ -1365,6 +1523,23 @@ mod tests {
             .record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(42))
             .expect("record running");
         supervisor
+    }
+
+    fn start_running_local_ai_proxy(
+        paths: &crate::framework::paths::AppPaths,
+        config: &AppConfig,
+    ) -> LocalAiProxyService {
+        let service = LocalAiProxyService::new();
+        let storage = StorageService::new();
+        let snapshot = service
+            .ensure_snapshot(paths, config, &storage)
+            .expect("local ai proxy snapshot");
+
+        service
+            .start(paths, snapshot)
+            .expect("start local ai proxy service");
+
+        service
     }
 
     async fn build_browser_session_client(browser_base_url: &str) -> reqwest::Client {

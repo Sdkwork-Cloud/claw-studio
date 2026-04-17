@@ -30,10 +30,10 @@ function createPreview(
       nodeVersion: '22.14.0',
       platform: 'windows',
       arch: 'x64',
-      homeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
-      stateDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw',
-      workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/workspace',
-      configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+      homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+      stateDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw',
+      workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+      configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
       gatewayPort: 18789,
     },
     components: [
@@ -42,20 +42,20 @@ function createPreview(
         kind: 'config',
         relativePath: 'components/config/openclaw.json',
         sourcePath:
-          'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+          'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
       },
       {
         id: 'state',
         kind: 'state',
         relativePath: 'components/state',
-        sourcePath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw',
+        sourcePath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw',
       },
       {
         id: 'workspace',
         kind: 'workspace',
         relativePath: 'components/workspace',
         sourcePath:
-          'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/workspace',
+          'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
       },
     ],
     manifest: {

@@ -5,8 +5,10 @@ use crate::framework::kernel_host::{
 use crate::framework::{
     config::AppConfig,
     kernel::{
-        DesktopKernelInfo, DesktopLocalAiProxyDefaultRouteInfo, DesktopLocalAiProxyInfo,
-        DesktopLocalAiProxyRouteRuntimeMetrics, DesktopLocalAiProxyRouteTestRecord,
+        DesktopBundledComponentsInfo, DesktopKernelInfo, DesktopKernelRuntimeAuthorityInfo,
+        DesktopKernelRuntimeAuthorityProbeInfo, DesktopLocalAiProxyDefaultRouteInfo,
+        DesktopLocalAiProxyInfo, DesktopLocalAiProxyRouteRuntimeMetrics,
+        DesktopLocalAiProxyRouteTestRecord, DesktopOpenClawRuntimeInfo,
     },
     paths::AppPaths,
     policy::ExecutionPolicy,
@@ -54,6 +56,7 @@ use self::{
     integrations::IntegrationService,
     jobs::JobService,
     kernel::{KernelDomainSnapshots, KernelService},
+    kernel_runtime_authority::KernelRuntimeAuthorityService,
     local_ai_proxy::{LocalAiProxyLifecycle, LocalAiProxyService},
     notifications::NotificationService,
     openclaw_mirror::OpenClawMirrorService,
@@ -164,6 +167,8 @@ impl FrameworkServices {
         let active_job_count = self.jobs.active_job_count()?;
         let active_process_job_count = self.jobs.active_process_job_count()?;
         let supervisor = self.supervisor.kernel_info()?;
+        let bundled_components = self.components.kernel_info(paths)?;
+        let primary_runtime_id = self.components.default_runtime_id(paths)?;
         let open_claw_runtime = self.openclaw_runtime_snapshot.kernel_info(
             paths,
             &self.supervisor,
@@ -175,6 +180,13 @@ impl FrameworkServices {
             paths,
             configured_openclaw_runtime.as_ref(),
             &supervisor,
+            &primary_runtime_id,
+        )?;
+        let runtime_authorities = self.desktop_runtime_authorities(
+            paths,
+            &bundled_components,
+            &host,
+            &open_claw_runtime,
         )?;
 
         Ok(self.kernel.kernel_info(
@@ -193,9 +205,10 @@ impl FrameworkServices {
                 integrations: self.integrations.kernel_info(paths, &normalized)?,
                 supervisor,
                 open_claw_runtime,
+                runtime_authorities,
                 local_ai_proxy,
                 desktop_startup_evidence: self.kernel.desktop_startup_evidence(paths),
-                bundled_components: self.components.kernel_info(paths)?,
+                bundled_components,
                 storage: self.storage.storage_info(paths, &normalized),
                 host,
             },
@@ -300,7 +313,113 @@ impl FrameworkServices {
     pub fn desktop_kernel_host_status(&self, paths: &AppPaths) -> Result<DesktopKernelHostInfo> {
         let supervisor = self.supervisor.kernel_info()?;
         let configured_openclaw_runtime = self.supervisor.configured_openclaw_runtime()?;
-        build_desktop_kernel_host_info(paths, configured_openclaw_runtime.as_ref(), &supervisor)
+        let primary_runtime_id = self.components.default_runtime_id(paths)?;
+        build_desktop_kernel_host_info(
+            paths,
+            configured_openclaw_runtime.as_ref(),
+            &supervisor,
+            &primary_runtime_id,
+        )
+    }
+
+    fn desktop_runtime_authorities(
+        &self,
+        paths: &AppPaths,
+        bundled_components: &DesktopBundledComponentsInfo,
+        host: &DesktopKernelHostInfo,
+        open_claw_runtime: &DesktopOpenClawRuntimeInfo,
+    ) -> Result<Vec<DesktopKernelRuntimeAuthorityInfo>> {
+        let authority_service = KernelRuntimeAuthorityService::new();
+        let mut runtime_ids = bundled_components.included_kernel_ids.clone();
+        if !runtime_ids
+            .iter()
+            .any(|runtime_id| runtime_id == &host.provenance.runtime_id)
+        {
+            runtime_ids.push(host.provenance.runtime_id.clone());
+        }
+
+        let mut authorities = Vec::new();
+        for runtime_id in runtime_ids {
+            let Some(contract) = authority_service.managed_contract(&runtime_id, paths)? else {
+                continue;
+            };
+
+            if runtime_id == open_claw_runtime.runtime_id {
+                authorities.push(DesktopKernelRuntimeAuthorityInfo {
+                    runtime_id,
+                    managed_config_path: open_claw_runtime.authority.managed_config_path.clone(),
+                    owned_runtime_roots: open_claw_runtime.authority.owned_runtime_roots.clone(),
+                    readiness_probe: DesktopKernelRuntimeAuthorityProbeInfo {
+                        supports_loopback_health_probe: open_claw_runtime
+                            .authority
+                            .readiness_probe
+                            .supports_loopback_health_probe,
+                        health_probe_timeout_ms: open_claw_runtime
+                            .authority
+                            .readiness_probe
+                            .health_probe_timeout_ms,
+                    },
+                    runtime_version: open_claw_runtime.openclaw_version.clone(),
+                    node_version: open_claw_runtime.node_version.clone(),
+                    platform: Some(open_claw_runtime.platform.clone()),
+                    arch: Some(open_claw_runtime.arch.clone()),
+                    install_source: Some(host.provenance.install_source.clone()),
+                    config_path: Some(open_claw_runtime.config_path.clone()),
+                    runtime_home_dir: Some(open_claw_runtime.home_dir.clone()),
+                    runtime_install_dir: open_claw_runtime.install_dir.clone(),
+                });
+                continue;
+            }
+
+            authorities.push(DesktopKernelRuntimeAuthorityInfo {
+                runtime_id: runtime_id.clone(),
+                managed_config_path: contract.managed_config_path.to_string_lossy().into_owned(),
+                owned_runtime_roots: contract
+                    .owned_runtime_roots
+                    .iter()
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .collect(),
+                readiness_probe: DesktopKernelRuntimeAuthorityProbeInfo {
+                    supports_loopback_health_probe: contract
+                        .readiness_probe
+                        .supports_loopback_health_probe,
+                    health_probe_timeout_ms: contract.readiness_probe.health_probe_timeout_ms,
+                },
+                runtime_version: if host.provenance.runtime_id == runtime_id {
+                    host.provenance.runtime_version.clone()
+                } else {
+                    None
+                },
+                node_version: if host.provenance.runtime_id == runtime_id {
+                    host.provenance.node_version.clone()
+                } else {
+                    None
+                },
+                platform: if host.provenance.runtime_id == runtime_id {
+                    Some(host.provenance.platform.clone())
+                } else {
+                    None
+                },
+                arch: if host.provenance.runtime_id == runtime_id {
+                    Some(host.provenance.arch.clone())
+                } else {
+                    None
+                },
+                install_source: if host.provenance.runtime_id == runtime_id {
+                    Some(host.provenance.install_source.clone())
+                } else {
+                    None
+                },
+                config_path: Some(contract.managed_config_path.to_string_lossy().into_owned()),
+                runtime_home_dir: None,
+                runtime_install_dir: contract
+                    .owned_runtime_roots
+                    .first()
+                    .map(|path| path.to_string_lossy().into_owned()),
+            });
+        }
+
+        Ok(authorities)
     }
 
     pub fn ensure_local_ai_proxy_ready(&self, paths: &AppPaths, config: &AppConfig) -> Result<()> {
@@ -466,8 +585,8 @@ mod tests {
                 .join("node_modules")
                 .join("openclaw")
                 .join("openclaw.mjs"),
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: paths.openclaw_config_file.clone(),
             gateway_port,
@@ -532,8 +651,8 @@ mod tests {
             runtime_dir,
             node_path: resolve_test_node_executable(),
             cli_path,
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
+            home_dir: paths.openclaw_root_dir.clone(),
+            state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
             config_path: paths.openclaw_config_file.clone(),
             gateway_port,

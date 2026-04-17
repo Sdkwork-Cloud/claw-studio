@@ -376,6 +376,47 @@ await runTest(
 );
 
 await runTest(
+  'buildInstanceManagementSummary canonicalizes built-in managed OpenClaw config authority when only a legacy route target remains',
+  () => {
+    const detail = createDetail({
+      dataAccess: {
+        routes: [
+          {
+            scope: 'config',
+            mode: 'managedFile',
+            target:
+              'C:/ProgramData/SdkWork/CrawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+            readonly: false,
+          },
+          {
+            scope: 'files',
+            mode: 'managedDirectory',
+            target: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+            readonly: false,
+          },
+        ],
+      },
+    });
+
+    const summary = buildInstanceManagementSummary(
+      createWorkbench({
+        detail,
+        managedConfigPath: null,
+      }),
+    );
+
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'configAuthority')?.value,
+      'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+    );
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'configAuthority')?.detailKey,
+      'instances.detail.instanceWorkbench.overview.management.details.configManagedFile',
+    );
+  },
+);
+
+await runTest(
   'buildInstanceManagementSummary reports partial runtime control for non-OpenClaw instances when a writable remote management surface is exposed',
   () => {
     const detail = createDetail({

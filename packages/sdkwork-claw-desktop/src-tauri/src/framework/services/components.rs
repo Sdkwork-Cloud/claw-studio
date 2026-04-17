@@ -187,6 +187,23 @@ impl ComponentRegistryService {
                 .collect(),
         })
     }
+
+    pub fn default_runtime_id(&self, paths: &AppPaths) -> Result<String> {
+        let resources = self.load_resources(paths)?;
+        Ok(resources
+            .bundle_manifest
+            .default_enabled_kernel_ids
+            .first()
+            .cloned()
+            .or_else(|| {
+                resources
+                    .bundle_manifest
+                    .included_kernel_ids
+                    .first()
+                    .cloned()
+            })
+            .unwrap_or_else(|| DEFAULT_OPENCLAW_KERNEL_ID.to_string()))
+    }
 }
 
 impl BundledComponentResources {

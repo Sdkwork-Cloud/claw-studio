@@ -191,6 +191,46 @@ function createInstanceDetailWithManagedConfig(
   };
 }
 
+function createBuiltInManagedOpenClawDetailWithLegacyConfigPath() {
+  const detail = createInstanceDetailWithManagedConfig(
+    'C:/ProgramData/SdkWork/CrawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+  );
+  const canonicalWorkspacePath = 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace';
+
+  detail.instance.id = 'local-built-in';
+  detail.instance.name = 'Local Built-In OpenClaw';
+  detail.instance.deploymentMode = 'local-managed';
+  detail.instance.isBuiltIn = true;
+  detail.instance.isDefault = true;
+  detail.instance.config.workspacePath = canonicalWorkspacePath;
+  detail.config.workspacePath = canonicalWorkspacePath;
+  detail.lifecycle.owner = 'appSupervisor';
+  detail.dataAccess.routes.push({
+    id: 'files',
+    label: 'Workspace',
+    scope: 'files',
+    mode: 'managedDirectory',
+    status: 'ready',
+    target: canonicalWorkspacePath,
+    readonly: false,
+    authoritative: true,
+    detail: 'Managed OpenClaw workspace directory.',
+    source: 'config',
+  });
+  detail.artifacts.push({
+    id: 'workspace-directory',
+    label: 'Workspace Directory',
+    kind: 'workspaceDirectory',
+    status: 'available',
+    location: canonicalWorkspacePath,
+    readonly: false,
+    detail: 'Managed OpenClaw workspace directory.',
+    source: 'config',
+  });
+
+  return detail;
+}
+
 await runTest('openClawConfigService resolves install config paths using the same candidate order as desktop discovery', async () => {
   const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
   const { openClawConfigService } = await import('./openClawConfigService.ts');
@@ -2847,6 +2887,20 @@ await runTest('openClawConfigService resolves a file-backed config path from ins
     'D:/OpenClaw/.openclaw/openclaw.json',
   );
 });
+
+await runTest(
+  'openClawConfigService canonicalizes built-in managed OpenClaw config paths when legacy machine targets drift',
+  async () => {
+    const { openClawConfigService } = await import('./openClawConfigService.ts');
+
+    const detail = createBuiltInManagedOpenClawDetailWithLegacyConfigPath();
+
+    assert.equal(
+      openClawConfigService.resolveInstanceConfigPath(detail),
+      'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+    );
+  },
+);
 
 await runTest(
   'openClawConfigService does not infer an attached config file from a metadata-only config route',

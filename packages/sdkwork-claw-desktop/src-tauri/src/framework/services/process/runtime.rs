@@ -661,8 +661,14 @@ mod tests {
     #[cfg(windows)]
     fn test_sleep_request(timeout_ms: u64) -> super::ValidatedProcessRequest {
         super::ValidatedProcessRequest {
-            command: "cmd".to_string(),
-            args: vec!["/C".to_string(), "ping -n 3 127.0.0.1 >nul".to_string()],
+            command: "powershell".to_string(),
+            args: vec![
+                "-NoLogo".to_string(),
+                "-NoProfile".to_string(),
+                "-NonInteractive".to_string(),
+                "-Command".to_string(),
+                "Start-Sleep -Seconds 2".to_string(),
+            ],
             cwd: std::env::current_dir().expect("current dir"),
             timeout_ms: Some(timeout_ms),
             env: std::env::vars_os().collect(),

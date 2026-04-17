@@ -1546,7 +1546,7 @@ mod tests {
                 paths
                     .kernel_paths("openclaw")
                     .map(|kernel| kernel.managed_config_file)
-                    .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+                    .unwrap_or_else(|_| paths.openclaw_config_file.clone())
             })
     }
 

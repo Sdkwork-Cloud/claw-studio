@@ -48,7 +48,7 @@ importers:
         specifier: ^3.5.32
         version: 3.5.32(typescript@6.0.2)
 
-  ../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript:
+  ../../../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript:
     devDependencies:
       '@types/node':
         specifier: ^25.5.2
@@ -69,7 +69,7 @@ importers:
         specifier: 8.0.3
         version: 8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.4)(jiti@2.6.1)(tsx@4.21.0)
 
-  ../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript:
+  ../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript:
     dependencies:
       '@sdkwork/sdk-common':
         specifier: ^1.0.2
@@ -88,13 +88,13 @@ importers:
         specifier: ^4.0.0
         version: 4.5.4(@types/node@20.19.39)(rollup@4.60.1)(typescript@5.9.3)(vite@7.3.2(@types/node@20.19.39)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0))
 
-  ../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/composed:
+  ../../../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/composed:
     dependencies:
       '@sdkwork/craw-chat-backend-sdk':
         specifier: file:../generated/server-openapi
-        version: file:../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi
+        version: file:../../../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi
 
-  ../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi:
+  ../../../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi:
     dependencies:
       '@sdkwork/sdk-common':
         specifier: ^1.0.2
@@ -113,7 +113,7 @@ importers:
         specifier: ^4.0.0
         version: 4.5.4(@types/node@20.19.39)(rollup@4.60.1)(typescript@5.9.3)(vite@7.3.2(@types/node@20.19.39)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0))
 
-  ../sdkwork-core/sdkwork-core-pc-react:
+  ../../../sdkwork-core/sdkwork-core-pc-react:
     dependencies:
       '@sdkwork/app-sdk':
         specifier: workspace:*
@@ -469,7 +469,7 @@ importers:
     dependencies:
       '@sdkwork/app-sdk':
         specifier: workspace:^
-        version: link:../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript
+        version: link:../../../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript
       '@sdkwork/claw-i18n':
         specifier: workspace:*
         version: link:../sdkwork-claw-i18n
@@ -481,7 +481,7 @@ importers:
         version: link:../sdkwork-claw-types
       '@sdkwork/core-pc-react':
         specifier: workspace:*
-        version: link:../../../sdkwork-core/sdkwork-core-pc-react
+        version: link:../../../../../sdkwork-core/sdkwork-core-pc-react
       fuse.js:
         specifier: ^7.3.0
         version: 7.3.0
@@ -705,7 +705,7 @@ importers:
     dependencies:
       '@sdkwork/app-sdk':
         specifier: workspace:*
-        version: link:../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript
+        version: link:../../../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript
       '@sdkwork/claw-i18n':
         specifier: workspace:*
         version: link:../sdkwork-claw-i18n
@@ -2265,8 +2265,8 @@ packages:
   '@rushstack/ts-command-line@5.3.4':
     resolution: {integrity: sha512-MLkVKVEN6/2clKTrjN2B2KqKCuPxRwnNsWY7a+FCAq2EMdkj10cM8YgiBSMeGFfzM0mDMzargpHNnNzaBi9Whg==}
 
-  '@sdkwork/craw-chat-backend-sdk@file:../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi':
-    resolution: {directory: ../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi, type: directory}
+  '@sdkwork/craw-chat-backend-sdk@file:../../../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi':
+    resolution: {directory: ../../../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi, type: directory}
 
   '@sdkwork/sdk-common@1.0.2':
     resolution: {integrity: sha512-mjKQCRQBty8x2B1eM/sMiQwj46xvGucwSal2tymyAoF/vupsU3kzYcTSVLH3eVyAXON9U8gJwa7vRNAk13LWRQ==}
@@ -5864,7 +5864,7 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@sdkwork/craw-chat-backend-sdk@file:../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi':
+  '@sdkwork/craw-chat-backend-sdk@file:../../../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi':
     dependencies:
       '@sdkwork/sdk-common': 1.0.2
 

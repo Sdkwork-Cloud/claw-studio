@@ -1,37 +1,56 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    routing::get,
+    Json, Router,
+};
 use serde_json::{json, Value};
 
 use crate::bootstrap::ServerState;
+use crate::http::api_surface::{
+    build_openapi_discovery, LOCAL_AI_COMPAT_PATHS, OPENCLAW_GATEWAY_PATHS,
+};
 
 pub fn openapi_routes() -> Router<ServerState> {
     Router::new()
         .route("/discovery", get(get_openapi_discovery))
         .route("/v1.json", get(get_openapi_v1_document))
+        .route(
+            "/local-ai-compat-v1.json",
+            get(get_openapi_local_ai_compat_document),
+        )
+        .route(
+            "/openclaw-gateway-v1.json",
+            get(get_openapi_openclaw_gateway_document),
+        )
 }
 
 async fn get_openapi_discovery(State(state): State<ServerState>) -> Json<Value> {
-    Json(json!({
-        "family": "openapi",
-        "hostMode": state.mode,
-        "generatedAt": state.resource_projection_updated_at(),
-        "documents": [
-            {
-                "id": "claw-native-v1",
-                "title": "Claw Native Platform API",
-                "version": "v1",
-                "format": "openapi+json",
-                "url": "/claw/openapi/v1.json",
-                "apiFamilies": ["health", "api", "internal", "manage"]
-            }
-        ]
-    }))
+    Json(build_openapi_discovery(&state))
 }
 
 async fn get_openapi_v1_document(State(state): State<ServerState>) -> Json<Value> {
     Json(build_native_v1_document(&state))
 }
 
-fn build_native_v1_document(state: &ServerState) -> Value {
+async fn get_openapi_local_ai_compat_document(State(state): State<ServerState>) -> Response {
+    if state.local_ai_proxy_target().is_none() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
+    Json(build_local_ai_compat_document(&state)).into_response()
+}
+
+async fn get_openapi_openclaw_gateway_document(State(state): State<ServerState>) -> Response {
+    if state.openclaw_gateway_target().is_none() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
+    Json(build_openclaw_gateway_document(&state)).into_response()
+}
+
+pub(crate) fn build_native_v1_document(state: &ServerState) -> Value {
     json!({
         "openapi": "3.1.0",
         "info": {
@@ -69,6 +88,164 @@ fn build_native_v1_document(state: &ServerState) -> Value {
             "schemas": build_schemas()
         }
     })
+}
+
+pub(crate) fn build_local_ai_compat_document(state: &ServerState) -> Value {
+    let mut paths = serde_json::Map::new();
+    for path in LOCAL_AI_COMPAT_PATHS {
+        paths.insert(
+            (*path).to_string(),
+            build_local_ai_compat_path_item(path),
+        );
+    }
+
+    json!({
+        "openapi": "3.1.0",
+        "info": {
+            "title": "Local AI Compatibility API",
+            "version": "v1",
+            "description": "OpenAPI publication for the root-native local AI compatibility routes owned by the built-in host.",
+            "x-claw-hostVersion": state.host_platform_version()
+        },
+        "servers": [
+            {
+                "url": "/",
+                "description": "Same-origin built-in host"
+            }
+        ],
+        "tags": [
+            {
+                "name": "local-ai-compat",
+                "description": "Provider-compatible root-native routes proxied by the built-in host."
+            }
+        ],
+        "paths": Value::Object(paths),
+        "components": {
+            "schemas": build_schemas()
+        }
+    })
+}
+
+pub(crate) fn build_openclaw_gateway_document(state: &ServerState) -> Value {
+    let mut paths = serde_json::Map::new();
+    for path in OPENCLAW_GATEWAY_PATHS {
+        paths.insert((*path).to_string(), build_openclaw_gateway_path_item(path));
+    }
+
+    json!({
+        "openapi": "3.1.0",
+        "info": {
+            "title": "OpenClaw Gateway Proxy API",
+            "version": "v1",
+            "description": "OpenAPI publication for the governed OpenClaw gateway routes owned by the built-in host.",
+            "x-claw-hostVersion": state.host_platform_version()
+        },
+        "servers": [
+            {
+                "url": "/",
+                "description": "Same-origin built-in host"
+            }
+        ],
+        "tags": [
+            {
+                "name": "openclaw-gateway",
+                "description": "Governed OpenClaw gateway routes proxied by the built-in host."
+            }
+        ],
+        "paths": Value::Object(paths),
+        "components": {
+            "schemas": build_schemas()
+        }
+    })
+}
+
+fn build_local_ai_compat_path_item(path: &str) -> Value {
+    match path {
+        "/health" | "/v1/health" | "/v1/models" | "/v1beta/models" => json!({
+            "get": {
+                "tags": ["local-ai-compat"],
+                "operationId": normalize_openapi_operation_id(path, "get"),
+                "summary": format!("Proxy {path} through the built-in local AI compatibility surface"),
+                "responses": {
+                    "200": compat_json_response("Compatibility response from the proxied upstream route."),
+                    "503": internal_error_json_response("The local AI compatibility surface is not active."),
+                    "502": internal_error_json_response("The local AI compatibility upstream could not be reached.")
+                }
+            }
+        }),
+        _ => json!({
+            "post": {
+                "tags": ["local-ai-compat"],
+                "operationId": normalize_openapi_operation_id(path, "post"),
+                "summary": format!("Proxy {path} through the built-in local AI compatibility surface"),
+                "requestBody": compat_json_request_body("Opaque provider-compatible request body."),
+                "responses": {
+                    "200": compat_json_response("Compatibility response from the proxied upstream route."),
+                    "503": internal_error_json_response("The local AI compatibility surface is not active."),
+                    "502": internal_error_json_response("The local AI compatibility upstream could not be reached.")
+                }
+            }
+        }),
+    }
+}
+
+fn build_openclaw_gateway_path_item(path: &str) -> Value {
+    json!({
+        "post": {
+            "tags": ["openclaw-gateway"],
+            "operationId": normalize_openapi_operation_id(path, "post"),
+            "summary": format!("Proxy {path} through the governed OpenClaw gateway surface"),
+            "requestBody": compat_json_request_body("Opaque OpenClaw gateway request body."),
+            "responses": {
+                "200": compat_json_response("OpenClaw gateway response from the proxied upstream route."),
+                "503": internal_error_json_response("The OpenClaw gateway proxy surface is not active."),
+                "502": internal_error_json_response("The OpenClaw gateway upstream could not be reached.")
+            }
+        }
+    })
+}
+
+fn compat_json_request_body(description: &str) -> Value {
+    json!({
+        "required": false,
+        "description": description,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        }
+    })
+}
+
+fn compat_json_response(description: &str) -> Value {
+    json!({
+        "description": description,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        }
+    })
+}
+
+fn normalize_openapi_operation_id(path: &str, method: &str) -> String {
+    let mut normalized = String::with_capacity(path.len() + method.len());
+    normalized.push_str(method);
+    for ch in path.chars() {
+        match ch {
+            '/' | '-' => normalized.push('_'),
+            '{' | '}' => {}
+            ':' => normalized.push('_'),
+            _ => normalized.push(ch),
+        }
+    }
+    normalized
 }
 
 fn build_paths(state: &ServerState) -> Value {

@@ -4,7 +4,9 @@ use std::{fs, path::PathBuf};
 use tauri::Manager;
 use tauri::{AppHandle, Runtime};
 
-const OPENCLAW_KERNEL_ID: &str = "openclaw";
+pub const OPENCLAW_KERNEL_ID: &str = "openclaw";
+pub const HERMES_KERNEL_ID: &str = "hermes";
+const SUPPORTED_KERNEL_IDS: [&str; 2] = [OPENCLAW_KERNEL_ID, HERMES_KERNEL_ID];
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,7 +14,6 @@ pub struct KernelPaths {
     pub runtime_id: String,
     pub kernel_state_dir: PathBuf,
     pub runtime_dir: PathBuf,
-    pub legacy_runtime_dir: PathBuf,
     pub authority_file: PathBuf,
     pub migrations_file: PathBuf,
     pub runtime_upgrades_file: PathBuf,
@@ -45,10 +46,19 @@ pub struct AppPaths {
     pub machine_logs_dir: PathBuf,
     pub user_root: PathBuf,
     pub user_bin_dir: PathBuf,
-    pub openclaw_home_dir: PathBuf,
-    pub openclaw_state_dir: PathBuf,
-    pub openclaw_workspace_dir: PathBuf,
+    pub openclaw_root_dir: PathBuf,
     pub openclaw_config_file: PathBuf,
+    pub openclaw_workspace_dir: PathBuf,
+    pub openclaw_workspace_memory_dir: PathBuf,
+    pub openclaw_workspace_skills_dir: PathBuf,
+    pub openclaw_workspace_extensions_dir: PathBuf,
+    pub openclaw_agents_dir: PathBuf,
+    pub openclaw_main_agent_dir: PathBuf,
+    pub openclaw_main_agent_sessions_dir: PathBuf,
+    pub openclaw_skills_dir: PathBuf,
+    pub openclaw_extensions_dir: PathBuf,
+    pub openclaw_cron_dir: PathBuf,
+    pub openclaw_credentials_dir: PathBuf,
     pub local_ai_proxy_config_file: PathBuf,
     pub local_ai_proxy_snapshot_file: PathBuf,
     pub local_ai_proxy_token_file: PathBuf,
@@ -68,8 +78,6 @@ pub struct AppPaths {
     pub openclaw_authority_file: PathBuf,
     pub openclaw_migrations_file: PathBuf,
     pub openclaw_runtime_upgrades_file: PathBuf,
-    pub openclaw_managed_config_dir: PathBuf,
-    pub openclaw_managed_config_file: PathBuf,
     pub openclaw_quarantine_dir: PathBuf,
     pub data_dir: PathBuf,
     pub cache_dir: PathBuf,
@@ -101,29 +109,39 @@ pub struct AppPaths {
 impl AppPaths {
     pub fn kernel_paths(&self, runtime_id: &str) -> Result<KernelPaths> {
         let normalized_runtime_id = normalize_kernel_id(runtime_id);
-        match normalized_runtime_id {
-            OPENCLAW_KERNEL_ID => {
-                let kernel_state_dir = self.kernels_state_dir.join(OPENCLAW_KERNEL_ID);
-                let runtime_dir = self.managed_runtimes_dir.join(OPENCLAW_KERNEL_ID);
-                let managed_config_dir = kernel_state_dir.join("managed-config");
-                Ok(KernelPaths {
-                    runtime_id: normalized_runtime_id.to_string(),
-                    kernel_state_dir: kernel_state_dir.clone(),
-                    runtime_dir,
-                    legacy_runtime_dir: self
-                        .machine_runtime_dir
-                        .join("runtimes")
-                        .join(OPENCLAW_KERNEL_ID),
-                    authority_file: kernel_state_dir.join("authority.json"),
-                    migrations_file: kernel_state_dir.join("migrations.json"),
-                    runtime_upgrades_file: kernel_state_dir.join("runtime-upgrades.json"),
-                    managed_config_dir: managed_config_dir.clone(),
-                    managed_config_file: managed_config_dir.join("openclaw.json"),
-                    quarantine_dir: kernel_state_dir.join("quarantine"),
-                })
-            }
-            _ => Err(unsupported_kernel_id_error(runtime_id)),
+        if !supported_kernel_ids()
+            .iter()
+            .any(|candidate| *candidate == normalized_runtime_id)
+        {
+            return Err(unsupported_kernel_id_error(runtime_id));
         }
+
+        let kernel_state_dir = self.kernels_state_dir.join(normalized_runtime_id);
+        let runtime_dir = self.managed_runtimes_dir.join(normalized_runtime_id);
+        let (managed_config_dir, managed_config_file) =
+            if normalized_runtime_id == OPENCLAW_KERNEL_ID {
+                (
+                    self.openclaw_root_dir.clone(),
+                    self.openclaw_config_file.clone(),
+                )
+            } else {
+                let managed_config_dir = kernel_state_dir.join("managed-config");
+                (
+                    managed_config_dir.clone(),
+                    managed_config_dir.join(format!("{normalized_runtime_id}.json")),
+                )
+            };
+        Ok(KernelPaths {
+            runtime_id: normalized_runtime_id.to_string(),
+            kernel_state_dir: kernel_state_dir.clone(),
+            runtime_dir,
+            authority_file: kernel_state_dir.join("authority.json"),
+            migrations_file: kernel_state_dir.join("migrations.json"),
+            runtime_upgrades_file: kernel_state_dir.join("runtime-upgrades.json"),
+            managed_config_dir,
+            managed_config_file,
+            quarantine_dir: kernel_state_dir.join("quarantine"),
+        })
     }
 
     pub fn managed_roots(&self) -> Vec<PathBuf> {
@@ -149,9 +167,22 @@ impl AppPaths {
             self.machine_logs_dir.clone(),
             self.user_root.clone(),
             self.user_bin_dir.clone(),
-            self.openclaw_home_dir.clone(),
-            self.openclaw_state_dir.clone(),
+            self.openclaw_root_dir.clone(),
+            self.openclaw_config_file
+                .parent()
+                .expect("openclaw config parent")
+                .to_path_buf(),
             self.openclaw_workspace_dir.clone(),
+            self.openclaw_workspace_memory_dir.clone(),
+            self.openclaw_workspace_skills_dir.clone(),
+            self.openclaw_workspace_extensions_dir.clone(),
+            self.openclaw_agents_dir.clone(),
+            self.openclaw_main_agent_dir.clone(),
+            self.openclaw_main_agent_sessions_dir.clone(),
+            self.openclaw_skills_dir.clone(),
+            self.openclaw_extensions_dir.clone(),
+            self.openclaw_cron_dir.clone(),
+            self.openclaw_credentials_dir.clone(),
             self.user_dir.clone(),
             self.user_auth_dir.clone(),
             self.user_storage_dir.clone(),
@@ -163,7 +194,6 @@ impl AppPaths {
             self.config_dir.clone(),
             self.kernels_state_dir.clone(),
             self.openclaw_kernel_dir.clone(),
-            self.openclaw_managed_config_dir.clone(),
             self.openclaw_quarantine_dir.clone(),
             self.data_dir.clone(),
             self.cache_dir.clone(),
@@ -174,6 +204,13 @@ impl AppPaths {
             self.integrations_dir.clone(),
             self.backups_dir.clone(),
         ];
+        for runtime_id in supported_kernel_ids() {
+            if let Ok(kernel) = self.kernel_paths(runtime_id) {
+                roots.push(kernel.kernel_state_dir);
+                roots.push(kernel.managed_config_dir);
+                roots.push(kernel.quarantine_dir);
+            }
+        }
         roots.sort();
         roots.dedup();
         roots
@@ -182,6 +219,10 @@ impl AppPaths {
 
 fn normalize_kernel_id(runtime_id: &str) -> &str {
     runtime_id.trim()
+}
+
+pub fn supported_kernel_ids() -> &'static [&'static str] {
+    &SUPPORTED_KERNEL_IDS
 }
 
 fn unsupported_kernel_id_error(runtime_id: &str) -> FrameworkError {
@@ -252,10 +293,20 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
     let machine_logs_dir = machine_root.join("logs");
 
     let user_bin_dir = user_root.join("bin");
-    let openclaw_home_dir = user_root.join("openclaw-home");
-    let openclaw_state_dir = openclaw_home_dir.join(".openclaw");
-    let openclaw_workspace_dir = openclaw_state_dir.join("workspace");
-    let openclaw_config_file = openclaw_state_dir.join("openclaw.json");
+    let openclaw_root_dir = user_root.join(".openclaw");
+    let openclaw_config_file = openclaw_root_dir.join("openclaw.json");
+    let openclaw_workspace_dir = openclaw_root_dir.join("workspace");
+    let openclaw_workspace_memory_dir = openclaw_workspace_dir.join("memory");
+    let openclaw_workspace_skills_dir = openclaw_workspace_dir.join("skills");
+    let openclaw_workspace_extensions_dir =
+        openclaw_workspace_dir.join(".openclaw").join("extensions");
+    let openclaw_agents_dir = openclaw_root_dir.join("agents");
+    let openclaw_main_agent_dir = openclaw_agents_dir.join("main").join("agent");
+    let openclaw_main_agent_sessions_dir = openclaw_agents_dir.join("main").join("sessions");
+    let openclaw_skills_dir = openclaw_root_dir.join("skills");
+    let openclaw_extensions_dir = openclaw_root_dir.join("extensions");
+    let openclaw_cron_dir = openclaw_root_dir.join("cron");
+    let openclaw_credentials_dir = openclaw_root_dir.join("credentials");
     let user_dir = user_root.join("user");
     let user_auth_dir = user_dir.join("auth");
     let user_storage_dir = user_dir.join("storage");
@@ -271,8 +322,6 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
     let openclaw_authority_file = openclaw_kernel_dir.join("authority.json");
     let openclaw_migrations_file = openclaw_kernel_dir.join("migrations.json");
     let openclaw_runtime_upgrades_file = openclaw_kernel_dir.join("runtime-upgrades.json");
-    let openclaw_managed_config_dir = openclaw_kernel_dir.join("managed-config");
-    let openclaw_managed_config_file = openclaw_managed_config_dir.join("openclaw.json");
     let openclaw_quarantine_dir = openclaw_kernel_dir.join("quarantine");
     let data_dir = studio_dir.clone();
     let cache_dir = machine_staging_dir.clone();
@@ -327,10 +376,19 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
         machine_logs_dir,
         user_root,
         user_bin_dir,
-        openclaw_home_dir,
-        openclaw_state_dir,
-        openclaw_workspace_dir,
+        openclaw_root_dir,
         openclaw_config_file,
+        openclaw_workspace_dir,
+        openclaw_workspace_memory_dir,
+        openclaw_workspace_skills_dir,
+        openclaw_workspace_extensions_dir,
+        openclaw_agents_dir,
+        openclaw_main_agent_dir,
+        openclaw_main_agent_sessions_dir,
+        openclaw_skills_dir,
+        openclaw_extensions_dir,
+        openclaw_cron_dir,
+        openclaw_credentials_dir,
         local_ai_proxy_config_file,
         local_ai_proxy_snapshot_file,
         local_ai_proxy_token_file,
@@ -350,8 +408,6 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
         openclaw_authority_file,
         openclaw_migrations_file,
         openclaw_runtime_upgrades_file,
-        openclaw_managed_config_dir,
-        openclaw_managed_config_file,
         openclaw_quarantine_dir,
         data_dir,
         cache_dir,
@@ -472,113 +528,15 @@ pub fn ensure_runtime_directories(paths: &AppPaths) -> Result<()> {
         fs::create_dir_all(directory)?;
     }
 
-    migrate_legacy_openclaw_runtime_layout(paths)?;
     crate::framework::layout::initialize_machine_state(paths)?;
     crate::framework::config::load_or_create_config(paths)?;
 
     Ok(())
 }
 
-fn migrate_legacy_openclaw_runtime_layout(paths: &AppPaths) -> Result<()> {
-    let openclaw = paths.kernel_paths(OPENCLAW_KERNEL_ID)?;
-    migrate_directory_entries(&openclaw.legacy_runtime_dir, &openclaw.runtime_dir)
-}
-
-fn migrate_directory_entries(
-    source_dir: &std::path::Path,
-    target_dir: &std::path::Path,
-) -> Result<()> {
-    if !source_dir.exists() {
-        return Ok(());
-    }
-
-    fs::create_dir_all(target_dir)?;
-
-    for entry in fs::read_dir(source_dir)? {
-        let entry = entry?;
-        let source_path = entry.path();
-        let target_path = target_dir.join(entry.file_name());
-
-        if target_path.exists() {
-            continue;
-        }
-
-        if fs::rename(&source_path, &target_path).is_ok() {
-            continue;
-        }
-
-        copy_path_recursively(&source_path, &target_path)?;
-        remove_path_recursively(&source_path)?;
-    }
-
-    prune_empty_directory_tree(source_dir)?;
-
-    Ok(())
-}
-
-fn copy_path_recursively(
-    source_path: &std::path::Path,
-    target_path: &std::path::Path,
-) -> Result<()> {
-    let metadata = fs::symlink_metadata(source_path)?;
-    if metadata.is_dir() {
-        fs::create_dir_all(target_path)?;
-        for entry in fs::read_dir(source_path)? {
-            let entry = entry?;
-            copy_path_recursively(&entry.path(), &target_path.join(entry.file_name()))?;
-        }
-        return Ok(());
-    }
-
-    if let Some(parent) = target_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::copy(source_path, target_path)?;
-    Ok(())
-}
-
-fn remove_path_recursively(path: &std::path::Path) -> Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let metadata = fs::symlink_metadata(path)?;
-    if metadata.is_dir() {
-        fs::remove_dir_all(path)?;
-    } else {
-        fs::remove_file(path)?;
-    }
-
-    Ok(())
-}
-
-fn prune_empty_directory_tree(path: &std::path::Path) -> Result<()> {
-    let mut current = path.to_path_buf();
-
-    loop {
-        if !current.exists() {
-            break;
-        }
-
-        let is_empty = fs::read_dir(&current)?.next().is_none();
-        if !is_empty {
-            break;
-        }
-
-        fs::remove_dir(&current)?;
-        let Some(parent) = current.parent() else {
-            break;
-        };
-        current = parent.to_path_buf();
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{build_paths, ensure_runtime_directories, resolve_paths_for_root};
-    use std::fs;
+    use super::resolve_paths_for_root;
 
     fn normalize(path: &std::path::Path) -> String {
         path.to_string_lossy().replace('\\', "/")
@@ -644,12 +602,19 @@ mod tests {
         assert!(normalize(&paths.managed_runtimes_dir).ends_with("install/runtimes"));
         assert!(normalize(&paths.openclaw_runtime_dir).ends_with("install/runtimes/openclaw"));
         assert!(normalize(&paths.user_bin_dir).ends_with("user-home/bin"));
-        assert!(normalize(&paths.openclaw_home_dir).ends_with("user-home/openclaw-home"));
-        assert!(normalize(&paths.openclaw_state_dir).ends_with("user-home/openclaw-home/.openclaw"));
-        assert!(normalize(&paths.openclaw_workspace_dir)
-            .ends_with("user-home/openclaw-home/.openclaw/workspace"));
-        assert!(normalize(&paths.openclaw_config_file)
-            .ends_with("user-home/openclaw-home/.openclaw/openclaw.json"));
+        assert!(normalize(&paths.openclaw_root_dir).ends_with("user-home/.openclaw"));
+        assert!(
+            normalize(&paths.openclaw_config_file).ends_with("user-home/.openclaw/openclaw.json")
+        );
+        assert!(normalize(&paths.openclaw_workspace_dir).ends_with("user-home/.openclaw/workspace"));
+        assert!(normalize(&paths.openclaw_skills_dir).ends_with("user-home/.openclaw/skills"));
+        assert!(
+            normalize(&paths.openclaw_extensions_dir).ends_with("user-home/.openclaw/extensions")
+        );
+        assert!(normalize(&paths.openclaw_workspace_skills_dir)
+            .ends_with("user-home/.openclaw/workspace/skills"));
+        assert!(normalize(&paths.openclaw_workspace_extensions_dir)
+            .ends_with("user-home/.openclaw/workspace/.openclaw/extensions"));
         assert!(normalize(&paths.local_ai_proxy_config_file)
             .ends_with("machine/state/local-ai-proxy.json"));
         assert!(normalize(&paths.local_ai_proxy_snapshot_file)
@@ -661,9 +626,16 @@ mod tests {
         assert!(paths.managed_runtimes_dir.exists());
         assert!(paths.openclaw_runtime_dir.exists());
         assert!(paths.user_bin_dir.exists());
-        assert!(paths.openclaw_home_dir.exists());
-        assert!(paths.openclaw_state_dir.exists());
+        assert!(paths.openclaw_root_dir.exists());
+        assert!(paths
+            .openclaw_config_file
+            .parent()
+            .is_some_and(|path| path.exists()));
         assert!(paths.openclaw_workspace_dir.exists());
+        assert!(paths.openclaw_skills_dir.exists());
+        assert!(paths.openclaw_extensions_dir.exists());
+        assert!(paths.openclaw_workspace_skills_dir.exists());
+        assert!(paths.openclaw_workspace_extensions_dir.exists());
     }
 
     #[test]
@@ -679,15 +651,10 @@ mod tests {
             .ends_with("machine/state/kernels/openclaw/migrations.json"));
         assert!(normalize(&paths.openclaw_runtime_upgrades_file)
             .ends_with("machine/state/kernels/openclaw/runtime-upgrades.json"));
-        assert!(normalize(&paths.openclaw_managed_config_dir)
-            .ends_with("machine/state/kernels/openclaw/managed-config"));
-        assert!(normalize(&paths.openclaw_managed_config_file)
-            .ends_with("machine/state/kernels/openclaw/managed-config/openclaw.json"));
         assert!(normalize(&paths.openclaw_quarantine_dir)
             .ends_with("machine/state/kernels/openclaw/quarantine"));
         assert!(paths.kernels_state_dir.exists());
         assert!(paths.openclaw_kernel_dir.exists());
-        assert!(paths.openclaw_managed_config_dir.exists());
         assert!(paths.openclaw_quarantine_dir.exists());
         assert!(paths.openclaw_authority_file.exists());
         assert!(paths.openclaw_migrations_file.exists());
@@ -710,15 +677,12 @@ mod tests {
             .ends_with("machine/state/kernels/openclaw/migrations.json"));
         assert!(normalize(&openclaw.runtime_upgrades_file)
             .ends_with("machine/state/kernels/openclaw/runtime-upgrades.json"));
-        assert!(normalize(&openclaw.managed_config_dir)
-            .ends_with("machine/state/kernels/openclaw/managed-config"));
-        assert!(normalize(&openclaw.managed_config_file)
-            .ends_with("machine/state/kernels/openclaw/managed-config/openclaw.json"));
+        assert!(normalize(&openclaw.managed_config_dir).ends_with("user-home/.openclaw"));
+        assert!(
+            normalize(&openclaw.managed_config_file).ends_with("user-home/.openclaw/openclaw.json")
+        );
         assert!(normalize(&openclaw.quarantine_dir)
             .ends_with("machine/state/kernels/openclaw/quarantine"));
-        assert!(
-            normalize(&openclaw.legacy_runtime_dir).ends_with("machine/runtime/runtimes/openclaw")
-        );
     }
 
     #[test]
@@ -726,28 +690,41 @@ mod tests {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
 
+        let hermes = paths.kernel_paths("hermes").expect("hermes kernel paths");
+
+        assert!(normalize(&hermes.kernel_state_dir).ends_with("machine/state/kernels/hermes"));
+        assert!(normalize(&hermes.runtime_dir).ends_with("install/runtimes/hermes"));
+        assert!(normalize(&hermes.authority_file)
+            .ends_with("machine/state/kernels/hermes/authority.json"));
+        assert!(normalize(&hermes.migrations_file)
+            .ends_with("machine/state/kernels/hermes/migrations.json"));
+        assert!(normalize(&hermes.runtime_upgrades_file)
+            .ends_with("machine/state/kernels/hermes/runtime-upgrades.json"));
+        assert!(normalize(&hermes.managed_config_dir)
+            .ends_with("machine/state/kernels/hermes/managed-config"));
+        assert!(normalize(&hermes.managed_config_file)
+            .ends_with("machine/state/kernels/hermes/managed-config/hermes.json"));
+        assert!(
+            normalize(&hermes.quarantine_dir).ends_with("machine/state/kernels/hermes/quarantine")
+        );
+
         let error = paths
-            .kernel_paths("hermes")
-            .expect_err("unknown kernel paths should be rejected until registry exists");
+            .kernel_paths("unsupported-kernel")
+            .expect_err("unknown kernel paths should still be rejected");
 
         assert!(!error.to_string().trim().is_empty());
     }
 
     #[test]
-    fn kernel_paths_are_derived_from_canonical_kernel_roots_instead_of_compatibility_fields() {
+    fn kernel_paths_derive_openclaw_governance_from_kernel_roots_and_config_from_user_root() {
         let root = tempfile::tempdir().expect("temp dir");
         let mut paths = resolve_paths_for_root(root.path()).expect("paths");
         let compatibility_root = root.path().join("compatibility-only");
 
         paths.openclaw_kernel_dir = compatibility_root.join("kernel");
-        paths.openclaw_runtime_dir = compatibility_root.join("runtime");
         paths.openclaw_authority_file = compatibility_root.join("authority.json");
         paths.openclaw_migrations_file = compatibility_root.join("migrations.json");
         paths.openclaw_runtime_upgrades_file = compatibility_root.join("runtime-upgrades.json");
-        paths.openclaw_managed_config_dir = compatibility_root.join("managed-config");
-        paths.openclaw_managed_config_file = compatibility_root
-            .join("managed-config")
-            .join("openclaw.json");
         paths.openclaw_quarantine_dir = compatibility_root.join("quarantine");
 
         let openclaw = paths
@@ -762,10 +739,10 @@ mod tests {
             .ends_with("machine/state/kernels/openclaw/migrations.json"));
         assert!(normalize(&openclaw.runtime_upgrades_file)
             .ends_with("machine/state/kernels/openclaw/runtime-upgrades.json"));
-        assert!(normalize(&openclaw.managed_config_dir)
-            .ends_with("machine/state/kernels/openclaw/managed-config"));
-        assert!(normalize(&openclaw.managed_config_file)
-            .ends_with("machine/state/kernels/openclaw/managed-config/openclaw.json"));
+        assert!(normalize(&openclaw.managed_config_dir).ends_with("user-home/.openclaw"));
+        assert!(
+            normalize(&openclaw.managed_config_file).ends_with("user-home/.openclaw/openclaw.json")
+        );
         assert!(normalize(&openclaw.quarantine_dir)
             .ends_with("machine/state/kernels/openclaw/quarantine"));
     }
@@ -789,90 +766,5 @@ mod tests {
         assert!(machine_state_dir.join("service.json").exists());
         assert!(machine_state_dir.join("components.json").exists());
         assert!(machine_state_dir.join("upgrades.json").exists());
-    }
-
-    #[test]
-    fn migrates_legacy_openclaw_runtime_entries_into_install_root() {
-        let root = tempfile::tempdir().expect("temp dir");
-        let install_root = root.path().join("install");
-        let machine_root = root.path().join("machine");
-        let user_root = root.path().join("user-home");
-        let legacy_install_dir = machine_root
-            .join("runtime")
-            .join("runtimes")
-            .join("openclaw")
-            .join("2026.4.1-windows-x64");
-        let legacy_marker = legacy_install_dir.join("manifest.json");
-
-        fs::create_dir_all(&legacy_install_dir).expect("legacy dir");
-        fs::write(&legacy_marker, "{\"version\":\"2026.4.1\"}\n").expect("legacy marker");
-
-        let paths = build_paths(install_root, machine_root.clone(), user_root);
-        ensure_runtime_directories(&paths).expect("paths");
-
-        let migrated_marker = paths
-            .openclaw_runtime_dir
-            .join("2026.4.1-windows-x64")
-            .join("manifest.json");
-        assert!(migrated_marker.exists());
-        assert_eq!(
-            fs::read_to_string(&migrated_marker).expect("migrated marker"),
-            "{\"version\":\"2026.4.1\"}\n"
-        );
-        assert!(!legacy_marker.exists());
-        assert!(!machine_root
-            .join("runtime")
-            .join("runtimes")
-            .join("openclaw")
-            .exists());
-    }
-
-    #[test]
-    fn preserves_current_runtime_entries_while_merging_legacy_versions() {
-        let root = tempfile::tempdir().expect("temp dir");
-        let install_root = root.path().join("install");
-        let machine_root = root.path().join("machine");
-        let user_root = root.path().join("user-home");
-        let current_install_dir = install_root
-            .join("runtimes")
-            .join("openclaw")
-            .join("2026.4.2-windows-x64");
-        let current_marker = current_install_dir.join("manifest.json");
-        let legacy_install_dir = machine_root
-            .join("runtime")
-            .join("runtimes")
-            .join("openclaw")
-            .join("2026.4.1-windows-x64");
-        let legacy_marker = legacy_install_dir.join("manifest.json");
-
-        fs::create_dir_all(&current_install_dir).expect("current dir");
-        fs::write(&current_marker, "{\"version\":\"2026.4.2\"}\n").expect("current marker");
-        fs::create_dir_all(&legacy_install_dir).expect("legacy dir");
-        fs::write(&legacy_marker, "{\"version\":\"2026.4.1\"}\n").expect("legacy marker");
-
-        let paths = build_paths(install_root, machine_root.clone(), user_root);
-        ensure_runtime_directories(&paths).expect("paths");
-
-        assert_eq!(
-            fs::read_to_string(
-                paths
-                    .openclaw_runtime_dir
-                    .join("2026.4.2-windows-x64")
-                    .join("manifest.json")
-            )
-            .expect("current marker"),
-            "{\"version\":\"2026.4.2\"}\n"
-        );
-        assert_eq!(
-            fs::read_to_string(
-                paths
-                    .openclaw_runtime_dir
-                    .join("2026.4.1-windows-x64")
-                    .join("manifest.json")
-            )
-            .expect("legacy migrated marker"),
-            "{\"version\":\"2026.4.1\"}\n"
-        );
-        assert!(!legacy_marker.exists());
     }
 }

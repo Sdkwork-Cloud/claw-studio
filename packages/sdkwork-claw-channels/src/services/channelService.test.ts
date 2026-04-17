@@ -193,7 +193,7 @@ function createManagedWorkbenchDetail(
 
 function createMissingConfigError() {
   return new Error(
-    'The attached OpenClaw config file is no longer available on disk. Re-scan or reattach the instance configuration. (C:/ProgramData/SdkWork/CrawStudio/state/kernels/openclaw/managed-config/openclaw.json)',
+    'The attached OpenClaw config file is no longer available on disk. Re-scan or reattach the instance configuration. (C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json)',
   );
 }
 

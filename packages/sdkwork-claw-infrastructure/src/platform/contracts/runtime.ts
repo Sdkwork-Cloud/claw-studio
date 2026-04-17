@@ -404,6 +404,43 @@ export interface RuntimeDesktopOpenClawRuntimeAuthorityInfo {
   readinessProbe: RuntimeDesktopOpenClawRuntimeAuthorityProbeInfo;
 }
 
+export interface RuntimeDesktopKernelRuntimeAuthorityProbeInfo {
+  supportsLoopbackHealthProbe: boolean;
+  healthProbeTimeoutMs: number;
+}
+
+export interface RuntimeDesktopKernelRuntimeAuthorityInfo {
+  runtimeId: string;
+  managedConfigPath: string;
+  ownedRuntimeRoots: string[];
+  readinessProbe: RuntimeDesktopKernelRuntimeAuthorityProbeInfo;
+  runtimeVersion?: string | null;
+  nodeVersion?: string | null;
+  platform?: string | null;
+  arch?: string | null;
+  installSource?: RuntimeDesktopKernelHostInfo['provenance']['installSource'] | null;
+  configPath?: string | null;
+  runtimeHomeDir?: string | null;
+  runtimeInstallDir?: string | null;
+}
+
+export interface RuntimeDesktopActiveKernelRuntimeInfo {
+  runtimeId: string;
+  state: string;
+  health: string;
+  reason: string;
+  installKey?: string | null;
+  installSource: RuntimeDesktopKernelHostInfo['provenance']['installSource'];
+  runtimeVersion?: string | null;
+  nodeVersion?: string | null;
+  platform: string;
+  arch: string;
+  configPath: string;
+  runtimeHomeDir: string;
+  runtimeInstallDir?: string | null;
+  authority?: RuntimeDesktopKernelRuntimeAuthorityInfo | null;
+}
+
 export interface RuntimeDesktopOpenClawRuntimeInfo {
   runtimeId: string;
   lifecycle: string;
@@ -416,7 +453,6 @@ export interface RuntimeDesktopOpenClawRuntimeInfo {
   installDir?: string | null;
   runtimeDir?: string | null;
   homeDir: string;
-  stateDir: string;
   workspaceDir: string;
   configPath: string;
   gatewayPort?: number | null;
@@ -509,7 +545,9 @@ export interface RuntimeDesktopKernelInfo {
   payments: RuntimeDesktopPaymentInfo;
   integrations: RuntimeDesktopIntegrationInfo;
   supervisor: RuntimeDesktopSupervisorInfo;
+  activeRuntime: RuntimeDesktopActiveKernelRuntimeInfo;
   openClawRuntime?: RuntimeDesktopOpenClawRuntimeInfo | null;
+  runtimeAuthorities?: RuntimeDesktopKernelRuntimeAuthorityInfo[] | null;
   localAiProxy: RuntimeDesktopLocalAiProxyInfo;
   desktopStartupEvidence?: RuntimeDesktopStartupEvidenceInfo | null;
   bundledComponents: RuntimeDesktopBundledComponentsInfo;

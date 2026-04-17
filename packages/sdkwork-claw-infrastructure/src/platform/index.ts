@@ -134,6 +134,7 @@ export type {
   RuntimeDesktopFilesystemInfo,
   RuntimeDesktopIntegrationInfo,
   RuntimeDesktopIntegrationAdapterInfo,
+  RuntimeDesktopActiveKernelRuntimeInfo,
   RuntimeDesktopKernelInfo,
   RuntimeDesktopLocalAiProxyInfo,
   RuntimeDesktopNotificationInfo,

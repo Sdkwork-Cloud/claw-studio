@@ -26,7 +26,7 @@ pub(super) fn project_managed_openclaw_provider(
         )
     })?;
     let default_model_id = resolve_default_route_model_id(route)?;
-    let mut root = read_openclaw_config_root(&readable_managed_openclaw_config_path(paths))?;
+    let mut root = read_openclaw_config_root(&readable_openclaw_config_path(paths))?;
     let overwrite_defaults =
         should_overwrite_managed_provider_defaults(&root, OPENCLAW_LOCAL_PROXY_PROVIDER_ID);
     let provider_root = ensure_json_object_mut(
@@ -77,7 +77,7 @@ pub(super) fn project_managed_openclaw_provider(
         );
     }
 
-    write_openclaw_config_root(&authority_managed_openclaw_config_path(paths), &root)
+    write_openclaw_config_root(&active_openclaw_config_path(paths), &root)
 }
 
 fn read_openclaw_config_root(path: &Path) -> Result<Value> {
@@ -108,19 +108,14 @@ fn write_openclaw_config_root(path: &Path, root: &Value) -> Result<()> {
     Ok(())
 }
 
-fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
-    let authority_path = authority_managed_openclaw_config_path(paths);
-    if authority_path.exists() || !paths.openclaw_config_file.exists() {
-        authority_path
-    } else {
-        paths.openclaw_config_file.clone()
-    }
+fn readable_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    active_openclaw_config_path(paths)
 }
 
-fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+fn active_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
         .active_managed_config_path("openclaw", paths)
-        .unwrap_or_else(|_| paths.openclaw_managed_config_file.clone())
+        .unwrap_or_else(|_| paths.openclaw_config_file.clone())
 }
 
 fn resolve_default_route_model_id(route: &LocalAiProxyRouteSnapshot) -> Result<String> {

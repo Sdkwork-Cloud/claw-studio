@@ -896,9 +896,19 @@ fn ensure_managed_openclaw_state(
     paths: &AppPaths,
     _bundled_openclaw_version: Option<&str>,
 ) -> Result<ManagedOpenClawState> {
-    fs::create_dir_all(&paths.openclaw_home_dir)?;
-    fs::create_dir_all(&paths.openclaw_state_dir)?;
+    fs::create_dir_all(&paths.openclaw_root_dir)?;
+    fs::create_dir_all(&paths.openclaw_root_dir)?;
     fs::create_dir_all(&paths.openclaw_workspace_dir)?;
+    fs::create_dir_all(&paths.openclaw_workspace_memory_dir)?;
+    fs::create_dir_all(&paths.openclaw_workspace_skills_dir)?;
+    fs::create_dir_all(&paths.openclaw_workspace_extensions_dir)?;
+    fs::create_dir_all(&paths.openclaw_agents_dir)?;
+    fs::create_dir_all(&paths.openclaw_main_agent_dir)?;
+    fs::create_dir_all(&paths.openclaw_main_agent_sessions_dir)?;
+    fs::create_dir_all(&paths.openclaw_skills_dir)?;
+    fs::create_dir_all(&paths.openclaw_extensions_dir)?;
+    fs::create_dir_all(&paths.openclaw_cron_dir)?;
+    fs::create_dir_all(&paths.openclaw_credentials_dir)?;
     let authority = KernelRuntimeAuthorityService::new();
     let managed_config_path = authority.active_managed_config_path("openclaw", paths)?;
     let imported_config =
@@ -942,8 +952,8 @@ fn ensure_managed_openclaw_state(
     )?;
 
     Ok(ManagedOpenClawState {
-        home_dir: paths.openclaw_home_dir.clone(),
-        state_dir: paths.openclaw_state_dir.clone(),
+        home_dir: paths.openclaw_root_dir.clone(),
+        state_dir: paths.openclaw_root_dir.clone(),
         workspace_dir: paths.openclaw_workspace_dir.clone(),
         config_path: managed_config_path,
         gateway_port,
@@ -1336,10 +1346,10 @@ mod tests {
                 .join("openclaw")
                 .join("openclaw.mjs")
         );
-        assert_eq!(activated.home_dir, paths.openclaw_home_dir);
-        assert_eq!(activated.state_dir, paths.openclaw_state_dir);
+        assert_eq!(activated.home_dir, paths.openclaw_root_dir);
+        assert_eq!(activated.state_dir, paths.openclaw_root_dir);
         assert_eq!(activated.workspace_dir, paths.openclaw_workspace_dir);
-        assert_eq!(activated.config_path, paths.openclaw_managed_config_file);
+        assert_eq!(activated.config_path, paths.openclaw_config_file);
         assert!(activated.gateway_port >= DEFAULT_GATEWAY_PORT);
         assert!(paths
             .openclaw_runtime_dir
@@ -1348,7 +1358,7 @@ mod tests {
             .exists());
 
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_managed_config_file).expect("config file"),
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
         )
         .expect("config json");
         assert_eq!(
@@ -1416,15 +1426,22 @@ mod tests {
     }
 
     #[test]
-    fn activation_migrates_legacy_managed_config_into_authority_path_and_quarantines_legacy_copy() {
+    fn activation_ignores_stray_sibling_config_and_writes_canonical_openclaw_config() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
+        let stray_config_path = paths
+            .user_root
+            .join("stray-openclaw-root")
+            .join(".openclaw")
+            .join("openclaw.json");
 
+        fs::create_dir_all(stray_config_path.parent().expect("stray config parent"))
+            .expect("stray config dir");
         fs::write(
-            &paths.openclaw_config_file,
+            &stray_config_path,
             r#"{
   meta: {
     lastTouchedVersion: "2026.4.9",
@@ -1441,16 +1458,16 @@ mod tests {
 }
 "#,
         )
-        .expect("seed legacy managed config");
+        .expect("seed stray config");
 
         let activated = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect("activated runtime");
 
-        assert_eq!(activated.config_path, paths.openclaw_managed_config_file);
+        assert_eq!(activated.config_path, paths.openclaw_config_file);
         assert!(
-            !paths.openclaw_config_file.exists(),
-            "legacy managed config should be removed from the old shared path after migration"
+            stray_config_path.exists(),
+            "stray sibling config should not be imported or mutated during activation"
         );
 
         let quarantined_paths = fs::read_dir(&paths.openclaw_quarantine_dir)
@@ -1458,14 +1475,18 @@ mod tests {
             .filter_map(|entry| entry.ok())
             .map(|entry| entry.path())
             .collect::<Vec<_>>();
-        assert_eq!(quarantined_paths.len(), 1);
+        assert!(quarantined_paths.is_empty());
 
         let migrated = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_managed_config_file).expect("migrated config"),
+            &fs::read_to_string(&paths.openclaw_config_file).expect("migrated config"),
         )
         .expect("migrated config json");
         assert!(migrated.pointer("/meta/lastTouchedVersion").is_none());
         assert!(migrated.pointer("/meta/lastTouchedAt").is_none());
+        assert_ne!(
+            migrated.pointer("/gateway/port").and_then(Value::as_u64),
+            Some(18_878)
+        );
         assert_eq!(
             migrated
                 .pointer("/agents/defaults/workspace")
@@ -1479,12 +1500,7 @@ mod tests {
         .expect("authority state json");
         assert_eq!(
             authority.managed_config_path.as_deref(),
-            Some(
-                paths
-                    .openclaw_managed_config_file
-                    .to_string_lossy()
-                    .as_ref()
-            )
+            Some(paths.openclaw_config_file.to_string_lossy().as_ref())
         );
         assert_eq!(
             authority.active_install_key.as_deref(),
@@ -1502,18 +1518,10 @@ mod tests {
             &fs::read_to_string(&paths.openclaw_migrations_file).expect("migration state"),
         )
         .expect("migration state json");
-        assert_eq!(
-            migration.last_config_source_path.as_deref(),
-            Some(paths.openclaw_config_file.to_string_lossy().as_ref())
-        );
+        assert_eq!(migration.last_config_source_path, None);
         assert_eq!(
             migration.last_config_target_path.as_deref(),
-            Some(
-                paths
-                    .openclaw_managed_config_file
-                    .to_string_lossy()
-                    .as_ref()
-            )
+            Some(paths.openclaw_config_file.to_string_lossy().as_ref())
         );
         assert!(migration
             .last_config_migrated_at
@@ -2324,7 +2332,7 @@ mod tests {
             .expect("activated runtime");
 
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_managed_config_file).expect("config file"),
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
         )
         .expect("config json");
         assert_eq!(
@@ -2381,7 +2389,7 @@ mod tests {
             .expect("activated runtime");
 
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_managed_config_file).expect("config file"),
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
         )
         .expect("config json");
         assert_eq!(
@@ -2434,7 +2442,7 @@ mod tests {
             .expect("activated runtime");
 
         let config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&paths.openclaw_managed_config_file).expect("config file"),
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
         )
         .expect("config json");
         let provider = config
