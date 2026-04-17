@@ -84,6 +84,28 @@ function createWorkbench() {
       },
       officialRuntimeNotes: [],
     },
+    kernelConfig: {
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configRoot: 'D:/OpenClaw/.openclaw',
+      userRoot: 'D:/OpenClaw',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    },
+    kernelAuthority: {
+      owner: 'appManaged',
+      controlPlane: 'desktopHost',
+      lifecycleControl: true,
+      configControl: true,
+      upgradeControl: true,
+      doctorSupport: true,
+      migrationSupport: true,
+      observable: true,
+      writable: true,
+    },
     managedConfigPath: 'D:/OpenClaw/.openclaw/openclaw.json',
     managedChannels: [
       {
@@ -291,6 +313,66 @@ await runTest(
     assert.equal(derivedState.managedChannelWorkspaceItems.length, 1);
     assert.equal(derivedState.managedChannelWorkspaceItems[0]?.description, 'Runtime Slack channel');
     assert.equal(derivedState.managedChannelWorkspaceItems[0]?.values.token, 'draft-token');
+  },
+);
+
+await runTest(
+  'buildInstanceDetailDerivedState gates editing from kernel config and authority instead of legacy managed config path heuristics',
+  () => {
+    const workbench = createWorkbench();
+    workbench.kernelConfig = {
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configRoot: 'D:/OpenClaw/.openclaw',
+      userRoot: 'D:/OpenClaw',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: false,
+      resolved: true,
+      schemaVersion: null,
+    };
+    workbench.kernelAuthority = {
+      owner: 'appManaged',
+      controlPlane: 'desktopHost',
+      lifecycleControl: true,
+      configControl: false,
+      upgradeControl: true,
+      doctorSupport: true,
+      migrationSupport: true,
+      observable: true,
+      writable: false,
+    };
+
+    const derivedState = buildInstanceDetailDerivedState({
+      id: 'instance-1',
+      workbench,
+      selectedProviderId: null,
+      providerDeleteId: null,
+      providerModelDeleteId: null,
+      providerDrafts: {},
+      providerRequestDrafts: {},
+      selectedManagedChannelId: null,
+      managedChannelDrafts: {},
+      selectedWebSearchProviderId: null,
+      webSearchProviderDrafts: {},
+      providerDialogDraft: {
+        id: '',
+        name: '',
+        endpoint: '',
+        apiKeySource: '',
+        defaultModelId: '',
+        reasoningModelId: '',
+        embeddingModelId: '',
+        modelsText: '',
+        requestOverridesText: '',
+      },
+      t: (key: string) => key,
+    });
+
+    assert.equal(derivedState.isOpenClawConfigWritable, false);
+    assert.equal(derivedState.canEditManagedChannels, false);
+    assert.equal(derivedState.canEditManagedWebSearch, false);
+    assert.equal(derivedState.isProviderConfigReadonly, false);
   },
 );
 

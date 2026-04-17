@@ -191,6 +191,42 @@ await runTest('isProviderCenterManagedOpenClawDetail returns true for writable m
 });
 
 await runTest(
+  'isProviderCenterManagedOpenClawDetail does not treat remote api config control as Provider Center managed without local config authority',
+  () => {
+    const detail = createDetail({
+      lifecycle: {
+        owner: 'remoteService',
+        startStopSupported: false,
+        configWritable: true,
+        workbenchManaged: false,
+        endpointObserved: true,
+        lifecycleControllable: false,
+        notes: [],
+      },
+      dataAccess: {
+        routes: [
+          {
+            id: 'config-api',
+            label: 'Configuration API',
+            scope: 'config',
+            mode: 'remoteEndpoint',
+            status: 'ready',
+            target: 'https://gateway.example.com/admin/config',
+            readonly: false,
+            authoritative: true,
+            detail: 'Remote config endpoint.',
+            source: 'runtime',
+          },
+        ],
+      },
+    });
+
+    assert.equal(hasManagedOpenClawConfigRoute(detail), false);
+    assert.equal(isProviderCenterManagedOpenClawDetail(detail), false);
+  },
+);
+
+await runTest(
   'isProviderCenterManagedOpenClawDetail does not infer managed status from deploymentMode alone when explicit lifecycle capability is absent',
   () => {
     const detail = createDetail({

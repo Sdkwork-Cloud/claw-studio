@@ -1,4 +1,5 @@
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
+import { buildKernelAuthorityProjection } from './kernelAuthorityProjection.ts';
 
 function isOpenClawDetail(
   detail: StudioInstanceDetailRecord | null | undefined,
@@ -13,12 +14,13 @@ function isOpenClawDetail(
 function isBuiltInManagedOpenClawProbeCandidate(
   detail: StudioInstanceDetailRecord | null | undefined,
 ) {
+  const authority = buildKernelAuthorityProjection(detail);
+
   return (
     isOpenClawDetail(detail) &&
     detail.instance.isBuiltIn === true &&
-    detail.instance.deploymentMode === 'local-managed' &&
-    detail.lifecycle.owner === 'appManaged' &&
-    detail.lifecycle.workbenchManaged === true &&
+    authority?.owner === 'appManaged' &&
+    authority.controlPlane === 'desktopHost' &&
     detail.lifecycle.endpointObserved === true
   );
 }
@@ -46,11 +48,12 @@ export function isProviderCenterManagedOpenClawDetail(
     return false;
   }
 
-  if (detail.lifecycle.workbenchManaged === true) {
-    return true;
+  const authority = buildKernelAuthorityProjection(detail);
+  if (!authority?.configControl) {
+    return false;
   }
 
-  return hasManagedOpenClawConfigRoute(detail);
+  return authority.controlPlane === 'desktopHost' || hasManagedOpenClawConfigRoute(detail);
 }
 
 export function hasReadyOpenClawGateway(

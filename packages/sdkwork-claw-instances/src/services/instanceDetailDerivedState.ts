@@ -34,6 +34,7 @@ import {
   buildOpenClawProviderWorkspaceState,
   type OpenClawProviderSelectionState,
 } from './openClawProviderWorkspacePresentation.ts';
+import { buildKernelAuthorityProjection } from './kernelAuthorityProjection.ts';
 
 interface TranslateFunction {
   (key: string): string;
@@ -112,6 +113,9 @@ export function buildInstanceDetailDerivedState({
 }: BuildInstanceDetailDerivedStateInput): InstanceDetailDerivedState {
   const instance = workbench?.instance || null;
   const detail = workbench?.detail || null;
+  const kernelConfig = workbench?.kernelConfig || null;
+  const kernelAuthority =
+    workbench?.kernelAuthority || buildKernelAuthorityProjection(detail);
   const managedConfigPath = workbench?.managedConfigPath || null;
   const managedChannels = workbench?.managedChannels || [];
   const managedWebSearchConfig = workbench?.managedWebSearchConfig || null;
@@ -129,9 +133,12 @@ export function buildInstanceDetailDerivedState({
   const actionCapabilities = buildInstanceActionCapabilities(actionCapabilityInstance, detail);
   const isOpenClawConfigWritable =
     detail?.instance.runtimeKind === 'openclaw' &&
-    Boolean(managedConfigPath) &&
-    detail?.lifecycle.configWritable === true;
-  const providerWorkspaceState = buildOpenClawProviderWorkspaceState(detail);
+    Boolean(kernelConfig?.resolved && kernelConfig.writable && kernelAuthority?.configControl);
+  const providerWorkspaceState = buildOpenClawProviderWorkspaceState({
+    detail,
+    kernelConfig,
+    kernelAuthority,
+  });
   const consoleAccess = detail?.consoleAccess || null;
 
   return {

@@ -5,13 +5,20 @@ import {
   createOpenClawProviderRequestDraft,
   hasPendingOpenClawProviderConfigChanges,
 } from './openClawProviderDrafts.ts';
-import { isProviderCenterManagedOpenClawDetail } from './openClawManagementCapabilities.ts';
+import { buildKernelAuthorityProjection } from './kernelAuthorityProjection.ts';
+import { hasManagedOpenClawConfigRoute } from './openClawManagementCapabilities.ts';
 import { parseOpenClawProviderRequestOverridesDraft } from './openClawProviderRequestDraft.ts';
 
 export interface OpenClawProviderWorkspaceState {
   providerCenterManaged: boolean;
   isProviderConfigReadonly: boolean;
   canManageProviderCatalog: boolean;
+}
+
+export interface BuildOpenClawProviderWorkspaceStateInput {
+  detail: StudioInstanceDetailRecord | null | undefined;
+  kernelConfig?: InstanceWorkbenchSnapshot['kernelConfig'];
+  kernelAuthority?: InstanceWorkbenchSnapshot['kernelAuthority'];
 }
 
 type InstanceWorkbenchLlmProvider = InstanceWorkbenchSnapshot['llmProviders'][number];
@@ -47,9 +54,37 @@ export interface OpenClawProviderWorkspaceSyncState {
   providerRequestDrafts: Record<string, string>;
 }
 
+function resolveProviderWorkspaceInput(
+  input:
+    | BuildOpenClawProviderWorkspaceStateInput
+    | StudioInstanceDetailRecord
+    | null
+    | undefined,
+): BuildOpenClawProviderWorkspaceStateInput {
+  if (input && typeof input === 'object' && ('detail' in input || 'kernelAuthority' in input)) {
+    return {
+      detail: input.detail || null,
+      kernelConfig: input.kernelConfig,
+      kernelAuthority: input.kernelAuthority,
+    };
+  }
+
+  return {
+    detail: (input as StudioInstanceDetailRecord | null | undefined) || null,
+    kernelConfig: undefined,
+    kernelAuthority: undefined,
+  };
+}
+
 export function buildOpenClawProviderWorkspaceState(
-  detail: StudioInstanceDetailRecord | null | undefined,
+  input:
+    | BuildOpenClawProviderWorkspaceStateInput
+    | StudioInstanceDetailRecord
+    | null
+    | undefined,
 ): OpenClawProviderWorkspaceState {
+  const { detail, kernelConfig, kernelAuthority } = resolveProviderWorkspaceInput(input);
+
   if (detail?.instance.runtimeKind !== 'openclaw') {
     return {
       providerCenterManaged: false,
@@ -58,7 +93,13 @@ export function buildOpenClawProviderWorkspaceState(
     };
   }
 
-  const providerCenterManaged = isProviderCenterManagedOpenClawDetail(detail);
+  const authority = kernelAuthority || buildKernelAuthorityProjection(detail);
+  const providerCenterManaged = Boolean(
+    authority?.configControl &&
+      (authority.controlPlane === 'desktopHost' ||
+        kernelConfig?.resolved ||
+        hasManagedOpenClawConfigRoute(detail)),
+  );
 
   return {
     providerCenterManaged,
