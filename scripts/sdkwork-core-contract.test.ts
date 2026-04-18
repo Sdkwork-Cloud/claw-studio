@@ -446,8 +446,8 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.match(workspaceManifest, /spring-ai-plus-app-api/);
   assert.match(workspaceManifest, /sdkwork-sdk-common-typescript/);
   assert.match(workspaceManifest, /sdkwork-core\/sdkwork-core-pc-react/);
-  assert.match(workspaceManifest, /craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/composed/);
-  assert.match(workspaceManifest, /craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/generated\/server-openapi/);
+  assert.doesNotMatch(workspaceManifest, /craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/composed/);
+  assert.doesNotMatch(workspaceManifest, /craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/generated\/server-openapi/);
   assert.match(workspaceManifest, /openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/composed/);
   assert.match(workspaceManifest, /openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/adapter-wukongim/);
   assert.match(workspaceManifest, /openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/generated\/server-openapi/);
@@ -457,10 +457,10 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/\.\.\/sdk\/sdkwork-sdk-commons\/sdkwork-sdk-common-typescript'/);
   assert.match(workspaceManifest, /'\.\.\/sdkwork-core\/sdkwork-core-pc-react'/);
   assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/sdkwork-core\/sdkwork-core-pc-react'/);
-  assert.match(workspaceManifest, /'\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/composed'/);
-  assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/composed'/);
-  assert.match(workspaceManifest, /'\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/generated\/server-openapi'/);
-  assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/generated\/server-openapi'/);
+  assert.doesNotMatch(workspaceManifest, /'\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/composed'/);
+  assert.doesNotMatch(workspaceManifest, /'\.\.\/\.\.\/\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/composed'/);
+  assert.doesNotMatch(workspaceManifest, /'\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/generated\/server-openapi'/);
+  assert.doesNotMatch(workspaceManifest, /'\.\.\/\.\.\/\.\.\/craw-chat\/sdks\/sdkwork-craw-chat-sdk\/sdkwork-craw-chat-sdk-typescript\/generated\/server-openapi'/);
   assert.match(workspaceManifest, /'\.\.\/openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/composed'/);
   assert.match(workspaceManifest, /'\.\.\/\.\.\/\.\.\/openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/composed'/);
   assert.match(workspaceManifest, /'\.\.\/openchat\/sdkwork-im-sdk\/sdkwork-im-sdk-typescript\/adapter-wukongim'/);
@@ -566,6 +566,24 @@ runTest('claw core runtime wrapper delegates desktop env and session handling to
   assert.doesNotMatch(appSdkSource, /useMemo/);
   assert.doesNotMatch(appSdkSource, /localStorage/);
   assert.doesNotMatch(appSdkSource, /memoryStorage/);
+});
+
+runTest('claw workspace depends on a craw-chat-free core-pc-react root surface', () => {
+  const pkg = readJson<{
+    dependencies?: Record<string, string>;
+    exports?: Record<string, string | Record<string, string>>;
+  }>('../sdkwork-core/sdkwork-core-pc-react/package.json');
+  const indexSource = read('../sdkwork-core/sdkwork-core-pc-react/src/index.ts');
+  const runtimeSource = read('../sdkwork-core/sdkwork-core-pc-react/src/runtime/index.ts');
+  const hooksSource = read('../sdkwork-core/sdkwork-core-pc-react/src/hooks/index.ts');
+
+  assert.equal(pkg.dependencies?.['@sdkwork/craw-chat-backend-sdk'], undefined);
+  assert.equal(pkg.dependencies?.['@sdkwork/craw-chat-sdk'], undefined);
+  assert.equal(pkg.exports?.['./craw-chat'], undefined);
+  assert.doesNotMatch(indexSource, /craw-chat\/index/);
+  assert.doesNotMatch(runtimeSource, /craw-chat\/index/);
+  assert.doesNotMatch(hooksSource, /useCrawChatClient/);
+  assert.doesNotMatch(hooksSource, /getCrawChatClient/);
 });
 
 runTest('sdkwork-claw-core llm service routes generation through the active instance instead of direct Gemini keys', () => {

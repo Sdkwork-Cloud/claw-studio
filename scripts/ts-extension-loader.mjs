@@ -17,16 +17,6 @@ const CANONICAL_WORKSPACE_ROOT = resolveCanonicalWorkspaceRootDir(import.meta.di
 const WORKSPACE_PACKAGES_ROOT = path.resolve(WORKSPACE_ROOT, 'packages');
 const EXTRA_WORKSPACE_PACKAGE_SOURCE_SPECS = [
   {
-    packageName: '@sdkwork/craw-chat-backend-sdk',
-    packageRoot: path.resolve(
-      CANONICAL_WORKSPACE_ROOT,
-      '../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi',
-    ),
-    entryBySubpath: {
-      '.': 'dist/index.js',
-    },
-  },
-  {
     packageName: '@sdkwork/core-pc-react',
     packageRoot: path.resolve(CANONICAL_WORKSPACE_ROOT, '../sdkwork-core/sdkwork-core-pc-react'),
     entryBySubpath: {

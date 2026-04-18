@@ -146,11 +146,8 @@ assert.equal(
 
 assert.equal(
   loader.resolveWorkspacePackageSourceAliasPath('@sdkwork/craw-chat-backend-sdk'),
-  path.resolve(
-    canonicalWorkspaceRoot,
-    '../craw-chat/sdks/sdkwork-craw-chat-sdk/sdkwork-craw-chat-sdk-typescript/generated/server-openapi/dist/index.js',
-  ),
-  'workspace package resolution must route craw-chat generated backend SDK imports through the canonical generated dist entry',
+  null,
+  'workspace package resolution must not remap craw-chat backend sdk imports through the claw studio workspace',
 );
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-ts-loader-'));
