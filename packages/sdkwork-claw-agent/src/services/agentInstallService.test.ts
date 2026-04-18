@@ -107,8 +107,8 @@ function createPlatformStub(
 function createInstanceRecord(overrides: Partial<StudioInstanceRecord> = {}): StudioInstanceRecord {
   return {
     id: 'openclaw-managed',
-    name: 'Managed OpenClaw',
-    description: 'Managed instance',
+    name: 'OpenClaw Runtime',
+    description: 'OpenClaw instance',
     runtimeKind: 'openclaw',
     deploymentMode: 'local-managed',
     transportKind: 'openclawGatewayWs',
@@ -117,7 +117,7 @@ function createInstanceRecord(overrides: Partial<StudioInstanceRecord> = {}): St
     isDefault: true,
     iconType: 'server',
     version: '1.0.0',
-    typeLabel: 'Managed OpenClaw',
+    typeLabel: 'OpenClaw',
     host: '127.0.0.1',
     port: 28789,
     baseUrl: 'http://127.0.0.1:28789',
@@ -220,7 +220,7 @@ function createInstanceDetail(
               target: input.configPath,
               readonly: false,
               authoritative: (input.configRouteMode ?? 'managedFile') === 'managedFile',
-              detail: 'Managed OpenClaw config',
+              detail: 'OpenClaw config file',
               source: 'config',
             },
           ]
@@ -236,7 +236,7 @@ function createInstanceDetail(
               status: 'available',
               location: input.configPath,
               readonly: false,
-              detail: 'Managed OpenClaw config',
+              detail: 'OpenClaw config file',
               source: 'config',
             },
           ]
@@ -485,7 +485,7 @@ await runTest(
 );
 
 await runTest(
-  'agentInstallService lists only writable managed OpenClaw targets and tracks installed curated templates',
+  'agentInstallService lists only writable OpenClaw targets and tracks installed curated templates',
   async () => {
     const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
     const { agentInstallService } = await import('./agentInstallService.ts');

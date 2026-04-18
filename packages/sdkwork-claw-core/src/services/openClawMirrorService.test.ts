@@ -30,10 +30,10 @@ function createPreview(
       nodeVersion: '22.14.0',
       platform: 'windows',
       arch: 'x64',
-      homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
-      stateDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw',
-      workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
-      configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+      homeDir: 'C:/Users/admin',
+      stateDir: 'C:/Users/admin/.openclaw',
+      workspaceDir: 'C:/Users/admin/.openclaw/workspace',
+      configPath: 'C:/Users/admin/.openclaw/openclaw.json',
       gatewayPort: 18789,
     },
     components: [
@@ -42,20 +42,20 @@ function createPreview(
         kind: 'config',
         relativePath: 'components/config/openclaw.json',
         sourcePath:
-          'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          'C:/Users/admin/.openclaw/openclaw.json',
       },
       {
         id: 'state',
         kind: 'state',
         relativePath: 'components/state',
-        sourcePath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw',
+        sourcePath: 'C:/Users/admin/.openclaw',
       },
       {
         id: 'workspace',
         kind: 'workspace',
         relativePath: 'components/workspace',
         sourcePath:
-          'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+          'C:/Users/admin/.openclaw/workspace',
       },
     ],
     manifest: {
@@ -170,25 +170,25 @@ function createImportResult(
       status: 'ready',
       checks: [
         {
-          id: 'managed-config',
-          label: 'Managed config restored',
+          id: 'openclaw-config-file',
+          label: 'OpenClaw config file restored',
           status: 'passed',
           detail:
-            'Restored managed OpenClaw config is present on disk and readable after import.',
+            'Restored OpenClaw config file is present on disk and readable after import.',
         },
         {
           id: 'managed-state',
           label: 'Managed state restored',
           status: 'passed',
           detail:
-            'Restored managed OpenClaw state directory is present on disk after import.',
+            'Restored OpenClaw state directory is present on disk after import.',
         },
         {
           id: 'managed-workspace',
           label: 'Managed workspace restored',
           status: 'passed',
           detail:
-            'Restored managed OpenClaw workspace directory is present on disk after import.',
+            'Restored OpenClaw workspace directory is present on disk after import.',
         },
         {
           id: 'provider-center-catalog',
@@ -205,7 +205,7 @@ function createImportResult(
         },
         {
           id: 'managed-openclaw-provider',
-          label: 'Managed OpenClaw provider projected',
+          label: 'OpenClaw provider projected',
           status: 'passed',
           detail:
             'Managed sdkwork-local-proxy provider was written into openclaw.json with restored defaults.',

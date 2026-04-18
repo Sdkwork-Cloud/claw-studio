@@ -848,7 +848,7 @@ impl ServerStudioPublicApiProvider {
         document: &mut WorkbenchesDocument,
         instance: &Value,
     ) -> Option<Value> {
-        if !is_managed_openclaw_workbench_instance(instance) {
+        if !is_openclaw_workbench_instance(instance) {
             return None;
         }
 
@@ -882,9 +882,9 @@ impl ServerStudioPublicApiProvider {
             .get("isBuiltIn")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        let managed_workbench_instance = is_managed_openclaw_workbench_instance(instance);
-        let workbench_managed = managed_workbench_instance && workbench.is_some();
-        let endpoint_observed = managed_workbench_instance;
+        let openclaw_workbench_instance = is_openclaw_workbench_instance(instance);
+        let workbench_managed = openclaw_workbench_instance && workbench.is_some();
+        let endpoint_observed = openclaw_workbench_instance;
         let console_access = build_console_access(instance, workbench.as_ref());
         let lifecycle_owner = if deployment_mode == "remote" {
             "remoteService"
@@ -893,7 +893,7 @@ impl ServerStudioPublicApiProvider {
         } else {
             "externalProcess"
         };
-        let config_writable = managed_workbench_instance;
+        let config_writable = openclaw_workbench_instance;
         let lifecycle_notes = if lifecycle_owner == "appManaged" {
             vec![
                 Value::String(
@@ -1022,7 +1022,7 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
             document.custom_instances.push(created.clone());
             normalize_default_instance_selection(&mut document);
             provider.write_instances(&document)?;
-            if is_managed_openclaw_workbench_instance(&created) {
+            if is_openclaw_workbench_instance(&created) {
                 let mut workbenches = provider.read_workbenches()?;
                 provider.instance_workbench(&mut workbenches, &created);
                 provider.write_workbenches(&workbenches)?;
@@ -1053,7 +1053,7 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
                 provider.write_instances(&document)?;
                 let mut workbenches = provider.read_workbenches()?;
                 let built_in_projection = provider.project_built_in_instance(document.built_in_instance.clone());
-                if is_managed_openclaw_workbench_instance(&built_in_projection) {
+                if is_openclaw_workbench_instance(&built_in_projection) {
                     provider.instance_workbench(&mut workbenches, &built_in_projection);
                 } else {
                     workbenches.workbenches.remove(id);
@@ -1078,7 +1078,7 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
             provider.write_instances(&document)?;
             let mut workbenches = provider.read_workbenches()?;
             let normalized = document.custom_instances[index].clone();
-            if is_managed_openclaw_workbench_instance(&normalized) {
+            if is_openclaw_workbench_instance(&normalized) {
                 provider.instance_workbench(&mut workbenches, &normalized);
             } else {
                 workbenches.workbenches.remove(id);
@@ -1537,7 +1537,7 @@ impl StudioPublicApiProvider for ServerStudioPublicApiProvider {
 
             if runtime_kind != "openclaw" || !is_built_in || deployment_mode != "local-managed" {
                 return Err(format!(
-                    "studio instance \"{instance_id}\" does not expose a managed OpenClaw gateway"
+                    "studio instance \"{instance_id}\" does not expose an OpenClaw gateway"
                 ));
             }
 
@@ -2006,14 +2006,14 @@ where
     }
 }
 
-fn is_built_in_local_managed_openclaw_instance(instance: &Value) -> bool {
+fn is_built_in_local_openclaw_instance(instance: &Value) -> bool {
     instance.get("runtimeKind").and_then(Value::as_str) == Some("openclaw")
         && instance.get("isBuiltIn").and_then(Value::as_bool) == Some(true)
         && instance.get("deploymentMode").and_then(Value::as_str) == Some("local-managed")
 }
 
 fn has_live_openclaw_runtime_authority(instance: &Value) -> bool {
-    if !is_built_in_local_managed_openclaw_instance(instance) {
+    if !is_built_in_local_openclaw_instance(instance) {
         return false;
     }
 
@@ -2048,7 +2048,7 @@ fn offline_openclaw_console_reason(instance: &Value) -> String {
     }
 }
 
-fn is_managed_openclaw_workbench_instance(instance: &Value) -> bool {
+fn is_openclaw_workbench_instance(instance: &Value) -> bool {
     has_live_openclaw_runtime_authority(instance)
 }
 
@@ -2105,7 +2105,7 @@ fn build_console_access(instance: &Value, workbench: Option<&Value>) -> Option<V
         return None;
     }
 
-    if is_built_in_local_managed_openclaw_instance(instance)
+    if is_built_in_local_openclaw_instance(instance)
         && !has_live_openclaw_runtime_authority(instance)
     {
         return None;
@@ -2141,7 +2141,7 @@ fn build_console_access(instance: &Value, workbench: Option<&Value>) -> Option<V
         if token_is_secret_ref {
             Some("secretRef")
         } else if workbench_root.is_some() {
-            Some("managedConfig")
+            Some("configFile")
         } else {
             Some("workspaceConfig")
         }
@@ -2416,7 +2416,7 @@ fn nested_string<'a>(root: &'a Value, path: &[&str]) -> Option<&'a str> {
 }
 
 fn synchronize_workbench_snapshot(instance: &Value, snapshot: Value) -> Value {
-    if !is_managed_openclaw_workbench_instance(instance) {
+    if !is_openclaw_workbench_instance(instance) {
         return Value::Null;
     }
 
@@ -2434,9 +2434,9 @@ fn synchronize_workbench_snapshot(instance: &Value, snapshot: Value) -> Value {
                 "agent": {
                     "id": "main",
                     "name": "Main",
-                    "description": "Primary managed OpenClaw workspace agent.",
+                    "description": "Primary OpenClaw workspace agent.",
                     "avatar": "M",
-                    "systemPrompt": "Coordinate managed OpenClaw workbench activity.",
+                    "systemPrompt": "Coordinate OpenClaw workbench activity.",
                     "creator": "Claw Studio Host"
                 },
                 "focusAreas": ["planning", "automation", "operations"],
@@ -2451,7 +2451,7 @@ fn synchronize_workbench_snapshot(instance: &Value, snapshot: Value) -> Value {
                 json!({
                     "id": "cron",
                     "name": "Cron Scheduler",
-                    "description": "Create and run managed OpenClaw scheduled tasks.",
+                    "description": "Create and run OpenClaw scheduled tasks.",
                     "category": "automation",
                     "status": "ready",
                     "access": "write",
@@ -2460,7 +2460,7 @@ fn synchronize_workbench_snapshot(instance: &Value, snapshot: Value) -> Value {
                 json!({
                     "id": "workspace-files",
                     "name": "Workspace Files",
-                    "description": "Edit managed OpenClaw workspace files from the canonical host API.",
+                    "description": "Edit OpenClaw workspace files from the canonical host API.",
                     "category": "filesystem",
                     "status": "ready",
                     "access": "write",
@@ -2539,9 +2539,9 @@ fn create_default_workbench_snapshot(instance: &Value) -> Value {
                 "agent": {
                     "id": "main",
                     "name": "Main",
-                    "description": "Primary managed OpenClaw workspace agent.",
+                    "description": "Primary OpenClaw workspace agent.",
                     "avatar": "M",
-                    "systemPrompt": "Coordinate managed OpenClaw workbench activity.",
+                    "systemPrompt": "Coordinate OpenClaw workbench activity.",
                     "creator": "Claw Studio Host"
                 },
                 "focusAreas": ["planning", "automation", "operations"],
@@ -2555,7 +2555,7 @@ fn create_default_workbench_snapshot(instance: &Value) -> Value {
             {
                 "id": "cron",
                 "name": "Cron Scheduler",
-                "description": "Create and run managed OpenClaw scheduled tasks.",
+                "description": "Create and run OpenClaw scheduled tasks.",
                 "category": "automation",
                 "status": "ready",
                 "access": "write",
@@ -2564,7 +2564,7 @@ fn create_default_workbench_snapshot(instance: &Value) -> Value {
             {
                 "id": "workspace-files",
                 "name": "Workspace Files",
-                "description": "Edit managed OpenClaw workspace files from the canonical host API.",
+                "description": "Edit OpenClaw workspace files from the canonical host API.",
                 "category": "filesystem",
                 "status": "ready",
                 "access": "write",
@@ -2640,7 +2640,7 @@ fn default_workbench_files(instance: &Value, default_provider_id: &str) -> Vec<V
             DEFAULT_OPENCLAW_AGENT_FILE_ID,
             "prompt",
             "markdown",
-            "Primary agent instructions for the managed OpenClaw workspace.",
+            "Primary agent instructions for the OpenClaw workspace.",
             [
                 "# Main Agent",
                 "",
@@ -2657,7 +2657,7 @@ fn default_workbench_files(instance: &Value, default_provider_id: &str) -> Vec<V
             DEFAULT_OPENCLAW_MEMORY_FILE_ID,
             "memory",
             "markdown",
-            "Pinned workspace memory for the managed OpenClaw workbench.",
+            "Pinned workspace memory for the OpenClaw workbench.",
             [
                 "# Workspace Memory",
                 "",
@@ -2704,7 +2704,7 @@ fn build_openclaw_config_file(instance: &Value, default_provider_id: &str) -> Va
         DEFAULT_OPENCLAW_CONFIG_FILE_ID,
         "config",
         "json",
-        "Managed OpenClaw runtime configuration snapshot.",
+        "OpenClaw runtime configuration snapshot.",
         build_default_openclaw_config_content(instance, default_provider_id),
         false,
     )
@@ -2772,7 +2772,7 @@ fn summarize_memory_content(content: &str) -> String {
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .next()
-        .unwrap_or("Managed OpenClaw workspace memory for the canonical host workbench.")
+        .unwrap_or("OpenClaw workspace memory for the canonical host workbench.")
         .to_string()
 }
 
@@ -3897,7 +3897,7 @@ mod tests {
             .write_instances(&super::InstancesDocument {
                 built_in_instance: Some(json!({
                     "id": "managed-openclaw-primary",
-                    "name": "Managed OpenClaw Primary",
+                    "name": "Built-In OpenClaw Primary",
                     "description": "Stable built-in OpenClaw identity.",
                     "runtimeKind": "openclaw",
                     "deploymentMode": "local-managed",
@@ -3924,7 +3924,7 @@ mod tests {
             built_in
                 .get("name")
                 .and_then(serde_json::Value::as_str),
-            Some("Managed OpenClaw Primary")
+            Some("Built-In OpenClaw Primary")
         );
         assert!(
             !instances.iter().any(|item| {
@@ -3958,7 +3958,7 @@ mod tests {
             .write_instances(&super::InstancesDocument {
                 built_in_instance: Some(json!({
                     "id": "managed-openclaw-primary",
-                    "name": "Managed OpenClaw Primary",
+                    "name": "Built-In OpenClaw Primary",
                     "description": "Stable built-in OpenClaw identity.",
                     "runtimeKind": "openclaw",
                     "deploymentMode": "local-managed",
@@ -3976,7 +3976,7 @@ mod tests {
             .update_instance(
                 "managed-openclaw-primary",
                 json!({
-                    "name": "Managed OpenClaw Primary Renamed",
+                    "name": "Built-In OpenClaw Primary Renamed",
                     "config": {
                         "port": "18871"
                     }
@@ -3990,7 +3990,7 @@ mod tests {
         );
         assert_eq!(
             updated.get("name").and_then(serde_json::Value::as_str),
-            Some("Managed OpenClaw Primary Renamed")
+            Some("Built-In OpenClaw Primary Renamed")
         );
     }
 

@@ -454,7 +454,7 @@ export function KernelCenter() {
   };
   const installSourceLabel = translateInstallSource(t, provenance.installSource);
   const runtimeAuthority = dashboard?.runtimeAuthority ?? {
-    managedConfigPath: null,
+    configFilePath: null,
     ownedRuntimeRoots: [],
     supportsLoopbackHealthProbe: null,
     healthProbeTimeoutMs: null,
@@ -1230,8 +1230,8 @@ export function KernelCenter() {
           <Section title={t('settings.kernelCenter.sections.runtimeAuthority')}>
             <div className="space-y-4">
               <ValueRow
-                label={t('settings.kernelCenter.fields.managedConfigPath')}
-                value={runtimeAuthority.managedConfigPath || null}
+                label={t('settings.kernelCenter.fields.configFilePath')}
+                value={runtimeAuthority.configFilePath || null}
                 emptyLabel={notAvailableLabel}
                 mono
               />

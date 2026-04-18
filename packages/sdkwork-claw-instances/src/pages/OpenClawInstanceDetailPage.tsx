@@ -32,10 +32,10 @@ import {
   buildLlmProviderDialogStateHandlers,
   buildLlmProviderDialogProps,
   buildLlmProviderSectionProps,
-  buildManagedMemorySectionContent,
-  buildManagedMemorySectionProps,
-  buildManagedToolsSectionContent,
-  buildManagedToolsSectionProps,
+  buildMemoryWorkbenchSectionContent,
+  buildMemoryWorkbenchSectionProps,
+  buildConfigToolsSectionContent,
+  buildConfigToolsSectionProps,
   buildTasksSectionContent,
 } from '../components/instanceDetailSectionModels';
 import {
@@ -54,9 +54,9 @@ import {
   createInstanceDetailAgentSkillMutationExecutors,
   createInstanceDetailAgentMutationStateBindings,
   createInstanceDetailConsoleErrorReporters,
+  createInstanceDetailConfigMutationExecutors,
   createInstanceDetailDeleteHandlerBindings,
-  createInstanceDetailManagedChannelMutationExecutors,
-  createInstanceDetailManagedConfigMutationExecutors,
+  createInstanceDetailConfigChannelMutationExecutors,
   createInstanceDetailLifecycleMutationExecutors,
   createInstanceDetailProviderDeleteStateBindings,
   buildInstanceDetailNavigationHandlers,
@@ -66,12 +66,12 @@ import {
   createInstanceDetailWorkbenchLoaderBindings,
   createInstanceDetailToastReporters,
   createInstanceDetailSectionAvailabilityRenderer,
-  applyInstanceDetailManagedAuthCooldownsSyncState,
-  applyInstanceDetailManagedDreamingSyncState,
-  applyInstanceDetailManagedWebFetchSyncState,
-  applyInstanceDetailManagedWebSearchNativeCodexSyncState,
-  applyInstanceDetailManagedWebSearchSyncState,
-  applyInstanceDetailManagedXSearchSyncState,
+  applyInstanceDetailConfigAuthCooldownsSyncState,
+  applyInstanceDetailConfigDreamingSyncState,
+  applyInstanceDetailConfigWebFetchSyncState,
+  applyInstanceDetailConfigWebSearchNativeCodexSyncState,
+  applyInstanceDetailConfigWebSearchSyncState,
+  applyInstanceDetailConfigXSearchSyncState,
   buildOpenClawAgentMutationHandlers,
   buildOpenClawAgentSkillMutationHandlers,
   buildInstanceDeleteHandler,
@@ -79,17 +79,17 @@ import {
   buildBundledStartupRecoveryHandler,
   buildInstanceConsoleHandlers,
   createInstanceLifecycleActionRunner,
-  buildOpenClawManagedChannelStateHandlers,
+  buildOpenClawConfigChannelStateHandlers,
   createOpenClawAgentMutationRunner,
   createOpenClawAgentSkillMutationRunner,
   createSharedStatusLabelGetter,
   createOpenClawWebFetchDraftState,
-  buildOpenClawManagedChannelWorkspaceSyncState,
-  buildOpenClawManagedChannelMutationHandlers,
-  createOpenClawManagedChannelMutationRunner,
-  buildOpenClawManagedConfigDraftChangeHandlers,
-  buildOpenClawManagedConfigMutationHandlers,
-  createOpenClawManagedConfigSaveRunner,
+  buildOpenClawConfigChannelWorkspaceSyncState,
+  buildOpenClawConfigChannelMutationHandlers,
+  createOpenClawConfigChannelMutationRunner,
+  buildOpenClawConfigDraftChangeHandlers,
+  buildOpenClawConfigMutationHandlers,
+  createOpenClawConfigSaveRunner,
   buildOpenClawProviderMutationHandlers,
   createOpenClawProviderCatalogMutationRunner,
   createOpenClawProviderDialogResetDrafts,
@@ -165,10 +165,10 @@ export function OpenClawInstanceDetailPage({
   const [isSavingProviderModelDialog, setIsSavingProviderModelDialog] = useState(false);
   const [providerModelDeleteId, setProviderModelDeleteId] = useState<string | null>(null);
   const [providerDeleteId, setProviderDeleteId] = useState<string | null>(null);
-  const [selectedManagedChannelId, setSelectedManagedChannelId] = useState<string | null>(null);
-  const [managedChannelDrafts, setManagedChannelDrafts] = useState<Record<string, Record<string, string>>>({});
-  const [managedChannelError, setManagedChannelError] = useState<string | null>(null);
-  const [isSavingManagedChannel, setIsSavingManagedChannel] = useState(false);
+  const [selectedConfigChannelId, setSelectedConfigChannelId] = useState<string | null>(null);
+  const [configChannelDrafts, setConfigChannelDrafts] = useState<Record<string, Record<string, string>>>({});
+  const [configChannelError, setConfigChannelError] = useState<string | null>(null);
+  const [isSavingConfigChannel, setIsSavingConfigChannel] = useState(false);
   const [selectedWebSearchProviderId, setSelectedWebSearchProviderId] = useState<string | null>(null);
   const [webSearchSharedDraft, setWebSearchSharedDraft] =
     useState<OpenClawWebSearchSharedFormState | null>(null);
@@ -335,79 +335,79 @@ export function OpenClawInstanceDetailPage({
   }, [workbench?.llmProviders]);
 
   useEffect(() => {
-    const managedChannels = workbench?.managedChannels || [];
-    const managedChannelWorkspaceSyncState = buildOpenClawManagedChannelWorkspaceSyncState({
-      managedChannels,
+    const configChannels = workbench?.configChannels || [];
+    const configChannelWorkspaceSyncState = buildOpenClawConfigChannelWorkspaceSyncState({
+      configChannels,
     });
 
-    setSelectedManagedChannelId(managedChannelWorkspaceSyncState.resolveSelectedManagedChannelId);
-    setManagedChannelDrafts(managedChannelWorkspaceSyncState.managedChannelDrafts);
-    setManagedChannelError(managedChannelWorkspaceSyncState.managedChannelError);
-  }, [workbench?.managedChannels]);
+    setSelectedConfigChannelId(configChannelWorkspaceSyncState.resolveSelectedConfigChannelId);
+    setConfigChannelDrafts(configChannelWorkspaceSyncState.configChannelDrafts);
+    setConfigChannelError(configChannelWorkspaceSyncState.configChannelError);
+  }, [workbench?.configChannels]);
 
   useEffect(() => {
-    const managedWebSearchConfig = workbench?.managedWebSearchConfig || null;
+    const configWebSearch = workbench?.configWebSearch || null;
 
-    applyInstanceDetailManagedWebSearchSyncState({
-      config: managedWebSearchConfig,
+    applyInstanceDetailConfigWebSearchSyncState({
+      config: configWebSearch,
       currentProviderId: selectedWebSearchProviderId,
       setSelectedWebSearchProviderId,
       setWebSearchSharedDraft,
       setWebSearchProviderDrafts,
       setWebSearchError,
     });
-  }, [workbench?.managedWebSearchConfig]);
+  }, [workbench?.configWebSearch]);
 
   useEffect(() => {
-    const managedAuthCooldownsConfig = workbench?.managedAuthCooldownsConfig || null;
+    const configAuthCooldowns = workbench?.configAuthCooldowns || null;
 
-    applyInstanceDetailManagedAuthCooldownsSyncState({
-      config: managedAuthCooldownsConfig,
+    applyInstanceDetailConfigAuthCooldownsSyncState({
+      config: configAuthCooldowns,
       setAuthCooldownsDraft,
       setAuthCooldownsError,
     });
-  }, [workbench?.managedAuthCooldownsConfig]);
+  }, [workbench?.configAuthCooldowns]);
 
   useEffect(() => {
-    const managedDreamingConfig = workbench?.managedDreamingConfig || null;
+    const configDreaming = workbench?.configDreaming || null;
 
-    applyInstanceDetailManagedDreamingSyncState({
-      config: managedDreamingConfig,
+    applyInstanceDetailConfigDreamingSyncState({
+      config: configDreaming,
       setDreamingDraft,
       setDreamingError,
     });
-  }, [workbench?.managedDreamingConfig]);
+  }, [workbench?.configDreaming]);
 
   useEffect(() => {
-    const managedXSearchConfig = workbench?.managedXSearchConfig || null;
+    const configXSearch = workbench?.configXSearch || null;
 
-    applyInstanceDetailManagedXSearchSyncState({
-      config: managedXSearchConfig,
+    applyInstanceDetailConfigXSearchSyncState({
+      config: configXSearch,
       setXSearchDraft,
       setXSearchError,
     });
-  }, [workbench?.managedXSearchConfig]);
+  }, [workbench?.configXSearch]);
 
   useEffect(() => {
-    const managedWebSearchNativeCodexConfig = workbench?.managedWebSearchNativeCodexConfig || null;
+    const configWebSearchNativeCodex = workbench?.configWebSearchNativeCodex || null;
 
-    applyInstanceDetailManagedWebSearchNativeCodexSyncState({
-      config: managedWebSearchNativeCodexConfig,
+    applyInstanceDetailConfigWebSearchNativeCodexSyncState({
+      config: configWebSearchNativeCodex,
       setWebSearchNativeCodexDraft,
       setWebSearchNativeCodexError,
     });
-  }, [workbench?.managedWebSearchNativeCodexConfig]);
+  }, [workbench?.configWebSearchNativeCodex]);
 
   useEffect(() => {
-    const managedWebFetchConfig = workbench?.managedWebFetchConfig || null;
+    const configWebFetch = workbench?.configWebFetch || null;
 
-    applyInstanceDetailManagedWebFetchSyncState({
-      config: managedWebFetchConfig,
+    applyInstanceDetailConfigWebFetchSyncState({
+      config: configWebFetch,
       setWebFetchSharedDraft,
       setWebFetchFallbackDraft,
       setWebFetchError,
     });
-  }, [workbench?.managedWebFetchConfig]);
+  }, [workbench?.configWebFetch]);
 
   useEffect(() => {
     const agents = workbench?.agents || [];
@@ -499,8 +499,8 @@ export function OpenClawInstanceDetailPage({
         providerModelDeleteId,
         providerDrafts,
         providerRequestDrafts,
-        selectedManagedChannelId,
-        managedChannelDrafts,
+        selectedConfigChannelId,
+        configChannelDrafts,
         selectedWebSearchProviderId,
         webSearchProviderDrafts,
         providerDialogDraft,
@@ -508,13 +508,13 @@ export function OpenClawInstanceDetailPage({
       }),
     [
       id,
-      managedChannelDrafts,
+      configChannelDrafts,
       providerDeleteId,
       providerDialogDraft,
       providerDrafts,
       providerModelDeleteId,
       providerRequestDrafts,
-      selectedManagedChannelId,
+      selectedConfigChannelId,
       selectedProviderId,
       selectedWebSearchProviderId,
       t,
@@ -524,14 +524,14 @@ export function OpenClawInstanceDetailPage({
   );
   const {
     detail,
-    managedConfigPath,
-    managedChannels,
-    managedWebSearchConfig,
-    managedXSearchConfig,
-    managedWebSearchNativeCodexConfig,
-    managedWebFetchConfig,
-    managedAuthCooldownsConfig,
-    managedDreamingConfig,
+    configFilePath,
+    configChannels,
+    configWebSearch,
+    configXSearch,
+    configWebSearchNativeCodex,
+    configWebFetch,
+    configAuthCooldowns,
+    configDreaming,
     isOpenClawConfigWritable,
     canControlLifecycle,
     canRestartLifecycle,
@@ -539,25 +539,25 @@ export function OpenClawInstanceDetailPage({
     canStartLifecycle,
     canDelete,
     canSetActive,
-    canEditManagedChannels,
-    canEditManagedWebSearch,
-    canEditManagedXSearch,
-    canEditManagedWebSearchNativeCodex,
-    canEditManagedWebFetch,
-    canEditManagedAuthCooldowns,
-    canEditManagedDreaming,
+    canEditConfigChannels,
+    canEditConfigWebSearch,
+    canEditConfigXSearch,
+    canEditConfigWebSearchNativeCodex,
+    canEditConfigWebFetch,
+    canEditConfigAuthCooldowns,
+    canEditDreamingConfig,
     isProviderConfigReadonly,
     canManageOpenClawProviders,
     canOpenControlPage,
     memoryWorkbenchState,
     managementSummary,
     providerSelectionState,
-    managedChannelSelectionState,
+    configChannelSelectionState,
     webSearchProviderSelectionState,
     providerDialogPresentation,
     availableAgentModelOptions,
     readonlyChannelWorkspaceItems,
-    managedChannelWorkspaceItems,
+    configChannelWorkspaceItems,
   } = instanceDetailDerivedState;
   const {
     selectedProvider,
@@ -568,7 +568,7 @@ export function OpenClawInstanceDetailPage({
     selectedProviderRequestParseError,
     hasPendingProviderChanges,
   } = providerSelectionState;
-  const { selectedManagedChannel, selectedManagedChannelDraft } = managedChannelSelectionState;
+  const { selectedConfigChannel, selectedConfigChannelDraft } = configChannelSelectionState;
   const { selectedProvider: selectedWebSearchProvider, selectedProviderDraft: selectedWebSearchProviderDraft } =
     webSearchProviderSelectionState;
   const {
@@ -804,39 +804,39 @@ export function OpenClawInstanceDetailPage({
     t,
   });
 
-  const managedChannelMutationExecutors = createInstanceDetailManagedChannelMutationExecutors({
+  const configChannelMutationExecutors = createInstanceDetailConfigChannelMutationExecutors({
     instanceService,
   });
-  const runManagedChannelMutation = createOpenClawManagedChannelMutationRunner({
-    ...managedChannelMutationExecutors,
+  const runConfigChannelMutation = createOpenClawConfigChannelMutationRunner({
+    ...configChannelMutationExecutors,
     reloadWorkbench: workbenchReloadHandlers.reloadWorkbench,
     reportSuccess: toastReporters.reportSuccess,
     reportError: toastReporters.reportError,
   });
-  const managedChannelStateHandlers = buildOpenClawManagedChannelStateHandlers({
-    selectedManagedChannel,
-    setManagedChannelError,
-    setSelectedManagedChannelId,
-    setManagedChannelDrafts,
+  const configChannelStateHandlers = buildOpenClawConfigChannelStateHandlers({
+    selectedConfigChannel,
+    setConfigChannelError,
+    setSelectedConfigChannelId,
+    setConfigChannelDrafts,
   });
-  const managedChannelMutationHandlers = buildOpenClawManagedChannelMutationHandlers({
+  const configChannelMutationHandlers = buildOpenClawConfigChannelMutationHandlers({
     instanceId: id,
-    managedChannels,
-    selectedManagedChannel,
-    selectedManagedChannelDraft,
-    setSavingManagedChannel: setIsSavingManagedChannel,
-    setManagedChannelError,
-    setSelectedManagedChannelId,
-    setManagedChannelDrafts,
-    executeMutation: runManagedChannelMutation,
+    configChannels,
+    selectedConfigChannel,
+    selectedConfigChannelDraft,
+    setSavingConfigChannel: setIsSavingConfigChannel,
+    setConfigChannelError,
+    setSelectedConfigChannelId,
+    setConfigChannelDrafts,
+    executeMutation: runConfigChannelMutation,
   });
 
-  const runManagedConfigSave = createOpenClawManagedConfigSaveRunner({
+  const runConfigSave = createOpenClawConfigSaveRunner({
     reloadWorkbench: workbenchReloadHandlers.reloadWorkbench,
     reportSuccess: toastReporters.reportSuccess,
     t,
   });
-  const managedConfigDraftChangeHandlers = buildOpenClawManagedConfigDraftChangeHandlers({
+  const configDraftChangeHandlers = buildOpenClawConfigDraftChangeHandlers({
     selectedWebSearchProvider,
     setWebSearchError,
     setWebSearchSharedDraft,
@@ -853,13 +853,13 @@ export function OpenClawInstanceDetailPage({
     setDreamingError,
     setDreamingDraft,
   });
-  const managedConfigMutationExecutors = createInstanceDetailManagedConfigMutationExecutors({
+  const configMutationExecutors = createInstanceDetailConfigMutationExecutors({
     instanceService,
   });
 
-  const managedConfigMutationHandlers = buildOpenClawManagedConfigMutationHandlers({
+  const configMutationHandlers = buildOpenClawConfigMutationHandlers({
     instanceId: id,
-    executeSaveRequest: runManagedConfigSave,
+    executeSaveRequest: runConfigSave,
     t,
     webSearch: {
       sharedDraft: webSearchSharedDraft,
@@ -867,38 +867,38 @@ export function OpenClawInstanceDetailPage({
       selectedProviderDraft: selectedWebSearchProviderDraft,
       setSaving: setIsSavingWebSearch,
       setError: setWebSearchError,
-      executeSave: managedConfigMutationExecutors.webSearch.executeSave,
+      executeSave: configMutationExecutors.webSearch.executeSave,
     },
     xSearch: {
       draft: xSearchDraft,
       setSaving: setIsSavingXSearch,
       setError: setXSearchError,
-      executeSave: managedConfigMutationExecutors.xSearch.executeSave,
+      executeSave: configMutationExecutors.xSearch.executeSave,
     },
     webSearchNativeCodex: {
       draft: webSearchNativeCodexDraft,
       setSaving: setIsSavingWebSearchNativeCodex,
       setError: setWebSearchNativeCodexError,
-      executeSave: managedConfigMutationExecutors.webSearchNativeCodex.executeSave,
+      executeSave: configMutationExecutors.webSearchNativeCodex.executeSave,
     },
     webFetch: {
       sharedDraft: webFetchSharedDraft,
       fallbackDraft: webFetchFallbackDraft,
       setSaving: setIsSavingWebFetch,
       setError: setWebFetchError,
-      executeSave: managedConfigMutationExecutors.webFetch.executeSave,
+      executeSave: configMutationExecutors.webFetch.executeSave,
     },
     authCooldowns: {
       draft: authCooldownsDraft,
       setSaving: setIsSavingAuthCooldowns,
       setError: setAuthCooldownsError,
-      executeSave: managedConfigMutationExecutors.authCooldowns.executeSave,
+      executeSave: configMutationExecutors.authCooldowns.executeSave,
     },
     dreaming: {
       draft: dreamingDraft,
       setSaving: setIsSavingDreaming,
       setError: setDreamingError,
-      executeSave: managedConfigMutationExecutors.dreaming.executeSave,
+      executeSave: configMutationExecutors.dreaming.executeSave,
     },
   });
 
@@ -960,7 +960,7 @@ export function OpenClawInstanceDetailPage({
     isProviderConfigReadonly,
     isOpenClawConfigWritable,
     canManageOpenClawProviders,
-    managedConfigPath,
+    configFilePath,
     availabilityNotice: renderWorkbenchSectionAvailability(
       'llmProviders',
       'instances.detail.instanceWorkbench.empty.llmProviders',
@@ -1023,75 +1023,77 @@ export function OpenClawInstanceDetailPage({
     instanceId: id,
   });
 
-  const memorySectionProps = buildManagedMemorySectionProps({
+  const memorySectionProps = buildMemoryWorkbenchSectionProps({
     isLoading: isWorkbenchMemoryLoading,
     loadingLabel: t('common.loading'),
     workbench,
     memoryWorkbenchState,
-    managedDreamingConfig,
+    configDreaming,
     dreamingDraft,
     dreamingError,
     isSavingDreaming,
-    canEditManagedDreaming,
+    canEditDreamingConfig,
     formatWorkbenchLabel,
     getDangerBadge,
     getStatusBadge,
     t,
-    onDreamingDraftChange: managedConfigDraftChangeHandlers.onDreamingDraftChange,
-    onSaveDreamingConfig: managedConfigMutationHandlers.onSaveDreamingConfig,
+    onDreamingDraftChange: configDraftChangeHandlers.onDreamingDraftChange,
+    onSaveDreamingConfig: configMutationHandlers.onSaveDreamingConfig,
     renderSectionAvailability: renderWorkbenchSectionAvailability,
   });
 
-  const memorySectionContent = buildManagedMemorySectionContent({ sectionProps: memorySectionProps });
+  const memorySectionContent = buildMemoryWorkbenchSectionContent({
+    sectionProps: memorySectionProps,
+  });
 
-  const toolsSectionProps = buildManagedToolsSectionProps({
+  const toolsSectionProps = buildConfigToolsSectionProps({
     workbench,
-    managedWebSearchConfig,
+    configWebSearch,
     webSearchSharedDraft,
     selectedWebSearchProvider,
     selectedWebSearchProviderDraft,
     webSearchError,
     isSavingWebSearch,
-    canEditManagedWebSearch,
-    onSaveWebSearchConfig: managedConfigMutationHandlers.onSaveWebSearchConfig,
-    onWebSearchSharedDraftChange: managedConfigDraftChangeHandlers.onWebSearchSharedDraftChange,
+    canEditConfigWebSearch,
+    onSaveWebSearchConfig: configMutationHandlers.onSaveWebSearchConfig,
+    onWebSearchSharedDraftChange: configDraftChangeHandlers.onWebSearchSharedDraftChange,
     onWebSearchProviderDraftChange:
-      managedConfigDraftChangeHandlers.onWebSearchProviderDraftChange,
+      configDraftChangeHandlers.onWebSearchProviderDraftChange,
     onSelectedWebSearchProviderIdChange: setSelectedWebSearchProviderId,
-    managedWebFetchConfig,
+    configWebFetch,
     webFetchSharedDraft,
     webFetchFallbackDraft,
     webFetchError,
     isSavingWebFetch,
-    canEditManagedWebFetch,
-    onSaveWebFetchConfig: managedConfigMutationHandlers.onSaveWebFetchConfig,
-    onWebFetchSharedDraftChange: managedConfigDraftChangeHandlers.onWebFetchSharedDraftChange,
+    canEditConfigWebFetch,
+    onSaveWebFetchConfig: configMutationHandlers.onSaveWebFetchConfig,
+    onWebFetchSharedDraftChange: configDraftChangeHandlers.onWebFetchSharedDraftChange,
     onWebFetchFallbackDraftChange:
-      managedConfigDraftChangeHandlers.onWebFetchFallbackDraftChange,
-    managedWebSearchNativeCodexConfig,
+      configDraftChangeHandlers.onWebFetchFallbackDraftChange,
+    configWebSearchNativeCodex,
     webSearchNativeCodexDraft,
     webSearchNativeCodexError,
     isSavingWebSearchNativeCodex,
-    canEditManagedWebSearchNativeCodex,
+    canEditConfigWebSearchNativeCodex,
     onSaveWebSearchNativeCodexConfig:
-      managedConfigMutationHandlers.onSaveWebSearchNativeCodexConfig,
+      configMutationHandlers.onSaveWebSearchNativeCodexConfig,
     onWebSearchNativeCodexDraftChange:
-      managedConfigDraftChangeHandlers.onWebSearchNativeCodexDraftChange,
-    managedXSearchConfig,
+      configDraftChangeHandlers.onWebSearchNativeCodexDraftChange,
+    configXSearch,
     xSearchDraft,
     xSearchError,
     isSavingXSearch,
-    canEditManagedXSearch,
-    onSaveXSearchConfig: managedConfigMutationHandlers.onSaveXSearchConfig,
-    onXSearchDraftChange: managedConfigDraftChangeHandlers.onXSearchDraftChange,
-    managedAuthCooldownsConfig,
+    canEditConfigXSearch,
+    onSaveXSearchConfig: configMutationHandlers.onSaveXSearchConfig,
+    onXSearchDraftChange: configDraftChangeHandlers.onXSearchDraftChange,
+    configAuthCooldowns,
     authCooldownsDraft,
     authCooldownsError,
     isSavingAuthCooldowns,
-    canEditManagedAuthCooldowns,
-    onSaveAuthCooldownsConfig: managedConfigMutationHandlers.onSaveAuthCooldownsConfig,
+    canEditConfigAuthCooldowns,
+    onSaveAuthCooldownsConfig: configMutationHandlers.onSaveAuthCooldownsConfig,
     onAuthCooldownsDraftChange:
-      managedConfigDraftChangeHandlers.onAuthCooldownsDraftChange,
+      configDraftChangeHandlers.onAuthCooldownsDraftChange,
     formatWorkbenchLabel,
     getDangerBadge,
     getStatusBadge,
@@ -1099,7 +1101,7 @@ export function OpenClawInstanceDetailPage({
     renderSectionAvailability: renderWorkbenchSectionAvailability,
   });
 
-  const toolsSectionContent = buildManagedToolsSectionContent({ sectionProps: toolsSectionProps });
+  const toolsSectionContent = buildConfigToolsSectionContent({ sectionProps: toolsSectionProps });
 
   if (isLoading) {
     return (
@@ -1175,14 +1177,14 @@ export function OpenClawInstanceDetailPage({
             config={config}
             selectedAgentId={selectedAgentId}
             isWorkbenchFilesLoading={isWorkbenchFilesLoading}
-            canEditManagedChannels={canEditManagedChannels}
-            managedChannelWorkspaceItems={managedChannelWorkspaceItems}
+            canEditConfigChannels={canEditConfigChannels}
+            configChannelWorkspaceItems={configChannelWorkspaceItems}
             readonlyChannelWorkspaceItems={readonlyChannelWorkspaceItems}
-            managedConfigPath={managedConfigPath}
-            selectedManagedChannelId={selectedManagedChannel?.id || null}
-            managedChannelDrafts={managedChannelDrafts}
-            managedChannelError={managedChannelError}
-            isSavingManagedChannel={isSavingManagedChannel}
+            configFilePath={configFilePath}
+            selectedConfigChannelId={selectedConfigChannel?.id || null}
+            configChannelDrafts={configChannelDrafts}
+            configChannelError={configChannelError}
+            isSavingConfigChannel={isSavingConfigChannel}
             agentSection={agentSectionContent}
             tasksSection={tasksSectionContent}
             llmProvidersSection={llmProvidersSectionContent}
@@ -1196,13 +1198,13 @@ export function OpenClawInstanceDetailPage({
             onOpenOfficialLink={consoleHandlers.onOpenOfficialLink}
             onOpenDiagnosticPath={onOpenDiagnosticPath}
             onRetryBundledStartup={onRetryBundledStartup}
-            onSelectedManagedChannelIdChange={managedChannelStateHandlers.onSelectedManagedChannelIdChange}
-            onManagedChannelFieldChange={managedChannelStateHandlers.onManagedChannelFieldChange}
-            onSaveManagedChannel={managedChannelMutationHandlers.onSaveManagedChannel}
-            onDeleteManagedChannelConfiguration={
-              managedChannelMutationHandlers.onDeleteManagedChannelConfiguration
+            onSelectedConfigChannelIdChange={configChannelStateHandlers.onSelectedConfigChannelIdChange}
+            onConfigChannelFieldChange={configChannelStateHandlers.onConfigChannelFieldChange}
+            onSaveConfigChannel={configChannelMutationHandlers.onSaveConfigChannel}
+            onDeleteConfigChannelConfiguration={
+              configChannelMutationHandlers.onDeleteConfigChannelConfiguration
             }
-            onToggleManagedChannel={managedChannelMutationHandlers.onToggleManagedChannel}
+            onToggleConfigChannel={configChannelMutationHandlers.onToggleConfigChannel}
             onSelectedAgentIdChange={setSelectedAgentId}
             onReloadFiles={reloadCurrentWorkbenchSilently}
             onReloadConfig={reloadCurrentWorkbenchSilently}

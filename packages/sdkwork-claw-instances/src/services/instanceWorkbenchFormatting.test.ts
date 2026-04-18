@@ -14,7 +14,9 @@ function runTest(name: string, fn: () => void | Promise<void>) {
 }
 
 await runTest('formatWorkbenchLabel keeps known OpenClaw workbench values readable', () => {
-  assert.equal(formatWorkbenchLabel('managedFile'), 'Managed File');
+  assert.equal(formatWorkbenchLabel('managedFile'), 'Config File');
+  assert.equal(formatWorkbenchLabel('managedDirectory'), 'Config Directory');
+  assert.equal(formatWorkbenchLabel('configFile'), 'Config File');
   assert.equal(formatWorkbenchLabel('appManaged'), 'App Managed');
   assert.equal(formatWorkbenchLabel('openaiResponses'), 'OpenAI Responses');
   assert.equal(formatWorkbenchLabel('readonly'), 'Read Only');

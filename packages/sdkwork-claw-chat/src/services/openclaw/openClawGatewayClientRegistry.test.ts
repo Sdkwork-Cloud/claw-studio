@@ -124,7 +124,7 @@ function createDetail(
         'http://127.0.0.1:18797/openclaw/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A18797%2Fopenclaw#token=detail-token',
       gatewayUrl: 'ws://127.0.0.1:18797/openclaw',
       authMode: 'token',
-      authSource: 'managedConfig',
+      authSource: 'configFile',
       installMethod: 'bundled',
       reason: null,
     },

@@ -46,7 +46,7 @@ export interface ChannelWorkspaceItem extends Omit<ChannelCatalogItem, 'setupSte
 }
 
 export interface ChannelWorkspaceTexts extends ChannelCatalogTexts {
-  managedFileLabel?: string;
+  configFileLabel?: string;
   panelEyebrow: string;
   setupGuideTitle: string;
   credentialsTitle: string;
@@ -62,7 +62,7 @@ export interface ChannelWorkspaceProps {
   emptyState?: React.ReactNode;
   selectedChannelId: string | null;
   valuesByChannelId?: Record<string, Record<string, string>>;
-  managedFilePath?: string | null;
+  configFilePath?: string | null;
   error?: React.ReactNode;
   isSaving?: boolean;
   className?: string;
@@ -163,7 +163,7 @@ export function ChannelWorkspace({
   emptyState = null,
   selectedChannelId,
   valuesByChannelId = {},
-  managedFilePath,
+  configFilePath,
   error,
   isSaving = false,
   className,
@@ -290,15 +290,15 @@ export function ChannelWorkspace({
 
   return (
     <div className={cn('space-y-4', className)}>
-      {managedFilePath ? (
+      {configFilePath ? (
         <div className="rounded-[18px] border border-zinc-200/70 bg-white/80 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/35 dark:text-zinc-300">
-          {texts.managedFileLabel ? (
+          {texts.configFileLabel ? (
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
-              {texts.managedFileLabel}
+              {texts.configFileLabel}
             </div>
           ) : null}
           <div className="mt-2 break-all font-mono text-xs leading-6 text-zinc-500 dark:text-zinc-400">
-            {managedFilePath}
+            {configFilePath}
           </div>
         </div>
       ) : null}

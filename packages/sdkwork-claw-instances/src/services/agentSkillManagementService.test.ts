@@ -113,7 +113,7 @@ function createOpenClawDetail(overrides: Partial<StudioInstanceDetailRecord> = {
           target: 'D:/OpenClaw/.openclaw/openclaw.json',
           readonly: false,
           authoritative: true,
-          detail: 'Managed config file',
+          detail: 'OpenClaw config file',
           source: 'integration',
         },
       ],

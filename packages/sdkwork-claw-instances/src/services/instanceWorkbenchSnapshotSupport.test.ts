@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { createEmptyManagedOpenClawConfigSnapshot } from './openClawManagedConfigWorkbenchSupport.ts';
+import { readFileSync } from 'node:fs';
+import { createEmptyOpenClawConfigSnapshot } from './openClawConfigWorkbenchSupport.ts';
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -23,7 +24,7 @@ try {
   snapshotSupportModule = undefined;
 }
 
-function createManagedConfigRoute(target: string) {
+function createConfigRoute(target: string) {
   return {
     id: 'config',
     label: 'Configuration',
@@ -33,7 +34,7 @@ function createManagedConfigRoute(target: string) {
     target,
     readonly: false,
     authoritative: true,
-    detail: 'Managed config file is writable.',
+    detail: 'Config file is writable.',
     source: 'integration',
   } as const;
 }
@@ -191,12 +192,20 @@ await runTest(
     assert.equal(typeof snapshotSupportModule?.mapBackendWorkbench, 'function');
   },
 );
+await runTest(
+  'InstanceWorkbenchSnapshot does not expose the legacy config alias field in shared truth',
+  () => {
+    const source = readFileSync(new URL('../types/index.ts', import.meta.url), 'utf8');
+
+    assert.doesNotMatch(source, /managedConfigPath\?: string \| null/);
+  },
+);
 
 await runTest(
-  'buildDetailOnlyWorkbenchSnapshot keeps overview and managed config counts aligned',
+  'buildDetailOnlyWorkbenchSnapshot keeps overview and config counts aligned',
   () => {
-    const managedConfigSnapshot = {
-      ...createEmptyManagedOpenClawConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json'),
+    const configSnapshot = {
+      ...createEmptyOpenClawConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json'),
       channelSnapshots: [
         {
           id: 'slack',
@@ -222,7 +231,7 @@ await runTest(
     } as any;
     const detail = createOpenClawDetail('detail-only', {
       dataAccess: {
-        routes: [createManagedConfigRoute('D:/OpenClaw/.openclaw/openclaw.json')],
+        routes: [createConfigRoute('D:/OpenClaw/.openclaw/openclaw.json')],
       },
       artifacts: [
         {
@@ -238,15 +247,27 @@ await runTest(
     const snapshot = snapshotSupportModule?.buildDetailOnlyWorkbenchSnapshot(
       detail,
       'D:/OpenClaw/.openclaw/openclaw.json',
-      managedConfigSnapshot,
+      configSnapshot,
     );
 
-    assert.equal(snapshot?.managedConfigPath, 'D:/OpenClaw/.openclaw/openclaw.json');
+    assert.deepEqual(snapshot?.kernelConfig, {
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configRoot: 'D:/OpenClaw/.openclaw',
+      userRoot: 'D:/OpenClaw',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    });
+    assert.equal(snapshot?.kernelConfig?.configFile, 'D:/OpenClaw/.openclaw/openclaw.json');
+    assert.equal('managedConfigPath' in (snapshot || {}), false);
     assert.equal(snapshot?.sectionCounts.overview, 8);
     assert.equal(snapshot?.sectionCounts.config, 1);
     assert.equal(snapshot?.sectionAvailability.config.status, 'ready');
     assert.equal(snapshot?.channels.length, 0);
-    assert.equal(snapshot?.managedChannels?.[0]?.id, 'slack');
+    assert.equal(snapshot?.configChannels?.[0]?.id, 'slack');
   },
 );
 
@@ -281,7 +302,7 @@ await runTest(
 );
 
 await runTest(
-  'finalizeOpenClawSnapshot overlays managed config ownership while preserving runtime readiness',
+  'finalizeOpenClawSnapshot overlays config ownership while preserving runtime readiness',
   () => {
     const detail = createOpenClawDetail('finalized-openclaw', {
       lifecycle: {
@@ -294,11 +315,11 @@ await runTest(
         notes: [],
       },
       dataAccess: {
-        routes: [createManagedConfigRoute('D:/OpenClaw/.openclaw/openclaw.json')],
+        routes: [createConfigRoute('D:/OpenClaw/.openclaw/openclaw.json')],
       },
     });
-    const managedConfigSnapshot = {
-      ...createEmptyManagedOpenClawConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json'),
+    const configSnapshot = {
+      ...createEmptyOpenClawConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json'),
       providerSnapshots: [
         {
           id: 'managed-openai',
@@ -429,7 +450,7 @@ await runTest(
           id: 'diag-helper',
           name: 'Diagnostics Helper',
           description: 'Troubleshoot incidents',
-          author: 'Managed OpenClaw',
+          author: 'OpenClaw',
           rating: 5,
           downloads: 1,
           category: 'Operations',
@@ -497,7 +518,7 @@ await runTest(
       detail,
       runtimeSnapshot!,
       'D:/OpenClaw/.openclaw/openclaw.json',
-      managedConfigSnapshot,
+      configSnapshot,
       [
         {
           id: 'slack',
@@ -524,7 +545,19 @@ await runTest(
       ],
     );
 
-    assert.equal(finalized?.managedConfigPath, 'D:/OpenClaw/.openclaw/openclaw.json');
+    assert.deepEqual(finalized?.kernelConfig, {
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configRoot: 'D:/OpenClaw/.openclaw',
+      userRoot: 'D:/OpenClaw',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    });
+    assert.equal(finalized?.kernelConfig?.configFile, 'D:/OpenClaw/.openclaw/openclaw.json');
+    assert.equal('managedConfigPath' in (finalized || {}), false);
     assert.equal(finalized?.sectionCounts.config, 1);
     assert.equal(finalized?.sectionAvailability.config.status, 'ready');
     assert.equal(finalized?.sectionAvailability.files.status, 'ready');
@@ -534,7 +567,7 @@ await runTest(
     );
     assert.equal(finalized?.channels.find((channel) => channel.id === 'slack')?.status, 'connected');
     assert.equal(finalized?.llmProviders[0]?.id, 'managed-openai');
-    assert.equal(finalized?.agents[0]?.configSource, 'managedConfig');
+    assert.equal(finalized?.agents[0]?.configSource, 'configFile');
     assert.equal(finalized?.readyToolCount, 1);
     assert.equal(finalized?.activeTaskCount, 1);
     assert.equal(finalized?.connectedChannelCount, 1);

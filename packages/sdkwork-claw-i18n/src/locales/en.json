@@ -3781,7 +3781,7 @@
             "sessionsVisibility": "Session Visibility",
             "agentToAgent": "Agent-to-Agent",
             "allowList": "Allow List",
-            "managedFile": "Config Access",
+            "managedFile": "Config File",
             "rawStatus": "Draft Validity",
             "parseReady": "Ready",
             "parseInvalid": "Invalid Draft",
@@ -4118,7 +4118,7 @@
           },
           "metrics": {
             "activeProvider": "Active Provider",
-            "managedProviders": "Managed Providers"
+            "configuredProviders": "Configured Providers"
           },
           "placeholders": {
             "provider": "Choose a provider",
@@ -4390,7 +4390,7 @@
             "labels": {
               "controlPlane": "Control Plane",
               "installMethod": "Install Method",
-              "configAuthority": "Config Authority",
+              "kernelConfig": "Config File",
               "defaultWorkspace": "Default Workspace",
               "managementScope": "Management Scope"
             },
@@ -4398,8 +4398,8 @@
               "controlPlane": "The lifecycle owner and deployment posture determine whether this instance is bundled, attached from outside, or remotely administered.",
               "installMethod": "This reflects the install path detected for the linked OpenClaw control surface.",
               "installMethodUnknown": "No console install method was reported for this instance yet.",
-              "configManagedFile": "Claw Studio discovered a writable OpenClaw config file and can manage instance configuration against that source of truth.",
-              "configManagedDirectory": "Configuration is resolved from a managed directory binding instead of a single file path.",
+              "configManagedFile": "Claw Studio discovered a writable OpenClaw config file and uses it as the authoritative source for instance configuration.",
+              "configManagedDirectory": "Configuration is resolved from the kernel config directory binding instead of a single file path.",
               "configRemoteEndpoint": "Configuration is only exposed through a runtime endpoint, so management stays partial and depends on gateway support.",
               "configMetadataOnly": "Only metadata-level config discovery is available for this instance right now.",
               "configUnavailable": "No authoritative config path is currently attached to this instance.",
@@ -4518,7 +4518,7 @@
           },
           "panel": {
             "badge": "OpenClaw Providers",
-            "managedConfig": "Managed Config",
+            "configFile": "Config File",
             "description": "Provider and model CRUD write back to the real config-backed OpenClaw config and keep defaults plus agent model references synchronized.",
             "newProvider": "New Provider",
             "emptyTitle": "No providers configured",
@@ -4586,7 +4586,7 @@
           },
           "panel": {
             "badge": "OpenClaw Agents",
-            "managedConfig": "Managed Config",
+            "configFile": "Config File",
             "descriptionPrefix": "Agent identity, workspace, per-agent model overrides, and state directories are written back to the real config-backed OpenClaw config. Credentials still live inside each agent's",
             "authProfilesFile": "auth-profiles.json",
             "descriptionMiddle": "under its",
@@ -5235,7 +5235,7 @@
         "configPath": "Config Path",
         "runtimeHome": "Runtime Home",
         "runtimeInstallDir": "Runtime Install Dir",
-        "managedConfigPath": "Managed Config Path",
+        "configFilePath": "Config File Path",
         "ownedRuntimeRoot": "Owned Runtime Root {{index}}",
         "supportsLoopbackHealthProbe": "Supports Loopback Health Probe",
         "healthProbeTimeoutMs": "Health Probe Timeout",

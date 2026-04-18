@@ -202,7 +202,7 @@ function createCustomDetail(
   };
 }
 
-function createManagedConfigBackedOpenClawDetail(
+function createConfigBackedOpenClawDetail(
   instanceId = 'managed-openclaw',
   overrides: Partial<StudioInstanceDetailRecord> = {},
 ): StudioInstanceDetailRecord {
@@ -237,7 +237,7 @@ function createManagedConfigBackedOpenClawDetail(
           target: `D:/OpenClaw/${instanceId}/.openclaw/openclaw.json`,
           readonly: false,
           authoritative: true,
-          detail: 'Managed config file is writable.',
+          detail: 'OpenClaw config file is writable.',
           source: 'integration',
         },
       ],
@@ -426,7 +426,7 @@ await runTest(
   },
 );
 
-await runTest('updateInstanceFileContent routes built-in managed OpenClaw writes through the studio bridge', async () => {
+await runTest('updateInstanceFileContent routes built-in OpenClaw writes through the studio bridge', async () => {
   const calls: Array<[string, string, string]> = [];
   const service = createInstanceService({
     studioApi: {
@@ -458,7 +458,7 @@ await runTest('updateInstanceFileContent routes built-in managed OpenClaw writes
 });
 
 await runTest(
-  'updateInstanceFileContent does not infer studio-managed OpenClaw writes from deployment metadata alone',
+  'updateInstanceFileContent does not infer built-in OpenClaw writes from deployment metadata alone',
   async () => {
     const calls: Array<[string, string, string]> = [];
     const service = createInstanceService({
@@ -717,7 +717,45 @@ await runTest('getInstanceFileContent returns built-in workbench file content wi
 });
 
 await runTest(
-  'getManagedOpenClawConfigDocument prefers the built-in gateway bridge when managed runtime status projection lags behind',
+  'getOpenClawConfigDocument keeps the canonical config API available for config-backed OpenClaw instances',
+  async () => {
+    const calls: string[] = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createConfigBackedOpenClawDetail('managed-openclaw'),
+      },
+      openClawGatewayClient: {
+        getConfig: async (instanceId: string) => {
+          calls.push(instanceId);
+          return {
+            config: {
+              agents: {
+                defaults: {
+                  primary: 'ops',
+                },
+              },
+            },
+          };
+        },
+      },
+    });
+
+    const raw = await service.getOpenClawConfigDocument('managed-openclaw');
+
+    assert.deepEqual(calls, ['managed-openclaw']);
+    assert.deepEqual(requireParsedOpenClawConfig(raw), {
+      agents: {
+        defaults: {
+          primary: 'ops',
+        },
+      },
+    });
+  },
+);
+
+await runTest(
+  'getOpenClawConfigDocument prefers the built-in gateway bridge when built-in runtime status projection lags behind',
   async () => {
     const calls: string[] = [];
     const service = createInstanceService({
@@ -754,7 +792,7 @@ await runTest(
                   target: 'D:/OpenClaw/.openclaw/openclaw.json',
                   readonly: false,
                   authoritative: true,
-                  detail: 'Built-in managed config file.',
+                  detail: 'Built-in OpenClaw config file.',
                   source: 'integration',
                 },
               ],
@@ -777,7 +815,7 @@ await runTest(
       },
     });
 
-    const raw = await service.getManagedOpenClawConfigDocument('local-built-in');
+    const raw = await service.getOpenClawConfigDocument('local-built-in');
 
     assert.deepEqual(calls, ['local-built-in']);
     assert.deepEqual(requireParsedOpenClawConfig(raw), {
@@ -791,7 +829,7 @@ await runTest(
 );
 
 await runTest(
-  'getManagedOpenClawConfigDocument reads the attached openclaw.json for config-backed OpenClaw instances when the managed gateway is unavailable',
+  'getOpenClawConfigDocument reads the attached openclaw.json for config-backed OpenClaw instances when the gateway is unavailable',
   async () => {
     const calls: string[] = [];
     const service = createInstanceService({
@@ -818,7 +856,7 @@ await runTest(
                   target: 'D:/OpenClaw/.openclaw/openclaw.json',
                   readonly: true,
                   authoritative: true,
-                  detail: 'Managed config file is readable.',
+                  detail: 'OpenClaw config file is readable.',
                   source: 'integration',
                 },
               ],
@@ -833,7 +871,7 @@ await runTest(
       },
     });
 
-    const content = await service.getManagedOpenClawConfigDocument('managed-openclaw');
+    const content = await service.getOpenClawConfigDocument('managed-openclaw');
 
     assert.equal(content, '{\n  "agents": {}\n}\n');
     assert.deepEqual(calls, ['D:/OpenClaw/.openclaw/openclaw.json']);
@@ -841,7 +879,7 @@ await runTest(
 );
 
 await runTest(
-  'getManagedOpenClawConfigDocument reports a product-level error when the attached config file is missing offline',
+  'getOpenClawConfigDocument reports a product-level error when the attached config file is missing offline',
   async () => {
     const service = createInstanceService({
       studioApi: {
@@ -867,7 +905,7 @@ await runTest(
                   target: 'D:/Missing/.openclaw/openclaw.json',
                   readonly: true,
                   authoritative: true,
-                  detail: 'Managed config file is readable.',
+                  detail: 'OpenClaw config file is readable.',
                   source: 'integration',
                 },
               ],
@@ -893,14 +931,14 @@ await runTest(
     });
 
     await assert.rejects(
-      () => service.getManagedOpenClawConfigDocument('missing-config-openclaw'),
+      () => service.getOpenClawConfigDocument('missing-config-openclaw'),
       /attached OpenClaw config file is no longer available on disk/i,
     );
   },
 );
 
 await runTest(
-  'getManagedOpenClawConfigDocument reads the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'getOpenClawConfigDocument reads the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewayCalls: string[] = [];
@@ -937,7 +975,7 @@ await runTest(
                   target: 'D:/OpenClaw/.openclaw/openclaw.json',
                   readonly: true,
                   authoritative: true,
-                  detail: 'Managed config file is readable.',
+                  detail: 'OpenClaw config file is readable.',
                   source: 'integration',
                 },
               ],
@@ -961,7 +999,7 @@ await runTest(
       },
     });
 
-    const content = await service.getManagedOpenClawConfigDocument('managed-openclaw');
+    const content = await service.getOpenClawConfigDocument('managed-openclaw');
 
     assert.equal(content, serializeOpenClawConfigDocument(expectedRoot));
     assert.deepEqual(gatewayCalls, ['managed-openclaw']);
@@ -970,7 +1008,7 @@ await runTest(
 );
 
 await runTest(
-  'getManagedOpenClawConfigDocument ignores config artifacts when config access is metadata-only',
+  'getOpenClawConfigDocument ignores config artifacts when config access is metadata-only',
   async () => {
     const calls: string[] = [];
     const service = createInstanceService({
@@ -1024,7 +1062,7 @@ await runTest(
     });
 
     await assert.rejects(
-      () => service.getManagedOpenClawConfigDocument('metadata-only-openclaw'),
+      () => service.getOpenClawConfigDocument('metadata-only-openclaw'),
       /does not expose an attached OpenClaw config file/i,
     );
     assert.deepEqual(calls, []);
@@ -1032,7 +1070,7 @@ await runTest(
 );
 
 await runTest(
-  'updateManagedOpenClawConfigDocument writes the attached openclaw.json for config-backed OpenClaw instances when the managed gateway is unavailable',
+  'updateOpenClawConfigDocument writes the attached openclaw.json for config-backed OpenClaw instances when the gateway is unavailable',
   async () => {
     const calls: Array<[string, string]> = [];
     const service = createInstanceService({
@@ -1059,7 +1097,7 @@ await runTest(
                   target: 'D:/OpenClaw/.openclaw/openclaw.json',
                   readonly: false,
                   authoritative: true,
-                  detail: 'Managed config file is writable.',
+                  detail: 'OpenClaw config file is writable.',
                   source: 'integration',
                 },
               ],
@@ -1073,7 +1111,7 @@ await runTest(
       },
     });
 
-    await service.updateManagedOpenClawConfigDocument(
+    await service.updateOpenClawConfigDocument(
       'managed-openclaw',
       '{\n  "tools": {}\n}\n',
     );
@@ -1083,7 +1121,7 @@ await runTest(
 );
 
 await runTest(
-  'updateManagedOpenClawConfigDocument saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'updateOpenClawConfigDocument saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: Array<[string, string]> = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1119,7 +1157,7 @@ await runTest(
                   target: 'D:/OpenClaw/.openclaw/openclaw.json',
                   readonly: false,
                   authoritative: true,
-                  detail: 'Managed config file is writable.',
+                  detail: 'OpenClaw config file is writable.',
                   source: 'integration',
                 },
               ],
@@ -1158,7 +1196,7 @@ await runTest(
       },
     });
 
-    await service.updateManagedOpenClawConfigDocument('managed-openclaw', nextRaw);
+    await service.updateOpenClawConfigDocument('managed-openclaw', nextRaw);
 
     assert.deepEqual(gatewaySnapshotCalls, ['managed-openclaw']);
     assert.deepEqual(gatewayWriteCalls, [['managed-openclaw', { raw: nextRaw, baseHash: 'hash-1' }]]);
@@ -1167,7 +1205,7 @@ await runTest(
 );
 
 await runTest(
-  'createOpenClawAgent saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'createOpenClawAgent saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1175,7 +1213,7 @@ await runTest(
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+          createConfigBackedOpenClawDetail('managed-openclaw'),
       },
       openClawGatewayClient: {
         getConfig: async (instanceId: string) => {
@@ -1229,7 +1267,7 @@ await runTest(
 );
 
 await runTest(
-  'deleteOpenClawAgent saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'deleteOpenClawAgent saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1237,7 +1275,7 @@ await runTest(
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+          createConfigBackedOpenClawDetail('managed-openclaw'),
       },
       openClawGatewayClient: {
         getConfig: async (instanceId: string) => {
@@ -1297,7 +1335,7 @@ await runTest(
 );
 
 await runTest(
-  'saveOpenClawChannelConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'saveOpenClawChannelConfig saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1305,7 +1343,7 @@ await runTest(
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+          createConfigBackedOpenClawDetail('managed-openclaw'),
       },
       openClawGatewayClient: {
         getConfig: async (instanceId: string) => {
@@ -1352,7 +1390,7 @@ await runTest(
 );
 
 await runTest(
-  'saveOpenClawWebSearchConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'saveOpenClawWebSearchConfig saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1360,7 +1398,7 @@ await runTest(
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+          createConfigBackedOpenClawDetail('managed-openclaw'),
       },
       openClawGatewayClient: {
         getConfig: async (instanceId: string) => {
@@ -1435,7 +1473,7 @@ await runTest(
 );
 
 await runTest(
-  'saveOpenClawWebFetchConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'saveOpenClawWebFetchConfig saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1443,7 +1481,7 @@ await runTest(
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+          createConfigBackedOpenClawDetail('managed-openclaw'),
       },
       openClawGatewayClient: {
         getConfig: async (instanceId: string) => {
@@ -1545,7 +1583,7 @@ await runTest(
 );
 
 await runTest(
-  'saveOpenClawXSearchConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'saveOpenClawXSearchConfig saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1553,7 +1591,7 @@ await runTest(
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+          createConfigBackedOpenClawDetail('managed-openclaw'),
       },
       openClawGatewayClient: {
         getConfig: async (instanceId: string) => {
@@ -1634,7 +1672,7 @@ await runTest(
 );
 
 await runTest(
-  'saveOpenClawWebSearchNativeCodexConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'saveOpenClawWebSearchNativeCodexConfig saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1642,7 +1680,7 @@ await runTest(
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+          createConfigBackedOpenClawDetail('managed-openclaw'),
       },
       openClawGatewayClient: {
         getConfig: async (instanceId: string) => {
@@ -1727,7 +1765,7 @@ await runTest(
 );
 
 await runTest(
-  'saveOpenClawAuthCooldownsConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'saveOpenClawAuthCooldownsConfig saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1735,7 +1773,7 @@ await runTest(
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+          createConfigBackedOpenClawDetail('managed-openclaw'),
       },
       openClawGatewayClient: {
         getConfig: async (instanceId: string) => {
@@ -1794,7 +1832,7 @@ await runTest(
 );
 
 await runTest(
-  'saveOpenClawDreamingConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'saveOpenClawDreamingConfig saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1802,7 +1840,7 @@ await runTest(
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+          createConfigBackedOpenClawDetail('managed-openclaw'),
       },
       openClawGatewayClient: {
         getConfig: async (instanceId: string) => {
@@ -1871,7 +1909,7 @@ await runTest(
 );
 
 await runTest(
-  'setOpenClawChannelEnabled saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  'setOpenClawChannelEnabled saves the OpenClaw config through the gateway when the gateway is ready',
   async () => {
     const fileCalls: string[] = [];
     const gatewaySnapshotCalls: string[] = [];
@@ -1879,7 +1917,7 @@ await runTest(
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+          createConfigBackedOpenClawDetail('managed-openclaw'),
       },
       openClawGatewayClient: {
         getConfig: async (instanceId: string) => {
@@ -1931,7 +1969,7 @@ await runTest(
 );
 
 await runTest(
-  'getManagedOpenClawConfigSchema reads the gateway-backed config schema for config-backed OpenClaw instances',
+  'getOpenClawConfigSchema reads the gateway-backed config schema for config-backed OpenClaw instances',
   async () => {
     const calls: string[] = [];
     const service = createInstanceService({
@@ -1957,7 +1995,7 @@ await runTest(
                   target: 'D:/OpenClaw/.openclaw/openclaw.json',
                   readonly: false,
                   authoritative: true,
-                  detail: 'Managed config file is writable.',
+                  detail: 'OpenClaw config file is writable.',
                   source: 'integration',
                 },
               ],
@@ -1992,7 +2030,7 @@ await runTest(
       } as any,
     });
 
-    const snapshot = await service.getManagedOpenClawConfigSchema('managed-openclaw');
+    const snapshot = await service.getOpenClawConfigSchema('managed-openclaw');
 
     assert.deepEqual(calls, ['managed-openclaw']);
     assert.equal(snapshot.version, '2026.4.3');
@@ -2017,7 +2055,7 @@ await runTest(
 );
 
 await runTest(
-  'getManagedOpenClawConfigSchema does not probe the live gateway when the instance is offline',
+  'getOpenClawConfigSchema does not probe the live gateway when the instance is offline',
   async () => {
     const calls: string[] = [];
     const service = createInstanceService({
@@ -2050,7 +2088,7 @@ await runTest(
                   target: 'D:/OpenClaw/.openclaw/openclaw.json',
                   readonly: false,
                   authoritative: true,
-                  detail: 'Managed config file is writable.',
+                  detail: 'OpenClaw config file is writable.',
                   source: 'integration',
                 },
               ],
@@ -2065,7 +2103,7 @@ await runTest(
       } as any,
     });
 
-    const snapshot = await service.getManagedOpenClawConfigSchema('offline-openclaw');
+    const snapshot = await service.getOpenClawConfigSchema('offline-openclaw');
 
     assert.deepEqual(calls, []);
     assert.deepEqual(snapshot, {
@@ -2078,7 +2116,7 @@ await runTest(
 );
 
 await runTest(
-  'openManagedOpenClawConfigFile uses the gateway open-file bridge for attached configs',
+  'openClawConfigFile uses the gateway open-file bridge for attached configs',
   async () => {
     const calls: string[] = [];
     const service = createInstanceService({
@@ -2104,7 +2142,7 @@ await runTest(
                   target: 'D:/OpenClaw/.openclaw/openclaw.json',
                   readonly: false,
                   authoritative: true,
-                  detail: 'Managed config file is writable.',
+                  detail: 'OpenClaw config file is writable.',
                   source: 'integration',
                 },
               ],
@@ -2122,7 +2160,7 @@ await runTest(
       } as any,
     });
 
-    const openedPath = await service.openManagedOpenClawConfigFile('managed-openclaw');
+    const openedPath = await service.openClawConfigFile('managed-openclaw');
 
     assert.deepEqual(calls, ['managed-openclaw']);
     assert.equal(openedPath, 'D:/OpenClaw/.openclaw/openclaw.json');
@@ -2130,7 +2168,7 @@ await runTest(
 );
 
 await runTest(
-  'applyManagedOpenClawConfigDocument uses the gateway apply bridge with the latest base hash',
+  'applyOpenClawConfigDocument uses the gateway apply bridge with the latest base hash',
   async () => {
     const calls: Array<{ step: string; instanceId: string; raw?: string; baseHash?: string }> = [];
     const service = createInstanceService({
@@ -2156,7 +2194,7 @@ await runTest(
                   target: 'D:/OpenClaw/.openclaw/openclaw.json',
                   readonly: false,
                   authoritative: true,
-                  detail: 'Managed config file is writable.',
+                  detail: 'OpenClaw config file is writable.',
                   source: 'integration',
                 },
               ],
@@ -2185,7 +2223,7 @@ await runTest(
       } as any,
     });
 
-    await service.applyManagedOpenClawConfigDocument(
+    await service.applyOpenClawConfigDocument(
       'managed-openclaw',
       '{\n  "agents": {\n    "defaults": {}\n  }\n}\n',
     );
@@ -2206,19 +2244,19 @@ await runTest(
 );
 
 await runTest(
-  'applyManagedOpenClawConfigDocument still uses the gateway apply bridge when config-backed runtime observation proves readiness despite a stale offline status',
+  'applyOpenClawConfigDocument still uses the gateway apply bridge when config-backed runtime observation proves readiness despite a stale offline status',
   async () => {
     const calls: Array<{ step: string; instanceId: string; raw?: string; baseHash?: string }> = [];
     const service = createInstanceService({
       studioApi: {
         getInstanceDetail: async () =>
-          createManagedConfigBackedOpenClawDetail('managed-openclaw', {
+          createConfigBackedOpenClawDetail('managed-openclaw', {
             instance: {
-              ...createManagedConfigBackedOpenClawDetail('managed-openclaw').instance,
+              ...createConfigBackedOpenClawDetail('managed-openclaw').instance,
               status: 'offline',
             },
             lifecycle: {
-              ...createManagedConfigBackedOpenClawDetail('managed-openclaw').lifecycle,
+              ...createConfigBackedOpenClawDetail('managed-openclaw').lifecycle,
               endpointObserved: true,
             },
             health: {
@@ -2251,7 +2289,7 @@ await runTest(
       } as any,
     });
 
-    await service.applyManagedOpenClawConfigDocument(
+    await service.applyOpenClawConfigDocument(
       'managed-openclaw',
       '{\n  "agents": {\n    "defaults": {\n      "primary": "ops"\n    }\n  }\n}\n',
     );
@@ -2272,7 +2310,7 @@ await runTest(
 );
 
 await runTest(
-  'runManagedOpenClawUpdate triggers the gateway update bridge for attached configs',
+  'runOpenClawUpdate triggers the gateway update bridge for attached configs',
   async () => {
     const calls: string[] = [];
     const service = createInstanceService({
@@ -2298,7 +2336,7 @@ await runTest(
                   target: 'D:/OpenClaw/.openclaw/openclaw.json',
                   readonly: false,
                   authoritative: true,
-                  detail: 'Managed config file is writable.',
+                  detail: 'OpenClaw config file is writable.',
                   source: 'integration',
                 },
               ],
@@ -2315,7 +2353,7 @@ await runTest(
       } as any,
     });
 
-    await service.runManagedOpenClawUpdate('managed-openclaw');
+    await service.runOpenClawUpdate('managed-openclaw');
 
     assert.deepEqual(calls, ['managed-openclaw']);
   },
@@ -2334,7 +2372,7 @@ await runTest('getInstanceFileContent rejects reads when instance detail is unav
   );
 });
 
-await runTest('updateInstanceLlmProviderConfig rejects built-in managed OpenClaw provider edits and keeps Provider Center as the control plane', async () => {
+await runTest('updateInstanceLlmProviderConfig rejects built-in OpenClaw provider edits and keeps Provider Center as the control plane', async () => {
   const calls: Array<[string, string, string]> = [];
   const service = createInstanceService({
     studioApi: {
@@ -2844,7 +2882,7 @@ await runTest('createInstanceLlmProvider rejects config-backed OpenClaw provider
                 target: 'D:/OpenClaw/.openclaw/openclaw.json',
                 readonly: false,
                 authoritative: true,
-                detail: 'Managed config file is writable.',
+                detail: 'OpenClaw config file is writable.',
                 source: 'integration',
               },
             ],
@@ -2887,7 +2925,7 @@ await runTest('createInstanceLlmProvider rejects config-backed OpenClaw provider
   );
 });
 
-await runTest('createInstanceLlmProvider rejects built-in managed OpenClaw provider creation and keeps Provider Center as the control plane', async () => {
+await runTest('createInstanceLlmProvider rejects built-in OpenClaw provider creation and keeps Provider Center as the control plane', async () => {
   const service = createInstanceService({
     studioApi: {
       getInstanceDetail: async () =>
@@ -2937,7 +2975,7 @@ await runTest('createInstanceLlmProvider rejects built-in managed OpenClaw provi
   );
 });
 
-await runTest('deleteInstanceLlmProvider rejects built-in managed OpenClaw provider deletion and keeps Provider Center as the control plane', async () => {
+await runTest('deleteInstanceLlmProvider rejects built-in OpenClaw provider deletion and keeps Provider Center as the control plane', async () => {
   const service = createInstanceService({
     studioApi: {
       getInstanceDetail: async () =>
@@ -2959,7 +2997,7 @@ await runTest('deleteInstanceLlmProvider rejects built-in managed OpenClaw provi
   );
 });
 
-await runTest('createInstanceLlmProviderModel rejects built-in managed OpenClaw provider model creation and keeps Provider Center as the control plane', async () => {
+await runTest('createInstanceLlmProviderModel rejects built-in OpenClaw provider model creation and keeps Provider Center as the control plane', async () => {
   const service = createInstanceService({
     studioApi: {
       getInstanceDetail: async () =>
@@ -2985,7 +3023,7 @@ await runTest('createInstanceLlmProviderModel rejects built-in managed OpenClaw 
   );
 });
 
-await runTest('updateInstanceLlmProviderModel rejects built-in managed OpenClaw provider model edits and keeps Provider Center as the control plane', async () => {
+await runTest('updateInstanceLlmProviderModel rejects built-in OpenClaw provider model edits and keeps Provider Center as the control plane', async () => {
   const service = createInstanceService({
     studioApi: {
       getInstanceDetail: async () =>
@@ -3016,7 +3054,7 @@ await runTest('updateInstanceLlmProviderModel rejects built-in managed OpenClaw 
   );
 });
 
-await runTest('deleteInstanceLlmProviderModel rejects built-in managed OpenClaw provider model deletion and keeps Provider Center as the control plane', async () => {
+await runTest('deleteInstanceLlmProviderModel rejects built-in OpenClaw provider model deletion and keeps Provider Center as the control plane', async () => {
   const service = createInstanceService({
     studioApi: {
       getInstanceDetail: async () =>
@@ -3063,7 +3101,7 @@ await runTest('updateInstanceLlmProviderConfig rejects config-backed OpenClaw pr
                 target: 'D:/OpenClaw/.openclaw/openclaw.json',
                 readonly: false,
                 authoritative: true,
-                detail: 'Managed config file is writable.',
+                detail: 'OpenClaw config file is writable.',
                 source: 'integration',
               },
             ],

@@ -211,7 +211,7 @@
       "configPath": "Config Path",
       "runtimeHome": "Runtime Home",
       "runtimeInstallDir": "Runtime Install Dir",
-      "managedConfigPath": "Managed Config Path",
+      "configFilePath": "Config File Path",
       "ownedRuntimeRoot": "Owned Runtime Root {{index}}",
       "supportsLoopbackHealthProbe": "Supports Loopback Health Probe",
       "healthProbeTimeoutMs": "Health Probe Timeout",

@@ -57,7 +57,7 @@ function createWorkbenchAgent(
       timeoutMs: 'defaults',
       streaming: 'defaults',
     },
-    configSource: 'managedConfig',
+    configSource: 'configFile',
     ...overrides,
   };
 }

@@ -87,7 +87,7 @@ fn read_openclaw_config_root(path: &Path) -> Result<Value> {
 
     let content = fs::read_to_string(path)?;
     let parsed = json5::from_str::<Value>(&content).map_err(|error| {
-        FrameworkError::ValidationFailed(format!("invalid managed openclaw config: {error}"))
+        FrameworkError::ValidationFailed(format!("invalid OpenClaw config document: {error}"))
     })?;
 
     if parsed.is_object() {
@@ -95,7 +95,7 @@ fn read_openclaw_config_root(path: &Path) -> Result<Value> {
     }
 
     Err(FrameworkError::ValidationFailed(format!(
-        "managed openclaw config must be a JSON object: {}",
+        "OpenClaw config document must be a JSON object: {}",
         path.display()
     )))
 }
@@ -114,7 +114,7 @@ fn readable_openclaw_config_path(paths: &AppPaths) -> PathBuf {
 
 fn active_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
-        .active_managed_config_path("openclaw", paths)
+        .active_config_file_path("openclaw", paths)
         .unwrap_or_else(|_| paths.openclaw_config_file.clone())
 }
 

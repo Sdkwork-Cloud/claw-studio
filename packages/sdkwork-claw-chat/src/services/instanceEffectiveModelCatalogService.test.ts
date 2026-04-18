@@ -173,7 +173,7 @@ await runTest(
 );
 
 await runTest(
-  'instance effective model catalog filters OpenClaw models by managed config and gateway runtime availability',
+  'instance effective model catalog filters OpenClaw models by OpenClaw config and gateway runtime availability',
   async () => {
     const service = createInstanceEffectiveModelCatalogService({
       getInstance: async () =>
@@ -551,7 +551,7 @@ await runTest(
 );
 
 await runTest(
-  'instance effective model catalog falls back to gateway runtime models when managed OpenClaw config and router catalog no longer intersect',
+  'instance effective model catalog falls back to gateway runtime models when the OpenClaw config and router catalog no longer intersect',
   async () => {
     const service = createInstanceEffectiveModelCatalogService({
       getInstance: async () =>

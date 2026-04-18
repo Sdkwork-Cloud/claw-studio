@@ -3,8 +3,8 @@ import { ChannelWorkspace, type ChannelWorkspaceItem } from '@sdkwork/claw-ui';
 
 interface InstanceDetailChannelsSectionProps {
   items: ChannelWorkspaceItem[];
-  canEditManagedChannels: boolean;
-  managedFilePath: string | null;
+  canEditConfigChannels: boolean;
+  configFilePath: string | null;
   selectedChannelId: string | null;
   valuesByChannelId: Record<string, Record<string, string>>;
   error: string | null;
@@ -21,8 +21,8 @@ interface InstanceDetailChannelsSectionProps {
 
 export function InstanceDetailChannelsSection({
   items,
-  canEditManagedChannels,
-  managedFilePath,
+  canEditConfigChannels,
+  configFilePath,
   selectedChannelId,
   valuesByChannelId,
   error,
@@ -39,14 +39,14 @@ export function InstanceDetailChannelsSection({
   return (
     <ChannelWorkspace
       items={items}
-      variant={canEditManagedChannels ? 'management' : 'summary'}
-      managedFilePath={managedFilePath}
-      selectedChannelId={canEditManagedChannels ? selectedChannelId : null}
+      variant={canEditConfigChannels ? 'management' : 'summary'}
+      configFilePath={configFilePath}
+      selectedChannelId={canEditConfigChannels ? selectedChannelId : null}
       valuesByChannelId={valuesByChannelId}
       error={error}
       isSaving={isSaving}
       texts={{
-        managedFileLabel: formatWorkbenchLabel('managedFile'),
+        configFileLabel: formatWorkbenchLabel('configFile'),
         statusActive: t('channels.page.status.active'),
         statusConnected: t('dashboard.status.connected'),
         statusDisconnected: t('dashboard.status.disconnected'),

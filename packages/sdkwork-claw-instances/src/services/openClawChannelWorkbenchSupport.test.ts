@@ -26,8 +26,8 @@ await runTest(
   'openClawChannelWorkbenchSupport exposes shared channel mapping and merge helpers',
   () => {
     assert.ok(channelWorkbenchSupportModule, 'Expected openClawChannelWorkbenchSupport.ts to exist');
-    assert.equal(typeof channelWorkbenchSupportModule?.mapManagedChannel, 'function');
-    assert.equal(typeof channelWorkbenchSupportModule?.cloneManagedChannel, 'function');
+    assert.equal(typeof channelWorkbenchSupportModule?.mapConfigChannel, 'function');
+    assert.equal(typeof channelWorkbenchSupportModule?.cloneConfigChannel, 'function');
     assert.equal(typeof channelWorkbenchSupportModule?.cloneWorkbenchChannel, 'function');
     assert.equal(typeof channelWorkbenchSupportModule?.mapOpenClawChannelDefinition, 'function');
     assert.equal(typeof channelWorkbenchSupportModule?.mergeOpenClawChannelCollections, 'function');
@@ -80,7 +80,7 @@ await runTest(
         {
           id: 'slack',
           name: 'Slack',
-          description: 'Managed channel',
+          description: 'Config channel',
           status: 'not_configured',
           enabled: false,
           configurationMode: 'required',
@@ -178,12 +178,12 @@ await runTest(
 );
 
 await runTest(
-  'cloneManagedChannel deep-clones values and field entries',
+  'cloneConfigChannel deep-clones values and field entries',
   () => {
-    const cloned = channelWorkbenchSupportModule?.cloneManagedChannel({
+    const cloned = channelWorkbenchSupportModule?.cloneConfigChannel({
       id: 'slack',
       name: 'Slack',
-      description: 'Managed channel',
+      description: 'Config channel',
       status: 'connected',
       enabled: true,
       configurationMode: 'required',

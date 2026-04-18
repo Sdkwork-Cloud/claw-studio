@@ -1,9 +1,9 @@
-import type { OpenClawConfigSnapshot as ManagedOpenClawConfigSnapshot } from '@sdkwork/claw-core';
+import type { OpenClawConfigSnapshot } from '@sdkwork/claw-core';
 import type { Agent, Skill } from '@sdkwork/claw-types';
 import type { InstanceWorkbenchAgent, InstanceWorkbenchTask } from '../types/index.ts';
 import { normalizeOpenClawAgentId } from './openClawSupport.ts';
 
-type ManagedOpenClawAgentSnapshot = ManagedOpenClawConfigSnapshot['agentSnapshots'][number];
+type OpenClawAgentConfigSnapshot = OpenClawConfigSnapshot['agentSnapshots'][number];
 
 function clampScore(score: number) {
   return Math.max(0, Math.min(100, Math.round(score)));
@@ -53,8 +53,8 @@ export function mapAgent(
   };
 }
 
-function mapManagedAgent(
-  agentSnapshot: ManagedOpenClawAgentSnapshot,
+function mapConfigBackedAgent(
+  agentSnapshot: OpenClawAgentConfigSnapshot,
   tasks: InstanceWorkbenchTask[],
   skills: Skill[],
   runtimeRecord?: InstanceWorkbenchAgent,
@@ -89,7 +89,7 @@ function mapManagedAgent(
     },
     params: { ...agentSnapshot.params },
     paramSources: { ...agentSnapshot.paramSources },
-    configSource: 'managedConfig',
+    configSource: 'configFile',
   };
 }
 
@@ -207,8 +207,8 @@ export function mergeOpenClawAgentCollections(
     .map((agent) => cloneWorkbenchAgent(agent!));
 }
 
-export function buildManagedOpenClawAgents(
-  agentSnapshots: ManagedOpenClawAgentSnapshot[],
+export function buildOpenClawWorkbenchAgents(
+  agentSnapshots: OpenClawAgentConfigSnapshot[],
   runtimeAgents: InstanceWorkbenchAgent[],
   tasks: InstanceWorkbenchTask[],
   skills: Skill[],
@@ -219,20 +219,20 @@ export function buildManagedOpenClawAgents(
       return [normalizedAgent.agent.id, normalizedAgent] as const;
     }),
   );
-  const managedAgents = agentSnapshots.map((agentSnapshot) =>
-    mapManagedAgent(
+  const configBackedAgents = agentSnapshots.map((agentSnapshot) =>
+    mapConfigBackedAgent(
       agentSnapshot,
       tasks,
       skills,
       runtimeAgentsById.get(normalizeOpenClawAgentId(agentSnapshot.id)),
     ),
   );
-  const managedAgentIds = new Set(managedAgents.map((agent) => agent.agent.id));
+  const configBackedAgentIds = new Set(configBackedAgents.map((agent) => agent.agent.id));
 
   return [
-    ...managedAgents,
+    ...configBackedAgents,
     ...runtimeAgents
-      .filter((agent) => !managedAgentIds.has(normalizeOpenClawAgentId(agent.agent.id)))
+      .filter((agent) => !configBackedAgentIds.has(normalizeOpenClawAgentId(agent.agent.id)))
       .map(cloneWorkbenchAgent),
   ];
 }

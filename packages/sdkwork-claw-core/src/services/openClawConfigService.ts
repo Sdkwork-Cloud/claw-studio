@@ -634,7 +634,7 @@ function normalizeJoinedPath(path: string) {
     .replace(/\/{2,}/g, '/');
 }
 
-function isBuiltInManagedOpenClawDetail(
+function isBuiltInOpenClawDetail(
   detail: OpenClawConfigBackedDetail | null | undefined,
 ) {
   return detail?.instance?.runtimeKind === 'openclaw'
@@ -642,7 +642,7 @@ function isBuiltInManagedOpenClawDetail(
     && detail.instance.isBuiltIn === true;
 }
 
-function resolveBuiltInManagedOpenClawWorkspacePath(
+function resolveBuiltInOpenClawWorkspacePath(
   detail: OpenClawConfigBackedDetail | null | undefined,
 ) {
   const workspaceCandidates = [
@@ -662,11 +662,11 @@ function resolveBuiltInManagedOpenClawWorkspacePath(
   return null;
 }
 
-function canonicalizeBuiltInManagedOpenClawConfigPath(
+function canonicalizeBuiltInOpenClawConfigPath(
   detail: OpenClawConfigBackedDetail | null | undefined,
   configPath: string | null,
 ) {
-  if (!configPath || !isBuiltInManagedOpenClawDetail(detail)) {
+  if (!configPath || !isBuiltInOpenClawDetail(detail)) {
     return configPath;
   }
 
@@ -674,7 +674,7 @@ function canonicalizeBuiltInManagedOpenClawConfigPath(
     return configPath;
   }
 
-  const workspacePath = resolveBuiltInManagedOpenClawWorkspacePath(detail);
+  const workspacePath = resolveBuiltInOpenClawWorkspacePath(detail);
   if (!workspacePath) {
     return configPath;
   }
@@ -3763,7 +3763,7 @@ class OpenClawConfigService {
     const configRoute = detail?.dataAccess?.routes?.find((route) => route.scope === 'config');
     if (configRoute) {
       if (configRoute.mode === 'managedFile' && configRoute.target) {
-        return canonicalizeBuiltInManagedOpenClawConfigPath(
+        return canonicalizeBuiltInOpenClawConfigPath(
           detail,
           normalizePath(configRoute.target),
         );
@@ -3776,7 +3776,7 @@ class OpenClawConfigService {
       (artifact) => artifact.kind === 'configFile' && artifact.location,
     );
     if (configArtifact?.location) {
-      return canonicalizeBuiltInManagedOpenClawConfigPath(
+      return canonicalizeBuiltInOpenClawConfigPath(
         detail,
         normalizePath(configArtifact.location),
       );

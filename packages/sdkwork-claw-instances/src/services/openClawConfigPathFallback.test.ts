@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS } from './openClawBuiltInCompatTestFixture.ts';
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -30,7 +31,7 @@ await runTest('openClawConfigPathFallback exposes a shared fallback path resolve
   );
 });
 
-await runTest('resolveFallbackInstanceConfigPath prefers managed config routes over artifacts', () => {
+await runTest('resolveFallbackInstanceConfigPath prefers config routes over artifacts', () => {
   assert.equal(
     configPathFallbackModule?.resolveFallbackInstanceConfigPath({
       dataAccess: {
@@ -95,7 +96,7 @@ await runTest(
 );
 
 await runTest(
-  'resolveFallbackInstanceConfigPath canonicalizes built-in managed OpenClaw config routes when legacy targets drift',
+  'resolveFallbackInstanceConfigPath canonicalizes built-in OpenClaw config routes when legacy targets drift',
   () => {
     assert.equal(
       configPathFallbackModule?.resolveFallbackInstanceConfigPath({
@@ -104,7 +105,7 @@ await runTest(
           deploymentMode: 'local-managed',
           isBuiltIn: true,
           config: {
-            workspacePath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+            workspacePath: OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.canonicalWorkspacePath,
           },
         },
         dataAccess: {
@@ -112,13 +113,12 @@ await runTest(
             {
               scope: 'config',
               mode: 'managedFile',
-              target:
-                'C:/ProgramData/SdkWork/CrawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+              target: OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.legacyConfigPath,
             },
           ],
         },
       } as any),
-      'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+      OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.canonicalConfigPath,
     );
   },
 );

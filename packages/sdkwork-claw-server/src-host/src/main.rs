@@ -295,7 +295,7 @@ mod tests {
             updated_at: u64,
         ) -> Result<Value, String> {
             if self.gateway.lifecycle != "ready" {
-                return Err("managed OpenClaw gateway is not ready".to_string());
+                return Err("openclaw gateway is not ready".to_string());
             }
 
             Ok(json!({

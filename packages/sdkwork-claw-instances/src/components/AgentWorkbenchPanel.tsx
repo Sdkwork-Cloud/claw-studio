@@ -796,9 +796,9 @@ export function AgentWorkbenchPanel({
               <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
                 {t('instances.detail.instanceWorkbench.agents.panel.badge')}
               </span>
-              {workbench.managedConfigPath ? (
+              {workbench.kernelConfig?.configFile ? (
                 <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
-                  {t('instances.detail.instanceWorkbench.agents.panel.managedConfig')}
+                  {t('instances.detail.instanceWorkbench.agents.panel.configFile')}
                 </span>
               ) : null}
             </div>

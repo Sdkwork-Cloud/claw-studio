@@ -117,7 +117,7 @@ export interface KernelCenterDashboard {
     profileCount: number;
   };
   runtimeAuthority: {
-    managedConfigPath: string | null;
+    configFilePath: string | null;
     ownedRuntimeRoots: string[];
     supportsLoopbackHealthProbe: boolean | null;
     healthProbeTimeoutMs: number | null;
@@ -765,9 +765,9 @@ function mapDashboard(
       profileCount: info?.storage.profiles.length ?? 0,
     },
     runtimeAuthority: {
-      managedConfigPath:
-        runtimeAuthority?.managedConfigPath
-        ?? openClawRuntime?.authority?.managedConfigPath
+      configFilePath:
+        runtimeAuthority?.configFilePath
+        ?? openClawRuntime?.authority?.configFilePath
         ?? null,
       ownedRuntimeRoots:
         runtimeAuthority?.ownedRuntimeRoots

@@ -144,11 +144,11 @@ pub fn build_managed_runtime_snapshot(
 pub fn build_phase1_full_private_components(
     runtime: &ActivatedOpenClawRuntime,
 ) -> Result<Vec<OpenClawMirrorComponentRecord>> {
-    validate_existing_path(&runtime.config_path, "managed openclaw config path", false)?;
-    validate_existing_path(&runtime.state_dir, "managed openclaw state path", true)?;
+    validate_existing_path(&runtime.config_path, "OpenClaw config file path", false)?;
+    validate_existing_path(&runtime.state_dir, "OpenClaw state path", true)?;
     validate_existing_path(
         &runtime.workspace_dir,
-        "managed openclaw workspace path",
+        "OpenClaw workspace path",
         true,
     )?;
 
@@ -494,7 +494,7 @@ fn collect_plugin_assets(
 fn normalize_relative_path(anchor_root: &Path, path: &Path) -> Result<String> {
     let relative = path.strip_prefix(anchor_root).map_err(|_| {
         FrameworkError::ValidationFailed(format!(
-            "managed asset path {} is outside anchor root {}",
+            "OpenClaw asset path {} is outside anchor root {}",
             normalize_path(path),
             normalize_path(anchor_root)
         ))
@@ -671,7 +671,7 @@ mod tests {
         }
     }
 
-    fn seed_managed_openclaw_tree(paths: &AppPaths) {
+    fn seed_built_in_openclaw_tree(paths: &AppPaths) {
         fs::create_dir_all(&paths.openclaw_workspace_dir).expect("workspace dir");
         fs::write(&paths.openclaw_config_file, "{ \"agents\": {} }").expect("config");
         fs::create_dir_all(paths.openclaw_root_dir.join("agents").join("main"))
@@ -688,10 +688,10 @@ mod tests {
     }
 
     #[test]
-    fn openclaw_mirror_manifest_builds_managed_runtime_snapshot() {
+    fn openclaw_mirror_manifest_builds_built_in_runtime_snapshot() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        seed_managed_openclaw_tree(&paths);
+        seed_built_in_openclaw_tree(&paths);
         let runtime = create_runtime(&paths);
 
         let snapshot = build_managed_runtime_snapshot(&runtime).expect("runtime snapshot");
@@ -711,7 +711,7 @@ mod tests {
     fn openclaw_mirror_manifest_prefers_manifest_version_over_install_key_parsing() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        seed_managed_openclaw_tree(&paths);
+        seed_built_in_openclaw_tree(&paths);
         let mut runtime = create_runtime(&paths);
         runtime.install_key = "openclaw-nightly-windows-x64".to_string();
         runtime.install_dir = paths.openclaw_runtime_dir.join(&runtime.install_key);
@@ -746,7 +746,7 @@ mod tests {
     ) {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        seed_managed_openclaw_tree(&paths);
+        seed_built_in_openclaw_tree(&paths);
         let mut runtime = create_runtime(&paths);
         runtime.install_key = "openclaw-nightly-windows-x64".to_string();
         runtime.install_dir = paths.openclaw_runtime_dir.join(&runtime.install_key);
@@ -764,7 +764,7 @@ mod tests {
     fn openclaw_mirror_manifest_collects_phase1_full_private_components() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        seed_managed_openclaw_tree(&paths);
+        seed_built_in_openclaw_tree(&paths);
         let runtime = create_runtime(&paths);
 
         let components = build_phase1_full_private_components(&runtime).expect("mirror components");
@@ -785,10 +785,10 @@ mod tests {
     }
 
     #[test]
-    fn openclaw_mirror_manifest_collects_managed_assets_from_canonical_openclaw_roots_only() {
+    fn openclaw_mirror_manifest_collects_built_in_assets_from_canonical_openclaw_roots_only() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        seed_managed_openclaw_tree(&paths);
+        seed_built_in_openclaw_tree(&paths);
         let runtime = create_runtime(&paths);
 
         fs::create_dir_all(paths.openclaw_skills_dir.join("shared-calendar"))
@@ -874,10 +874,10 @@ mod tests {
     }
 
     #[test]
-    fn openclaw_mirror_manifest_rejects_missing_managed_paths() {
+    fn openclaw_mirror_manifest_rejects_missing_built_in_paths() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        seed_managed_openclaw_tree(&paths);
+        seed_built_in_openclaw_tree(&paths);
         let runtime = create_runtime(&paths);
         fs::remove_file(&paths.openclaw_config_file).expect("remove config");
 
@@ -886,7 +886,7 @@ mod tests {
 
         match error {
             FrameworkError::ValidationFailed(reason) => {
-                assert!(reason.contains("managed openclaw config path does not exist"));
+                assert!(reason.contains("OpenClaw config file path does not exist"));
                 assert!(reason.contains(&path_label(&paths.openclaw_config_file)));
             }
             other => panic!("unexpected error: {other}"),

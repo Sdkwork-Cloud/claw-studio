@@ -4,7 +4,7 @@ import {
   type OpenClawToolCatalogEntry,
   type OpenClawToolsCatalogResult,
 } from '@sdkwork/claw-infrastructure';
-import type { OpenClawConfigSnapshot as ManagedOpenClawConfigSnapshot } from '@sdkwork/claw-core';
+import type { OpenClawConfigSnapshot } from '@sdkwork/claw-core';
 import type { Skill } from '@sdkwork/claw-types';
 import type {
   InstanceWorkbenchAgent,
@@ -102,7 +102,7 @@ export interface AgentWorkbenchRequest {
 }
 
 export interface AgentWorkbenchServiceDependencies {
-  readOpenClawConfigSnapshot: (configPath: string) => Promise<ManagedOpenClawConfigSnapshot>;
+  readOpenClawConfigSnapshot: (configPath: string) => Promise<OpenClawConfigSnapshot>;
   openClawGatewayClient: {
     getSkillsStatus: (
       instanceId: string,
@@ -197,7 +197,7 @@ function hasModelSelection(selection: { primary?: string; fallbacks: string[] })
 }
 
 function resolveDefaultAgentId(
-  configSnapshot: ManagedOpenClawConfigSnapshot | null,
+  configSnapshot: OpenClawConfigSnapshot | null,
   workbench: InstanceWorkbenchSnapshot,
 ) {
   const agentSnapshots = Array.isArray(configSnapshot?.agentSnapshots)
@@ -226,7 +226,7 @@ function resolveDefaultAgentId(
 
 function resolveAgentModel(
   agent: InstanceWorkbenchAgent,
-  configSnapshot: ManagedOpenClawConfigSnapshot | null,
+  configSnapshot: OpenClawConfigSnapshot | null,
 ) {
   const normalizedAgentId = normalizeOpenClawAgentId(agent.agent.id);
   const rootAgentEntries = getArrayValue(configSnapshot?.root, ['agents', 'list']) || [];
@@ -476,7 +476,7 @@ function buildPreferredProviderIds(model: AgentWorkbenchModelSelection) {
 }
 
 function resolveChannelAccountIds(
-  configSnapshot: ManagedOpenClawConfigSnapshot | null,
+  configSnapshot: OpenClawConfigSnapshot | null,
   channelId: string,
 ) {
   const accountsRoot = getObjectValue(configSnapshot?.root, ['channels', channelId, 'accounts']) || {};
@@ -484,7 +484,7 @@ function resolveChannelAccountIds(
 }
 
 function resolveDefaultChannelAccountId(
-  configSnapshot: ManagedOpenClawConfigSnapshot | null,
+  configSnapshot: OpenClawConfigSnapshot | null,
   channelId: string,
   availableAccountIds: string[],
 ) {
@@ -505,7 +505,7 @@ function resolveDefaultChannelAccountId(
 }
 
 function resolveBoundChannelAccountIds(
-  configSnapshot: ManagedOpenClawConfigSnapshot | null,
+  configSnapshot: OpenClawConfigSnapshot | null,
   agentId: string,
   channelId: string,
   availableAccountIds: string[],
@@ -547,7 +547,7 @@ function resolveBoundChannelAccountIds(
 
 function mapAgentChannels(params: {
   channels: InstanceWorkbenchChannel[];
-  configSnapshot: ManagedOpenClawConfigSnapshot | null;
+  configSnapshot: OpenClawConfigSnapshot | null;
   agentId: string;
 }) {
   const statusOrder: Record<AgentWorkbenchChannelRouteStatus, number> = {
@@ -623,9 +623,10 @@ class DefaultAgentWorkbenchService implements AgentWorkbenchService {
       throw new Error(`Agent "${input.agentId}" was not found in the instance workbench.`);
     }
 
-    const configSnapshot = input.workbench.managedConfigPath
+    const configFilePath = input.workbench.kernelConfig?.configFile || null;
+    const configSnapshot = configFilePath
       ? await this.dependencies
-          .readOpenClawConfigSnapshot(input.workbench.managedConfigPath)
+          .readOpenClawConfigSnapshot(configFilePath)
           .catch(() => null)
       : null;
     const defaultAgentId = resolveDefaultAgentId(configSnapshot, input.workbench);

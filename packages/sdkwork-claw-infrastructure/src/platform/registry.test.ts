@@ -214,8 +214,8 @@ function createKernelStatus(callId: number) {
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
-      configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
-      runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+      configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+      runtimeHomeDir: 'C:/Users/admin',
       runtimeInstallDir:
         `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/install-${callId}`,
     },
@@ -253,7 +253,7 @@ function createInstallAssessment(callId: number) {
       wslAvailable: false,
       hostDockerAvailable: false,
       wslDockerAvailable: false,
-      runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+      runtimeHomeDir: 'C:/Users/admin',
       commandAvailability: {},
     },
   } as any;

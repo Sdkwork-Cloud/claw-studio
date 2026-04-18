@@ -437,11 +437,11 @@ pub fn build_desktop_kernel_host_info(
                     .map(|configured| configured.config_path.to_string_lossy().into_owned())
                     .unwrap_or_else(|| {
                         KernelRuntimeAuthorityService::new()
-                            .active_managed_config_path(runtime_id, paths)
+                            .active_config_file_path(runtime_id, paths)
                             .unwrap_or_else(|_| {
                                 runtime_kernel_paths
                                     .as_ref()
-                                    .map(|kernel| kernel.managed_config_file.clone())
+                                    .map(|kernel| kernel.config_file.clone())
                                     .unwrap_or_else(|| paths.openclaw_config_file.clone())
                             })
                             .to_string_lossy()
@@ -449,16 +449,16 @@ pub fn build_desktop_kernel_host_info(
                     })
             } else {
                 KernelRuntimeAuthorityService::new()
-                    .active_managed_config_path(runtime_id, paths)
+                    .active_config_file_path(runtime_id, paths)
                     .unwrap_or_else(|_| {
                         runtime_kernel_paths
                             .as_ref()
-                            .map(|kernel| kernel.managed_config_file.clone())
+                            .map(|kernel| kernel.config_file.clone())
                             .unwrap_or_else(|| {
                                 paths
                                     .kernels_state_dir
                                     .join(runtime_id.trim())
-                                    .join("managed-config")
+                                    .join("config")
                                     .join(format!("{}.json", runtime_id.trim()))
                             })
                     })

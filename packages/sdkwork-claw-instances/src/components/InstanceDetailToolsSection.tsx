@@ -3,11 +3,11 @@ import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
 import { RowMetric, WorkbenchRow, WorkbenchRowList } from './InstanceWorkbenchPrimitives.tsx';
 
 export interface InstanceDetailToolsSectionProps {
-  managedAuthCooldownsPanel: React.ReactNode;
-  managedWebSearchPanel: React.ReactNode;
-  managedWebSearchNativeCodexPanel: React.ReactNode;
-  managedXSearchPanel: React.ReactNode;
-  managedWebFetchPanel: React.ReactNode;
+  configAuthCooldownsPanel: React.ReactNode;
+  configWebSearchPanel: React.ReactNode;
+  configWebSearchNativeCodexPanel: React.ReactNode;
+  configXSearchPanel: React.ReactNode;
+  configWebFetchPanel: React.ReactNode;
   hasRuntimeTools: boolean;
   tools: InstanceWorkbenchSnapshot['tools'];
   emptyState: React.ReactNode;
@@ -17,11 +17,11 @@ export interface InstanceDetailToolsSectionProps {
 }
 
 export function InstanceDetailToolsSection({
-  managedAuthCooldownsPanel,
-  managedWebSearchPanel,
-  managedWebSearchNativeCodexPanel,
-  managedXSearchPanel,
-  managedWebFetchPanel,
+  configAuthCooldownsPanel,
+  configWebSearchPanel,
+  configWebSearchNativeCodexPanel,
+  configXSearchPanel,
+  configWebFetchPanel,
   hasRuntimeTools,
   tools,
   emptyState,
@@ -31,11 +31,11 @@ export function InstanceDetailToolsSection({
 }: InstanceDetailToolsSectionProps) {
   return (
     <div data-slot="instance-detail-tools" className="space-y-6">
-      {managedAuthCooldownsPanel}
-      {managedWebSearchPanel}
-      {managedWebSearchNativeCodexPanel}
-      {managedXSearchPanel}
-      {managedWebFetchPanel}
+      {configAuthCooldownsPanel}
+      {configWebSearchPanel}
+      {configWebSearchNativeCodexPanel}
+      {configXSearchPanel}
+      {configWebFetchPanel}
 
       {hasRuntimeTools ? (
         <WorkbenchRowList>

@@ -16,6 +16,8 @@ import type {
   StudioWorkbenchTaskExecutionRecord,
   StudioWorkbenchTaskRecord,
   StudioWorkbenchToolRecord,
+  KernelAuthority,
+  KernelConfig,
 } from '@sdkwork/claw-types';
 import type {
   OpenClawAuthCooldownsConfigSnapshot,
@@ -70,7 +72,7 @@ export type InstanceWorkbenchSectionId =
   | 'tools'
   | 'config';
 
-export interface InstanceManagedOpenClawConfigInsights {
+export interface InstanceKernelConfigInsights {
   defaultAgentId: string | null;
   defaultModelRef: string | null;
   sessionsVisibility: 'self' | 'tree' | 'agent' | 'all' | null;
@@ -91,7 +93,7 @@ export interface InstanceWorkbenchAgent extends StudioWorkbenchAgentRecord {
   };
   params?: Record<string, OpenClawAgentParamValue>;
   paramSources?: Record<string, OpenClawAgentParamSource>;
-  configSource?: 'managedConfig' | 'runtime';
+  configSource?: 'configFile' | 'runtime';
 }
 export type InstanceWorkbenchFile = StudioWorkbenchFileRecord;
 export type InstanceWorkbenchLLMProviderConfig = StudioWorkbenchLLMProviderConfigRecord;
@@ -120,15 +122,16 @@ export interface InstanceWorkbenchSnapshot {
   token: string;
   logs: string;
   detail: StudioInstanceDetailRecord;
-  managedConfigPath?: string | null;
-  managedChannels?: OpenClawChannelSnapshot[];
-  managedConfigInsights?: InstanceManagedOpenClawConfigInsights | null;
-  managedWebSearchConfig?: OpenClawWebSearchConfigSnapshot | null;
-  managedXSearchConfig?: OpenClawXSearchConfigSnapshot | null;
-  managedWebSearchNativeCodexConfig?: OpenClawWebSearchNativeCodexConfigSnapshot | null;
-  managedWebFetchConfig?: OpenClawWebFetchConfigSnapshot | null;
-  managedAuthCooldownsConfig?: OpenClawAuthCooldownsConfigSnapshot | null;
-  managedDreamingConfig?: OpenClawDreamingConfigSnapshot | null;
+  kernelConfig?: KernelConfig | null;
+  kernelAuthority?: KernelAuthority | null;
+  configChannels?: OpenClawChannelSnapshot[];
+  kernelConfigInsights?: InstanceKernelConfigInsights | null;
+  configWebSearch?: OpenClawWebSearchConfigSnapshot | null;
+  configXSearch?: OpenClawXSearchConfigSnapshot | null;
+  configWebSearchNativeCodex?: OpenClawWebSearchNativeCodexConfigSnapshot | null;
+  configWebFetch?: OpenClawWebFetchConfigSnapshot | null;
+  configAuthCooldowns?: OpenClawAuthCooldownsConfigSnapshot | null;
+  configDreaming?: OpenClawDreamingConfigSnapshot | null;
   healthScore: number;
   runtimeStatus: StudioInstanceHealthStatus;
   connectedChannelCount: number;

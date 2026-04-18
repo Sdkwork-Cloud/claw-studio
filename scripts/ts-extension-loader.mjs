@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import ts from 'typescript';
 import { isSharedSdkSourceMode } from './shared-sdk-mode.mjs';
 import {
   resolveCanonicalWorkspaceRootDir,
@@ -10,6 +11,7 @@ import {
 const FILE_SUFFIXES = ['.ts', '.tsx', '.js', '.mjs', '.cjs'];
 const INDEX_SUFFIXES = ['index.ts', 'index.tsx', 'index.js', 'index.mjs', 'index.cjs'];
 const WORKSPACE_PACKAGE_EXPORT_CONDITIONS = ['node', 'import', 'default', 'browser'];
+const WORKSPACE_PACKAGE_BROWSER_EXPORT_CONDITIONS = ['browser', 'import', 'default', 'node'];
 const WORKSPACE_ROOT = resolveWorkspaceRootDir(import.meta.dirname);
 const CANONICAL_WORKSPACE_ROOT = resolveCanonicalWorkspaceRootDir(import.meta.dirname);
 const WORKSPACE_PACKAGES_ROOT = path.resolve(WORKSPACE_ROOT, 'packages');
@@ -59,7 +61,28 @@ const SHARED_SDK_SOURCE_SPECS = [
 ];
 let workspacePackageSourceEntries = null;
 
-function resolvePackageExportTarget(exportValue) {
+function createWorkspacePackageExportConditions(parentURL) {
+  if (!parentURL?.startsWith('file:')) {
+    return WORKSPACE_PACKAGE_EXPORT_CONDITIONS;
+  }
+
+  const parentPath = fileURLToPath(parentURL);
+  const normalizedParentPath = parentPath.replace(/\\/g, '/');
+  const isBrowserSourcePath =
+    normalizedParentPath.endsWith('.tsx')
+    || normalizedParentPath.endsWith('.jsx')
+    || normalizedParentPath.includes('/src/components/')
+    || normalizedParentPath.includes('/src/hooks/')
+    || normalizedParentPath.includes('/src/pages/')
+    || normalizedParentPath.includes('/src/application/');
+  if (isBrowserSourcePath) {
+    return WORKSPACE_PACKAGE_BROWSER_EXPORT_CONDITIONS;
+  }
+
+  return WORKSPACE_PACKAGE_EXPORT_CONDITIONS;
+}
+
+function resolvePackageExportTarget(exportValue, conditions = WORKSPACE_PACKAGE_EXPORT_CONDITIONS) {
   if (typeof exportValue === 'string') {
     return exportValue;
   }
@@ -68,8 +91,8 @@ function resolvePackageExportTarget(exportValue) {
     return null;
   }
 
-  for (const condition of WORKSPACE_PACKAGE_EXPORT_CONDITIONS) {
-    const target = resolvePackageExportTarget(exportValue[condition]);
+  for (const condition of conditions) {
+    const target = resolvePackageExportTarget(exportValue[condition], conditions);
     if (target) {
       return target;
     }
@@ -78,14 +101,17 @@ function resolvePackageExportTarget(exportValue) {
   return null;
 }
 
-function resolveWorkspacePackageRootExportPath(packageRoot, packageJson) {
+function resolveWorkspacePackageRootExportPath(packageRoot, packageJson, parentURL) {
   const exportsField = packageJson?.exports;
   const rootExport = typeof exportsField === 'string'
     ? exportsField
     : exportsField && typeof exportsField === 'object' && !Array.isArray(exportsField)
       ? exportsField['.']
       : null;
-  const exportTarget = resolvePackageExportTarget(rootExport);
+  const exportTarget = resolvePackageExportTarget(
+    rootExport,
+    createWorkspacePackageExportConditions(parentURL),
+  );
   if (!exportTarget) {
     return null;
   }
@@ -176,6 +202,8 @@ function getWorkspacePackageSourceEntries() {
         const packageRoot = path.join(WORKSPACE_PACKAGES_ROOT, directoryEntry.name);
         entries.set(packageJson.name, {
           sourceRoot: path.join(packageRoot, 'src'),
+          packageRoot,
+          packageJson,
           rootEntryPath: resolveWorkspacePackageRootExportPath(packageRoot, packageJson)
             ?? findFirstExistingPath(createCandidatePaths(path.join(packageRoot, 'src', 'index'))),
         });
@@ -244,7 +272,7 @@ export function resolveSharedSdkSourceAliasPath(specifier, env = process.env) {
   return null;
 }
 
-export function resolveWorkspacePackageSourceAliasPath(specifier) {
+export function resolveWorkspacePackageSourceAliasPath(specifier, parentURL) {
   const extraWorkspacePackageSourceAliasPath = resolveExtraWorkspacePackageSourceAliasPath(specifier);
   if (extraWorkspacePackageSourceAliasPath) {
     return extraWorkspacePackageSourceAliasPath;
@@ -261,6 +289,14 @@ export function resolveWorkspacePackageSourceAliasPath(specifier) {
   }
 
   if (!match[2]) {
+    if ('packageRoot' in packageSourceEntry && packageSourceEntry.packageRoot) {
+      return resolveWorkspacePackageRootExportPath(
+        packageSourceEntry.packageRoot,
+        packageSourceEntry.packageJson,
+        parentURL,
+      ) ?? packageSourceEntry.rootEntryPath;
+    }
+
     return packageSourceEntry.rootEntryPath;
   }
 
@@ -274,7 +310,10 @@ export async function resolve(specifier, context, nextResolve) {
     return nextResolve(pathToFileURL(sharedSdkSourceAliasPath).href, context);
   }
 
-  const workspacePackageSourceAliasPath = resolveWorkspacePackageSourceAliasPath(specifier);
+  const workspacePackageSourceAliasPath = resolveWorkspacePackageSourceAliasPath(
+    specifier,
+    context.parentURL,
+  );
   if (workspacePackageSourceAliasPath) {
     return nextResolve(pathToFileURL(workspacePackageSourceAliasPath).href, context);
   }
@@ -294,4 +333,40 @@ export async function resolve(specifier, context, nextResolve) {
 
     throw error;
   }
+}
+
+function shouldTranspileTypeScriptModule(url) {
+  if (!url.startsWith('file:')) {
+    return false;
+  }
+
+  const resolvedPath = fileURLToPath(url);
+  return resolvedPath.endsWith('.tsx');
+}
+
+export async function load(url, context, nextLoad) {
+  if (!shouldTranspileTypeScriptModule(url)) {
+    return nextLoad(url, context);
+  }
+
+  const resolvedPath = fileURLToPath(url);
+  const sourceText = fs.readFileSync(resolvedPath, 'utf8');
+  const transpiled = ts.transpileModule(sourceText, {
+    fileName: resolvedPath,
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+      jsxImportSource: 'react',
+      verbatimModuleSyntax: true,
+      esModuleInterop: true,
+      allowSyntheticDefaultImports: true,
+    },
+  });
+
+  return {
+    format: 'module',
+    shortCircuit: true,
+    source: transpiled.outputText,
+  };
 }

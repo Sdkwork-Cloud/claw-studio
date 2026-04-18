@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -9,6 +11,7 @@ const workspaceRootHelper = await import(pathToFileURL(workspaceRootHelperPath).
 
 assert.equal(typeof loader.resolveSharedSdkSourceAliasPath, 'function');
 assert.equal(typeof loader.resolveWorkspacePackageSourceAliasPath, 'function');
+assert.equal(typeof loader.load, 'function');
 assert.equal(typeof workspaceRootHelper.resolveWorkspaceRootDir, 'function');
 assert.equal(typeof workspaceRootHelper.resolveCanonicalWorkspaceRootDir, 'function');
 
@@ -75,6 +78,40 @@ assert.equal(
 );
 
 assert.equal(
+  loader.resolveWorkspacePackageSourceAliasPath(
+    '@sdkwork/claw-core',
+    pathToFileURL(
+      path.resolve(
+        workspaceRoot,
+        'packages/sdkwork-claw-instances/src/components/InstanceDetailConfigToolsSection.test.tsx',
+      ),
+    ).href,
+  ),
+  path.resolve(
+    workspaceRoot,
+    'packages/sdkwork-claw-core/src/index.ts',
+  ),
+  'workspace package resolution must prefer browser root exports for tsx component entrypoints',
+);
+
+assert.equal(
+  loader.resolveWorkspacePackageSourceAliasPath(
+    '@sdkwork/claw-core',
+    pathToFileURL(
+      path.resolve(
+        workspaceRoot,
+        'packages/sdkwork-claw-commons/src/hooks/useKeyboardShortcuts.ts',
+      ),
+    ).href,
+  ),
+  path.resolve(
+    workspaceRoot,
+    'packages/sdkwork-claw-core/src/index.ts',
+  ),
+  'workspace package resolution must prefer browser root exports for browser hook sources',
+);
+
+assert.equal(
   loader.resolveWorkspacePackageSourceAliasPath('@sdkwork/core-pc-react'),
   path.resolve(
     canonicalWorkspaceRoot,
@@ -115,5 +152,21 @@ assert.equal(
   ),
   'workspace package resolution must route craw-chat generated backend SDK imports through the canonical generated dist entry',
 );
+
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-ts-loader-'));
+const tempTsxPath = path.join(tempDir, 'fixture.tsx');
+
+try {
+  fs.writeFileSync(tempTsxPath, 'export const Fixture = () => <div>fixture</div>;\n');
+  const loadedModule = await loader.load(pathToFileURL(tempTsxPath).href, {}, () => {
+    throw new Error('tsx fixture should be transpiled by the loader');
+  });
+
+  assert.equal(loadedModule.format, 'module');
+  assert.equal(loadedModule.shortCircuit, true);
+  assert.match(loadedModule.source, /react\/jsx-runtime/);
+} finally {
+  fs.rmSync(tempDir, { recursive: true, force: true });
+}
 
 console.log('ok - ts extension loader remaps shared SDK packages to source entries in source mode');

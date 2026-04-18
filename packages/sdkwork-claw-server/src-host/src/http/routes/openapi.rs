@@ -491,21 +491,21 @@ fn build_paths(state: &ServerState) -> Value {
             "post": {
                 "tags": ["api"],
                 "operationId": "apiInvokeStudioOpenClawGateway",
-                "summary": "Invoke one managed OpenClaw gateway through the active host shell",
+                "summary": "Invoke one OpenClaw gateway through the active host shell",
                 "parameters": [studio_instance_id_parameter()],
                 "requestBody": json_request_body(
                     "#/components/schemas/StudioOpenClawGatewayInvokePayload",
                     true,
-                    "Managed OpenClaw gateway invocation payload."
+                    "OpenClaw gateway invocation payload."
                 ),
                 "responses": {
                     "200": json_response(
-                        "Managed OpenClaw gateway invocation result.",
+                        "OpenClaw gateway invocation result.",
                         "#/components/schemas/StudioOpenClawGatewayInvokeResult"
                     ),
-                    "400": internal_error_json_response("The managed OpenClaw gateway invocation payload was invalid."),
+                    "400": internal_error_json_response("The OpenClaw gateway invocation payload was invalid."),
                     "404": internal_error_json_response("The requested studio instance does not exist."),
-                    "503": internal_error_json_response("The managed OpenClaw gateway is not available for the requested studio instance.")
+                    "503": internal_error_json_response("The OpenClaw gateway is not available for the requested studio instance.")
                 }
             }
         },
@@ -1413,7 +1413,7 @@ fn build_schemas() -> Value {
         "StudioOpenClawGatewayInvokeResult": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Managed OpenClaw gateway invocation result payload."
+            "description": "OpenClaw gateway invocation result payload."
         },
         "StudioTaskMutationInput": {
             "type": "object",

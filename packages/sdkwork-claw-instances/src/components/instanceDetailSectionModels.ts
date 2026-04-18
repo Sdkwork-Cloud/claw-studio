@@ -24,13 +24,13 @@ import type { InstanceLLMProviderUpdate } from '../types/index.ts';
 import type { InstanceWorkbenchSectionId } from '../types/index.ts';
 import { InstanceDetailAgentsSection } from './InstanceDetailAgentsSection.tsx';
 import type { InstanceDetailAgentsSectionProps } from './InstanceDetailAgentsSection.tsx';
-import { InstanceDetailManagedLlmProvidersSection } from './InstanceDetailManagedLlmProvidersSection.tsx';
+import { InstanceDetailLlmProvidersWorkbenchSection } from './InstanceDetailLlmProvidersWorkbenchSection.tsx';
 import type { InstanceDetailLlmProviderDialogsProps } from './InstanceDetailLlmProviderDialogs.tsx';
 import type { InstanceDetailLlmProvidersSectionProps } from './InstanceDetailLlmProvidersSection.tsx';
-import { InstanceDetailManagedMemorySection } from './InstanceDetailManagedMemorySection.tsx';
-import type { InstanceDetailManagedMemorySectionProps } from './InstanceDetailManagedMemorySection.tsx';
-import { InstanceDetailManagedToolsSection } from './InstanceDetailManagedToolsSection.tsx';
-import type { InstanceDetailManagedToolsSectionProps } from './InstanceDetailManagedToolsSection.tsx';
+import { InstanceDetailMemoryWorkbenchSection } from './InstanceDetailMemoryWorkbenchSection.tsx';
+import type { InstanceDetailMemoryWorkbenchSectionProps } from './InstanceDetailMemoryWorkbenchSection.tsx';
+import { InstanceDetailConfigToolsSection } from './InstanceDetailConfigToolsSection.tsx';
+import type { InstanceDetailConfigToolsSectionProps } from './InstanceDetailConfigToolsSection.tsx';
 
 type AgentDialogDraftUpdater = (
   updater: (current: OpenClawAgentFormState) => OpenClawAgentFormState,
@@ -133,22 +133,22 @@ export interface BuildLlmProviderDialogStateHandlersInput {
   setProviderModelDeleteId: (providerModelId: string | null) => void;
 }
 
-export interface BuildManagedMemorySectionPropsInput
-  extends Omit<InstanceDetailManagedMemorySectionProps, 'emptyState'> {
+export interface BuildMemoryWorkbenchSectionPropsInput
+  extends Omit<InstanceDetailMemoryWorkbenchSectionProps, 'emptyState'> {
   renderSectionAvailability: SectionAvailabilityRenderer;
 }
 
-export interface BuildManagedToolsSectionPropsInput
-  extends Omit<InstanceDetailManagedToolsSectionProps, 'emptyState'> {
+export interface BuildConfigToolsSectionPropsInput
+  extends Omit<InstanceDetailConfigToolsSectionProps, 'emptyState'> {
   renderSectionAvailability: SectionAvailabilityRenderer;
 }
 
-export interface BuildManagedMemorySectionContentInput {
-  sectionProps: InstanceDetailManagedMemorySectionProps;
+export interface BuildMemoryWorkbenchSectionContentInput {
+  sectionProps: InstanceDetailMemoryWorkbenchSectionProps;
 }
 
-export interface BuildManagedToolsSectionContentInput {
-  sectionProps: InstanceDetailManagedToolsSectionProps;
+export interface BuildConfigToolsSectionContentInput {
+  sectionProps: InstanceDetailConfigToolsSectionProps;
 }
 
 export interface BuildAgentSectionContentInput {
@@ -394,10 +394,10 @@ export function buildLlmProviderDialogProps({
   };
 }
 
-export function buildManagedMemorySectionProps({
+export function buildMemoryWorkbenchSectionProps({
   renderSectionAvailability,
   ...rest
-}: BuildManagedMemorySectionPropsInput): InstanceDetailManagedMemorySectionProps {
+}: BuildMemoryWorkbenchSectionPropsInput): InstanceDetailMemoryWorkbenchSectionProps {
   return {
     ...rest,
     emptyState: renderSectionAvailability(
@@ -407,10 +407,10 @@ export function buildManagedMemorySectionProps({
   };
 }
 
-export function buildManagedToolsSectionProps({
+export function buildConfigToolsSectionProps({
   renderSectionAvailability,
   ...rest
-}: BuildManagedToolsSectionPropsInput): InstanceDetailManagedToolsSectionProps {
+}: BuildConfigToolsSectionPropsInput): InstanceDetailConfigToolsSectionProps {
   return {
     ...rest,
     emptyState: renderSectionAvailability(
@@ -420,16 +420,16 @@ export function buildManagedToolsSectionProps({
   };
 }
 
-export function buildManagedMemorySectionContent({
+export function buildMemoryWorkbenchSectionContent({
   sectionProps,
-}: BuildManagedMemorySectionContentInput): ReactNode {
-  return createElement(InstanceDetailManagedMemorySection, sectionProps);
+}: BuildMemoryWorkbenchSectionContentInput): ReactNode {
+  return createElement(InstanceDetailMemoryWorkbenchSection, sectionProps);
 }
 
-export function buildManagedToolsSectionContent({
+export function buildConfigToolsSectionContent({
   sectionProps,
-}: BuildManagedToolsSectionContentInput): ReactNode {
-  return createElement(InstanceDetailManagedToolsSection, sectionProps);
+}: BuildConfigToolsSectionContentInput): ReactNode {
+  return createElement(InstanceDetailConfigToolsSection, sectionProps);
 }
 
 export function buildAgentSectionContent({
@@ -443,7 +443,7 @@ export function buildLlmProvidersSectionContent({
   dialogProps,
 }: BuildLlmProvidersSectionContentInput): ReactNode {
   return sectionProps
-    ? createElement(InstanceDetailManagedLlmProvidersSection, {
+    ? createElement(InstanceDetailLlmProvidersWorkbenchSection, {
         sectionProps,
         dialogProps,
       })

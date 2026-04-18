@@ -59,7 +59,7 @@ await runTest('openclaw gateway instances prefer the native websocket route even
 });
 
 await runTest(
-  'built-in managed openclaw instances do not publish a gateway route before the runtime is online',
+  'built-in OpenClaw instances do not publish a gateway route before the runtime is online',
   () => {
     const route = resolveInstanceChatRoute({
       id: 'openclaw-local-offline',

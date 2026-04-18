@@ -5,13 +5,20 @@ import {
   createOpenClawProviderRequestDraft,
   hasPendingOpenClawProviderConfigChanges,
 } from './openClawProviderDrafts.ts';
-import { isProviderCenterManagedOpenClawDetail } from './openClawManagementCapabilities.ts';
+import { buildKernelAuthorityProjection } from './kernelAuthorityProjection.ts';
+import { hasWritableOpenClawConfigRoute } from './openClawManagementCapabilities.ts';
 import { parseOpenClawProviderRequestOverridesDraft } from './openClawProviderRequestDraft.ts';
 
 export interface OpenClawProviderWorkspaceState {
-  providerCenterManaged: boolean;
+  providerCenterControlled: boolean;
   isProviderConfigReadonly: boolean;
   canManageProviderCatalog: boolean;
+}
+
+export interface BuildOpenClawProviderWorkspaceStateInput {
+  detail: StudioInstanceDetailRecord | null | undefined;
+  kernelConfig?: InstanceWorkbenchSnapshot['kernelConfig'];
+  kernelAuthority?: InstanceWorkbenchSnapshot['kernelAuthority'];
 }
 
 type InstanceWorkbenchLlmProvider = InstanceWorkbenchSnapshot['llmProviders'][number];
@@ -47,22 +54,62 @@ export interface OpenClawProviderWorkspaceSyncState {
   providerRequestDrafts: Record<string, string>;
 }
 
+function isProviderWorkspaceStateInput(
+  input: BuildOpenClawProviderWorkspaceStateInput | StudioInstanceDetailRecord | null | undefined,
+): input is BuildOpenClawProviderWorkspaceStateInput {
+  return Boolean(input && typeof input === 'object' && 'detail' in input);
+}
+
+function resolveProviderWorkspaceInput(
+  input:
+    | BuildOpenClawProviderWorkspaceStateInput
+    | StudioInstanceDetailRecord
+    | null
+    | undefined,
+): BuildOpenClawProviderWorkspaceStateInput {
+  if (isProviderWorkspaceStateInput(input)) {
+    return {
+      detail: input.detail || null,
+      kernelConfig: input.kernelConfig,
+      kernelAuthority: input.kernelAuthority,
+    };
+  }
+
+  return {
+    detail: (input as StudioInstanceDetailRecord | null | undefined) || null,
+    kernelConfig: undefined,
+    kernelAuthority: undefined,
+  };
+}
+
 export function buildOpenClawProviderWorkspaceState(
-  detail: StudioInstanceDetailRecord | null | undefined,
+  input:
+    | BuildOpenClawProviderWorkspaceStateInput
+    | StudioInstanceDetailRecord
+    | null
+    | undefined,
 ): OpenClawProviderWorkspaceState {
+  const { detail, kernelConfig, kernelAuthority } = resolveProviderWorkspaceInput(input);
+
   if (detail?.instance.runtimeKind !== 'openclaw') {
     return {
-      providerCenterManaged: false,
+      providerCenterControlled: false,
       isProviderConfigReadonly: false,
       canManageProviderCatalog: true,
     };
   }
 
-  const providerCenterManaged = isProviderCenterManagedOpenClawDetail(detail);
+  const authority = kernelAuthority || buildKernelAuthorityProjection(detail);
+  const providerCenterControlled = Boolean(
+    authority?.configControl &&
+      (authority.controlPlane === 'desktopHost' ||
+        kernelConfig?.resolved ||
+        hasWritableOpenClawConfigRoute(detail)),
+  );
 
   return {
-    providerCenterManaged,
-    isProviderConfigReadonly: providerCenterManaged,
+    providerCenterControlled,
+    isProviderConfigReadonly: providerCenterControlled,
     canManageProviderCatalog: false,
   };
 }

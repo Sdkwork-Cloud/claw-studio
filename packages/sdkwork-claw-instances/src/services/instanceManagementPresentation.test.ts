@@ -5,6 +5,7 @@ import {
 } from '@sdkwork/claw-types';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
 import { buildInstanceManagementSummary } from './instanceManagementPresentation.ts';
+import { OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS } from './openClawBuiltInCompatTestFixture.ts';
 
 function runTest(name: string, callback: () => void | Promise<void>) {
   return Promise.resolve()
@@ -115,7 +116,7 @@ function createDetail(overrides: Partial<StudioInstanceDetailRecord> = {}): Stud
       autoLoginUrl: 'http://127.0.0.1:18789/ui/autologin',
       gatewayUrl: 'http://127.0.0.1:18789',
       authMode: 'token',
-      authSource: 'managedConfig',
+      authSource: 'configFile',
       installMethod: 'pnpm',
       reason: null,
     },
@@ -151,9 +152,19 @@ function createWorkbench(
     token: 'token',
     logs: '',
     detail: createDetail(),
-    managedConfigPath: 'D:/OpenClaw/.openclaw/openclaw.json',
-    managedChannels: [],
-    managedConfigInsights: null,
+    kernelConfig: {
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configRoot: 'D:/OpenClaw/.openclaw',
+      userRoot: 'D:/OpenClaw',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    },
+    configChannels: [],
+    kernelConfigInsights: null,
     healthScore: 92,
     runtimeStatus: 'healthy',
     connectedChannelCount: 2,
@@ -217,14 +228,14 @@ function createWorkbench(
 }
 
 await runTest(
-  'buildInstanceManagementSummary highlights Provider Center managed routing for fully managed OpenClaw instances',
+  'buildInstanceManagementSummary highlights Provider Center routing for fully app-managed built-in OpenClaw instances',
   () => {
     const summary = buildInstanceManagementSummary(createWorkbench());
 
     assert.deepEqual(summary.entries.map((entry) => entry.id), [
       'controlPlane',
       'installMethod',
-      'configAuthority',
+      'kernelConfig',
       'defaultWorkspace',
       'managementScope',
     ]);
@@ -234,14 +245,14 @@ await runTest(
     );
     assert.equal(summary.entries.find((entry) => entry.id === 'installMethod')?.value, 'pnpm');
     assert.equal(
-      summary.entries.find((entry) => entry.id === 'configAuthority')?.value,
+      summary.entries.find((entry) => entry.id === 'kernelConfig')?.value,
       'D:/OpenClaw/.openclaw/openclaw.json',
     );
     assert.equal(
-      summary.entries.find((entry) => entry.id === 'configAuthority')?.detailKey,
+      summary.entries.find((entry) => entry.id === 'kernelConfig')?.detailKey,
       'instances.detail.instanceWorkbench.overview.management.details.configManagedFile',
     );
-    assert.equal(summary.entries.find((entry) => entry.id === 'configAuthority')?.mono, true);
+    assert.equal(summary.entries.find((entry) => entry.id === 'kernelConfig')?.mono, true);
     assert.equal(
       summary.entries.find((entry) => entry.id === 'defaultWorkspace')?.value,
       'D:/OpenClaw/.openclaw/workspace',
@@ -255,7 +266,7 @@ await runTest(
 );
 
 await runTest(
-  'buildInstanceManagementSummary falls back to partial runtime control when no managed config file is attached',
+  'buildInstanceManagementSummary falls back to partial runtime control when no OpenClaw config file is attached',
   () => {
     const detail = createDetail({
       instance: {
@@ -317,7 +328,7 @@ await runTest(
     const summary = buildInstanceManagementSummary(
       createWorkbench({
         detail,
-        managedConfigPath: null,
+        kernelConfig: null,
         agents: [],
       }),
     );
@@ -328,14 +339,14 @@ await runTest(
     );
     assert.equal(summary.entries.find((entry) => entry.id === 'installMethod')?.value, 'Docker');
     assert.equal(
-      summary.entries.find((entry) => entry.id === 'configAuthority')?.value,
+      summary.entries.find((entry) => entry.id === 'kernelConfig')?.value,
       'https://gateway.example.com/admin/config',
     );
     assert.equal(
-      summary.entries.find((entry) => entry.id === 'configAuthority')?.detailKey,
+      summary.entries.find((entry) => entry.id === 'kernelConfig')?.detailKey,
       'instances.detail.instanceWorkbench.overview.management.details.configRemoteEndpoint',
     );
-    assert.equal(summary.entries.find((entry) => entry.id === 'configAuthority')?.tone, 'warning');
+    assert.equal(summary.entries.find((entry) => entry.id === 'kernelConfig')?.tone, 'warning');
     assert.equal(
       summary.entries.find((entry) => entry.id === 'defaultWorkspace')?.value,
       '/srv/openclaw/workspace-main',
@@ -348,7 +359,7 @@ await runTest(
 );
 
 await runTest(
-  'buildInstanceManagementSummary reports partial runtime control for workbench-managed OpenClaw without a local config file attachment',
+  'buildInstanceManagementSummary reports partial runtime control for workbench-controlled OpenClaw without a local config file attachment',
   () => {
     const detail = createDetail({
       lifecycle: {
@@ -364,7 +375,7 @@ await runTest(
     const summary = buildInstanceManagementSummary(
       createWorkbench({
         detail,
-        managedConfigPath: null,
+        kernelConfig: null,
       }),
     );
 
@@ -376,7 +387,7 @@ await runTest(
 );
 
 await runTest(
-  'buildInstanceManagementSummary canonicalizes built-in managed OpenClaw config authority when only a legacy route target remains',
+  'buildInstanceManagementSummary canonicalizes built-in OpenClaw config authority when only a legacy route target remains',
   () => {
     const detail = createDetail({
       dataAccess: {
@@ -384,14 +395,13 @@ await runTest(
           {
             scope: 'config',
             mode: 'managedFile',
-            target:
-              'C:/ProgramData/SdkWork/CrawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+            target: OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.legacyConfigPath,
             readonly: false,
           },
           {
             scope: 'files',
             mode: 'managedDirectory',
-            target: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
+            target: OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.canonicalWorkspacePath,
             readonly: false,
           },
         ],
@@ -401,16 +411,16 @@ await runTest(
     const summary = buildInstanceManagementSummary(
       createWorkbench({
         detail,
-        managedConfigPath: null,
+        kernelConfig: null,
       }),
     );
 
     assert.equal(
-      summary.entries.find((entry) => entry.id === 'configAuthority')?.value,
-      'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+      summary.entries.find((entry) => entry.id === 'kernelConfig')?.value,
+      OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.canonicalConfigPath,
     );
     assert.equal(
-      summary.entries.find((entry) => entry.id === 'configAuthority')?.detailKey,
+      summary.entries.find((entry) => entry.id === 'kernelConfig')?.detailKey,
       'instances.detail.instanceWorkbench.overview.management.details.configManagedFile',
     );
   },
@@ -473,7 +483,7 @@ await runTest(
     const summary = buildInstanceManagementSummary(
       createWorkbench({
         detail,
-        managedConfigPath: null,
+        kernelConfig: null,
         agents: [],
       }),
     );
@@ -512,7 +522,7 @@ await runTest(
     const summary = buildInstanceManagementSummary(
       createWorkbench({
         detail,
-        managedConfigPath: null,
+        kernelConfig: null,
       }),
     );
 
@@ -565,7 +575,7 @@ await runTest(
     const summary = buildInstanceManagementSummary(
       createWorkbench({
         detail,
-        managedConfigPath: null,
+        kernelConfig: null,
         agents: [],
       }),
     );

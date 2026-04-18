@@ -1265,7 +1265,7 @@ export async function probeDesktopHostedControlPlane(): Promise<{
 }
 
 export async function probeDesktopHostedRuntimeReadiness(options?: {
-  requiresManagedOpenClawEvidence?: boolean;
+  requiresBuiltInOpenClawEvidence?: boolean;
   retryTimeoutMs?: number;
   retryPollMs?: number;
   onRetry?: (context: RetryDesktopHostRuntimeOperationRetryContext) => void;
@@ -1281,8 +1281,8 @@ export async function probeDesktopHostedRuntimeReadiness(options?: {
         await requireDesktopHostedRuntime('desktop.probeHostedRuntimeReadiness'),
         undefined,
         {
-          requiresManagedOpenClawEvidence:
-            options?.requiresManagedOpenClawEvidence,
+          requiresBuiltInOpenClawEvidence:
+            options?.requiresBuiltInOpenClawEvidence,
           webSocketFactory:
             typeof WebSocket === 'function'
               ? (url) => new WebSocket(url)

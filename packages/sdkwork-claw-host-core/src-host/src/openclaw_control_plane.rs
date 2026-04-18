@@ -111,12 +111,12 @@ impl OpenClawControlPlane {
         updated_at: u64,
     ) -> Result<Value, String> {
         if self.gateway_lifecycle != OpenClawLifecycle::Ready {
-            return Err("managed OpenClaw gateway is not ready".to_string());
+            return Err("openclaw gateway is not ready".to_string());
         }
 
         if !request.dry_run.unwrap_or(false) {
             return Err(
-                "managed OpenClaw gateway invoke is not implemented for this host shell"
+                "openclaw gateway invoke is not implemented for this host shell"
                     .to_string(),
             );
         }
@@ -127,7 +127,7 @@ impl OpenClawControlPlane {
             "action": request.action,
             "dryRun": true,
             "lifecycle": self.gateway_lifecycle.as_str(),
-            "message": "managed OpenClaw gateway dry-run accepted",
+            "message": "openclaw gateway dry-run accepted",
             "updatedAt": updated_at
         }))
     }

@@ -5,6 +5,7 @@ export * from './kernelChatModel.ts';
 export * from './openclawMirror.ts';
 export * from './kernelReleaseCatalog.ts';
 export * from './openclawRelease.ts';
+export * from './kernelModel.ts';
 
 export interface Agent {
   id: string;
@@ -877,7 +878,7 @@ export type StudioInstanceConsoleAuthMode =
   | 'unknown';
 
 export type StudioInstanceConsoleAuthSource =
-  | 'managedConfig'
+  | 'configFile'
   | 'installRecord'
   | 'workspaceConfig'
   | 'secretRef'

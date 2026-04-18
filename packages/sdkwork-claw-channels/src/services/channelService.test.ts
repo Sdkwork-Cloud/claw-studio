@@ -50,7 +50,7 @@ async function withMockedWindowStorage(fn: () => Promise<void>) {
   }
 }
 
-function createManagedWorkbenchDetail(
+function createConfigBackedWorkbenchDetail(
   channelOverrides: Partial<
     NonNullable<NonNullable<StudioInstanceDetailRecord['workbench']>['channels']>[number]
   > = {},
@@ -76,8 +76,8 @@ function createManagedWorkbenchDetail(
   return {
     instance: {
       id: 'managed-openclaw',
-      name: 'Managed OpenClaw',
-      description: 'Managed OpenClaw instance for channels fallback tests.',
+      name: 'Built-In OpenClaw',
+      description: 'Built-In OpenClaw instance for channels fallback tests.',
       runtimeKind: 'openclaw',
       deploymentMode: 'local-managed',
       transportKind: 'openclawGatewayWs',
@@ -193,7 +193,7 @@ function createManagedWorkbenchDetail(
 
 function createMissingConfigError() {
   return new Error(
-    'The attached OpenClaw config file is no longer available on disk. Re-scan or reattach the instance configuration. (C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json)',
+    'The attached OpenClaw config file is no longer available on disk. Re-scan or reattach the instance configuration. (C:/Users/admin/.openclaw/openclaw.json)',
   );
 }
 
@@ -252,11 +252,11 @@ await runTest('create preserves the v3 unimplemented mutation contract', async (
 });
 
 await runTest(
-  'getChannels falls back to the workbench snapshot when the managed config path is stale',
+  'getChannels falls back to the workbench snapshot when the config file path is stale',
   async () => {
     const originalBridge = getPlatformBridge();
     const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot;
-    const detail = createManagedWorkbenchDetail();
+    const detail = createConfigBackedWorkbenchDetail();
 
     configurePlatformBridge({
       studio: {
@@ -292,12 +292,12 @@ await runTest(
 );
 
 await runTest(
-  'updateChannelStatus falls back to the workbench bridge when the managed config path is stale',
+  'updateChannelStatus falls back to the workbench bridge when the config file path is stale',
   async () => {
     const originalBridge = getPlatformBridge();
     const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot;
     const originalSetChannelEnabled = openClawConfigService.setChannelEnabled;
-    const detail = createManagedWorkbenchDetail();
+    const detail = createConfigBackedWorkbenchDetail();
     const bridgeCalls: string[] = [];
 
     configurePlatformBridge({
@@ -358,12 +358,12 @@ await runTest(
 );
 
 await runTest(
-  'saveChannelConfig falls back to the workbench bridge when the managed config path is stale',
+  'saveChannelConfig falls back to the workbench bridge when the config file path is stale',
   async () => {
     const originalBridge = getPlatformBridge();
     const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot;
     const originalSaveChannelConfiguration = openClawConfigService.saveChannelConfiguration;
-    const detail = createManagedWorkbenchDetail({
+    const detail = createConfigBackedWorkbenchDetail({
       status: 'not_configured',
       enabled: false,
       configuredFieldCount: 0,
@@ -435,12 +435,12 @@ await runTest(
 );
 
 await runTest(
-  'deleteChannelConfig falls back to the workbench bridge when the managed config path is stale',
+  'deleteChannelConfig falls back to the workbench bridge when the config file path is stale',
   async () => {
     const originalBridge = getPlatformBridge();
     const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot;
     const originalSaveChannelConfiguration = openClawConfigService.saveChannelConfiguration;
-    const detail = createManagedWorkbenchDetail();
+    const detail = createConfigBackedWorkbenchDetail();
     const bridgeCalls: string[] = [];
 
     configurePlatformBridge({

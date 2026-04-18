@@ -147,19 +147,19 @@ await runTest(
     assert.match(kernelCenterSource, /data-slot="kernel-center-runtime-authority"/);
     assert.match(kernelCenterSource, /dashboard\?\.runtimeAuthority/);
     assert.match(kernelCenterSource, /settings\.kernelCenter\.sections\.runtimeAuthority/);
-    assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.managedConfigPath/);
+    assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.configFilePath/);
     assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.ownedRuntimeRoot/);
     assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.supportsLoopbackHealthProbe/);
     assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.healthProbeTimeoutMs/);
 
     assert.equal(typeof enSettings.kernelCenter.sections.runtimeAuthority, 'string');
-    assert.equal(typeof enSettings.kernelCenter.fields.managedConfigPath, 'string');
+    assert.equal(typeof enSettings.kernelCenter.fields.configFilePath, 'string');
     assert.equal(typeof enSettings.kernelCenter.fields.ownedRuntimeRoot, 'string');
     assert.equal(typeof enSettings.kernelCenter.fields.supportsLoopbackHealthProbe, 'string');
     assert.equal(typeof enSettings.kernelCenter.fields.healthProbeTimeoutMs, 'string');
 
     assert.equal(typeof zhSettings.kernelCenter.sections.runtimeAuthority, 'string');
-    assert.equal(typeof zhSettings.kernelCenter.fields.managedConfigPath, 'string');
+    assert.equal(typeof zhSettings.kernelCenter.fields.configFilePath, 'string');
     assert.equal(typeof zhSettings.kernelCenter.fields.ownedRuntimeRoot, 'string');
     assert.equal(typeof zhSettings.kernelCenter.fields.supportsLoopbackHealthProbe, 'string');
     assert.equal(typeof zhSettings.kernelCenter.fields.healthProbeTimeoutMs, 'string');

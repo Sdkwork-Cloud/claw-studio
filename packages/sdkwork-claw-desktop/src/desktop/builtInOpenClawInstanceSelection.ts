@@ -32,7 +32,7 @@ function normalizeComparableUrl(value: string | null | undefined): string | null
   }
 }
 
-function isManagedOpenClawInstance(instance: StudioInstanceRecord): boolean {
+function isBuiltInOpenClawInstance(instance: StudioInstanceRecord): boolean {
   return (
     instance.runtimeKind === 'openclaw'
     && instance.deploymentMode === 'local-managed'
@@ -88,15 +88,15 @@ export function resolveBuiltInOpenClawInstance(
       instance,
       index,
       score: calculateGatewayMatchScore(instance, options),
-      managedOpenClawPriority: isManagedOpenClawInstance(instance) ? 1 : 0,
+      builtInOpenClawPriority: isBuiltInOpenClawInstance(instance) ? 1 : 0,
       legacyPriority: normalizeRequiredString(instance.id) === 'local-built-in' ? 1 : 0,
     }))
     .sort((left, right) => {
       if (right.score !== left.score) {
         return right.score - left.score;
       }
-      if (right.managedOpenClawPriority !== left.managedOpenClawPriority) {
-        return right.managedOpenClawPriority - left.managedOpenClawPriority;
+      if (right.builtInOpenClawPriority !== left.builtInOpenClawPriority) {
+        return right.builtInOpenClawPriority - left.builtInOpenClawPriority;
       }
       if (right.legacyPriority !== left.legacyPriority) {
         return right.legacyPriority - left.legacyPriority;
@@ -125,9 +125,9 @@ export function resolveBuiltInOpenClawInstance(
     return legacyBuiltInInstance;
   }
 
-  const managedOpenClawInstance = instances.find(isManagedOpenClawInstance);
-  if (managedOpenClawInstance) {
-    return managedOpenClawInstance;
+  const builtInOpenClawInstance = instances.find(isBuiltInOpenClawInstance);
+  if (builtInOpenClawInstance) {
+    return builtInOpenClawInstance;
   }
 
   return instances[0] ?? null;

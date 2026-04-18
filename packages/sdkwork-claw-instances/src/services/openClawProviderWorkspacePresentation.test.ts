@@ -125,7 +125,7 @@ function createDetail(overrides: DetailOverrides = {}): StudioInstanceDetailReco
 }
 
 await runTest(
-  'buildOpenClawProviderWorkspaceState treats managed directory routes as Provider Center managed even without a managed config file path',
+  'buildOpenClawProviderWorkspaceState treats managed directory routes as Provider Center controlled even without an OpenClaw config file path',
   () => {
     const state = providerWorkspacePresentation.buildOpenClawProviderWorkspaceState(
       createDetail({
@@ -159,18 +159,80 @@ await runTest(
       }),
     );
 
-    assert.equal(state.providerCenterManaged, true);
+    assert.equal(state.providerCenterControlled, true);
     assert.equal(state.isProviderConfigReadonly, true);
     assert.equal(state.canManageProviderCatalog, false);
   },
 );
 
 await runTest(
-  'buildOpenClawProviderWorkspaceState keeps remote openclaw provider config editable when no Provider Center managed route exists',
+  'buildOpenClawProviderWorkspaceState prefers kernel authority over legacy workbench-managed heuristics',
   () => {
-    const state = providerWorkspacePresentation.buildOpenClawProviderWorkspaceState(createDetail());
+    const state = providerWorkspacePresentation.buildOpenClawProviderWorkspaceState({
+      detail: createDetail({
+        instance: {
+          isBuiltIn: true,
+          isDefault: true,
+          deploymentMode: 'local-managed',
+          host: '127.0.0.1',
+        },
+        lifecycle: {
+          owner: 'appManaged',
+          configWritable: true,
+          workbenchManaged: true,
+          lifecycleControllable: true,
+          endpointObserved: true,
+          notes: [],
+        },
+      }),
+      kernelAuthority: {
+        owner: 'appManaged',
+        controlPlane: 'desktopHost',
+        lifecycleControl: true,
+        configControl: false,
+        upgradeControl: true,
+        doctorSupport: true,
+        migrationSupport: true,
+        observable: true,
+        writable: false,
+      },
+    } as any);
 
-    assert.equal(state.providerCenterManaged, false);
+    assert.equal(state.providerCenterControlled, false);
+    assert.equal(state.isProviderConfigReadonly, false);
+    assert.equal(state.canManageProviderCatalog, false);
+  },
+);
+
+await runTest(
+  'buildOpenClawProviderWorkspaceState keeps remote openclaw provider config editable when no Provider Center controlled route exists',
+  () => {
+    const state = providerWorkspacePresentation.buildOpenClawProviderWorkspaceState({
+      detail: createDetail({
+        lifecycle: {
+          owner: 'remoteService',
+          configWritable: true,
+          workbenchManaged: false,
+          lifecycleControllable: false,
+          endpointObserved: true,
+          notes: [],
+        },
+      }),
+      kernelConfig: null,
+      kernelAuthority: {
+        owner: 'remoteManaged',
+        controlPlane: 'remoteApi',
+        lifecycleControl: false,
+        configControl: true,
+        upgradeControl: false,
+        doctorSupport: true,
+        migrationSupport: false,
+        observable: true,
+        writable: true,
+      },
+    } as any);
+
+    assert.equal(state.providerCenterControlled, false);
     assert.equal(state.isProviderConfigReadonly, false);
     assert.equal(state.canManageProviderCatalog, false);
   },
@@ -188,7 +250,7 @@ await runTest(
       }),
     );
 
-    assert.equal(state.providerCenterManaged, false);
+    assert.equal(state.providerCenterControlled, false);
     assert.equal(state.isProviderConfigReadonly, false);
     assert.equal(state.canManageProviderCatalog, true);
   },

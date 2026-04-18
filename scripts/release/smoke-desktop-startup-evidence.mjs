@@ -125,7 +125,7 @@ function validateDesktopStartupEvidence(
   evidence,
   evidencePath,
   {
-    requiresManagedOpenClawEvidence = true,
+    requiresBuiltInOpenClawEvidence = true,
     expectedPackageProfileId = '',
     expectedIncludedKernelIds = [],
     expectedDefaultEnabledKernelIds = [],
@@ -155,17 +155,17 @@ function validateDesktopStartupEvidence(
     );
   }
   if (
-    requiresManagedOpenClawEvidence
+    requiresBuiltInOpenClawEvidence
     && (
     evidence?.readinessEvidence?.gatewayWebsocketProbeSupported === true
     && evidence?.readinessEvidence?.gatewayWebsocketDialable !== true
     )
   ) {
     throw new Error(
-      `Desktop startup evidence must prove the managed gateway websocket is dialable at ${evidencePath}.`,
+      `Desktop startup evidence must prove the OpenClaw gateway websocket is dialable at ${evidencePath}.`,
     );
   }
-  if (requiresManagedOpenClawEvidence) {
+  if (requiresBuiltInOpenClawEvidence) {
     const builtInInstanceId = String(evidence?.builtInInstance?.id ?? '').trim();
     if (!builtInInstanceId) {
       throw new Error(
@@ -261,7 +261,7 @@ function extractLocalAiProxyRuntime(evidence, evidencePath) {
 }
 
 function buildDesktopStartupSmokeChecks({
-  requiresManagedOpenClawEvidence = true,
+  requiresBuiltInOpenClawEvidence = true,
 } = {}) {
   return [
     {
@@ -282,16 +282,16 @@ function buildDesktopStartupSmokeChecks({
     {
       id: 'built-in-instance',
       status: 'passed',
-      detail: requiresManagedOpenClawEvidence
-        ? 'desktop startup evidence preserved the managed built-in instance projection'
-        : 'desktop startup evidence skipped managed OpenClaw instance checks because package profile excludes openclaw',
+      detail: requiresBuiltInOpenClawEvidence
+        ? 'desktop startup evidence preserved the built-in OpenClaw instance projection'
+        : 'desktop startup evidence skipped built-in OpenClaw instance checks because package profile excludes openclaw',
     },
     {
       id: 'gateway-websocket',
       status: 'passed',
-      detail: requiresManagedOpenClawEvidence
-        ? 'desktop startup evidence proved the managed gateway websocket was dialable'
-        : 'desktop startup evidence skipped managed OpenClaw gateway websocket checks because package profile excludes openclaw',
+      detail: requiresBuiltInOpenClawEvidence
+        ? 'desktop startup evidence proved the OpenClaw gateway websocket was dialable'
+        : 'desktop startup evidence skipped OpenClaw gateway websocket checks because package profile excludes openclaw',
     },
     {
       id: 'local-ai-proxy-runtime',
@@ -311,7 +311,7 @@ export function writeDesktopStartupSmokeReport({
   evidence,
   localAiProxyRuntime,
   artifactRelativePaths = [],
-  requiresManagedOpenClawEvidence = true,
+  requiresBuiltInOpenClawEvidence = true,
 } = {}) {
   const reportPath = resolveDesktopStartupSmokeReportPath({
     releaseAssetsDir,
@@ -347,7 +347,7 @@ export function writeDesktopStartupSmokeReport({
       left.localeCompare(right),
     ),
     checks: buildDesktopStartupSmokeChecks({
-      requiresManagedOpenClawEvidence,
+      requiresBuiltInOpenClawEvidence,
     }),
   };
 
@@ -377,7 +377,7 @@ export async function smokeDesktopStartupEvidence({
     platform: releasePlatform,
     arch: releaseArch,
   });
-  const requiresManagedOpenClawEvidence = manifestIncludesKernel(manifest, 'openclaw');
+  const requiresBuiltInOpenClawEvidence = manifestIncludesKernel(manifest, 'openclaw');
 
   assertDesktopManifestMatchesTarget({
     manifest,
@@ -396,7 +396,7 @@ export async function smokeDesktopStartupEvidence({
     : canonicalEvidencePath;
   const evidence = readDesktopStartupEvidence(sourceEvidencePath);
   validateDesktopStartupEvidence(evidence, sourceEvidencePath, {
-    requiresManagedOpenClawEvidence,
+    requiresBuiltInOpenClawEvidence,
     expectedPackageProfileId: normalizeManifestString(manifest?.packageProfileId),
     expectedIncludedKernelIds: normalizeManifestStringArray(manifest?.includedKernelIds),
     expectedDefaultEnabledKernelIds: normalizeManifestStringArray(
@@ -424,7 +424,7 @@ export async function smokeDesktopStartupEvidence({
     evidence,
     localAiProxyRuntime,
     artifactRelativePaths: normalizeArtifactRelativePaths(manifest),
-    requiresManagedOpenClawEvidence,
+    requiresBuiltInOpenClawEvidence,
   });
 
   return {

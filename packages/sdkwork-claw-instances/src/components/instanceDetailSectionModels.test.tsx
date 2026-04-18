@@ -148,7 +148,7 @@ await runTest(
       isProviderConfigReadonly: true,
       isOpenClawConfigWritable: false,
       canManageOpenClawProviders: false,
-      managedConfigPath: '/managed/openclaw/providers.json',
+      configFilePath: '/managed/openclaw/providers.json',
       availabilityNotice,
       formatWorkbenchLabel: (value: string) => `label:${value}`,
       getDangerBadge: (value: string) => `danger:${value}`,
@@ -170,7 +170,7 @@ await runTest(
     assert.ok(props);
     assert.deepEqual(props.providers, []);
     assert.equal(props.availabilityNotice, availabilityNotice);
-    assert.equal(props.managedConfigPath, '/managed/openclaw/providers.json');
+    assert.equal(props.configFilePath, '/managed/openclaw/providers.json');
     assert.equal(props.isProviderConfigReadonly, true);
   },
 );
@@ -212,7 +212,7 @@ await runTest(
         isProviderConfigReadonly: false,
         isOpenClawConfigWritable: true,
         canManageOpenClawProviders,
-        managedConfigPath: null,
+        configFilePath: null,
         availabilityNotice: 'availability-notice',
         formatWorkbenchLabel: (value: string) => `label:${value}`,
         getDangerBadge: (value: string) => `danger:${value}`,
@@ -368,7 +368,7 @@ await runTest(
         isProviderConfigReadonly,
         isOpenClawConfigWritable: true,
         canManageOpenClawProviders: true,
-        managedConfigPath: null,
+        configFilePath: null,
         availabilityNotice: 'availability-notice',
         formatWorkbenchLabel: (value: string) => `label:${value}`,
         getDangerBadge: (value: string) => `danger:${value}`,
@@ -631,14 +631,14 @@ await runTest(
 );
 
 await runTest(
-  'buildManagedMemorySectionProps routes the memory availability fallback and preserves page-owned dreaming callbacks',
+  'buildMemoryWorkbenchSectionProps routes the memory availability fallback and preserves page-owned dreaming callbacks',
   async () => {
-    const { buildManagedMemorySectionProps } = await loadSectionModelsModule();
+    const { buildMemoryWorkbenchSectionProps } = await loadSectionModelsModule();
     const renderSectionAvailabilityCalls: Array<{ sectionId: string; fallbackKey: string }> = [];
     const onDreamingDraftChange = () => undefined;
     const onSaveDreamingConfig = () => undefined;
 
-    const props = buildManagedMemorySectionProps({
+    const props = buildMemoryWorkbenchSectionProps({
       isLoading: true,
       workbench: null,
       memoryWorkbenchState: {
@@ -646,11 +646,11 @@ await runTest(
         hasMemoryEntries: false,
         dreamDiaryEntries: [],
       },
-      managedDreamingConfig: null,
+      configDreaming: null,
       dreamingDraft: null,
       dreamingError: null,
       isSavingDreaming: false,
-      canEditManagedDreaming: false,
+      canEditDreamingConfig: false,
       loadingLabel: 'Loading memory',
       formatWorkbenchLabel: (value: string) => `label:${value}`,
       getDangerBadge: (value: string) => `danger:${value}`,
@@ -678,9 +678,9 @@ await runTest(
 );
 
 await runTest(
-  'buildManagedToolsSectionProps routes the tools availability fallback and preserves page-owned managed tool callbacks',
+  'buildConfigToolsSectionProps routes the tools availability fallback and preserves page-owned config tool callbacks',
   async () => {
-    const { buildManagedToolsSectionProps } = await loadSectionModelsModule();
+    const { buildConfigToolsSectionProps } = await loadSectionModelsModule();
     const renderSectionAvailabilityCalls: Array<{ sectionId: string; fallbackKey: string }> = [];
     const onSaveWebSearchConfig = () => undefined;
     const onWebSearchSharedDraftChange = () => undefined;
@@ -696,20 +696,20 @@ await runTest(
     const onSaveAuthCooldownsConfig = () => undefined;
     const onAuthCooldownsDraftChange = () => undefined;
 
-    const props = buildManagedToolsSectionProps({
+    const props = buildConfigToolsSectionProps({
       workbench: null,
-      managedWebSearchConfig: null,
+      configWebSearch: null,
       webSearchSharedDraft: null,
       selectedWebSearchProvider: null,
       selectedWebSearchProviderDraft: null,
       webSearchError: null,
       isSavingWebSearch: false,
-      canEditManagedWebSearch: false,
+      canEditConfigWebSearch: false,
       onSaveWebSearchConfig,
       onWebSearchSharedDraftChange,
       onWebSearchProviderDraftChange,
       onSelectedWebSearchProviderIdChange,
-      managedWebFetchConfig: null,
+      configWebFetch: null,
       webFetchSharedDraft: null,
       webFetchFallbackDraft: {
         endpoint: '',
@@ -717,29 +717,29 @@ await runTest(
       },
       webFetchError: null,
       isSavingWebFetch: false,
-      canEditManagedWebFetch: false,
+      canEditConfigWebFetch: false,
       onSaveWebFetchConfig,
       onWebFetchSharedDraftChange,
       onWebFetchFallbackDraftChange,
-      managedWebSearchNativeCodexConfig: null,
+      configWebSearchNativeCodex: null,
       webSearchNativeCodexDraft: null,
       webSearchNativeCodexError: null,
       isSavingWebSearchNativeCodex: false,
-      canEditManagedWebSearchNativeCodex: false,
+      canEditConfigWebSearchNativeCodex: false,
       onSaveWebSearchNativeCodexConfig,
       onWebSearchNativeCodexDraftChange,
-      managedXSearchConfig: null,
+      configXSearch: null,
       xSearchDraft: null,
       xSearchError: null,
       isSavingXSearch: false,
-      canEditManagedXSearch: false,
+      canEditConfigXSearch: false,
       onSaveXSearchConfig,
       onXSearchDraftChange,
-      managedAuthCooldownsConfig: null,
+      configAuthCooldowns: null,
       authCooldownsDraft: null,
       authCooldownsError: null,
       isSavingAuthCooldowns: false,
-      canEditManagedAuthCooldowns: false,
+      canEditConfigAuthCooldowns: false,
       onSaveAuthCooldownsConfig,
       onAuthCooldownsDraftChange,
       formatWorkbenchLabel: (value: string) => `label:${value}`,
@@ -776,9 +776,9 @@ await runTest(
 );
 
 await runTest(
-  'buildManagedMemorySectionContent preserves managed memory section props',
+  'buildMemoryWorkbenchSectionContent preserves memory workbench section props',
   async () => {
-    const { buildManagedMemorySectionContent } = await loadSectionModelsModule();
+    const { buildMemoryWorkbenchSectionContent } = await loadSectionModelsModule();
     const sectionProps = {
       emptyState: 'empty:memory',
       loadingLabel: 'Loading memory',
@@ -789,11 +789,11 @@ await runTest(
         hasMemoryEntries: false,
         dreamDiaryEntries: [],
       },
-      managedDreamingConfig: null,
+      configDreaming: null,
       dreamingDraft: null,
       dreamingError: null,
       isSavingDreaming: false,
-      canEditManagedDreaming: false,
+      canEditDreamingConfig: false,
       formatWorkbenchLabel: (value: string) => value,
       getDangerBadge: (value: string) => value,
       getStatusBadge: (value: string) => value,
@@ -802,7 +802,7 @@ await runTest(
       onSaveDreamingConfig: () => undefined,
     } as any;
 
-    const content = buildManagedMemorySectionContent({
+    const content = buildMemoryWorkbenchSectionContent({
       sectionProps,
     });
 
@@ -813,24 +813,24 @@ await runTest(
 );
 
 await runTest(
-  'buildManagedToolsSectionContent preserves managed tools section props',
+  'buildConfigToolsSectionContent preserves config tools section props',
   async () => {
-    const { buildManagedToolsSectionContent } = await loadSectionModelsModule();
+    const { buildConfigToolsSectionContent } = await loadSectionModelsModule();
     const sectionProps = {
       emptyState: 'empty:tools',
       workbench: null,
-      managedWebSearchConfig: null,
+      configWebSearch: null,
       webSearchSharedDraft: null,
       selectedWebSearchProvider: null,
       selectedWebSearchProviderDraft: null,
       webSearchError: null,
       isSavingWebSearch: false,
-      canEditManagedWebSearch: false,
+      canEditConfigWebSearch: false,
       onSaveWebSearchConfig: () => undefined,
       onWebSearchSharedDraftChange: () => undefined,
       onWebSearchProviderDraftChange: () => undefined,
       onSelectedWebSearchProviderIdChange: () => undefined,
-      managedWebFetchConfig: null,
+      configWebFetch: null,
       webFetchSharedDraft: null,
       webFetchFallbackDraft: {
         endpoint: '',
@@ -838,29 +838,29 @@ await runTest(
       },
       webFetchError: null,
       isSavingWebFetch: false,
-      canEditManagedWebFetch: false,
+      canEditConfigWebFetch: false,
       onSaveWebFetchConfig: () => undefined,
       onWebFetchSharedDraftChange: () => undefined,
       onWebFetchFallbackDraftChange: () => undefined,
-      managedWebSearchNativeCodexConfig: null,
+      configWebSearchNativeCodex: null,
       webSearchNativeCodexDraft: null,
       webSearchNativeCodexError: null,
       isSavingWebSearchNativeCodex: false,
-      canEditManagedWebSearchNativeCodex: false,
+      canEditConfigWebSearchNativeCodex: false,
       onSaveWebSearchNativeCodexConfig: () => undefined,
       onWebSearchNativeCodexDraftChange: () => undefined,
-      managedXSearchConfig: null,
+      configXSearch: null,
       xSearchDraft: null,
       xSearchError: null,
       isSavingXSearch: false,
-      canEditManagedXSearch: false,
+      canEditConfigXSearch: false,
       onSaveXSearchConfig: () => undefined,
       onXSearchDraftChange: () => undefined,
-      managedAuthCooldownsConfig: null,
+      configAuthCooldowns: null,
       authCooldownsDraft: null,
       authCooldownsError: null,
       isSavingAuthCooldowns: false,
-      canEditManagedAuthCooldowns: false,
+      canEditConfigAuthCooldowns: false,
       onSaveAuthCooldownsConfig: () => undefined,
       onAuthCooldownsDraftChange: () => undefined,
       formatWorkbenchLabel: (value: string) => value,
@@ -869,7 +869,7 @@ await runTest(
       t: (key: string) => key,
     } as any;
 
-    const content = buildManagedToolsSectionContent({
+    const content = buildConfigToolsSectionContent({
       sectionProps,
     });
 
@@ -1004,7 +1004,7 @@ await runTest(
         isProviderConfigReadonly: true,
         isOpenClawConfigWritable: false,
         canManageOpenClawProviders: false,
-        managedConfigPath: null,
+        configFilePath: null,
         availabilityNotice: 'availability',
         formatWorkbenchLabel: (value: string) => value,
         getDangerBadge: (value: string) => value,

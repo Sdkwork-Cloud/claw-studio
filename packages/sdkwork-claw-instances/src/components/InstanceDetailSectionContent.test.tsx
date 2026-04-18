@@ -21,7 +21,7 @@ function createBaseProps() {
     workbench: {
       channels: [],
       skills: [],
-      managedConfigPath: null,
+      kernelConfig: null,
       sectionAvailability: {
         channels: {
           status: 'restricted',
@@ -45,14 +45,14 @@ function createBaseProps() {
     } as any,
     selectedAgentId: null,
     isWorkbenchFilesLoading: false,
-    canEditManagedChannels: false,
-    managedChannelWorkspaceItems: [],
+    canEditConfigChannels: false,
+    configChannelWorkspaceItems: [],
     readonlyChannelWorkspaceItems: [],
-    managedConfigPath: null,
-    selectedManagedChannelId: null,
-    managedChannelDrafts: {},
-    managedChannelError: null,
-    isSavingManagedChannel: false,
+    configFilePath: null,
+    selectedConfigChannelId: null,
+    configChannelDrafts: {},
+    configChannelError: null,
+    isSavingConfigChannel: false,
     agentSection: <div>agent-section</div>,
     tasksSection: <div>tasks-section</div>,
     llmProvidersSection: <div>provider-section</div>,
@@ -114,11 +114,11 @@ function createBaseProps() {
     getRuntimeStatusTone: (status: string) => `runtime:${status}`,
     getManagementEntryTone: (tone: 'neutral' | 'success' | 'warning') => `entry:${tone}`,
     onOpenOfficialLink: () => undefined,
-    onSelectedManagedChannelIdChange: () => undefined,
-    onManagedChannelFieldChange: () => undefined,
-    onSaveManagedChannel: () => undefined,
-    onDeleteManagedChannelConfiguration: () => undefined,
-    onToggleManagedChannel: () => undefined,
+    onSelectedConfigChannelIdChange: () => undefined,
+    onConfigChannelFieldChange: () => undefined,
+    onSaveConfigChannel: () => undefined,
+    onDeleteConfigChannelConfiguration: () => undefined,
+    onToggleConfigChannel: () => undefined,
     onSelectedAgentIdChange: () => undefined,
     onReloadFiles: () => undefined,
     onReloadConfig: () => undefined,
@@ -157,7 +157,7 @@ await runTest(
               author: 'SDKWork',
             },
           ],
-          managedConfigPath: null,
+          kernelConfig: null,
           sectionAvailability: {},
         } as any}
       />,
@@ -197,7 +197,7 @@ await runTest(
               },
             },
           ],
-          managedConfigPath: null,
+          kernelConfig: null,
           sectionAvailability: {},
         } as any}
       />,
@@ -224,5 +224,41 @@ await runTest(
     );
 
     assert.match(markup, /agent-section/);
+  },
+);
+
+await runTest(
+  'InstanceDetailSectionContent opens the config workbench when kernelConfig exposes a config file without legacy path fields',
+  () => {
+    const markup = renderToStaticMarkup(
+      <InstanceDetailSectionContent
+        {...createBaseProps()}
+        activeSection="config"
+        workbench={{
+          channels: [],
+          skills: [],
+          kernelConfig: {
+            configFile: 'C:/Users/admin/.openclaw/openclaw.json',
+            configRoot: 'C:/Users/admin/.openclaw',
+            userRoot: 'C:/Users/admin',
+            format: 'json',
+            access: 'localFs',
+            provenance: 'standardUserRoot',
+            writable: true,
+            resolved: true,
+            schemaVersion: null,
+          },
+          sectionAvailability: {
+            config: {
+              status: 'ready',
+              detail: 'Config workbench is ready.',
+            },
+          },
+        } as any}
+      />,
+    );
+
+    assert.match(markup, /label:loading/);
+    assert.doesNotMatch(markup, /instances\.detail\.instanceWorkbench\.empty\.config/);
   },
 );

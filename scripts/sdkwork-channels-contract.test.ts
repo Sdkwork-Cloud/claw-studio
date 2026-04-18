@@ -83,8 +83,8 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.match(serviceSource, /return getPlatformBridge\(\)\.studio/);
   assert.match(serviceSource, /getInstanceDetail\(instanceId: string\)/);
   assert.match(serviceSource, /getChannels\(instanceId: string\): Promise<Channel\[]>/);
-  assert.match(serviceSource, /isMissingManagedConfigError/);
-  assert.match(serviceSource, /detail\?\.workbench && isMissingManagedConfigError\(error\)/);
+  assert.match(serviceSource, /isMissingConfigFileError/);
+  assert.match(serviceSource, /detail\?\.workbench && isMissingConfigFileError\(error\)/);
   assert.match(serviceSource, /detail\?\.workbench/);
   assert.match(serviceSource, /mapWorkbenchChannels\(detail\)/);
   assert.match(serviceSource, /updateChannelStatus\(instanceId: string, channelId: string, enabled: boolean\)/);

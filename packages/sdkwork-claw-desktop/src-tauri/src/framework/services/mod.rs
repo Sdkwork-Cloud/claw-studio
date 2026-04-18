@@ -33,6 +33,7 @@ pub mod openclaw_mirror;
 pub mod openclaw_mirror_export;
 pub mod openclaw_mirror_import;
 pub mod openclaw_mirror_manifest;
+pub mod openclaw_config_compat;
 pub mod openclaw_runtime;
 pub mod openclaw_runtime_snapshot;
 pub mod path_registration;
@@ -347,7 +348,7 @@ impl FrameworkServices {
             if runtime_id == open_claw_runtime.runtime_id {
                 authorities.push(DesktopKernelRuntimeAuthorityInfo {
                     runtime_id,
-                    managed_config_path: open_claw_runtime.authority.managed_config_path.clone(),
+                    config_file_path: open_claw_runtime.authority.config_file_path.clone(),
                     owned_runtime_roots: open_claw_runtime.authority.owned_runtime_roots.clone(),
                     readiness_probe: DesktopKernelRuntimeAuthorityProbeInfo {
                         supports_loopback_health_probe: open_claw_runtime
@@ -373,7 +374,7 @@ impl FrameworkServices {
 
             authorities.push(DesktopKernelRuntimeAuthorityInfo {
                 runtime_id: runtime_id.clone(),
-                managed_config_path: contract.managed_config_path.to_string_lossy().into_owned(),
+                config_file_path: contract.config_file_path.to_string_lossy().into_owned(),
                 owned_runtime_roots: contract
                     .owned_runtime_roots
                     .iter()
@@ -410,7 +411,7 @@ impl FrameworkServices {
                 } else {
                     None
                 },
-                config_path: Some(contract.managed_config_path.to_string_lossy().into_owned()),
+                config_path: Some(contract.config_file_path.to_string_lossy().into_owned()),
                 runtime_home_dir: None,
                 runtime_install_dir: contract
                     .owned_runtime_roots

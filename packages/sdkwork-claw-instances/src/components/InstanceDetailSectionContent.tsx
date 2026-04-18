@@ -73,14 +73,14 @@ interface InstanceDetailSectionContentProps {
   config: InstanceConfig | null;
   selectedAgentId: string | null;
   isWorkbenchFilesLoading: boolean;
-  canEditManagedChannels: boolean;
-  managedChannelWorkspaceItems: ChannelWorkspaceItem[];
+  canEditConfigChannels: boolean;
+  configChannelWorkspaceItems: ChannelWorkspaceItem[];
   readonlyChannelWorkspaceItems: ChannelWorkspaceItem[];
-  managedConfigPath: string | null;
-  selectedManagedChannelId: string | null;
-  managedChannelDrafts: Record<string, Record<string, string>>;
-  managedChannelError: string | null;
-  isSavingManagedChannel: boolean;
+  configFilePath: string | null;
+  selectedConfigChannelId: string | null;
+  configChannelDrafts: Record<string, Record<string, string>>;
+  configChannelError: string | null;
+  isSavingConfigChannel: boolean;
   agentSection: React.ReactNode;
   tasksSection: React.ReactNode;
   llmProvidersSection: React.ReactNode;
@@ -96,11 +96,11 @@ interface InstanceDetailSectionContentProps {
     diagnostic: BundledOpenClawStartupAlertDiagnostic,
   ) => Promise<void> | void;
   onRetryBundledStartup: () => Promise<void> | void;
-  onSelectedManagedChannelIdChange: (channelId: string | null) => void;
-  onManagedChannelFieldChange: (fieldKey: string, value: string) => Promise<void> | void;
-  onSaveManagedChannel: () => Promise<void> | void;
-  onDeleteManagedChannelConfiguration: () => Promise<void> | void;
-  onToggleManagedChannel: (channelId: string, nextEnabled: boolean) => Promise<void> | void;
+  onSelectedConfigChannelIdChange: (channelId: string | null) => void;
+  onConfigChannelFieldChange: (fieldKey: string, value: string) => Promise<void> | void;
+  onSaveConfigChannel: () => Promise<void> | void;
+  onDeleteConfigChannelConfiguration: () => Promise<void> | void;
+  onToggleConfigChannel: (channelId: string, nextEnabled: boolean) => Promise<void> | void;
   onSelectedAgentIdChange: (agentId: string) => void;
   onReloadFiles: () => Promise<void> | void;
   onReloadConfig: () => Promise<void> | void;
@@ -117,14 +117,14 @@ export function InstanceDetailSectionContent({
   config,
   selectedAgentId,
   isWorkbenchFilesLoading,
-  canEditManagedChannels,
-  managedChannelWorkspaceItems,
+  canEditConfigChannels,
+  configChannelWorkspaceItems,
   readonlyChannelWorkspaceItems,
-  managedConfigPath,
-  selectedManagedChannelId,
-  managedChannelDrafts,
-  managedChannelError,
-  isSavingManagedChannel,
+  configFilePath,
+  selectedConfigChannelId,
+  configChannelDrafts,
+  configChannelError,
+  isSavingConfigChannel,
   agentSection,
   tasksSection,
   llmProvidersSection,
@@ -138,15 +138,16 @@ export function InstanceDetailSectionContent({
   onOpenOfficialLink,
   onOpenDiagnosticPath,
   onRetryBundledStartup,
-  onSelectedManagedChannelIdChange,
-  onManagedChannelFieldChange,
-  onSaveManagedChannel,
-  onDeleteManagedChannelConfiguration,
-  onToggleManagedChannel,
+  onSelectedConfigChannelIdChange,
+  onConfigChannelFieldChange,
+  onSaveConfigChannel,
+  onDeleteConfigChannelConfiguration,
+  onToggleConfigChannel,
   onSelectedAgentIdChange,
   onReloadFiles,
   onReloadConfig,
 }: InstanceDetailSectionContentProps) {
+  const effectiveConfigFilePath = configFilePath || workbench?.kernelConfig?.configFile || null;
   const sectionLoadingFallback = (
     <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
       {formatWorkbenchLabel('loading')}
@@ -192,21 +193,21 @@ export function InstanceDetailSectionContent({
       }
       return (
         <InstanceDetailChannelsSection
-          items={canEditManagedChannels ? managedChannelWorkspaceItems : readonlyChannelWorkspaceItems}
-          canEditManagedChannels={canEditManagedChannels}
-          managedFilePath={managedConfigPath}
-          selectedChannelId={selectedManagedChannelId}
-          valuesByChannelId={managedChannelDrafts}
-          error={managedChannelError}
-          isSaving={isSavingManagedChannel}
+          items={canEditConfigChannels ? configChannelWorkspaceItems : readonlyChannelWorkspaceItems}
+          canEditConfigChannels={canEditConfigChannels}
+          configFilePath={effectiveConfigFilePath}
+          selectedChannelId={selectedConfigChannelId}
+          valuesByChannelId={configChannelDrafts}
+          error={configChannelError}
+          isSaving={isSavingConfigChannel}
           formatWorkbenchLabel={formatWorkbenchLabel}
           t={t}
           onOpenOfficialLink={onOpenOfficialLink}
-          onSelectedChannelIdChange={onSelectedManagedChannelIdChange}
-          onFieldChange={onManagedChannelFieldChange}
-          onSave={onSaveManagedChannel}
-          onDeleteConfiguration={onDeleteManagedChannelConfiguration}
-          onToggleEnabled={onToggleManagedChannel}
+          onSelectedChannelIdChange={onSelectedConfigChannelIdChange}
+          onFieldChange={onConfigChannelFieldChange}
+          onSave={onSaveConfigChannel}
+          onDeleteConfiguration={onDeleteConfigChannelConfiguration}
+          onToggleEnabled={onToggleConfigChannel}
         />
       );
     case 'cronTasks':
@@ -241,7 +242,7 @@ export function InstanceDetailSectionContent({
     case 'tools':
       return <>{toolsSection}</>;
     case 'config':
-      if (!workbench?.managedConfigPath || !instanceId) {
+      if (!effectiveConfigFilePath || !instanceId || !workbench) {
         return renderSectionAvailability('config', 'instances.detail.instanceWorkbench.empty.config');
       }
       return (

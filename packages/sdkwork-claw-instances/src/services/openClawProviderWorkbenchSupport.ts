@@ -1,6 +1,4 @@
-import type {
-  OpenClawConfigSnapshot as ManagedOpenClawConfigSnapshot,
-} from '@sdkwork/claw-core';
+import type { OpenClawConfigSnapshot } from '@sdkwork/claw-core';
 import type {
   OpenClawConfigSnapshot as GatewayOpenClawConfigSnapshot,
   OpenClawModelRecord,
@@ -21,8 +19,8 @@ import {
   titleCaseIdentifier,
 } from './openClawSupport.ts';
 
-export function mapManagedProvider(
-  provider: ManagedOpenClawConfigSnapshot['providerSnapshots'][number],
+export function mapConfigBackedProvider(
+  provider: OpenClawConfigSnapshot['providerSnapshots'][number],
 ): InstanceWorkbenchLLMProvider {
   return {
     id: provider.id,

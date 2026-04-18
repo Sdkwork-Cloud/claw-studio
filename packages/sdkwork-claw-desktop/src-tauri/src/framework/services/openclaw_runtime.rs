@@ -101,7 +101,7 @@ pub struct ActivatedOpenClawRuntime {
 pub struct OpenClawRuntimeService;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct ManagedOpenClawState {
+struct BuiltInOpenClawState {
     home_dir: PathBuf,
     state_dir: PathBuf,
     workspace_dir: PathBuf,
@@ -237,8 +237,8 @@ impl OpenClawRuntimeService {
             )));
         }
 
-        let managed_state =
-            ensure_managed_openclaw_state(paths, Some(manifest.openclaw_version.as_str()))?;
+        let built_in_state =
+            ensure_built_in_openclaw_state(paths, Some(manifest.openclaw_version.as_str()))?;
         KernelRuntimeAuthorityService::new().record_activation_result(
             OPENCLAW_RUNTIME_ID,
             paths,
@@ -252,12 +252,12 @@ impl OpenClawRuntimeService {
             runtime_dir,
             node_path,
             cli_path,
-            home_dir: managed_state.home_dir,
-            state_dir: managed_state.state_dir,
-            workspace_dir: managed_state.workspace_dir,
-            config_path: managed_state.config_path,
-            gateway_port: managed_state.gateway_port,
-            gateway_auth_token: managed_state.gateway_auth_token,
+            home_dir: built_in_state.home_dir,
+            state_dir: built_in_state.state_dir,
+            workspace_dir: built_in_state.workspace_dir,
+            config_path: built_in_state.config_path,
+            gateway_port: built_in_state.gateway_port,
+            gateway_auth_token: built_in_state.gateway_auth_token,
         })
     }
 
@@ -276,7 +276,7 @@ impl OpenClawRuntimeService {
             )));
         }
 
-        let managed_state = ensure_managed_openclaw_state(paths, None)?;
+        let built_in_state = ensure_built_in_openclaw_state(paths, None)?;
 
         Ok(ActivatedOpenClawRuntime {
             install_key: runtime.install_key.clone(),
@@ -284,12 +284,12 @@ impl OpenClawRuntimeService {
             runtime_dir: runtime.runtime_dir.clone(),
             node_path: runtime.node_path.clone(),
             cli_path: runtime.cli_path.clone(),
-            home_dir: managed_state.home_dir,
-            state_dir: managed_state.state_dir,
-            workspace_dir: managed_state.workspace_dir,
-            config_path: managed_state.config_path,
-            gateway_port: managed_state.gateway_port,
-            gateway_auth_token: managed_state.gateway_auth_token,
+            home_dir: built_in_state.home_dir,
+            state_dir: built_in_state.state_dir,
+            workspace_dir: built_in_state.workspace_dir,
+            config_path: built_in_state.config_path,
+            gateway_port: built_in_state.gateway_port,
+            gateway_auth_token: built_in_state.gateway_auth_token,
         })
     }
 }
@@ -590,14 +590,14 @@ pub(crate) fn validate_installed_openclaw_runtime(
 
     if manifest.runtime_id != OPENCLAW_RUNTIME_ID {
         return Err(FrameworkError::ValidationFailed(format!(
-            "unsupported managed OpenClaw runtime id {} for install key {}",
+            "unsupported OpenClaw runtime id {} for install key {}",
             manifest.runtime_id, install_key
         )));
     }
 
     if manifest.install_key() != install_key {
         return Err(FrameworkError::ValidationFailed(format!(
-            "managed OpenClaw runtime install key {} does not match manifest key {}",
+            "OpenClaw runtime install key {} does not match manifest key {}",
             install_key,
             manifest.install_key()
         )));
@@ -606,7 +606,7 @@ pub(crate) fn validate_installed_openclaw_runtime(
     validate_materialized_runtime_installation(
         &install_root,
         &manifest,
-        "managed OpenClaw runtime install",
+        "built-in OpenClaw runtime install",
     )?;
     Ok(manifest)
 }
@@ -892,10 +892,10 @@ fn apply_zip_entry_permissions(_destination_path: &Path, _unix_mode: Option<u32>
     Ok(())
 }
 
-fn ensure_managed_openclaw_state(
+fn ensure_built_in_openclaw_state(
     paths: &AppPaths,
     bundled_openclaw_version: Option<&str>,
-) -> Result<ManagedOpenClawState> {
+) -> Result<BuiltInOpenClawState> {
     fs::create_dir_all(&paths.openclaw_root_dir)?;
     fs::create_dir_all(&paths.openclaw_root_dir)?;
     fs::create_dir_all(&paths.openclaw_workspace_dir)?;
@@ -910,9 +910,9 @@ fn ensure_managed_openclaw_state(
     fs::create_dir_all(&paths.openclaw_cron_dir)?;
     fs::create_dir_all(&paths.openclaw_credentials_dir)?;
     let authority = KernelRuntimeAuthorityService::new();
-    let managed_config_path = authority.active_managed_config_path("openclaw", paths)?;
+    let config_file_path = authority.active_config_file_path("openclaw", paths)?;
     let imported_config =
-        authority.import_or_default_openclaw_config(paths, &managed_config_path)?;
+        authority.import_or_default_openclaw_config(paths, &config_file_path)?;
 
     let mut config = imported_config.root;
     sanitize_legacy_provider_runtime_config(&mut config);
@@ -943,21 +943,21 @@ fn ensure_managed_openclaw_state(
     remove_nested_key(&mut config, &["meta", "lastTouchedAt"]);
 
     fs::write(
-        &managed_config_path,
+        &config_file_path,
         format!("{}\n", serde_json::to_string_pretty(&config)?),
     )?;
     authority.record_config_migration(
         "openclaw",
         paths,
         imported_config.source_path.as_deref(),
-        &managed_config_path,
+        &config_file_path,
     )?;
 
-    Ok(ManagedOpenClawState {
+    Ok(BuiltInOpenClawState {
         home_dir: paths.openclaw_root_dir.clone(),
         state_dir: paths.openclaw_root_dir.clone(),
         workspace_dir: paths.openclaw_workspace_dir.clone(),
-        config_path: managed_config_path,
+        config_path: config_file_path,
         gateway_port,
         gateway_auth_token,
     })
@@ -1558,7 +1558,7 @@ mod tests {
         )
         .expect("authority state json");
         assert_eq!(
-            authority.managed_config_path.as_deref(),
+            authority.config_file_path.as_deref(),
             Some(paths.openclaw_config_file.to_string_lossy().as_ref())
         );
         assert_eq!(

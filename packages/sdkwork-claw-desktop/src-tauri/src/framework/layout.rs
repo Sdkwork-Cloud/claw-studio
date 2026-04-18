@@ -3,7 +3,7 @@ use crate::framework::{
         bundled_component_defaults, PackagedComponentDefinition, PackagedComponentKind,
         PackagedComponentStartupMode,
     },
-    paths::AppPaths,
+    paths::{AppPaths, OPENCLAW_KERNEL_ID},
     Result,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -361,7 +361,7 @@ pub struct KernelAuthorityState {
     pub fallback_install_key: Option<String>,
     pub active_version_label: Option<String>,
     pub fallback_version_label: Option<String>,
-    pub managed_config_path: Option<String>,
+    pub config_file_path: Option<String>,
     pub owned_runtime_roots: Vec<String>,
     pub legacy_runtime_roots: Vec<String>,
     pub quarantined_paths: Vec<String>,
@@ -378,7 +378,7 @@ impl Default for KernelAuthorityState {
             fallback_install_key: None,
             active_version_label: None,
             fallback_version_label: None,
-            managed_config_path: None,
+            config_file_path: None,
             owned_runtime_roots: Vec::new(),
             legacy_runtime_roots: Vec::new(),
             quarantined_paths: Vec::new(),
@@ -517,8 +517,17 @@ pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
     write_json_if_missing(&paths.components_file, &ComponentsState::default())?;
     write_json_if_missing(&paths.upgrades_file, &UpgradesState::default())?;
     for runtime_id in crate::framework::paths::supported_kernel_ids() {
+        let runtime_id = *runtime_id;
         let kernel = paths.kernel_paths(runtime_id)?;
-        write_json_if_missing(&kernel.authority_file, &KernelAuthorityState::default())?;
+        if runtime_id == OPENCLAW_KERNEL_ID && kernel.authority_file.exists() {
+            let authority =
+                crate::framework::services::openclaw_config_compat::read_openclaw_authority_state_file(
+                    &kernel.authority_file,
+                )?;
+            write_json_file(&kernel.authority_file, &authority)?;
+        } else {
+            write_json_if_missing(&kernel.authority_file, &KernelAuthorityState::default())?;
+        }
         write_json_if_missing(&kernel.migrations_file, &KernelMigrationState::default())?;
         write_json_if_missing(
             &kernel.runtime_upgrades_file,
@@ -820,8 +829,14 @@ mod tests {
         assert_eq!(authority.runtime_id, "");
         assert!(authority.active_install_key.is_none());
         assert!(authority.active_version_label.is_none());
-        assert!(authority.managed_config_path.is_none());
+        assert!(authority.config_file_path.is_none());
         assert!(authority.owned_runtime_roots.is_empty());
+
+        let authority_json = serde_json::from_str::<Value>(
+            &std::fs::read_to_string(&openclaw.authority_file).expect("authority file"),
+        )
+        .expect("authority json value");
+        assert!(authority_json.get("configFilePath").is_some());
 
         assert_eq!(migrations.layout_version, 1);
         assert_eq!(migrations.runtime_id, "");

@@ -571,7 +571,7 @@ function normalizeBuiltInInstance(instance: StudioInstanceRecord): StudioInstanc
   };
 }
 
-function isManagedOpenClawWorkbenchInstance(instance: StudioInstanceRecord) {
+function isBuiltInOpenClawWorkbenchInstance(instance: StudioInstanceRecord) {
   return isManagedBuiltInOpenClawInstance(instance);
 }
 
@@ -592,7 +592,7 @@ function summarizeMemoryContent(content: string) {
     .filter(Boolean)
     .filter((line) => !line.startsWith('#'));
 
-  return lines[0] || 'Managed OpenClaw workspace memory for the browser-backed workbench.';
+  return lines[0] || 'OpenClaw workspace memory for the browser-backed workbench.';
 }
 
 function createWorkbenchFile(params: {
@@ -703,7 +703,7 @@ function resolveBrowserOpenClawChannelTemplate(
   return {
     id: channelId,
     name: current?.name || channelId,
-    description: current?.description || 'Managed browser-backed OpenClaw channel.',
+    description: current?.description || 'Browser-backed OpenClaw channel.',
     configurationMode: current?.configurationMode || 'required',
     fieldCount:
       typeof current?.fieldCount === 'number' && Number.isFinite(current.fieldCount)
@@ -822,7 +822,7 @@ function updateWorkbenchConfigFile(
 function createDefaultWorkbenchSnapshot(
   instance: StudioInstanceRecord,
 ): BrowserOpenClawWorkbenchSnapshot {
-  if (!isManagedOpenClawWorkbenchInstance(instance)) {
+  if (!isBuiltInOpenClawWorkbenchInstance(instance)) {
     return {
       channels: [],
       cronTasks: {
@@ -859,7 +859,7 @@ function createDefaultWorkbenchSnapshot(
     path: DEFAULT_OPENCLAW_MEMORY_FILE_ID,
     category: 'memory',
     language: 'markdown',
-    description: 'Pinned workspace memory for the managed OpenClaw browser workbench.',
+    description: 'Pinned workspace memory for the OpenClaw browser workbench.',
     content: [
       '# Workspace Memory',
       '',
@@ -926,9 +926,9 @@ function createDefaultWorkbenchSnapshot(
         agent: {
           id: 'main',
           name: 'Main',
-          description: 'Primary managed OpenClaw workspace agent.',
+          description: 'Primary OpenClaw workspace agent.',
           avatar: 'M',
-          systemPrompt: 'Coordinate managed OpenClaw workbench activity.',
+          systemPrompt: 'Coordinate OpenClaw workbench activity.',
           creator: 'Claw Studio Web',
         },
         focusAreas: ['planning', 'automation', 'operations'],
@@ -951,7 +951,7 @@ function createDefaultWorkbenchSnapshot(
       {
         id: 'workspace-files',
         name: 'Workspace Files',
-        description: 'Edit managed OpenClaw workspace files from the browser.',
+        description: 'Edit OpenClaw workspace files from the browser.',
         category: 'filesystem',
         status: 'ready',
         access: 'write',
@@ -1025,7 +1025,7 @@ function createWorkbenchFallback(instances: StudioInstanceRecord[]): StudioWorkb
     version: 1,
     workbenches: Object.fromEntries(
       instances
-        .filter(isManagedOpenClawWorkbenchInstance)
+        .filter(isBuiltInOpenClawWorkbenchInstance)
         .map((instance) => [instance.id, createDefaultWorkbenchSnapshot(instance)]),
     ),
   };
@@ -1079,8 +1079,8 @@ function writeWorkbenchRegistry(document: StudioWorkbenchRegistryDocument) {
   );
 }
 
-function readManagedOpenClawWorkbench(instance: StudioInstanceRecord): StudioWorkbenchSnapshot | null {
-  if (!isManagedOpenClawWorkbenchInstance(instance)) {
+function readBuiltInOpenClawWorkbench(instance: StudioInstanceRecord): StudioWorkbenchSnapshot | null {
+  if (!isBuiltInOpenClawWorkbenchInstance(instance)) {
     return null;
   }
 
@@ -1096,13 +1096,13 @@ function readManagedOpenClawWorkbench(instance: StudioInstanceRecord): StudioWor
   return cloneWorkbenchSnapshot(sanitizeBrowserWorkbenchSnapshot(created));
 }
 
-function updateManagedOpenClawWorkbench(
+function updateBuiltInOpenClawWorkbench(
   instanceId: string,
   updater: (snapshot: StudioWorkbenchSnapshot, instance: StudioInstanceRecord) => StudioWorkbenchSnapshot,
 ): StudioWorkbenchSnapshot | null {
   const instances = readInstances().instances;
   const instance = instances.find((entry) => entry.id === instanceId);
-  if (!instance || !isManagedOpenClawWorkbenchInstance(instance)) {
+  if (!instance || !isBuiltInOpenClawWorkbenchInstance(instance)) {
     return null;
   }
 
@@ -1116,7 +1116,7 @@ function updateManagedOpenClawWorkbench(
   return cloneWorkbenchSnapshot(sanitizedNext);
 }
 
-function removeManagedOpenClawWorkbench(instanceId: string) {
+function removeBuiltInOpenClawWorkbench(instanceId: string) {
   const document = readWorkbenchRegistry();
   if (!(instanceId in document.workbenches)) {
     return;
@@ -1126,13 +1126,13 @@ function removeManagedOpenClawWorkbench(instanceId: string) {
   writeWorkbenchRegistry(document);
 }
 
-function synchronizeManagedOpenClawWorkbench(instance: StudioInstanceRecord) {
-  if (!isManagedOpenClawWorkbenchInstance(instance)) {
-    removeManagedOpenClawWorkbench(instance.id);
+function synchronizeBuiltInOpenClawWorkbench(instance: StudioInstanceRecord) {
+  if (!isBuiltInOpenClawWorkbenchInstance(instance)) {
+    removeBuiltInOpenClawWorkbench(instance.id);
     return;
   }
 
-  updateManagedOpenClawWorkbench(instance.id, (snapshot) => {
+  updateBuiltInOpenClawWorkbench(instance.id, (snapshot) => {
     const configFile = buildOpenClawConfigFile(instance);
     const nextFiles = snapshot.files.filter((file) => file.id !== DEFAULT_OPENCLAW_CONFIG_FILE_ID);
     nextFiles.push(configFile);
@@ -1299,7 +1299,7 @@ function buildHealthSnapshot(instance: StudioInstanceRecord): StudioInstanceHeal
 }
 
 function resolveLifecycleOwner(instance: StudioInstanceRecord): StudioInstanceLifecycleOwner {
-  if (isManagedOpenClawWorkbenchInstance(instance)) {
+  if (isBuiltInOpenClawWorkbenchInstance(instance)) {
     return 'appManaged';
   }
   if (instance.deploymentMode === 'local-managed' || instance.deploymentMode === 'local-external') {
@@ -1313,7 +1313,7 @@ function buildLifecycleSnapshot(
   workbench: StudioWorkbenchSnapshot | null = null,
 ): StudioInstanceLifecycleSnapshot {
   const owner = resolveLifecycleOwner(instance);
-  const workbenchManaged = isManagedOpenClawWorkbenchInstance(instance) && workbench != null;
+  const workbenchManaged = isBuiltInOpenClawWorkbenchInstance(instance) && workbench != null;
 
   if (owner === 'appManaged') {
     return {
@@ -1324,7 +1324,7 @@ function buildLifecycleSnapshot(
       workbenchManaged,
       endpointObserved: false,
       notes: [
-        'Browser fallback projects a managed OpenClaw workbench snapshot, but lifecycle control stays unavailable until a native host exposes a real controller.',
+        'Browser fallback projects an OpenClaw workbench snapshot, but lifecycle control stays unavailable until a native host exposes a real controller.',
       ],
     };
   }
@@ -1595,7 +1595,7 @@ function buildCapabilities(
   const allCapabilities: StudioInstanceCapability[] = ['chat', 'health', 'files', 'memory', 'tasks', 'tools', 'models'];
   const supported = new Set(instance.capabilities);
   const storageStatus = resolveStorageStatus(instance.storage);
-  const workbenchBacked = isManagedOpenClawWorkbenchInstance(instance) && workbench != null;
+  const workbenchBacked = isBuiltInOpenClawWorkbenchInstance(instance) && workbench != null;
 
   return allCapabilities.map((capability) => {
     let status: StudioInstanceCapabilityStatus = supported.has(capability) ? 'ready' : 'unsupported';
@@ -1608,7 +1608,7 @@ function buildCapabilities(
       (capability === 'files' || capability === 'memory' || capability === 'tasks' || capability === 'tools' || capability === 'models')
     ) {
       status = 'ready';
-      detail = 'Managed OpenClaw browser workbench persists this capability locally when native adapters are unavailable.';
+      detail = 'OpenClaw browser workbench persists this capability locally when native adapters are unavailable.';
     } else if (supported.has(capability) && (capability === 'memory' || capability === 'tasks') && storageStatus !== 'ready') {
       status = 'configurationRequired';
       detail = 'Capability depends on a configured durable storage binding.';
@@ -1661,7 +1661,7 @@ function buildDataAccessSnapshot(
   observability: StudioInstanceObservabilitySnapshot,
   workbench: StudioWorkbenchSnapshot | null = null,
 ): StudioInstanceDataAccessSnapshot {
-  const workbenchBacked = isManagedOpenClawWorkbenchInstance(instance) && workbench != null;
+  const workbenchBacked = isBuiltInOpenClawWorkbenchInstance(instance) && workbench != null;
   const routes: StudioInstanceDataAccessEntry[] = [
     createDataAccessEntry({
       id: 'config',
@@ -1704,7 +1704,7 @@ function buildDataAccessSnapshot(
         readonly: false,
         authoritative: true,
         detail:
-          'Managed OpenClaw workspace files are persisted through the browser workbench state.',
+          'OpenClaw workspace files are persisted through the browser workbench state.',
         source: 'integration',
       }),
     );
@@ -1762,7 +1762,7 @@ function buildDataAccessSnapshot(
       readonly: false,
       authoritative: workbenchBacked || storage.status === 'ready',
       detail: workbenchBacked
-        ? 'Managed OpenClaw memory entries are derived from browser-persisted workspace notes.'
+        ? 'OpenClaw memory entries are derived from browser-persisted workspace notes.'
         : 'Memory detail is described through the configured storage binding in the web fallback.',
       source: 'storage',
     }),
@@ -1776,7 +1776,7 @@ function buildDataAccessSnapshot(
       readonly: false,
       authoritative: workbenchBacked,
       detail: workbenchBacked
-        ? 'Managed OpenClaw task definitions and execution history are persisted through the browser workbench state.'
+        ? 'OpenClaw task definitions and execution history are persisted through the browser workbench state.'
         : 'Task operations depend on runtime-specific adapters and are not directly mounted in the web fallback.',
       source: 'integration',
     }),
@@ -1790,7 +1790,7 @@ function buildDataAccessSnapshot(
       readonly: true,
       authoritative: workbenchBacked,
       detail: workbenchBacked
-        ? 'Managed OpenClaw tool metadata is projected from the browser workbench state.'
+        ? 'OpenClaw tool metadata is projected from the browser workbench state.'
         : 'Tool detail is currently limited to endpoint and metadata posture in the web fallback.',
       source: 'integration',
     }),
@@ -1804,7 +1804,7 @@ function buildDataAccessSnapshot(
       readonly: false,
       authoritative: workbenchBacked,
       detail: workbenchBacked
-        ? 'Managed OpenClaw provider and model selections are persisted through the browser workbench state.'
+        ? 'OpenClaw provider and model selections are persisted through the browser workbench state.'
         : 'Provider and model surfaces require runtime-specific adapters beyond the web fallback.',
       source: 'integration',
     }),
@@ -2059,7 +2059,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     }
 
     const logs = await this.getInstanceLogs(id);
-    const workbench = readManagedOpenClawWorkbench(instance);
+    const workbench = readBuiltInOpenClawWorkbench(instance);
     return buildInstanceDetailRecord(instance, logs, workbench);
   }
 
@@ -2068,7 +2068,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     const instance = buildInstanceRecord(input);
     document.instances.push(instance);
     writeInstances(document);
-    synchronizeManagedOpenClawWorkbench(instance);
+    synchronizeBuiltInOpenClawWorkbench(instance);
     return instance;
   }
 
@@ -2115,7 +2115,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
       instance.id === id ? updated : instance,
     );
     writeInstances(document);
-    synchronizeManagedOpenClawWorkbench(updated);
+    synchronizeBuiltInOpenClawWorkbench(updated);
     return updated;
   }
 
@@ -2146,7 +2146,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
         !conversation.participantInstanceIds.includes(id),
     );
     writeConversations(conversations);
-    removeManagedOpenClawWorkbench(id);
+    removeBuiltInOpenClawWorkbench(id);
     return true;
   }
 
@@ -2212,7 +2212,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     instanceId: string,
     payload: StudioInstanceTaskMutationPayload,
   ): Promise<void> {
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => ({
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot) => ({
       ...snapshot,
       cronTasks: {
         ...snapshot.cronTasks,
@@ -2229,7 +2229,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     taskId: string,
     payload: StudioInstanceTaskMutationPayload,
   ): Promise<void> {
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot) => {
       const current = snapshot.cronTasks.tasks.find((task) => task.id === taskId);
       if (!current) {
         throw new Error(`Task "${taskId}" not found`);
@@ -2255,7 +2255,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     fileId: string,
     content: string,
   ): Promise<boolean> {
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot) => {
       const current = snapshot.files.find((file) => file.id === fileId);
       if (!current) {
         return snapshot;
@@ -2285,7 +2285,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     providerId: string,
     update: StudioUpdateInstanceLlmProviderConfigInput,
   ): Promise<boolean> {
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot) => {
       const current = snapshot.llmProviders.find((provider) => provider.id === providerId);
       if (!current) {
         return snapshot;
@@ -2350,7 +2350,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     channelId: string,
     enabled: boolean,
   ): Promise<boolean> {
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot, instance) => {
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot, instance) => {
       const current = snapshot.channels.find((channel) => channel.id === channelId) as
         | BrowserOpenClawWorkbenchChannelRecord
         | undefined;
@@ -2403,7 +2403,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     channelId: string,
     values: Record<string, string>,
   ): Promise<boolean> {
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot, instance) => {
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot, instance) => {
       const current = snapshot.channels.find((channel) => channel.id === channelId) as
         | BrowserOpenClawWorkbenchChannelRecord
         | undefined;
@@ -2454,7 +2454,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     instanceId: string,
     channelId: string,
   ): Promise<boolean> {
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot, instance) => {
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot, instance) => {
       const current = snapshot.channels.find((channel) => channel.id === channelId) as
         | BrowserOpenClawWorkbenchChannelRecord
         | undefined;
@@ -2506,7 +2506,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     taskId: string,
     name?: string,
   ): Promise<void> {
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot) => {
       const source = snapshot.cronTasks.tasks.find((task) => task.id === taskId);
       if (!source) {
         throw new Error(`Task "${taskId}" not found`);
@@ -2541,7 +2541,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     taskId: string,
   ): Promise<StudioWorkbenchTaskExecutionRecord> {
     let execution: StudioWorkbenchTaskExecutionRecord | null = null;
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot) => {
       const task = snapshot.cronTasks.tasks.find((entry) => entry.id === taskId);
       if (!task) {
         throw new Error(`Task "${taskId}" not found`);
@@ -2584,7 +2584,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
       return [];
     }
 
-    const workbench = readManagedOpenClawWorkbench(instance);
+    const workbench = readBuiltInOpenClawWorkbench(instance);
     return (workbench?.cronTasks.taskExecutionsById[taskId] || []).map(cloneWorkbenchTaskExecution);
   }
 
@@ -2593,7 +2593,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     taskId: string,
     status: 'active' | 'paused',
   ): Promise<void> {
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot) => {
       const current = snapshot.cronTasks.tasks.find((task) => task.id === taskId);
       if (!current) {
         throw new Error(`Task "${taskId}" not found`);
@@ -2621,7 +2621,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
 
   async deleteInstanceTask(instanceId: string, taskId: string): Promise<boolean> {
     let deleted = false;
-    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+    const updated = updateBuiltInOpenClawWorkbench(instanceId, (snapshot) => {
       if (!snapshot.cronTasks.tasks.some((task) => task.id === taskId)) {
         return snapshot;
       }
