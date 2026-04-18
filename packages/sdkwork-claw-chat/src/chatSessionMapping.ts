@@ -3,7 +3,6 @@ import type {
   StudioConversationMessage,
   StudioConversationRecord,
 } from '@sdkwork/claw-types';
-import { hydrateLocalChatKernelProjection } from './services/store/index.ts';
 import type { ChatSession, Message } from './store/useChatStore';
 
 function normalizeMessageStatus(_message: Message): StudioConversationMessage['status'] {
@@ -28,26 +27,25 @@ export function mapStudioMessage(message: StudioConversationMessage): Message {
 }
 
 export function mapStudioConversation(record: StudioConversationRecord): ChatSession {
-  const session: ChatSession = {
+  return {
     id: record.id,
     title: record.title,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     messages: record.messages.map(mapStudioMessage),
     model: record.messages.find((message) => message.model)?.model || 'unknown',
-    instanceId: record.primaryInstanceId,
+    instanceId:
+      record.primaryInstanceId && record.primaryInstanceId !== 'local-built-in'
+        ? record.primaryInstanceId
+        : undefined,
     transport: 'local',
     sessionKind: 'direct',
   };
-
-  return hydrateLocalChatKernelProjection({
-    session,
-  });
 }
 
 export function mapChatSession(session: ChatSession): StudioConversationRecord {
-  if (session.transport === 'openclawGateway') {
-    throw new Error('OpenClaw Gateway sessions must not be persisted through the studio conversation store.');
+  if (session.instanceId || session.transport === 'kernelAdapter' || session.transport === 'openclawGateway') {
+    throw new Error('Instance-scoped kernel chat sessions must not be persisted through the studio conversation store.');
   }
 
   const messages = session.messages.map((message) => ({
@@ -58,7 +56,7 @@ export function mapChatSession(session: ChatSession): StudioConversationRecord {
     createdAt: message.timestamp,
     updatedAt: message.timestamp,
     model: message.model,
-    senderInstanceId: session.instanceId || null,
+    senderInstanceId: null,
     status: normalizeMessageStatus(message),
     attachments: message.attachments?.map(
       (attachment): StudioConversationAttachment => ({
@@ -70,8 +68,8 @@ export function mapChatSession(session: ChatSession): StudioConversationRecord {
   return {
     id: session.id,
     title: session.title,
-    primaryInstanceId: session.instanceId || 'local-built-in',
-    participantInstanceIds: session.instanceId ? [session.instanceId] : ['local-built-in'],
+    primaryInstanceId: 'local-built-in',
+    participantInstanceIds: ['local-built-in'],
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     messageCount: messages.length,

@@ -1,9 +1,15 @@
 import { studio } from '@sdkwork/claw-infrastructure';
 import type { Agent, KernelChatAgentProfile, StudioInstanceDetailRecord } from '@sdkwork/claw-types';
+import { resolveAuthoritativeInstanceKernelChatAdapter } from './authoritativeKernelChatAdapter.ts';
 import { openClawChatAgentCatalogService } from './openClawChatAgentCatalogService.ts';
 
 export interface KernelChatAgentCatalogDependencies {
   getInstanceDetail: (instanceId: string) => Promise<StudioInstanceDetailRecord | null>;
+  resolveAdapterResolution: (
+    instanceId: string,
+  ) => Promise<
+    Awaited<ReturnType<typeof resolveAuthoritativeInstanceKernelChatAdapter>>
+  >;
   getOpenClawCatalog: (
     instanceId: string,
   ) => Promise<Awaited<ReturnType<typeof openClawChatAgentCatalogService.getCatalog>>>;
@@ -11,6 +17,7 @@ export interface KernelChatAgentCatalogDependencies {
 
 export interface KernelChatAgentCatalogDependencyOverrides {
   getInstanceDetail?: KernelChatAgentCatalogDependencies['getInstanceDetail'];
+  resolveAdapterResolution?: KernelChatAgentCatalogDependencies['resolveAdapterResolution'];
   getOpenClawCatalog?: KernelChatAgentCatalogDependencies['getOpenClawCatalog'];
 }
 
@@ -95,7 +102,12 @@ class DefaultKernelChatAgentCatalogService {
       return [];
     }
 
-    if (detail.instance.runtimeKind === 'openclaw') {
+    const adapterResolution = await this.dependencies.resolveAdapterResolution(instanceId);
+    if (!adapterResolution || adapterResolution.capabilities.supported === false) {
+      return [];
+    }
+
+    if (adapterResolution.adapterId === 'openclawGateway') {
       const catalog = await this.dependencies.getOpenClawCatalog(instanceId);
       return catalog.agents.map((agent) => mapOpenClawProfile({ instanceId, agent }));
     }
@@ -128,6 +140,9 @@ export function createKernelChatAgentCatalogService(
 ) {
   return new DefaultKernelChatAgentCatalogService({
     getInstanceDetail: overrides.getInstanceDetail || ((instanceId) => studio.getInstanceDetail(instanceId)),
+    resolveAdapterResolution:
+      overrides.resolveAdapterResolution ||
+      ((instanceId) => resolveAuthoritativeInstanceKernelChatAdapter(instanceId)),
     getOpenClawCatalog:
       overrides.getOpenClawCatalog ||
       ((instanceId) => openClawChatAgentCatalogService.getCatalog(instanceId)),

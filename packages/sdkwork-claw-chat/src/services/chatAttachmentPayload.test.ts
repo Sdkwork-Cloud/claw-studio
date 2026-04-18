@@ -18,7 +18,6 @@ await runTest('chat attachment payloads round-trip through the studio conversati
     createdAt: 1,
     updatedAt: 2,
     model: 'Gemini 3 Flash',
-    instanceId: 'local-built-in',
     messages: [
       {
         id: 'message-1',
@@ -61,14 +60,7 @@ await runTest('chat attachment payloads round-trip through the studio conversati
   assert.equal(roundTripAttachment.kind, 'image');
   assert.equal(roundTripAttachment.url, 'https://cdn.example.com/diagram.png');
   assert.equal(roundTrip.transport, 'local');
-  assert.ok(roundTrip.kernelSession);
-  assert.equal(roundTrip.kernelSession?.authority.kind, 'localProjection');
-  assert.equal(roundTrip.kernelSession?.ref.kernelId, 'studio-direct');
-  assert.equal(roundTrip.kernelSession?.ref.instanceId, 'local-built-in');
-  assert.equal(roundTrip.kernelSession?.lifecycle, 'ready');
-  assert.ok(roundTrip.messages[0]?.kernelMessage);
-  assert.deepEqual(
-    roundTrip.messages[0]?.kernelMessage?.parts.map((part) => part.kind),
-    ['attachment'],
-  );
+  assert.equal(roundTrip.instanceId, undefined);
+  assert.equal((roundTrip as any).kernelSession, undefined);
+  assert.equal((roundTrip.messages[0] as any)?.kernelMessage, undefined);
 });

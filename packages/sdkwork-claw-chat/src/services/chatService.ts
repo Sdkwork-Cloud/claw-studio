@@ -1,6 +1,9 @@
 import { llmStore } from '@sdkwork/claw-core';
 import { instanceStore } from '@sdkwork/claw-core';
 import type { Agent, Skill, StudioInstanceRecord } from '@sdkwork/claw-types';
+import type { KernelChatAdapterResolution } from './kernelChatAdapterRegistry.ts';
+import type { InstanceChatRoute } from './instanceChatRouteService.ts';
+import { resolveAuthoritativeInstanceKernelChatAdapter } from './authoritativeKernelChatAdapter.ts';
 import { resolveAuthoritativeInstanceChatRoute } from './store/index.ts';
 import type { ChatModel } from '../types/index.ts';
 
@@ -23,6 +26,33 @@ export interface IChatService {
     agent?: Agent,
     abortSignal?: AbortSignal,
   ): AsyncGenerator<string, void, unknown>;
+}
+
+export interface ActiveInstanceChatContext {
+  activeInstance: StudioInstanceRecord | null;
+  route: InstanceChatRoute;
+  adapterResolution: KernelChatAdapterResolution | null;
+}
+
+export type ChatServiceStreamRequest = (
+  endpoint: string,
+  body: Record<string, unknown>,
+  headers: Record<string, string>,
+  abortSignal?: AbortSignal,
+) => AsyncGenerator<string, void, unknown>;
+
+export interface ChatServiceDependencies {
+  getActiveInstanceId: () => string | null;
+  getInstanceConfig: ReturnType<typeof llmStore.getState>['getInstanceConfig'];
+  resolveActiveInstanceContext: () => Promise<ActiveInstanceChatContext>;
+  streamRequest: ChatServiceStreamRequest;
+}
+
+export interface ChatServiceDependencyOverrides {
+  getActiveInstanceId?: ChatServiceDependencies['getActiveInstanceId'];
+  getInstanceConfig?: ChatServiceDependencies['getInstanceConfig'];
+  resolveActiveInstanceContext?: ChatServiceDependencies['resolveActiveInstanceContext'];
+  streamRequest?: ChatServiceDependencies['streamRequest'];
 }
 
 export function buildSystemInstruction(skill?: Skill, agent?: Agent) {
@@ -231,12 +261,13 @@ function buildInstanceHeaders(instance: StudioInstanceRecord) {
   return headers;
 }
 
-async function resolveActiveInstanceRoute() {
+async function resolveDefaultActiveInstanceContext(): Promise<ActiveInstanceChatContext> {
   const { activeInstanceId } = instanceStore.getState();
   if (!activeInstanceId) {
     return {
       activeInstance: null,
       route: (await resolveAuthoritativeInstanceChatRoute(null)).route,
+      adapterResolution: null,
     };
   }
 
@@ -244,10 +275,27 @@ async function resolveActiveInstanceRoute() {
   return {
     activeInstance: instance,
     route,
+    adapterResolution: instance
+      ? await resolveAuthoritativeInstanceKernelChatAdapter(activeInstanceId)
+      : null,
   };
 }
 
+function resolveNotReadyReason(context: ActiveInstanceChatContext) {
+  return (
+    context.route.reason ||
+    context.adapterResolution?.capabilities.reason ||
+    'This runtime is not chat-ready yet.'
+  );
+}
+
 class ChatService implements IChatService {
+  private readonly dependencies: ChatServiceDependencies;
+
+  constructor(dependencies: ChatServiceDependencies) {
+    this.dependencies = dependencies;
+  }
+
   createChatSession(_modelId: string, _skill?: Skill, _agent?: Agent) {
     return null;
   }
@@ -260,27 +308,38 @@ class ChatService implements IChatService {
     agent?: Agent,
     abortSignal?: AbortSignal,
   ): AsyncGenerator<string, void, unknown> {
-    const { activeInstanceId } = instanceStore.getState();
+    const activeInstanceId = this.dependencies.getActiveInstanceId();
     const instanceConfig = activeInstanceId
-      ? llmStore.getState().getInstanceConfig(activeInstanceId)
+      ? this.dependencies.getInstanceConfig(activeInstanceId)
       : null;
     const config = instanceConfig?.config ?? DEFAULT_LLM_CONFIG;
     const finalMessage = buildContextualMessage(message, skill, agent);
-    const { activeInstance, route } = await resolveActiveInstanceRoute();
+    const context = await this.dependencies.resolveActiveInstanceContext();
+    const { activeInstance, route, adapterResolution } = context;
 
     if (!activeInstance) {
       yield 'Error: Select or start an AI-compatible instance to chat.';
       return;
     }
 
-    if (route.mode === 'instanceOpenClawGatewayWs') {
+    if (adapterResolution?.capabilities.supported === false) {
+      yield `\n\n**${activeInstance.name}** is not chat-ready yet: ${resolveNotReadyReason(context)}`;
+      return;
+    }
+
+    if (route.mode === 'unsupported') {
+      yield `\n\n**${activeInstance.name}** is not chat-ready yet: ${resolveNotReadyReason(context)}`;
+      return;
+    }
+
+    if (adapterResolution?.adapterId === 'openclawGateway') {
       yield `\n\n**${activeInstance.name}** uses the native gateway WebSocket flow. Claw Studio now drives that route through the chat session store instead of the generic HTTP stream service.`;
       return;
     }
 
     if (route.endpoint) {
       try {
-        yield* streamOpenAiCompatibleRequest(
+        yield* this.dependencies.streamRequest(
           route.endpoint,
           {
             model: model.id,
@@ -324,13 +383,23 @@ class ChatService implements IChatService {
       return;
     }
 
-    if (route.mode === 'unsupported') {
-      yield `\n\n**${activeInstance.name}** is not chat-ready yet: ${route.reason}`;
-      return;
-    }
-
     yield `\n\n**${activeInstance.name}** does not currently expose a compatible streaming chat endpoint.`;
   }
 }
 
-export const chatService = new ChatService();
+export function createChatService(
+  overrides: ChatServiceDependencyOverrides = {},
+) {
+  return new ChatService({
+    getActiveInstanceId:
+      overrides.getActiveInstanceId || (() => instanceStore.getState().activeInstanceId),
+    getInstanceConfig:
+      overrides.getInstanceConfig ||
+      ((instanceId) => llmStore.getState().getInstanceConfig(instanceId)),
+    resolveActiveInstanceContext:
+      overrides.resolveActiveInstanceContext || resolveDefaultActiveInstanceContext,
+    streamRequest: overrides.streamRequest || streamOpenAiCompatibleRequest,
+  });
+}
+
+export const chatService = createChatService();

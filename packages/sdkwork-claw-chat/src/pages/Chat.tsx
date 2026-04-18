@@ -28,15 +28,17 @@ import {
   resolveChatMessageRenderKey,
   resolveKernelChatMessageState,
   resolveKernelChatSessionState,
+  resolveChatRuntimeState,
   resolveChatRunningSessionId,
   resolveChatSendSessionId,
   resolveChatSessionViewState,
+  resolveChatThinkingLevelDefaultOption,
+  resolveChatThinkingLevelOptions,
   resolveGatewayVisibleSessionSyncTarget,
   resolveNewChatSessionModel,
   resolveOpenClawDraftSessionId,
 } from '../services';
 import { resolveChatPageModelSelection } from '../services';
-import { resolveChatThinkingLevelDefaultOption, resolveChatThinkingLevelOptions, } from '../services';
 import {
   shouldLoadChatDirectAgents,
   shouldLoadChatSkills,
@@ -64,6 +66,7 @@ export function Chat() {
     gatewayConnectionStatusByInstance,
     lastErrorByInstance,
     instanceRouteModeById,
+    instanceChatAdapterCapabilitiesById,
     hydrateInstance,
     createSession,
     addMessage,
@@ -104,12 +107,17 @@ export function Chat() {
   const activeSessionId = activeSessionIdByInstance[scopeKey] ?? null;
   const syncState = syncStateByInstance[scopeKey] ?? 'idle';
   const routeMode = activeInstanceId ? instanceRouteModeById[activeInstanceId] : 'directLlm';
-  const isUnsupportedRoute = routeMode === 'unsupported';
-  const isChatSupportedRoute = !isUnsupportedRoute;
-  const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';
-  const gatewayConnectionStatus =
-    gatewayConnectionStatusByInstance[scopeKey] ?? (isOpenClawGateway ? 'disconnected' : null);
   const lastError = lastErrorByInstance[scopeKey];
+  const activeAdapterCapabilities =
+    activeInstanceId ? instanceChatAdapterCapabilitiesById[activeInstanceId] ?? null : null;
+  const adapterRuntimeState = resolveChatRuntimeState({
+    activeInstanceId,
+    routeMode,
+    adapterCapabilities: activeAdapterCapabilities,
+    sessionState: null,
+  });
+  const isChatSupportedRoute = adapterRuntimeState.isChatAvailable;
+  const isOpenClawGateway = adapterRuntimeState.isOpenClawGateway;
   const shouldLoadSkillCatalog = shouldLoadChatSkills({
     isRouteSupported: isChatSupportedRoute,
     isSessionContextDrawerOpen,
@@ -197,11 +205,20 @@ export function Chat() {
   const activeSession = selectableInstanceSessions.find(
     (session) => session.id === effectiveActiveSessionId,
   );
+  const activeKernelSessionState = resolveKernelChatSessionState(activeSession);
+  const chatRuntimeState = resolveChatRuntimeState({
+    activeInstanceId,
+    routeMode,
+    adapterCapabilities: activeAdapterCapabilities,
+    sessionState: activeKernelSessionState,
+  });
+  const isUnsupportedRoute = chatRuntimeState.isBlocked;
+  const gatewayConnectionStatus =
+    gatewayConnectionStatusByInstance[scopeKey] ?? (isOpenClawGateway ? 'disconnected' : null);
   const runningSessionId = resolveChatRunningSessionId({
     isOpenClawGateway,
     selectableSessions: selectableInstanceSessions,
   });
-  const activeKernelSessionState = resolveKernelChatSessionState(activeSession);
   const sessionSelectedModelId =
     isOpenClawGateway && activeSession
       ? activeKernelSessionState.model || activeKernelSessionState.defaultModel || null
@@ -239,9 +256,8 @@ export function Chat() {
   const catalogChannels = isChatSupportedRoute ? modelCatalog?.channels ?? [] : [];
   const activeMessages = Array.isArray(activeSession?.messages) ? activeSession.messages : [];
   const isGatewayHistoryLoading =
-    isOpenClawGateway &&
-    activeSession?.transport === 'openclawGateway' &&
-    activeSession.historyState === 'loading';
+    chatRuntimeState.authorityKind === 'gateway' &&
+    activeSession?.historyState === 'loading';
   const conversationBodyState = resolveChatConversationBodyState({
     messageCount: activeMessages.length,
     isGatewayHistoryLoading,
@@ -381,11 +397,7 @@ export function Chat() {
     shouldLoadSkillCatalog &&
     isSkillsFetching &&
     visibleSkills.length === 0;
-  const sessionRouteLabel = isUnsupportedRoute
-    ? t('chat.page.route.unsupported')
-    : isOpenClawGateway
-      ? t('chat.page.route.gateway')
-      : t('chat.page.route.direct');
+  const sessionRouteLabel = t(chatRuntimeState.routeLabelKey);
   const agentOptions = useMemo(
     () =>
       isChatSupportedRoute

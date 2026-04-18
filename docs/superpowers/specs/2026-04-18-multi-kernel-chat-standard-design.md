@@ -48,7 +48,7 @@ This creates structural debt:
 
 ## Recommended Approach
 
-Use a kernel-native chat domain with one unified projection layer.
+Use a kernel-native chat domain with one unified projection layer and one adapter registry.
 
 The standard keeps kernel-native truth in the owning kernel and standardizes only the shared domain concepts that the UI, orchestration, and future kernels need:
 
@@ -60,6 +60,7 @@ The standard keeps kernel-native truth in the owning kernel and standardizes onl
 - `KernelChatMessagePart`
 - `KernelChatAuthority`
 - `KernelChatAdapter`
+- `KernelChatAdapterRegistry`
 
 This keeps the shared model small, durable, and extensible while still preserving OpenClaw and Hermes semantics.
 
@@ -144,6 +145,7 @@ Rules:
 
 - the first-party authority kinds are `gateway`, `sqlite`, `http`, and `localProjection`
 - only kernel-owned authorities may be durable truth for kernel sessions
+- `localProjection` is reserved for non-authoritative draft/cache projections and must never be durable truth
 - Studio-local projections may cache but must not become authority
 
 ### KernelChatSession
@@ -262,6 +264,21 @@ Rules:
 - shared stores and pages only consume the standardized chat domain
 - adding a new kernel must not require rewriting shared chat state
 
+## Adapter Registry Rule
+
+Claw Studio must resolve chat through one registry:
+
+- `KernelChatAdapterRegistry.resolveForInstance(instanceId)` returns the owning adapter and capability envelope
+- the registry is the only place allowed to bind `runtimeKind + transportKind + deploymentMode` into chat behavior
+- shared stores must not switch directly on route mode or transport mode to decide chat persistence semantics
+
+First-party registry mappings:
+
+- OpenClaw gateway instances -> `OpenClawGatewayKernelChatAdapter`
+- HTTP/SSE/WebSocket-compatible non-OpenClaw kernels -> transport-backed adapter family with `http` or transport capability semantics
+- Hermes instances -> `HermesKernelChatAdapter`
+- unsupported kernels -> explicit unsupported capability envelope, not hidden local fallback persistence
+
 ## OpenClaw Mapping Standard
 
 OpenClaw maps to the shared model like this:
@@ -292,6 +309,17 @@ Hermes-specific rule:
 
 - the platform must preserve Hermes' session-centered storage model instead of forcing an agent-scoped keyspace
 
+## Generic Transport-Backed Kernel Rule
+
+Some kernels may expose chat through stateless or semi-stateful HTTP/SSE/WebSocket transports rather than a gateway-native session store.
+
+Rules:
+
+- these kernels must still enter through a `KernelChatAdapter`
+- if the upstream transport has no durable session store, the adapter may expose non-durable `http` authority sessions
+- the adapter owns transient session state; the Studio conversation store must not become a second durable truth
+- transport-backed adapters may be writable without being durable
+
 ## Persistence Rule
 
 The platform hard-cuts to one authority model:
@@ -299,6 +327,14 @@ The platform hard-cuts to one authority model:
 - kernel-native sessions and messages are authoritative
 - Studio may keep ephemeral projection caches only
 - Studio-local durable conversation records must not remain a second durable truth for kernel-backed chat
+- instance-scoped chat must not persist through `StudioConversationRecord`
+- no route may silently downgrade from kernel authority to Studio-local durable conversation persistence
+
+## Draft And No-Instance Rule
+
+- the chat page may keep purely local UI drafts before an instance is selected or before a kernel session is created
+- such drafts are UI state, not kernel sessions
+- draft state must not be serialized as durable kernel chat truth
 
 ## UI Rule
 
@@ -315,18 +351,21 @@ Rules:
 Recommended implementation order:
 
 1. add shared `KernelChat*` types to `@sdkwork/claw-types`
-2. add OpenClaw projection helpers that map gateway sessions and messages into the shared model
-3. add a kernel chat agent catalog service and adapter SPI in `@sdkwork/claw-chat`
-4. project OpenClaw gateway snapshots through the new standard before they reach the UI store
-5. phase shared chat state away from route-first assumptions
-6. remove Studio-local durable authority from kernel-backed chat paths
+2. add `KernelChatAdapter` and `KernelChatAdapterRegistry` in `@sdkwork/claw-chat`
+3. add OpenClaw projection helpers and the OpenClaw gateway adapter
+4. add transport-backed adapter handling for non-OpenClaw chat-capable runtimes without Studio-local durable persistence
+5. add Hermes adapter capability shell and standard entry surface
+6. phase shared chat state away from route-first assumptions
+7. remove Studio-local durable authority from instance-scoped chat paths
 
 ## Testing Standard
 
 - type-level tests for the shared `KernelChat*` contract
+- adapter-registry tests proving runtime resolution is registry-owned instead of route-first
 - OpenClaw projection tests for session ref parsing, authority mapping, and structured message parts
 - adapter tests for agent/session/message projection behavior
-- store tests proving OpenClaw snapshots surface kernel-native metadata through the shared model
+- store tests proving OpenClaw snapshots and transport-backed sessions surface kernel-native metadata through the shared model
+- tests proving instance-scoped chat no longer persists through `StudioConversationRecord`
 
 ## Non-Goals
 
@@ -340,6 +379,7 @@ Claw Studio adopts a kernel-native chat standard with:
 
 - shared kernel-neutral `agent`, `session`, `run`, and `message` objects
 - adapter-owned transport and native storage details
+- one adapter registry as the only runtime-to-chat binding authority
 - structured message parts
 - single-authority kernel-owned persistence
-- OpenClaw gateway projection and Hermes session-storage projection under one model
+- OpenClaw gateway projection, transport-backed transient adapters, and Hermes session-storage projection under one model

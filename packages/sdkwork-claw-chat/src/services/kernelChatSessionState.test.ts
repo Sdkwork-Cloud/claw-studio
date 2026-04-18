@@ -55,8 +55,16 @@ await runTest('resolveKernelChatSessionState prefers kernel session bindings ove
       },
     }),
     {
+      kernelId: 'openclaw',
+      instanceId: 'instance-a',
+      sessionId: 'agent:research:main',
       agentId: 'research',
       routingKey: 'agent:research:main',
+      authorityKind: 'gateway',
+      authoritySource: 'kernel',
+      authorityDurable: true,
+      authorityWritable: true,
+      lifecycle: 'running',
       sessionKind: 'global',
       activeRunId: 'kernel-run',
       model: 'kernel-model',
@@ -83,8 +91,16 @@ await runTest('resolveKernelChatSessionState falls back to legacy chat session f
       kernelSession: null,
     }),
     {
+      kernelId: null,
+      instanceId: null,
+      sessionId: null,
       agentId: null,
       routingKey: null,
+      authorityKind: null,
+      authoritySource: null,
+      authorityDurable: null,
+      authorityWritable: null,
+      lifecycle: null,
       sessionKind: 'direct',
       activeRunId: 'legacy-run',
       model: 'legacy-model',
@@ -95,4 +111,22 @@ await runTest('resolveKernelChatSessionState falls back to legacy chat session f
       reasoningLevel: 'legacy-reasoning',
     },
   );
+});
+
+await runTest('resolveKernelChatSessionState drops unknown authority kinds instead of widening them to arbitrary strings', () => {
+  const state = resolveKernelChatSessionState({
+    kernelSession: {
+      authority: {
+        kind: 'unsupported-authority',
+        source: 'kernel',
+        durable: false,
+        writable: false,
+      },
+    },
+  });
+
+  assert.equal(state.authorityKind, null);
+  assert.equal(state.authoritySource, 'kernel');
+  assert.equal(state.authorityDurable, false);
+  assert.equal(state.authorityWritable, false);
 });

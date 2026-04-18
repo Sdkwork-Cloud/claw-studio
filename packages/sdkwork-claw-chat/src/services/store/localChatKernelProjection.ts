@@ -85,8 +85,6 @@ function resolveLastMessagePreview(session: LocalChatKernelProjectionSession) {
 export function buildLocalChatKernelChatAuthority(): KernelChatAuthority {
   return createKernelChatAuthority({
     kind: 'localProjection',
-    durable: true,
-    writable: true,
   });
 }
 

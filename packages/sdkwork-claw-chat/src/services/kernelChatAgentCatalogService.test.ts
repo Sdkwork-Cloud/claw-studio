@@ -129,10 +129,44 @@ function createDetail(
   };
 }
 
-await runTest('kernelChatAgentCatalogService prefers OpenClaw kernel catalogs over workbench fallbacks', async () => {
+function createAdapterResolution(input: {
+  instanceId?: string;
+  adapterId: string;
+  authorityKind: 'gateway' | 'sqlite' | 'http' | 'localProjection';
+  supported?: boolean;
+}) {
+  const instanceId = input.instanceId ?? 'instance-a';
+  const capabilities = {
+    adapterId: input.adapterId,
+    authorityKind: input.authorityKind,
+    supported: input.supported ?? true,
+    durable: input.authorityKind !== 'http' && input.authorityKind !== 'localProjection',
+    writable: input.authorityKind !== 'localProjection',
+    supportsStreaming: true,
+    supportsRuns: true,
+    supportsAgentProfiles: input.adapterId === 'openclawGateway',
+    supportsSessionMutation: true,
+    reason: input.supported === false ? 'Kernel adapter is not supported.' : null,
+  };
+
+  return {
+    instanceId,
+    instance: null,
+    adapterId: input.adapterId,
+    capabilities,
+    adapter: {
+      adapterId: input.adapterId,
+      getCapabilities() {
+        return capabilities;
+      },
+    },
+  };
+}
+
+await runTest('kernelChatAgentCatalogService prefers OpenClaw kernel catalogs when the resolved adapter is the gateway authority', async () => {
   const service = createKernelChatAgentCatalogService({
     async getInstanceDetail() {
-      return createDetail('openclaw', [
+      return createDetail('custom', [
         {
           id: 'stale',
           name: 'Stale Agent',
@@ -142,6 +176,12 @@ await runTest('kernelChatAgentCatalogService prefers OpenClaw kernel catalogs ov
           creator: 'Workbench',
         },
       ]);
+    },
+    async resolveAdapterResolution() {
+      return createAdapterResolution({
+        adapterId: 'openclawGateway',
+        authorityKind: 'gateway',
+      });
     },
     async getOpenClawCatalog() {
       return {
@@ -192,6 +232,12 @@ await runTest('kernelChatAgentCatalogService falls back to workbench agents for 
         },
       ]);
     },
+    async resolveAdapterResolution() {
+      return createAdapterResolution({
+        adapterId: 'transportBacked',
+        authorityKind: 'http',
+      });
+    },
     async getOpenClawCatalog() {
       throw new Error('should not call openclaw catalog for non-openclaw runtimes');
     },
@@ -223,4 +269,40 @@ await runTest('kernelChatAgentCatalogService falls back to workbench agents for 
       creator: 'Workbench',
     },
   ]);
+});
+
+await runTest('kernelChatAgentCatalogService returns no profiles when the resolved adapter is explicitly unsupported', async () => {
+  let openClawCatalogCalls = 0;
+  const service = createKernelChatAgentCatalogService({
+    async getInstanceDetail() {
+      return createDetail('custom', [
+        {
+          id: 'ops',
+          name: 'Ops',
+          description: 'Operations agent.',
+          avatar: 'O',
+          systemPrompt: 'ops',
+          creator: 'Workbench',
+        },
+      ]);
+    },
+    async resolveAdapterResolution() {
+      return createAdapterResolution({
+        adapterId: 'unsupported',
+        authorityKind: 'localProjection',
+        supported: false,
+      });
+    },
+    async getOpenClawCatalog() {
+      openClawCatalogCalls++;
+      throw new Error('unsupported adapter should not request kernel catalog');
+    },
+  });
+
+  const profiles = await service.listAgentProfiles('instance-a');
+  const agents = await service.listAgents('instance-a');
+
+  assert.deepEqual(profiles, []);
+  assert.deepEqual(agents, []);
+  assert.equal(openClawCatalogCalls, 0);
 });

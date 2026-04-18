@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
 import type {
+  ChatSession,
+  Message,
+} from './chatStore.ts';
+import {
+  createKernelChatAuthority,
+  createKernelChatSessionRef,
+} from '@sdkwork/claw-types';
+import type {
   StudioInstanceDetailRecord,
   StudioInstanceRecord,
 } from '@sdkwork/claw-types';
@@ -162,6 +170,52 @@ function createSupportedHttpInstance(instanceId: string): StudioInstanceRecord {
       baseUrl: 'https://chat.example.com',
       websocketUrl: null,
       authToken: undefined,
+    },
+  };
+}
+
+function createTransportBackedSession(input: {
+  id: string;
+  instanceId: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  model?: string;
+  messages?: Message[];
+}): ChatSession {
+  const messages = input.messages ?? [];
+  const model = input.model ?? 'gpt-4.1';
+
+  return {
+    id: input.id,
+    title: input.title,
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt,
+    messages,
+    model,
+    instanceId: input.instanceId,
+    transport: 'kernelAdapter',
+    kernelSession: {
+      ref: createKernelChatSessionRef({
+        kernelId: 'custom',
+        instanceId: input.instanceId,
+        sessionId: input.id,
+      }),
+      authority: createKernelChatAuthority({
+        kind: 'http',
+        durable: false,
+      }),
+      lifecycle: messages.length === 0 ? 'draft' : 'ready',
+      title: input.title,
+      createdAt: input.createdAt,
+      updatedAt: input.updatedAt,
+      messageCount: messages.length,
+      sessionKind: 'transport',
+      modelBinding: {
+        model,
+        defaultModel: model,
+      },
+      activeRunId: null,
     },
   };
 }
@@ -443,7 +497,6 @@ await runTest(
   'chatStore createSession re-resolves authoritative routes instead of trusting a stale unsupported cache entry',
   async () => {
     const instanceId = 'stale-unsupported-create-instance';
-    const putConversationCalls: string[] = [];
     const originalBridge = getPlatformBridge();
     resetChatStore();
 
@@ -466,29 +519,22 @@ await runTest(
         async getInstanceDetail() {
           return null;
         },
-        async putConversation(record) {
-          putConversationCalls.push(record.id);
-          return record;
-        },
-        async deleteConversation() {
-          return true;
-        },
       },
     });
 
     try {
       const sessionId = await chatStore.getState().createSession('gpt-4.1', instanceId);
-      for (let attempt = 0; attempt < 20 && putConversationCalls.length === 0; attempt += 1) {
-        await flushAsyncTasks();
-      }
       const state = chatStore.getState();
       const session = state.sessions.find((entry) => entry.id === sessionId);
 
       assert.ok(sessionId);
-      assert.ok(putConversationCalls.includes(sessionId));
       assert.ok(session);
       assert.equal(session?.instanceId, instanceId);
-      assert.equal(session?.transport, 'local');
+      assert.equal(session?.transport, 'kernelAdapter');
+      assert.equal(session?.kernelSession?.authority.kind, 'http');
+      assert.equal(session?.kernelSession?.authority.durable, false);
+      assert.equal(session?.kernelSession?.authority.source, 'kernel');
+      assert.equal(session?.kernelSession?.ref.instanceId, instanceId);
       assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
       assert.equal(state.activeSessionIdByInstance[instanceId], sessionId);
       assert.equal(state.lastErrorByInstance[instanceId], undefined);
@@ -500,12 +546,11 @@ await runTest(
 );
 
 await runTest(
-  'chatStore createSession on local routes drops stale gateway sessions while creating a new authoritative local session',
+  'chatStore createSession on transport-backed routes drops stale gateway sessions while creating a new authoritative kernel adapter session',
   async () => {
     const instanceId = 'local-create-stale-gateway-scope-instance';
     const staleGatewaySessionId = 'gateway-session-create-stale';
     const existingLocalSessionId = 'local-session-existing';
-    const putConversationCalls: string[] = [];
     const originalBridge = getPlatformBridge();
     resetChatStore();
 
@@ -522,16 +567,13 @@ await runTest(
           instanceId,
           transport: 'openclawGateway',
         },
-        {
+        createTransportBackedSession({
           id: existingLocalSessionId,
+          instanceId,
           title: 'Existing Local Session',
           createdAt: 1,
           updatedAt: 1,
-          messages: [],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
       ],
       activeSessionIdByInstance: {
         [instanceId]: existingLocalSessionId,
@@ -550,37 +592,29 @@ await runTest(
         async getInstanceDetail() {
           return null;
         },
-        async putConversation(record) {
-          putConversationCalls.push(record.id);
-          return record;
-        },
       },
     });
 
     try {
       const sessionId = await chatStore.getState().createSession('gpt-4.1', instanceId);
-      for (let attempt = 0; attempt < 20 && putConversationCalls.length === 0; attempt += 1) {
-        await flushAsyncTasks();
-      }
-
       const state = chatStore.getState();
       const scopedSessions = state.sessions.filter((session) => session.instanceId === instanceId);
 
       assert.ok(sessionId);
-      assert.ok(putConversationCalls.includes(sessionId));
       assert.equal(state.activeSessionIdByInstance[instanceId], sessionId);
       assert.deepEqual(
         scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
         [
-          { id: sessionId, transport: 'local' },
-          { id: existingLocalSessionId, transport: 'local' },
+          { id: sessionId, transport: 'kernelAdapter' },
+          { id: existingLocalSessionId, transport: 'kernelAdapter' },
         ],
       );
       const createdSession = scopedSessions.find((session) => session.id === sessionId);
       assert.ok(createdSession?.kernelSession);
-      assert.equal(createdSession?.kernelSession?.authority.kind, 'localProjection');
-      assert.equal(createdSession?.kernelSession?.authority.source, 'studioProjection');
-      assert.equal(createdSession?.kernelSession?.ref.kernelId, 'studio-direct');
+      assert.equal(createdSession?.kernelSession?.authority.kind, 'http');
+      assert.equal(createdSession?.kernelSession?.authority.source, 'kernel');
+      assert.equal(createdSession?.kernelSession?.authority.durable, false);
+      assert.equal(createdSession?.kernelSession?.ref.instanceId, instanceId);
       assert.equal(createdSession?.kernelSession?.ref.instanceId, instanceId);
       assert.equal(createdSession?.kernelSession?.lifecycle, 'draft');
       assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
@@ -596,7 +630,6 @@ await runTest(
   'chatStore startNewSession re-resolves authoritative routes instead of trusting a stale unsupported cache entry',
   async () => {
     const instanceId = 'stale-unsupported-start-new-instance';
-    const putConversationCalls: string[] = [];
     const originalBridge = getPlatformBridge();
     resetChatStore();
 
@@ -619,26 +652,20 @@ await runTest(
         async getInstanceDetail() {
           return null;
         },
-        async putConversation(record) {
-          putConversationCalls.push(record.id);
-          return record;
-        },
       },
     });
 
     try {
       const sessionId = await chatStore.getState().startNewSession('gpt-4.1', instanceId);
-      for (let attempt = 0; attempt < 20 && putConversationCalls.length === 0; attempt += 1) {
-        await flushAsyncTasks();
-      }
       const state = chatStore.getState();
       const session = state.sessions.find((entry) => entry.id === sessionId);
 
       assert.ok(sessionId);
-      assert.ok(putConversationCalls.includes(String(sessionId)));
       assert.ok(session);
       assert.equal(session?.instanceId, instanceId);
-      assert.equal(session?.transport, 'local');
+      assert.equal(session?.transport, 'kernelAdapter');
+      assert.equal(session?.kernelSession?.authority.kind, 'http');
+      assert.equal(session?.kernelSession?.authority.durable, false);
       assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
       assert.equal(state.activeSessionIdByInstance[instanceId], sessionId);
       assert.equal(state.lastErrorByInstance[instanceId], undefined);
@@ -660,16 +687,13 @@ await runTest(
     chatStore.setState((state) => ({
       ...state,
       sessions: [
-        {
+        createTransportBackedSession({
           id: sessionId,
+          instanceId,
           title: 'Recovered HTTP Session',
           createdAt: 1,
           updatedAt: 2,
-          messages: [],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
       ],
       activeSessionIdByInstance: {
         [instanceId]: null,
@@ -702,7 +726,8 @@ await runTest(
       assert.equal(state.syncStateByInstance[instanceId], 'idle');
       assert.equal(state.sessions.length, 1);
       assert.ok(session);
-      assert.equal(session?.transport, 'local');
+      assert.equal(session?.transport, 'kernelAdapter');
+      assert.equal(session?.kernelSession?.authority.kind, 'http');
     } finally {
       resetChatStore();
       configurePlatformBridge(originalBridge);
@@ -954,29 +979,25 @@ await runTest(
 );
 
 await runTest(
-  'chatStore deleteSession on local routes drops stale gateway sessions before choosing the next active local session',
+  'chatStore deleteSession on transport-backed routes drops stale gateway sessions before choosing the next active kernel adapter session',
   async () => {
     const instanceId = 'local-delete-stale-gateway-fallback-instance';
     const activeLocalSessionId = 'local-session-active';
     const staleGatewaySessionId = 'gateway-session-stale';
     const backupLocalSessionId = 'local-session-backup';
-    const deleteConversationCalls: string[] = [];
     const originalBridge = getPlatformBridge();
     resetChatStore();
 
     chatStore.setState((state) => ({
       ...state,
       sessions: [
-        {
+        createTransportBackedSession({
           id: activeLocalSessionId,
+          instanceId,
           title: 'Active Local Session',
           createdAt: 1,
           updatedAt: 3,
-          messages: [],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
         {
           id: staleGatewaySessionId,
           title: 'Stale Gateway Session',
@@ -987,16 +1008,13 @@ await runTest(
           instanceId,
           transport: 'openclawGateway',
         },
-        {
+        createTransportBackedSession({
           id: backupLocalSessionId,
+          instanceId,
           title: 'Backup Local Session',
           createdAt: 1,
           updatedAt: 1,
-          messages: [],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
       ],
       activeSessionIdByInstance: {
         [instanceId]: activeLocalSessionId,
@@ -1015,27 +1033,19 @@ await runTest(
         async getInstanceDetail() {
           return null;
         },
-        async deleteConversation(id) {
-          deleteConversationCalls.push(id);
-          return true;
-        },
       },
     });
 
     try {
       await chatStore.getState().deleteSession(activeLocalSessionId, instanceId);
-      for (let attempt = 0; attempt < 20 && deleteConversationCalls.length === 0; attempt += 1) {
-        await flushAsyncTasks();
-      }
       const state = chatStore.getState();
       const scopedSessions = state.sessions.filter((session) => session.instanceId === instanceId);
 
       assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
       assert.equal(state.activeSessionIdByInstance[instanceId], backupLocalSessionId);
-      assert.deepEqual(deleteConversationCalls, [activeLocalSessionId]);
       assert.deepEqual(
         scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
-        [{ id: backupLocalSessionId, transport: 'local' }],
+        [{ id: backupLocalSessionId, transport: 'kernelAdapter' }],
       );
       assert.equal(state.syncStateByInstance[instanceId], 'idle');
       assert.equal(state.gatewayConnectionStatusByInstance[instanceId], undefined);
@@ -1048,7 +1058,7 @@ await runTest(
 );
 
 await runTest(
-  'chatStore clearSession on local routes drops stale gateway sessions while keeping the cleared local session active',
+  'chatStore clearSession on transport-backed routes drops stale gateway sessions while keeping the cleared kernel adapter session active',
   async () => {
     const instanceId = 'local-clear-stale-gateway-scope-instance';
     const activeLocalSessionId = 'local-session-clear-active';
@@ -1060,8 +1070,9 @@ await runTest(
     chatStore.setState((state) => ({
       ...state,
       sessions: [
-        {
+        createTransportBackedSession({
           id: activeLocalSessionId,
+          instanceId,
           title: 'Active Local Session',
           createdAt: 1,
           updatedAt: 3,
@@ -1073,10 +1084,7 @@ await runTest(
               timestamp: 3,
             },
           ],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
         {
           id: staleGatewaySessionId,
           title: 'Stale Gateway Session',
@@ -1087,16 +1095,13 @@ await runTest(
           instanceId,
           transport: 'openclawGateway',
         },
-        {
+        createTransportBackedSession({
           id: backupLocalSessionId,
+          instanceId,
           title: 'Backup Local Session',
           createdAt: 1,
           updatedAt: 1,
-          messages: [],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
       ],
       activeSessionIdByInstance: {
         [instanceId]: activeLocalSessionId,
@@ -1114,9 +1119,6 @@ await runTest(
         },
         async getInstanceDetail() {
           return null;
-        },
-        async putConversation(record) {
-          return record;
         },
       },
     });
@@ -1134,11 +1136,13 @@ await runTest(
       assert.deepEqual(
         scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
         [
-          { id: activeLocalSessionId, transport: 'local' },
-          { id: backupLocalSessionId, transport: 'local' },
+          { id: activeLocalSessionId, transport: 'kernelAdapter' },
+          { id: backupLocalSessionId, transport: 'kernelAdapter' },
         ],
       );
       assert.equal(clearedSession?.messages.length ?? -1, 0);
+      assert.equal(clearedSession?.kernelSession?.authority.kind, 'http');
+      assert.equal(clearedSession?.kernelSession?.authority.durable, false);
       assert.equal(state.syncStateByInstance[instanceId] ?? 'idle', 'idle');
       assert.equal(state.gatewayConnectionStatusByInstance[instanceId], undefined);
       assert.equal(state.lastErrorByInstance[instanceId], undefined);
@@ -1150,7 +1154,7 @@ await runTest(
 );
 
 await runTest(
-  'chatStore flushSession on local routes drops stale gateway sessions after persisting the authoritative local session scope',
+  'chatStore flushSession on transport-backed routes drops stale gateway sessions without writing through the studio conversation store',
   async () => {
     const instanceId = 'local-flush-stale-gateway-scope-instance';
     const activeLocalSessionId = 'local-session-flush-active';
@@ -1162,8 +1166,9 @@ await runTest(
     chatStore.setState((state) => ({
       ...state,
       sessions: [
-        {
+        createTransportBackedSession({
           id: activeLocalSessionId,
+          instanceId,
           title: 'Active Local Session',
           createdAt: 1,
           updatedAt: 3,
@@ -1175,10 +1180,7 @@ await runTest(
               timestamp: 3,
             },
           ],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
         {
           id: staleGatewaySessionId,
           title: 'Stale Gateway Session',
@@ -1189,16 +1191,13 @@ await runTest(
           instanceId,
           transport: 'openclawGateway',
         },
-        {
+        createTransportBackedSession({
           id: backupLocalSessionId,
+          instanceId,
           title: 'Backup Local Session',
           createdAt: 1,
           updatedAt: 1,
-          messages: [],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
       ],
       activeSessionIdByInstance: {
         [instanceId]: activeLocalSessionId,
@@ -1220,49 +1219,6 @@ await runTest(
         async getInstanceDetail() {
           return null;
         },
-        async putConversation(record) {
-          return {
-            ...record,
-            updatedAt: 5,
-          };
-        },
-        async listConversations(requestedInstanceId) {
-          return [
-            {
-              id: activeLocalSessionId,
-              title: 'Active Local Session',
-              primaryInstanceId: requestedInstanceId,
-              participantInstanceIds: [requestedInstanceId],
-              createdAt: 1,
-              updatedAt: 5,
-              messageCount: 1,
-              lastMessagePreview: 'hello',
-              messages: [
-                {
-                  id: 'msg-1',
-                  conversationId: activeLocalSessionId,
-                  role: 'user',
-                  content: 'hello',
-                  createdAt: 3,
-                  updatedAt: 3,
-                  senderInstanceId: requestedInstanceId,
-                  status: 'complete',
-                },
-              ],
-            },
-            {
-              id: backupLocalSessionId,
-              title: 'Backup Local Session',
-              primaryInstanceId: requestedInstanceId,
-              participantInstanceIds: [requestedInstanceId],
-              createdAt: 1,
-              updatedAt: 1,
-              messageCount: 0,
-              lastMessagePreview: '',
-              messages: [],
-            },
-          ];
-        },
       },
     });
 
@@ -1276,8 +1232,8 @@ await runTest(
       assert.deepEqual(
         scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
         [
-          { id: activeLocalSessionId, transport: 'local' },
-          { id: backupLocalSessionId, transport: 'local' },
+          { id: activeLocalSessionId, transport: 'kernelAdapter' },
+          { id: backupLocalSessionId, transport: 'kernelAdapter' },
         ],
       );
       assert.equal(state.syncStateByInstance[instanceId], 'idle');
@@ -1291,29 +1247,25 @@ await runTest(
 );
 
 await runTest(
-  'chatStore addMessage on local routes drops stale gateway sessions while updating the authoritative local session',
+  'chatStore addMessage on transport-backed routes drops stale gateway sessions while updating the authoritative kernel adapter session',
   async () => {
     const instanceId = 'local-add-message-stale-gateway-scope-instance';
     const activeLocalSessionId = 'local-session-add-message-active';
     const staleGatewaySessionId = 'gateway-session-add-message-stale';
     const backupLocalSessionId = 'local-session-add-message-backup';
-    const putConversationCalls: string[] = [];
     const originalBridge = getPlatformBridge();
     resetChatStore();
 
     chatStore.setState((state) => ({
       ...state,
       sessions: [
-        {
+        createTransportBackedSession({
           id: activeLocalSessionId,
+          instanceId,
           title: 'Untitled',
           createdAt: 1,
           updatedAt: 3,
-          messages: [],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
         {
           id: staleGatewaySessionId,
           title: 'Stale Gateway Session',
@@ -1324,16 +1276,13 @@ await runTest(
           instanceId,
           transport: 'openclawGateway',
         },
-        {
+        createTransportBackedSession({
           id: backupLocalSessionId,
+          instanceId,
           title: 'Backup Local Session',
           createdAt: 1,
           updatedAt: 1,
-          messages: [],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
       ],
       activeSessionIdByInstance: {
         [instanceId]: activeLocalSessionId,
@@ -1352,10 +1301,6 @@ await runTest(
         async getInstanceDetail() {
           return null;
         },
-        async putConversation(record) {
-          putConversationCalls.push(record.id);
-          return record;
-        },
       },
     });
 
@@ -1364,9 +1309,6 @@ await runTest(
         role: 'user',
         content: 'hello local scope',
       });
-      for (let attempt = 0; attempt < 20 && putConversationCalls.length === 0; attempt += 1) {
-        await flushAsyncTasks();
-      }
 
       const state = chatStore.getState();
       const scopedSessions = state.sessions.filter((session) => session.instanceId === instanceId);
@@ -1375,16 +1317,16 @@ await runTest(
       assert.deepEqual(
         scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
         [
-          { id: activeLocalSessionId, transport: 'local' },
-          { id: backupLocalSessionId, transport: 'local' },
+          { id: activeLocalSessionId, transport: 'kernelAdapter' },
+          { id: backupLocalSessionId, transport: 'kernelAdapter' },
         ],
       );
       assert.equal(state.activeSessionIdByInstance[instanceId], activeLocalSessionId);
-      assert.ok(putConversationCalls.includes(activeLocalSessionId));
       assert.equal(activeSession?.messages.length ?? -1, 1);
       assert.equal(activeSession?.messages[0]?.content, 'hello local scope');
       assert.ok(activeSession?.kernelSession);
-      assert.equal(activeSession?.kernelSession?.authority.kind, 'localProjection');
+      assert.equal(activeSession?.kernelSession?.authority.kind, 'http');
+      assert.equal(activeSession?.kernelSession?.authority.durable, false);
       assert.ok(activeSession?.messages[0]?.kernelMessage);
       assert.equal(
         activeSession?.messages[0]?.kernelMessage?.sessionRef.sessionId,
@@ -1399,7 +1341,7 @@ await runTest(
 );
 
 await runTest(
-  'chatStore updateMessage on local routes drops stale gateway sessions while editing the authoritative local session',
+  'chatStore updateMessage on transport-backed routes drops stale gateway sessions while editing the authoritative kernel adapter session',
   async () => {
     const instanceId = 'local-update-message-stale-gateway-scope-instance';
     const activeLocalSessionId = 'local-session-update-message-active';
@@ -1411,8 +1353,9 @@ await runTest(
     chatStore.setState((state) => ({
       ...state,
       sessions: [
-        {
+        createTransportBackedSession({
           id: activeLocalSessionId,
+          instanceId,
           title: 'Editable Local Session',
           createdAt: 1,
           updatedAt: 3,
@@ -1424,10 +1367,7 @@ await runTest(
               timestamp: 3,
             },
           ],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
         {
           id: staleGatewaySessionId,
           title: 'Stale Gateway Session',
@@ -1438,16 +1378,13 @@ await runTest(
           instanceId,
           transport: 'openclawGateway',
         },
-        {
+        createTransportBackedSession({
           id: backupLocalSessionId,
+          instanceId,
           title: 'Backup Local Session',
           createdAt: 1,
           updatedAt: 1,
-          messages: [],
-          model: 'gpt-4.1',
-          instanceId,
-          transport: 'local',
-        },
+        }),
       ],
       activeSessionIdByInstance: {
         [instanceId]: activeLocalSessionId,
@@ -1467,13 +1404,14 @@ await runTest(
       assert.deepEqual(
         scopedSessions.map((session) => ({ id: session.id, transport: session.transport })),
         [
-          { id: activeLocalSessionId, transport: 'local' },
-          { id: backupLocalSessionId, transport: 'local' },
+          { id: activeLocalSessionId, transport: 'kernelAdapter' },
+          { id: backupLocalSessionId, transport: 'kernelAdapter' },
         ],
       );
       assert.equal(state.activeSessionIdByInstance[instanceId], activeLocalSessionId);
       assert.equal(activeSession?.messages[0]?.content, 'final reply');
       assert.ok(activeSession?.kernelSession);
+      assert.equal(activeSession?.kernelSession?.authority.kind, 'http');
       assert.ok(activeSession?.messages[0]?.kernelMessage);
       assert.equal(activeSession?.messages[0]?.kernelMessage?.text, 'final reply');
     } finally {

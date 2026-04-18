@@ -72,6 +72,8 @@ runTest(
     });
     assert.equal(projected.kernelSession.authority.kind, 'localProjection');
     assert.equal(projected.kernelSession.authority.source, 'studioProjection');
+    assert.equal(projected.kernelSession.authority.durable, false);
+    assert.equal(projected.kernelSession.authority.writable, false);
     assert.equal(projected.kernelSession.lifecycle, 'running');
     assert.equal(projected.kernelSession.sessionKind, 'direct');
     assert.equal(projected.kernelSession.activeRunId, 'run-1');
@@ -99,6 +101,7 @@ runTest(
 
     assert.equal(projected.kernelSession.ref.kernelId, 'studio-direct');
     assert.equal(projected.kernelSession.ref.instanceId, 'local-built-in');
+    assert.equal(projected.kernelSession.authority.durable, false);
     assert.equal(projected.kernelSession.lifecycle, 'draft');
     assert.equal(projected.kernelSession.sessionKind, 'direct');
     assert.deepEqual(projected.messages, []);

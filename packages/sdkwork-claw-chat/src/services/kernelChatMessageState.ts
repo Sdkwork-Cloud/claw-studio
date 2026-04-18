@@ -18,11 +18,18 @@ type KernelChatMessageStateSource = {
 export type KernelChatMessageState = {
   id?: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
+  status: 'complete' | 'streaming' | 'error';
   content: string;
   timestamp: number;
   senderLabel: string | null;
   model?: string;
   runId?: string;
+  kernelId?: string;
+  instanceId?: string;
+  sessionId?: string;
+  nativeSessionId?: string;
+  routingKey?: string;
+  agentId?: string;
   attachments: StudioConversationAttachment[];
   reasoning: string | null;
   toolCards: OpenClawToolCard[];
@@ -49,6 +56,19 @@ function normalizeRole(value: string | null | undefined): KernelChatMessageState
       return 'system';
     default:
       return 'assistant';
+  }
+}
+
+function normalizeStatus(
+  value: string | null | undefined,
+): KernelChatMessageState['status'] {
+  switch (trimNullableString(value)) {
+    case 'streaming':
+      return 'streaming';
+    case 'error':
+      return 'error';
+    default:
+      return 'complete';
   }
 }
 
@@ -124,6 +144,7 @@ export function resolveKernelChatMessageState(
   return {
     id: trimNullableString(kernelMessage?.id) ?? trimNullableString(message?.id) ?? undefined,
     role: normalizeRole(kernelMessage?.role ?? message?.role),
+    status: normalizeStatus(kernelMessage?.status),
     content: kernelMessage ? resolveKernelContent(kernelMessage) : message?.content ?? '',
     timestamp:
       kernelTimestamp ??
@@ -138,6 +159,13 @@ export function resolveKernelChatMessageState(
       trimNullableString(kernelMessage?.runId) ??
       trimNullableString(message?.runId) ??
       undefined,
+    kernelId: trimNullableString(kernelMessage?.sessionRef.kernelId) ?? undefined,
+    instanceId: trimNullableString(kernelMessage?.sessionRef.instanceId) ?? undefined,
+    sessionId: trimNullableString(kernelMessage?.sessionRef.sessionId) ?? undefined,
+    nativeSessionId:
+      trimNullableString(kernelMessage?.sessionRef.nativeSessionId) ?? undefined,
+    routingKey: trimNullableString(kernelMessage?.sessionRef.routingKey) ?? undefined,
+    agentId: trimNullableString(kernelMessage?.sessionRef.agentId) ?? undefined,
     attachments: kernelMessage
       ? resolveKernelAttachments(kernelMessage)
       : cloneAttachments(message?.attachments),

@@ -102,7 +102,7 @@ await runTest(
   () => {
     assert.match(
       pageSource,
-      /import \{[\s\S]*resolveKernelChatSessionState,[\s\S]*resolveChatThinkingLevelDefaultOption,\s*resolveChatThinkingLevelOptions,[\s\S]*\} from '\.\.\/services';/s,
+      /import \{[\s\S]*resolveKernelChatSessionState,[\s\S]*resolveChatRuntimeState,[\s\S]*resolveChatThinkingLevelDefaultOption,\s*resolveChatThinkingLevelOptions,[\s\S]*\} from '\.\.\/services';/s,
     );
     assert.match(
       pageSource,
@@ -264,7 +264,7 @@ await runTest(
 );
 
 await runTest(
-  'Chat page only loads the OpenClaw agent catalog when the active route is a gateway chat route',
+  'Chat page only loads the OpenClaw agent catalog when the active adapter resolves to a gateway kernel chat path',
   () => {
     assert.match(
       pageSource,
@@ -274,10 +274,26 @@ await runTest(
 );
 
 await runTest(
-  'Chat page collapses unsupported routes into a blocked chat surface instead of treating them like direct chat',
+  'Chat page derives blocked and gateway chat state from adapter capabilities instead of raw route literals',
   () => {
-    assert.match(pageSource, /const isUnsupportedRoute = routeMode === 'unsupported';/);
-    assert.match(pageSource, /const isChatSupportedRoute = !isUnsupportedRoute;/);
+    assert.match(
+      pageSource,
+      /const activeAdapterCapabilities =\s*activeInstanceId \? instanceChatAdapterCapabilitiesById\[activeInstanceId\] \?\? null : null;/,
+    );
+    assert.match(
+      pageSource,
+      /const adapterRuntimeState = resolveChatRuntimeState\(\{\s*activeInstanceId,\s*routeMode,\s*adapterCapabilities: activeAdapterCapabilities,\s*sessionState: null,\s*\}\);/s,
+    );
+    assert.match(pageSource, /const isChatSupportedRoute = adapterRuntimeState\.isChatAvailable;/);
+    assert.match(pageSource, /const isOpenClawGateway = adapterRuntimeState\.isOpenClawGateway;/);
+    assert.match(
+      pageSource,
+      /const chatRuntimeState = resolveChatRuntimeState\(\{\s*activeInstanceId,\s*routeMode,\s*adapterCapabilities: activeAdapterCapabilities,\s*sessionState: activeKernelSessionState,\s*\}\);/s,
+    );
+    assert.match(pageSource, /const isUnsupportedRoute = chatRuntimeState\.isBlocked;/);
+    assert.doesNotMatch(pageSource, /const isUnsupportedRoute = routeMode === 'unsupported';/);
+    assert.doesNotMatch(pageSource, /const isChatSupportedRoute = !isUnsupportedRoute;/);
+    assert.doesNotMatch(pageSource, /const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';/);
     assert.match(
       pageSource,
       /shouldLoadChatSkills\(\{\s*isRouteSupported: isChatSupportedRoute,\s*isSessionContextDrawerOpen,\s*selectedSkillId,\s*\}\)/s,
@@ -292,7 +308,7 @@ await runTest(
     );
     assert.match(
       pageSource,
-      /const sessionRouteLabel = isUnsupportedRoute\s*\?\s*t\('chat\.page\.route\.unsupported'\)\s*:\s*isOpenClawGateway\s*\?\s*t\('chat\.page\.route\.gateway'\)\s*:\s*t\('chat\.page\.route\.direct'\);/s,
+      /const sessionRouteLabel = t\(chatRuntimeState\.routeLabelKey\);/,
     );
     assert.match(
       pageSource,

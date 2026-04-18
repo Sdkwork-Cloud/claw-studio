@@ -1,0 +1,55 @@
+import type { KernelChatAuthorityKind } from '@sdkwork/claw-types';
+import type { KernelChatAdapterCapabilities } from './kernelChatAdapter.ts';
+import type { InstanceChatRouteMode } from './instanceChatRouteService.ts';
+
+export interface ChatRuntimeState {
+  hasResolvedContext: boolean;
+  authorityKind: KernelChatAuthorityKind | null;
+  isBlocked: boolean;
+  isChatAvailable: boolean;
+  isOpenClawGateway: boolean;
+  routeLabelKey:
+    | 'chat.page.route.unsupported'
+    | 'chat.page.route.gateway'
+    | 'chat.page.route.direct';
+}
+
+export interface ResolveChatRuntimeStateInput {
+  activeInstanceId: string | null | undefined;
+  routeMode: InstanceChatRouteMode | undefined;
+  adapterCapabilities?: KernelChatAdapterCapabilities | null;
+  sessionState?: {
+    authorityKind?: KernelChatAuthorityKind | null;
+  } | null;
+}
+
+export function resolveChatRuntimeState(
+  input: ResolveChatRuntimeStateInput,
+): ChatRuntimeState {
+  const hasSelectedInstance = Boolean(input.activeInstanceId);
+  const hasResolvedContext =
+    !hasSelectedInstance || Boolean(input.routeMode && input.adapterCapabilities);
+  const authorityKind =
+    input.sessionState?.authorityKind ?? input.adapterCapabilities?.authorityKind ?? null;
+  const isOpenClawGateway =
+    input.adapterCapabilities?.adapterId === 'openclawGateway' || authorityKind === 'gateway';
+  const isAdapterSupported =
+    !hasSelectedInstance || input.adapterCapabilities?.supported !== false;
+  const isRouteReady =
+    !hasSelectedInstance ||
+    Boolean(input.routeMode && input.routeMode !== 'unsupported');
+  const isBlocked = hasResolvedContext ? !isAdapterSupported || !isRouteReady : false;
+
+  return {
+    hasResolvedContext,
+    authorityKind,
+    isBlocked,
+    isChatAvailable: !isBlocked,
+    isOpenClawGateway,
+    routeLabelKey: isBlocked
+      ? 'chat.page.route.unsupported'
+      : isOpenClawGateway
+        ? 'chat.page.route.gateway'
+        : 'chat.page.route.direct',
+  };
+}

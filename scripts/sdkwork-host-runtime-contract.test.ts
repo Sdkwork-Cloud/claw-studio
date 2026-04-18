@@ -1474,10 +1474,6 @@ runTest('hosted conversation snapshots do not override built-in OpenClaw runtime
     /does not expose a managed workbench/,
   );
   assert.match(
-    studioConversationGatewaySource,
-    /resolveAuthoritativeInstanceChatRoute/,
-  );
-  assert.match(
     authoritativeRouteSource,
     /studio\.getInstanceDetail\(instanceId\)\.catch\(\(\) => null\)/,
   );
@@ -1488,6 +1484,10 @@ runTest('hosted conversation snapshots do not override built-in OpenClaw runtime
   assert.match(
     studioConversationGatewaySource,
     /return \[\];/,
+  );
+  assert.match(
+    studioConversationGatewaySource,
+    /Instance-scoped kernel chat sessions are not persisted through the studio conversation store/,
   );
   assert.doesNotMatch(
     studioConversationGatewaySource,

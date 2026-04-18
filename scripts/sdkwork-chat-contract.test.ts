@@ -365,7 +365,7 @@ await runTest('sdkwork-claw-chat derives a readable local session title from the
   }
 });
 
-await runTest('sdkwork-claw-chat keeps active session state isolated per instance and blocks local persistence for openclaw gateway sessions', () => {
+await runTest('sdkwork-claw-chat keeps active session state isolated per instance and hard-cuts instance chat onto adapter-owned authority', () => {
   const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/chatStore.ts');
   const localGatewaySource = read('packages/sdkwork-claw-chat/src/store/studioConversationGateway.ts');
   const chatMappingSource = read('packages/sdkwork-claw-chat/src/chatSessionMapping.ts');
@@ -378,12 +378,17 @@ await runTest('sdkwork-claw-chat keeps active session state isolated per instanc
   assert.match(chatStoreSource, /sendGatewayMessage/);
   assert.match(chatStoreSource, /abortSession/);
   assert.match(chatStoreSource, /instanceRouteModeById/);
-  assert.match(localGatewaySource, /openclawGateway/);
-  assert.match(localGatewaySource, /not persisted locally/);
-  assert.doesNotMatch(localGatewaySource, /instance\.runtimeKind === 'openclaw'/);
-  assert.match(localGatewaySource, /instance\.transportKind === 'openclawGatewayWs'/);
-  assert.match(chatMappingSource, /must not be persisted through the studio conversation store/);
-  assert.match(chatPageSource, /const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';/);
+  assert.match(chatStoreSource, /instanceChatAdapterCapabilitiesById/);
+  assert.match(chatStoreSource, /createKernelChatAdapterRegistry/);
+  assert.match(chatStoreSource, /transport\?: 'local' \| 'kernelAdapter' \| 'openclawGateway';/);
+  assert.match(chatStoreSource, /transport: 'kernelAdapter'/);
+  assert.match(localGatewaySource, /Instance-scoped kernel chat sessions are not persisted through the studio conversation store/);
+  assert.match(localGatewaySource, /return \[\];/);
+  assert.match(chatMappingSource, /Instance-scoped kernel chat sessions must not be persisted through the studio conversation store/);
+  assert.doesNotMatch(chatMappingSource, /hydrateLocalChatKernelProjection/);
+  assert.match(chatPageSource, /const activeAdapterCapabilities =/);
+  assert.match(chatPageSource, /const adapterRuntimeState = resolveChatRuntimeState\(/);
+  assert.match(chatPageSource, /const isOpenClawGateway = adapterRuntimeState\.isOpenClawGateway;/);
   assert.match(chatPageSource, /sendGatewayMessage/);
   assert.match(chatPageSource, /abortSession/);
   assert.match(chatSidebarSource, /activeSessionIdByInstance/);
@@ -398,8 +403,10 @@ await runTest('sdkwork-claw-chat does not fall back to local HTTP while an insta
     chatPageSource,
     /const routeMode = activeInstanceId \? instanceRouteModeById\[activeInstanceId\] : 'directLlm';/,
   );
-  assert.match(chatPageSource, /const isUnsupportedRoute = routeMode === 'unsupported';/);
-  assert.match(chatPageSource, /const isChatSupportedRoute = !isUnsupportedRoute;/);
+  assert.match(chatPageSource, /const adapterRuntimeState = resolveChatRuntimeState\(\{/);
+  assert.match(chatPageSource, /const isChatSupportedRoute = adapterRuntimeState\.isChatAvailable;/);
+  assert.match(chatPageSource, /const chatRuntimeState = resolveChatRuntimeState\(\{/);
+  assert.match(chatPageSource, /const isUnsupportedRoute = chatRuntimeState\.isBlocked;/);
   assert.doesNotMatch(
     chatPageSource,
     /const routeMode = activeInstanceId \? instanceRouteModeById\[activeInstanceId\] \?\? 'directLlm' : 'directLlm';/,
@@ -533,11 +540,11 @@ await runTest('sdkwork-claw-chat re-resolves authoritative instance routes befor
 
   assert.match(
     chatStoreSource,
-    /async createSession\(model, instanceId, options\) \{[\s\S]*const resolvedRoute = await resolveInstanceRouteMode\(instanceId\);/s,
+    /async createSession\(model, instanceId, options\) \{[\s\S]*const resolvedContext = await resolveInstanceChatContext\(instanceId\);/s,
   );
   assert.match(
     chatStoreSource,
-    /async startNewSession\(model, instanceId, options\) \{[\s\S]*const resolvedRoute = await resolveInstanceRouteMode\(instanceId\);/s,
+    /async startNewSession\(model, instanceId, options\) \{[\s\S]*const resolvedContext = await resolveInstanceChatContext\(instanceId\);/s,
   );
   assert.doesNotMatch(
     chatStoreSource,
@@ -550,7 +557,7 @@ await runTest('sdkwork-claw-chat re-resolves authoritative instance routes befor
 
   assert.match(
     chatStoreSource,
-    /async setActiveSession\(id, instanceId\) \{[\s\S]*const resolvedRoute = await resolveInstanceRouteMode\(resolvedInstanceId\);/s,
+    /async setActiveSession\(id, instanceId\) \{[\s\S]*const resolvedContext = await resolveInstanceChatContext\(resolvedInstanceId\);/s,
   );
   assert.doesNotMatch(
     chatStoreSource,
@@ -563,88 +570,60 @@ await runTest('sdkwork-claw-chat re-resolves authoritative instance routes befor
 
   assert.match(
     chatStoreSource,
-    /async deleteSession\(id, instanceId\) \{[\s\S]*if \(session\?\.transport === 'openclawGateway' && resolvedInstanceId\) \{[\s\S]*const resolvedRoute = await resolveInstanceRouteMode\(resolvedInstanceId\);/s,
+    /async deleteSession\(id, instanceId\) \{[\s\S]*if \(session\?\.transport === 'openclawGateway' && resolvedInstanceId\) \{[\s\S]*const resolvedContext = await resolveInstanceChatContext\(resolvedInstanceId\);/s,
   );
   assert.match(
     chatStoreSource,
     /async clearSession\(id, instanceId\) \{[\s\S]*if \(session\?\.transport === 'openclawGateway' && resolvedInstanceId\) \{[\s\S]*const resolvedRoute = await resolveInstanceRouteMode\(resolvedInstanceId\);/s,
   );
-  assert.doesNotMatch(
-    chatStoreSource,
-    /if \(session\?\.transport === 'openclawGateway' && resolvedInstanceId\) \{\s*await openClawGatewaySessions\.deleteSession/s,
-  );
-  assert.doesNotMatch(
-    chatStoreSource,
-    /if \(session\?\.transport === 'openclawGateway' && resolvedInstanceId\) \{\s*await openClawGatewaySessions\.resetSession/s,
-  );
 });
 
-await runTest('sdkwork-claw-chat local session deletion keeps active fallback inside authoritative local scope instead of reusing stale gateway sessions', () => {
+await runTest('sdkwork-claw-chat transport-backed session deletion keeps active fallback inside authoritative adapter scope instead of reusing stale gateway sessions', () => {
   const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/chatStore.ts');
 
   assert.match(
     chatStoreSource,
-    /const nextLocalSessions = listScopeLocalSessions\(nextSessions, resolvedInstanceId\);/,
+    /const nextAdapterSessions = listScopeAdapterSessions\(nextSessions, resolvedInstanceId\);/,
   );
   assert.match(
     chatStoreSource,
-    /return applyLocalInstanceScopeState\(state, resolvedInstanceId, \{\s*baseSessions: nextSessions,\s*preservedLocalSessions: nextLocalSessions,\s*\}\);/s,
+    /return applyAdapterInstanceScopeState\(state, resolvedInstanceId, \{\s*baseSessions: nextSessions,\s*preservedAdapterSessions: nextAdapterSessions,\s*\}\);/s,
   );
 });
 
-await runTest('sdkwork-claw-chat local session creation keeps the authoritative instance scope local-only during optimistic and persisted writes', () => {
+await runTest('sdkwork-claw-chat transport-backed session creation keeps the authoritative instance scope adapter-only', () => {
   const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/chatStore.ts');
 
   assert.match(
     chatStoreSource,
-    /const nextLocalSessions = listScopeLocalSessions\(nextSessions, instanceId\);[\s\S]*return applyLocalInstanceScopeState\(state, instanceId, \{\s*baseSessions: nextSessions,\s*preservedLocalSessions: nextLocalSessions,\s*preferredActiveSessionId: session\.id,/s,
+    /const nextAdapterSessions = listScopeAdapterSessions\(nextSessions, instanceId\);[\s\S]*return applyAdapterInstanceScopeState\(state, instanceId, \{\s*baseSessions: nextSessions,\s*preservedAdapterSessions: nextAdapterSessions,\s*preferredActiveSessionId: session\.id,/s,
   );
-  assert.match(
-    chatStoreSource,
-    /\.then\(\(savedSession\) => \{[\s\S]*const nextLocalSessions = listScopeLocalSessions\(nextSessions, savedSession\.instanceId\);[\s\S]*return applyLocalInstanceScopeState\(state, savedSession\.instanceId, \{\s*baseSessions: nextSessions,\s*preservedLocalSessions: nextLocalSessions,\s*preferredActiveSessionId: savedSession\.id,/s,
-  );
+  assert.doesNotMatch(chatStoreSource, /persistSession\(/);
 });
 
-await runTest('sdkwork-claw-chat local session clearing keeps the active scope local-only during optimistic and persisted updates', () => {
+await runTest('sdkwork-claw-chat transport-backed session clearing and flush keep the active scope adapter-only', () => {
   const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/chatStore.ts');
 
   assert.match(
     chatStoreSource,
-    /async clearSession\(id, instanceId\) \{[\s\S]*const nextLocalSessions = listScopeLocalSessions\(nextSessions, resolvedInstanceId\);[\s\S]*return applyLocalInstanceScopeState\(state, resolvedInstanceId, \{\s*baseSessions: nextSessions,\s*preservedLocalSessions: nextLocalSessions,\s*preferredActiveSessionId: id,/s,
+    /async clearSession\(id, instanceId\) \{[\s\S]*const nextAdapterSessions = listScopeAdapterSessions\(nextSessions, resolvedInstanceId\);[\s\S]*return applyAdapterInstanceScopeState\(state, resolvedInstanceId, \{\s*baseSessions: nextSessions,\s*preservedAdapterSessions: nextAdapterSessions,\s*preferredActiveSessionId: id,/s,
   );
   assert.match(
     chatStoreSource,
-    /\.then\(\(savedSession\) => \{[\s\S]*const nextLocalSessions = listScopeLocalSessions\(nextSessions, savedSession\.instanceId\);[\s\S]*return applyLocalInstanceScopeState\(state, savedSession\.instanceId, \{\s*baseSessions: nextSessions,\s*preservedLocalSessions: nextLocalSessions,\s*preferredActiveSessionId: savedSession\.id,/s,
+    /async flushSession\(id\) \{[\s\S]*const nextAdapterSessions = listScopeAdapterSessions\(state\.sessions, session\.instanceId\);[\s\S]*return applyAdapterInstanceScopeState\(state, session\.instanceId, \{\s*preservedAdapterSessions: nextAdapterSessions,\s*preferredActiveSessionId: session\.id,\s*syncState: 'idle',\s*lastError: undefined,\s*\}\);/s,
   );
 });
 
-await runTest('sdkwork-claw-chat local session flush keeps authoritative local scope during persistence and post-save hydration', () => {
+await runTest('sdkwork-claw-chat transport-backed message append and edit mutations keep authoritative instance scope adapter-only', () => {
   const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/chatStore.ts');
 
   assert.match(
     chatStoreSource,
-    /async flushSession\(id\) \{[\s\S]*if \(savedSession\) \{[\s\S]*const nextLocalSessions = listScopeLocalSessions\(nextSessions, savedSession\.instanceId\);[\s\S]*return applyLocalInstanceScopeState\(state, savedSession\.instanceId, \{\s*baseSessions: nextSessions,\s*preservedLocalSessions: nextLocalSessions,\s*preferredActiveSessionId: savedSession\.id,/s,
+    /addMessage\(sessionId, message\) \{[\s\S]*const nextAdapterSessions = listScopeAdapterSessions\(nextSessions, nextSession\.instanceId\);[\s\S]*applyAdapterInstanceScopeState\(state, nextSession\.instanceId, \{\s*baseSessions: nextSessions,\s*preservedAdapterSessions: nextAdapterSessions,/s,
   );
   assert.match(
     chatStoreSource,
-    /if \(savedSession\?\.instanceId\) \{[\s\S]*const hydratedInstanceId = savedSession\.instanceId;[\s\S]*const hydrated = await gateway\.getInstanceConversation\([\s\S]*const nextLocalSessions = listScopeLocalSessions\(nextSessions, hydratedInstanceId\);[\s\S]*return applyLocalInstanceScopeState\(state, hydratedInstanceId, \{\s*baseSessions: nextSessions,\s*preservedLocalSessions: nextLocalSessions,\s*preferredActiveSessionId: hydrated\.id,\s*syncState: 'idle',\s*lastError: undefined,\s*\}\);/s,
-  );
-});
-
-await runTest('sdkwork-claw-chat local message append and edit mutations keep authoritative instance scope local-only', () => {
-  const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/chatStore.ts');
-
-  assert.match(
-    chatStoreSource,
-    /addMessage\(sessionId, message\) \{[\s\S]*const nextLocalSessions = listScopeLocalSessions\(nextSessions, nextSession\.instanceId\);[\s\S]*applyLocalInstanceScopeState\(state, nextSession\.instanceId, \{\s*baseSessions: nextSessions,\s*preservedLocalSessions: nextLocalSessions,/s,
-  );
-  assert.match(
-    chatStoreSource,
-    /persistSession\(persistedSession\)[\s\S]*const nextLocalSessions = listScopeLocalSessions\(nextSessions, savedSession\.instanceId\);[\s\S]*return applyLocalInstanceScopeState\(state, savedSession\.instanceId, \{\s*baseSessions: nextSessions,\s*preservedLocalSessions: nextLocalSessions,/s,
-  );
-  assert.match(
-    chatStoreSource,
-    /updateMessage\(sessionId, messageId, content\) \{[\s\S]*const nextLocalSessions = listScopeLocalSessions\(nextSessions, updatedInstanceId\);[\s\S]*applyLocalInstanceScopeState\(state, updatedInstanceId, \{\s*baseSessions: nextSessions,\s*preservedLocalSessions: nextLocalSessions,/s,
+    /updateMessage\(sessionId, messageId, content\) \{[\s\S]*const nextAdapterSessions = listScopeAdapterSessions\(nextSessions, updatedInstanceId\);[\s\S]*applyAdapterInstanceScopeState\(state, updatedInstanceId, \{\s*baseSessions: nextSessions,\s*preservedAdapterSessions: nextAdapterSessions,/s,
   );
 });
 
