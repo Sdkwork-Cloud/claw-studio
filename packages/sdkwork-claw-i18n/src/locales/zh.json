@@ -663,7 +663,7 @@
   },
   "clawCenter": {
     "eyebrow": "OpenClaw 注册中心",
-    "title": "OpenClaw 联网中心",
+    "title": "OpenClaw 注册中心",
     "subtitle": "按分类、能力和关键词搜索海量 OpenClaw 主体与服务，在一个页面里完成发现、撮合、一键联网与 ACP 命令交接。",
     "searchPlaceholder": "搜索智能体、服务、标签或联网方式...",
     "searchSummaryIdle": "在 {{categories}} 个分类下浏览 {{count}} 个注册主体，从搜索工作台直接开始撮合与联网。",
@@ -673,7 +673,7 @@
     "allCategories": "全部分类",
     "actions": {
       "quickConnect": "一键快速联网",
-      "quickRegister": "OpenClaw 联网",
+      "quickRegister": "联网",
       "copyCommand": "复制 ACP 命令",
       "copyContent": "复制内容",
       "quickConnectNow": "立即联网",
@@ -758,7 +758,7 @@
     "notFound": {
       "title": "未找到该注册条目",
       "description": "请求的 OpenClaw 主体不在当前注册快照中，或标识符无效。",
-      "back": "返回联网中心"
+      "back": "返回注册中心"
     },
     "kind": {
       "agent": "智能体",
@@ -836,11 +836,11 @@
   },
   "clawUpload": {
     "eyebrow": "OpenClaw 已关联",
-    "title": "OpenClaw 联网",
+    "title": "联网",
     "subtitle": "集中查看本地 OpenClaw 实例，并保持网关连通性一目了然。",
     "description": "该页面仅用于 OpenClaw 联网视图，展示 Claw Studio 当前已管理并与注册表关联的 OpenClaw 运行时，便于在接入智能体前核对网关端点、WebSocket 暴露状态和 ACP 路由就绪度。",
     "refresh": "刷新注册中心",
-    "loadFailed": "加载 OpenClaw 联网信息失败",
+    "loadFailed": "加载联网信息失败",
     "loadFailedDescription": "当前无法读取本地 OpenClaw 注册表快照。",
     "emptyTitle": "尚未注册任何 OpenClaw 实例",
     "emptyDescription": "请先安装或注册 OpenClaw 运行时。待其在本地可用后，此页面会展示对应的网关端点、WebSocket 入口、存储命名空间和路由就绪度。",
@@ -929,7 +929,7 @@
         "subtitle": "下载 AI 模型"
       },
       "upload": {
-        "title": "前往 OpenClaw 联网",
+        "title": "前往联网",
         "subtitle": "查看本地 OpenClaw 网关端点与注册表关联连通性"
       },
       "instances": {
@@ -3268,8 +3268,35 @@
       "title": "实例",
       "subtitle": "创建、关联并管理当前工作区需要使用的 OpenClaw 运行时。",
       "activeBadge": "活跃",
-      "emptyTitle": "还没有连接到任何实例",
-      "emptyDescription": "可以从内置 OpenClaw 安装开始，也可以关联本机已安装的 OpenClaw，或直接接入远程网关，让 Claw Studio 拥有可用的运行时。",
+      "tabs": {
+        "activeInstances": "激活实例",
+        "supportedKernels": "支持 Kernels"
+      },
+      "supportedKernels": {
+        "summary": {
+          "openclaw": "Claw Studio 直接内置支持的主内核，可以直接安装并纳入托管。",
+          "hermes": "面向外部运行时接入的多 kernel 扩展，需要通过受支持的宿主环境或远程 Linux 独立部署。"
+        },
+        "deployment": {
+          "bundled": "内置实例",
+          "external": "外部运行时"
+        },
+        "fields": {
+          "stableVersion": "稳定版本",
+          "defaultChannel": "默认通道",
+          "requirements": "运行依赖",
+          "platforms": "支持平台"
+        },
+        "actions": {
+          "installBuiltInInstance": "安装内置实例"
+        },
+        "platforms": {
+          "native": "Windows / macOS / Linux",
+          "wsl2OrRemoteOnly": "Linux / macOS / Windows WSL2 / 远程 Linux"
+        }
+      },
+      "emptyTitle": "当前还没有可用实例",
+      "emptyDescription": "等待实例完成注册后，这里会展示状态、资源指标和详情入口。",
       "emptyPrimaryAction": "安装内置 OpenClaw",
       "emptySecondaryAction": "关联已安装 OpenClaw",
       "confirmUninstall": "确认要卸载这个实例吗？",
@@ -5786,7 +5813,7 @@
     "codebox": "CodeBox",
     "providerCenter": "模型配置中心",
     "modelPurchase": "模型购买",
-    "clawUpload": "OpenClaw 联网",
+    "clawUpload": "联网",
     "systemResources": "系统资源",
     "cpu": "CPU",
     "ram": "RAM",
@@ -5822,6 +5849,9 @@
     "page": {
       "title": "定时任务",
       "subtitle": "在更清晰的任务工作台中设计、编排并运行周期性 AI 工作流。",
+      "tabs": {
+        "tasks": "任务列表"
+      },
       "stats": {
         "total": "总任务数",
         "active": "已启用",

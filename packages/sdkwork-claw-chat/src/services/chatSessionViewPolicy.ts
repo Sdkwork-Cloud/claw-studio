@@ -4,6 +4,7 @@ import {
   resolveOpenClawVisibleActiveSessionId,
   shouldKeepHiddenOpenClawSessionVisible,
 } from './chatSessionBootstrap.ts';
+import { resolveKernelChatSessionState } from './kernelChatSessionState.ts';
 
 type ChatSessionLike = {
   id: string;
@@ -73,7 +74,9 @@ export function resolveChatRunningSessionId<T extends ChatRunningSessionLike>(pa
     return null;
   }
 
-  return params.selectableSessions.find((session) => Boolean(session.runId))?.id ?? null;
+  return params.selectableSessions.find((session) =>
+    Boolean(resolveKernelChatSessionState(session).activeRunId)
+  )?.id ?? null;
 }
 
 export function resolveGatewayVisibleSessionSyncTarget(params: {

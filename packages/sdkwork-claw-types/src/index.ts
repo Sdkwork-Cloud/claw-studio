@@ -1,6 +1,7 @@
 import type { PaginatedResult, PaginationParams } from './service.ts';
 
 export * from './service.ts';
+export * from './kernelChatModel.ts';
 export * from './openclawMirror.ts';
 export * from './kernelReleaseCatalog.ts';
 export * from './openclawRelease.ts';

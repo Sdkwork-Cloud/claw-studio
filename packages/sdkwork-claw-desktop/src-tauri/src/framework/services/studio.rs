@@ -14,7 +14,7 @@ use crate::framework::{
     paths::AppPaths,
     services::{
         kernel_runtime_authority::KernelRuntimeAuthorityService,
-        openclaw_runtime::load_manifest,
+        openclaw_runtime::{load_manifest, DEFAULT_GATEWAY_PORT},
         supervisor::{ManagedServiceLifecycle, SERVICE_ID_OPENCLAW_GATEWAY},
     },
     storage::{
@@ -2784,7 +2784,7 @@ impl StudioService {
         set_nested_u16(
             &mut root,
             &["gateway", "port"],
-            config.port.parse::<u16>().unwrap_or(18_789),
+            config.port.parse::<u16>().unwrap_or(DEFAULT_GATEWAY_PORT),
         );
         set_nested_string(
             &mut root,
@@ -4921,7 +4921,7 @@ fn resolve_built_in_openclaw_display_version(paths: &AppPaths) -> String {
 fn build_built_in_instance(paths: &AppPaths, config: &AppConfig) -> Result<StudioInstanceRecord> {
     let active_version = resolve_built_in_openclaw_display_version(paths);
     let root = read_managed_openclaw_config(paths)?;
-    let port = get_nested_u16(&root, &["gateway", "port"]).unwrap_or(18_789);
+    let port = get_nested_u16(&root, &["gateway", "port"]).unwrap_or(DEFAULT_GATEWAY_PORT);
     let workspace_path = get_nested_string(&root, &["agents", "defaults", "workspace"]);
     let log_level =
         get_nested_string(&root, &["studio", "logLevel"]).unwrap_or_else(|| "info".to_string());

@@ -47,7 +47,7 @@ export function RepositoryCard({
   return (
     <div
       onClick={handleCardClick}
-      className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[2rem] border border-zinc-200/60 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-xl dark:border-zinc-800 dark:bg-zinc-900 dark:hover:shadow-primary-900/10"
+      className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[20px] border border-zinc-200/60 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-xl dark:border-zinc-800 dark:bg-zinc-900 dark:hover:shadow-primary-900/10"
     >
       <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-zinc-50 blur-3xl transition-colors group-hover:bg-primary-50/50 dark:bg-zinc-800/50 dark:group-hover:bg-primary-900/20" />
 

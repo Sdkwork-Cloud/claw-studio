@@ -53,6 +53,12 @@ export {
   type OpenClawToolCard,
 } from '../openClawMessagePresentation.ts';
 export {
+  hydrateOpenClawKernelChatProjection,
+} from '../openClawKernelChatProjection.ts';
+export {
+  hydrateLocalChatKernelProjection,
+} from './localChatKernelProjection.ts';
+export {
   buildOpenClawMainSessionKey,
   buildOpenClawThreadSessionKey,
   filterOpenClawSessionsByAgent,

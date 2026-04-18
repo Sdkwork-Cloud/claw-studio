@@ -752,7 +752,10 @@ test('release asset packager resolves tar archives without Windows cmd shell wra
     platform: 'linux',
   });
 
-  assert.equal(windowsPlan.command, 'tar.exe');
+  assert.match(
+    windowsPlan.command,
+    /(?:^|[\\/])tar\.exe$/i,
+  );
   assert.deepEqual(
     windowsPlan.args,
     ['-czf', 'C:\\release\\bundle.tar.gz', '-C', 'D:\\workspace\\bundle-root', 'bundle'],

@@ -1,4 +1,6 @@
 import type { StudioConversationAttachment } from '@sdkwork/claw-types';
+import type { KernelChatMessage } from '@sdkwork/claw-types';
+import { resolveKernelChatMessageState } from './kernelChatMessageState.ts';
 
 export const DEFAULT_CHAT_SESSION_TITLE = 'New Conversation';
 
@@ -10,6 +12,7 @@ type ChatSessionTitleMessageLike = {
   role?: string;
   content?: string;
   attachments?: StudioConversationAttachment[];
+  kernelMessage?: KernelChatMessage | null;
 };
 
 type ChatSessionTitleSource = 'default' | 'preview' | 'explicit' | 'firstUser';
@@ -208,13 +211,15 @@ export function getChatSessionDisplayTitle(session: ChatSessionTitleSessionLike)
     return explicitTitle;
   }
 
-  const firstUserMessage = Array.isArray(session.messages)
-    ? session.messages.find((message) => message.role === 'user')
+  const firstUserMessageState = Array.isArray(session.messages)
+    ? session.messages
+      .map((message) => resolveKernelChatMessageState(message))
+      .find((message) => message.role === 'user')
     : undefined;
-  if (firstUserMessage) {
+  if (firstUserMessageState) {
     const firstUserTitle = deriveChatSessionTitleFromMessage({
-      text: firstUserMessage.content ?? '',
-      attachments: firstUserMessage.attachments,
+      text: firstUserMessageState.content,
+      attachments: firstUserMessageState.attachments,
     });
     if (firstUserTitle && firstUserTitle !== DEFAULT_CHAT_SESSION_TITLE) {
       return firstUserTitle;

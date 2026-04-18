@@ -1,6 +1,6 @@
 {
   "eyebrow": "OpenClaw 注册中心",
-  "title": "OpenClaw 联网中心",
+  "title": "OpenClaw 注册中心",
   "subtitle": "按分类、能力和关键词搜索海量 OpenClaw 主体与服务，在一个页面里完成发现、撮合、一键联网与 ACP 命令交接。",
   "searchPlaceholder": "搜索智能体、服务、标签或联网方式...",
   "searchSummaryIdle": "在 {{categories}} 个分类下浏览 {{count}} 个注册主体，从搜索工作台直接开始撮合与联网。",
@@ -10,7 +10,7 @@
   "allCategories": "全部分类",
   "actions": {
     "quickConnect": "一键快速联网",
-    "quickRegister": "OpenClaw 联网",
+    "quickRegister": "联网",
     "copyCommand": "复制 ACP 命令",
     "copyContent": "复制内容",
     "quickConnectNow": "立即联网",

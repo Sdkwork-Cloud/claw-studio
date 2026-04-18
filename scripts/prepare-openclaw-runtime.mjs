@@ -77,6 +77,50 @@ export const DEFAULT_RESOURCE_DIR = path.join(
 );
 export const DEFAULT_PREPARE_CACHE_DIR = resolveDefaultOpenClawPrepareCacheDir();
 
+export function resolveOpenClawRuntimeSystemCommand(
+  command,
+  platform = process.platform,
+  env = process.env,
+) {
+  const normalizedCommand = String(command ?? '').trim();
+  const normalizedPlatform = platform === 'windows' ? 'win32' : platform;
+  if (
+    !normalizedCommand
+    || normalizedPlatform !== 'win32'
+    || path.extname(normalizedCommand)
+    || normalizedCommand.includes('/')
+    || normalizedCommand.includes('\\')
+  ) {
+    return normalizedCommand;
+  }
+
+  const systemRoot =
+    String(env.SystemRoot ?? env.WINDIR ?? '').trim() || 'C:\\Windows';
+
+  if (normalizedCommand === 'tar') {
+    const tarPath = path.win32.join(systemRoot, 'System32', 'tar.exe');
+    return existsSync(tarPath) ? tarPath : 'tar.exe';
+  }
+
+  if (normalizedCommand === 'powershell') {
+    const powershellPath = path.win32.join(
+      systemRoot,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe',
+    );
+    return existsSync(powershellPath) ? powershellPath : 'powershell.exe';
+  }
+
+  if (normalizedCommand === 'robocopy') {
+    const robocopyPath = path.win32.join(systemRoot, 'System32', 'robocopy.exe');
+    return existsSync(robocopyPath) ? robocopyPath : 'robocopy.exe';
+  }
+
+  return normalizedCommand;
+}
+
 function resolveWindowsMirrorBaseDirStatePath(workspaceRootDir = rootDir) {
   return path.join(
     workspaceRootDir,
@@ -3343,18 +3387,24 @@ export function resolveNodeArchiveExtractionCommand({
   archivePath,
   extractRoot,
   target,
-  hasTarCommand = commandExistsSync('tar'),
+  platform = process.platform,
+  hasTarCommand,
 }) {
+  const tarAvailable =
+    typeof hasTarCommand === 'boolean'
+      ? hasTarCommand
+      : commandExistsSync('tar', { platform });
+
   if (target.nodeArchiveExt === 'zip') {
-    if (hasTarCommand) {
+    if (tarAvailable) {
       return {
-        command: 'tar',
+        command: resolveOpenClawRuntimeSystemCommand('tar', platform),
         args: ['-xf', archivePath, '-C', extractRoot],
       };
     }
 
     return {
-      command: 'powershell',
+      command: resolveOpenClawRuntimeSystemCommand('powershell', platform),
       args: [
         '-NoProfile',
         '-NonInteractive',
@@ -3365,7 +3415,7 @@ export function resolveNodeArchiveExtractionCommand({
   }
 
   return {
-    command: 'tar',
+    command: resolveOpenClawRuntimeSystemCommand('tar', platform),
     args: ['-xJf', archivePath, '-C', extractRoot],
   };
 }
@@ -3562,7 +3612,8 @@ export async function copyDirectoryWithWindowsFallback(
 async function runRobocopyCopy(sourceDir, targetDir) {
   await mkdir(path.dirname(targetDir), { recursive: true });
   await new Promise((resolve, reject) => {
-    const child = spawn('robocopy', [
+    const resolvedRobocopyCommand = resolveOpenClawRuntimeSystemCommand('robocopy');
+    const child = spawn(resolvedRobocopyCommand, [
       sourceDir,
       targetDir,
       '/E',
@@ -3587,7 +3638,11 @@ async function runRobocopyCopy(sourceDir, targetDir) {
         return;
       }
 
-      reject(new Error(`Command failed: robocopy ${sourceDir} ${targetDir} (exit ${code ?? 'unknown'})`));
+      reject(
+        new Error(
+          `Command failed: ${resolvedRobocopyCommand} ${sourceDir} ${targetDir} (exit ${code ?? 'unknown'})`,
+        ),
+      );
     });
   });
 }
@@ -3922,9 +3977,9 @@ async function createBundledResourceRuntimeArchive({
   await stat(runtimeSourceDir);
 
   if (platform === 'win32' || platform === 'windows') {
-    if (commandExistsSync('tar')) {
+    if (commandExistsSync('tar', { platform })) {
       await runCommandImpl(
-        'tar',
+        resolveOpenClawRuntimeSystemCommand('tar', platform),
         ['-acf', archivePath, 'runtime'],
         { cwd: sourceRoot },
       );
@@ -3933,7 +3988,7 @@ async function createBundledResourceRuntimeArchive({
 
     const archiveDestination = escapePowerShellLiteral(archivePath);
     const runtimePath = escapePowerShellLiteral(runtimeSourceDir);
-    await runCommandImpl('powershell', [
+    await runCommandImpl(resolveOpenClawRuntimeSystemCommand('powershell', platform), [
       '-NoProfile',
       '-NonInteractive',
       '-Command',
@@ -4208,11 +4263,19 @@ async function readPreparedOpenClawPackageVersion(packageJsonPath) {
 }
 
 async function runCommand(command, args, options = {}) {
+  const resolvedEnv = options.env ?? process.env;
+  const resolvedPlatform = options.platform ?? process.platform;
+  const resolvedCommand = resolveOpenClawRuntimeSystemCommand(
+    command,
+    resolvedPlatform,
+    resolvedEnv,
+  );
+
   await new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const child = spawn(resolvedCommand, args, {
       cwd: options.cwd ?? rootDir,
       stdio: 'inherit',
-      env: options.env ?? process.env,
+      env: resolvedEnv,
       shell: false,
     });
 
@@ -4222,15 +4285,16 @@ async function runCommand(command, args, options = {}) {
         resolve();
         return;
       }
-      reject(new Error(`Command failed: ${command} ${args.join(' ')} (exit ${code ?? 'unknown'})`));
+      reject(new Error(`Command failed: ${resolvedCommand} ${args.join(' ')} (exit ${code ?? 'unknown'})`));
     });
   });
 }
 
-function commandExistsSync(command) {
-  const result = spawnSync(command, ['--version'], {
+function commandExistsSync(command, { platform = process.platform, env = process.env } = {}) {
+  const resolvedCommand = resolveOpenClawRuntimeSystemCommand(command, platform, env);
+  const result = spawnSync(resolvedCommand, ['--version'], {
     stdio: 'ignore',
-    env: process.env,
+    env,
     shell: false,
   });
 
@@ -4238,13 +4302,21 @@ function commandExistsSync(command) {
 }
 
 async function runCommandCapture(command, args, options = {}) {
+  const resolvedEnv = options.env ?? process.env;
+  const resolvedPlatform = options.platform ?? process.platform;
+  const resolvedCommand = resolveOpenClawRuntimeSystemCommand(
+    command,
+    resolvedPlatform,
+    resolvedEnv,
+  );
+
   return await new Promise((resolve, reject) => {
     const stdoutChunks = [];
     const stderrChunks = [];
-    const child = spawn(command, args, {
+    const child = spawn(resolvedCommand, args, {
       cwd: options.cwd ?? rootDir,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: process.env,
+      env: resolvedEnv,
       shell: false,
     });
 
@@ -4267,7 +4339,7 @@ async function runCommandCapture(command, args, options = {}) {
 
       reject(
         new Error(
-          `Command failed: ${command} ${args.join(' ')} (exit ${code ?? 'unknown'})\n${Buffer.concat(stderrChunks).toString('utf8')}`,
+          `Command failed: ${resolvedCommand} ${args.join(' ')} (exit ${code ?? 'unknown'})\n${Buffer.concat(stderrChunks).toString('utf8')}`,
         ),
       );
     });

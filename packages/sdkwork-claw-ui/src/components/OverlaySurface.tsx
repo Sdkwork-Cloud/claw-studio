@@ -93,8 +93,8 @@ export function OverlaySurface({
               className={cn(
                 'relative flex w-full flex-col overflow-hidden border border-zinc-200/80 bg-white shadow-2xl shadow-zinc-950/12 dark:border-zinc-800 dark:bg-zinc-900',
                 variant === 'drawer'
-                  ? 'max-w-xl self-stretch rounded-[28px]'
-                  : 'max-w-md rounded-[28px]',
+                  ? 'max-w-xl self-stretch rounded-[20px]'
+                  : 'max-w-md rounded-[20px]',
                 className,
               )}
               onClick={(event) => event.stopPropagation()}

@@ -30,7 +30,7 @@ export function TaskRowList({ className, children, ...props }: TaskRowListProps)
     <div
       data-slot="task-row-list"
       className={cn(
-        'overflow-hidden rounded-[1.75rem] border border-zinc-200/80 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900',
+        'overflow-hidden rounded-[20px] border border-zinc-200/80 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900',
         className,
       )}
       {...props}

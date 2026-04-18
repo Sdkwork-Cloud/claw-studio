@@ -150,6 +150,38 @@ await runTest('sdkwork-claw-chat services barrel stays Node-safe for pure servic
   assert.doesNotMatch(chatStoreSource, /zustand/);
 });
 
+await runTest('sdkwork-claw-chat exposes the kernel-native chat standard across shared types, services, and store projections', () => {
+  const typesIndexSource = read('packages/sdkwork-claw-types/src/index.ts');
+  const servicesIndexSource = read('packages/sdkwork-claw-chat/src/services/index.ts');
+  const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/chatStore.ts');
+  const agentServiceSource = read('packages/sdkwork-claw-chat/src/services/agentService.ts');
+  const chatPageSource = read('packages/sdkwork-claw-chat/src/pages/Chat.tsx');
+  const chatCheckRunner = read('scripts/run-sdkwork-chat-check.mjs');
+
+  assert.ok(exists('packages/sdkwork-claw-types/src/kernelChatModel.ts'));
+  assert.ok(exists('packages/sdkwork-claw-chat/src/services/openclaw/openClawKernelChatProjection.ts'));
+  assert.ok(exists('packages/sdkwork-claw-chat/src/services/store/localChatKernelProjection.ts'));
+  assert.ok(exists('packages/sdkwork-claw-chat/src/services/kernelChatAgentCatalogService.ts'));
+  assert.ok(exists('packages/sdkwork-claw-chat/src/services/kernelChatSessionState.ts'));
+  assert.ok(exists('packages/sdkwork-claw-chat/src/services/kernelChatMessageState.ts'));
+  assert.match(typesIndexSource, /kernelChatModel/);
+  assert.match(servicesIndexSource, /kernelChatAgentCatalogService/);
+  assert.match(servicesIndexSource, /kernelChatSessionState/);
+  assert.match(servicesIndexSource, /kernelChatMessageState/);
+  assert.match(chatStoreSource, /kernelMessage\?: KernelChatMessage \| null;/);
+  assert.match(chatStoreSource, /kernelSession\?: KernelChatSession \| null;/);
+  assert.match(agentServiceSource, /kernelChatAgentCatalogService/);
+  assert.match(chatPageSource, /resolveKernelChatSessionState/);
+  assert.match(chatPageSource, /resolveKernelChatMessageState/);
+  assert.match(chatCheckRunner, /packages\/sdkwork-claw-types\/src\/kernelChatModel\.test\.ts/);
+  assert.match(chatCheckRunner, /packages\/sdkwork-claw-chat\/src\/services\/kernelChatAgentCatalogService\.test\.ts/);
+  assert.match(chatCheckRunner, /packages\/sdkwork-claw-chat\/src\/services\/kernelChatSessionState\.test\.ts/);
+  assert.match(chatCheckRunner, /packages\/sdkwork-claw-chat\/src\/services\/kernelChatMessageState\.test\.ts/);
+  assert.match(chatCheckRunner, /packages\/sdkwork-claw-chat\/src\/services\/openclaw\/openClawKernelChatProjection\.test\.ts/);
+  assert.match(chatCheckRunner, /packages\/sdkwork-claw-chat\/src\/services\/store\/localChatKernelProjection\.test\.ts/);
+  assert.match(chatCheckRunner, /packages\/sdkwork-claw-chat\/src\/store\/openClawGatewayKernelProjection\.test\.ts/);
+});
+
 await runTest('sdkwork-claw-chat parity checks use the shared Node TypeScript runner for Node-loaded chat services', () => {
   const workspacePackageJson = read('package.json');
   const chatCheckRunner = read('scripts/run-sdkwork-chat-check.mjs');

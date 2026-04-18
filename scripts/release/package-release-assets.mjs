@@ -259,12 +259,23 @@ function resolveSpawnCommand(command, platform = process.platform) {
     return command;
   }
 
+  const systemRoot =
+    String(process.env.SystemRoot ?? process.env.WINDIR ?? '').trim() || 'C:\\Windows';
+
   if (command === 'tar') {
-    return 'tar.exe';
+    const tarPath = path.join(systemRoot, 'System32', 'tar.exe');
+    return existsSync(tarPath) ? tarPath : 'tar.exe';
   }
 
   if (command === 'powershell') {
-    return 'powershell.exe';
+    const powershellPath = path.join(
+      systemRoot,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe',
+    );
+    return existsSync(powershellPath) ? powershellPath : 'powershell.exe';
   }
 
   return command;

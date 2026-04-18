@@ -1,4 +1,5 @@
 import { getChatSessionDisplayTitle } from './chatSessionTitlePresentation.ts';
+import { resolveKernelChatSessionState } from './kernelChatSessionState.ts';
 
 const CRON_SESSION_ID_PATTERN = /(^cron:|:cron:)/i;
 const CRON_TITLE_PREFIX_PATTERN = /^cron(?:\s+job)?\s*:/i;
@@ -9,6 +10,9 @@ type ChatCronActivityNotificationSessionLike = {
   titleSource?: 'default' | 'preview' | 'explicit' | 'firstUser';
   lastMessagePreview?: string;
   runId?: string | null;
+  kernelSession?: {
+    activeRunId?: string | null;
+  } | null;
   messages?: Array<{
     role?: string;
     content?: string;
@@ -64,8 +68,8 @@ export function detectChatCronActivityNotification(params: {
     return null;
   }
 
-  const previousRunId = normalizeRunId(previousSession.runId);
-  const nextRunId = normalizeRunId(nextSession.runId);
+  const previousRunId = normalizeRunId(resolveKernelChatSessionState(previousSession).activeRunId);
+  const nextRunId = normalizeRunId(resolveKernelChatSessionState(nextSession).activeRunId);
   if (!previousRunId && nextRunId) {
     return {
       kind: 'started',

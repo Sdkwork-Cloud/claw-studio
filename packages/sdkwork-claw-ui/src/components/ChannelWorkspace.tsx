@@ -150,7 +150,7 @@ function RegionEmptyState({
   title: string;
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-dashed border-zinc-300 bg-white/75 p-6 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/35 dark:text-zinc-400">
+    <div className="rounded-[18px] border border-dashed border-zinc-300 bg-white/75 p-6 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/35 dark:text-zinc-400">
       {title}
     </div>
   );
@@ -291,7 +291,7 @@ export function ChannelWorkspace({
   return (
     <div className={cn('space-y-4', className)}>
       {managedFilePath ? (
-        <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/80 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/35 dark:text-zinc-300">
+        <div className="rounded-[18px] border border-zinc-200/70 bg-white/80 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/35 dark:text-zinc-300">
           {texts.managedFileLabel ? (
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
               {texts.managedFileLabel}

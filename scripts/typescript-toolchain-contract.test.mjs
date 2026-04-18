@@ -48,7 +48,7 @@ runTest('workspace TypeScript baseline stays valid for the active toolchain when
       ['scripts/run-workspace-tsc.mjs', '-p', path.join(tempDir, 'tsconfig.json'), '--pretty', 'false'],
       {
         cwd: root,
-        encoding: 'utf8',
+        stdio: 'inherit',
       },
     );
 
@@ -56,7 +56,7 @@ runTest('workspace TypeScript baseline stays valid for the active toolchain when
     assert.equal(
       result.status,
       0,
-      result.stderr || result.stdout || 'workspace TypeScript baseline must compile under the active toolchain',
+      'workspace TypeScript baseline must compile under the active toolchain',
     );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

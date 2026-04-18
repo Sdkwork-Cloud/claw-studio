@@ -1,15 +1,19 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Activity,
   BriefcaseBusiness,
   CalendarClock,
   ChevronUp,
   CircleUserRound,
-  Cpu,
   Hash,
   HelpCircle,
-  LayoutDashboard,
   LogIn,
   LogOut,
   MessageCircle,
@@ -46,6 +50,29 @@ interface SidebarNavItem {
 interface SidebarNavGroup {
   section: string;
   items: SidebarNavItem[];
+}
+
+function CollapsedSidebarStack({
+  label,
+  labelClassName,
+  children,
+}: {
+  label: string;
+  labelClassName?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
+      {children}
+      <span
+        className={`line-clamp-2 max-w-[52px] text-[10px] font-medium leading-[1.15] tracking-tight text-inherit ${
+          labelClassName ?? ''
+        }`}
+      >
+        {label}
+      </span>
+    </div>
+  );
 }
 
 function clampSidebarWidth(width: number) {
@@ -161,8 +188,6 @@ export function Sidebar() {
         { id: 'chat', to: '/chat', icon: MessageCircle, label: t('sidebar.aiChat') },
         { id: 'channels', to: '/channels', icon: Hash, label: t('sidebar.channels') },
         { id: 'tasks', to: '/tasks', icon: CalendarClock, label: t('sidebar.cronTasks') },
-        { id: 'dashboard', to: '/dashboard', icon: LayoutDashboard, label: t('sidebar.dashboard') },
-        { id: 'usage', to: '/usage', icon: Activity, label: t('sidebar.usage') },
       ],
     },
     {
@@ -179,20 +204,16 @@ export function Sidebar() {
         { id: 'community', to: '/community', icon: Newspaper, label: t('sidebar.community') },
       ],
     },
-    {
-      section: t('sidebar.setup'),
-      items: [
-        { id: 'kernel', to: '/kernel', icon: Cpu, label: t('sidebar.kernelCenter') },
-        { id: 'nodes', to: '/nodes', icon: Waypoints, label: t('sidebar.nodes') },
-        { id: 'instances', to: '/instances', icon: Server, label: t('sidebar.instances') },
-      ],
-    },
   ]
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => !hiddenSidebarItems.includes(item.id)),
     }))
     .filter((group) => group.items.length > 0);
+  const utilityItems: SidebarNavItem[] = [
+    { id: 'instances', to: '/instances', icon: Server, label: t('sidebar.instances') },
+    { id: 'docs', to: '/docs', icon: HelpCircle, label: t('sidebar.documentation') },
+  ].filter((item) => item.id === 'docs' || !hiddenSidebarItems.includes(item.id));
 
   const currentSidebarWidth = isSidebarCollapsed ? COLLAPSED_SIDEBAR_WIDTH : resolvedSidebarWidth;
   const showEdgeAffordances = isSidebarHovered || isSidebarResizing;
@@ -267,10 +288,10 @@ export function Sidebar() {
                     onFocus={() => scheduleSidebarRoutePrefetch(item.to)}
                     onBlur={() => cancelSidebarRoutePrefetch(item.to)}
                     className={({ isActive }) =>
-                      `group relative flex items-center rounded-2xl transition-all duration-200 ${
+                      `group relative flex items-center transition-all duration-200 ${
                         isSidebarCollapsed
-                          ? 'mx-auto h-11 w-11 justify-center'
-                          : 'justify-between px-3 py-2.5'
+                          ? 'mx-auto min-h-[4rem] w-full max-w-[3.5rem] justify-center rounded-xl px-1 py-1.5'
+                          : 'justify-between rounded-2xl px-3 py-2.5'
                       } ${
                         isActive
                           ? 'bg-white/[0.08] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
@@ -286,16 +307,27 @@ export function Sidebar() {
                             className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary-500"
                           />
                         ) : null}
-                        <div className="flex items-center gap-3">
-                          <item.icon
-                            className={`h-4 w-4 shrink-0 transition-colors ${
-                              isActive ? 'text-primary-400' : 'text-zinc-500 group-hover:text-zinc-300'
-                            }`}
-                          />
-                          {!isSidebarCollapsed ? (
+                        {isSidebarCollapsed ? (
+                          <CollapsedSidebarStack
+                            label={item.label}
+                            labelClassName={isActive ? 'text-primary-200' : undefined}
+                          >
+                            <item.icon
+                              className={`h-5 w-5 shrink-0 transition-colors ${
+                                isActive ? 'text-primary-400' : 'text-zinc-500 group-hover:text-zinc-300'
+                              }`}
+                            />
+                          </CollapsedSidebarStack>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <item.icon
+                              className={`h-4 w-4 shrink-0 transition-colors ${
+                                isActive ? 'text-primary-400' : 'text-zinc-500 group-hover:text-zinc-300'
+                              }`}
+                            />
                             <span className="text-[14px] tracking-tight">{item.label}</span>
-                          ) : null}
-                        </div>
+                          </div>
+                        )}
                         {!isSidebarCollapsed && item.badge ? (
                           <span className="rounded-full border border-primary-500/20 bg-primary-500/15 px-1.5 py-0.5 text-[10px] font-bold text-primary-300">
                             {item.badge}
@@ -311,47 +343,65 @@ export function Sidebar() {
         </nav>
 
         <div className="flex flex-col gap-1 border-t border-white/5 p-3">
-          <NavLink
-            to="/docs"
-            title={isSidebarCollapsed ? t('sidebar.documentation') : undefined}
-            onPointerDown={() => prefetchSidebarRoute('/docs')}
-            onMouseEnter={() => scheduleSidebarRoutePrefetch('/docs')}
-            onMouseLeave={() => cancelSidebarRoutePrefetch('/docs')}
-            onFocus={() => scheduleSidebarRoutePrefetch('/docs')}
-            onBlur={() => cancelSidebarRoutePrefetch('/docs')}
-            className={({ isActive }) =>
-              `group relative flex items-center rounded-2xl transition-all duration-200 ${
-                isSidebarCollapsed ? 'mx-auto h-11 w-11 justify-center' : 'gap-3 px-3 py-2.5'
-              } ${
-                isActive
-                  ? 'bg-white/[0.08] font-medium text-white'
-                  : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-200'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                {isActive && !isSidebarCollapsed ? (
-                  <motion.div
-                    layoutId="sidebar-active-indicator"
-                    className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary-500"
-                  />
-                ) : null}
-                <HelpCircle
-                  className={`h-4 w-4 shrink-0 transition-colors ${
-                    isActive ? 'text-primary-400' : 'text-zinc-500 group-hover:text-zinc-300'
-                  }`}
-                />
-                {!isSidebarCollapsed ? (
-                  <span className="text-[14px] tracking-tight">{t('sidebar.documentation')}</span>
-                ) : null}
-              </>
-            )}
-          </NavLink>
+          {utilityItems.map((item) => (
+            <NavLink
+              key={item.id}
+              to={item.to}
+              title={isSidebarCollapsed ? item.label : undefined}
+              onPointerDown={() => prefetchSidebarRoute(item.to)}
+              onMouseEnter={() => scheduleSidebarRoutePrefetch(item.to)}
+              onMouseLeave={() => cancelSidebarRoutePrefetch(item.to)}
+              onFocus={() => scheduleSidebarRoutePrefetch(item.to)}
+              onBlur={() => cancelSidebarRoutePrefetch(item.to)}
+              className={({ isActive }) =>
+                `group relative flex items-center transition-all duration-200 ${
+                  isSidebarCollapsed
+                    ? 'mx-auto min-h-[4rem] w-full max-w-[3.5rem] justify-center rounded-xl px-1 py-1.5'
+                    : 'gap-3 rounded-2xl px-3 py-2.5'
+                } ${
+                  isActive
+                    ? 'bg-white/[0.08] font-medium text-white'
+                    : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-200'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {isActive && !isSidebarCollapsed ? (
+                    <motion.div
+                      layoutId="sidebar-active-indicator"
+                      className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary-500"
+                    />
+                  ) : null}
+                  {isSidebarCollapsed ? (
+                    <CollapsedSidebarStack
+                      label={item.label}
+                      labelClassName={isActive ? 'text-primary-200' : undefined}
+                    >
+                      <item.icon
+                        className={`h-5 w-5 shrink-0 transition-colors ${
+                          isActive ? 'text-primary-400' : 'text-zinc-500 group-hover:text-zinc-300'
+                        }`}
+                      />
+                    </CollapsedSidebarStack>
+                  ) : (
+                    <>
+                      <item.icon
+                        className={`h-4 w-4 shrink-0 transition-colors ${
+                          isActive ? 'text-primary-400' : 'text-zinc-500 group-hover:text-zinc-300'
+                        }`}
+                      />
+                      <span className="text-[14px] tracking-tight">{item.label}</span>
+                    </>
+                  )}
+                </>
+              )}
+            </NavLink>
+          ))}
           <div ref={userMenuRef} className="relative">
             {isUserMenuOpen ? (
               <div
-                className={`absolute z-40 rounded-3xl border border-white/10 bg-zinc-950/96 p-2 shadow-[0_20px_48px_rgba(9,9,11,0.34)] backdrop-blur-xl ${
+                className={`absolute z-40 rounded-[20px] border border-white/10 bg-zinc-950/96 p-2 shadow-[0_20px_48px_rgba(9,9,11,0.34)] backdrop-blur-xl ${
                   isSidebarCollapsed ? 'bottom-0 left-full ml-3 w-64' : 'bottom-full left-0 right-0 mb-2'
                 }`}
               >
@@ -412,25 +462,45 @@ export function Sidebar() {
               data-slot="sidebar-user-control"
               title={isSidebarCollapsed ? userMenuTitle : undefined}
               onClick={handleUserControlClick}
-              className={`group relative flex w-full items-center rounded-2xl border border-white/8 bg-white/[0.04] text-zinc-300 transition-all duration-200 hover:bg-white/[0.07] hover:text-white ${
+              className={`group relative flex w-full items-center border border-white/8 bg-white/[0.04] text-zinc-300 transition-all duration-200 hover:bg-white/[0.07] hover:text-white ${
                 isSidebarCollapsed
-                  ? 'mx-auto h-11 w-11 justify-center px-0'
-                  : 'gap-3 px-2.5 py-2.5'
+                  ? 'mx-auto min-h-[4.75rem] max-w-[3.5rem] justify-center rounded-xl px-1 py-2'
+                  : 'gap-3 rounded-2xl px-2.5 py-2.5'
               }`}
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/[0.08] text-sm font-semibold text-white">
-                {isAuthenticated && user?.avatarUrl ? (
-                  <img
-                    src={user.avatarUrl}
-                    alt={user.displayName}
-                    className="h-full w-full object-cover"
-                  />
-                ) : isAuthenticated ? (
-                  user?.initials
-                ) : (
-                  <CircleUserRound className="h-4 w-4 text-zinc-300" />
-                )}
-              </div>
+              {isSidebarCollapsed ? (
+                <CollapsedSidebarStack
+                  label={isAuthenticated ? user?.displayName || t('sidebar.account') : t('sidebar.userMenu.guest')}
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/[0.08] text-sm font-semibold text-white">
+                    {isAuthenticated && user?.avatarUrl ? (
+                      <img
+                        src={user.avatarUrl}
+                        alt={user.displayName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : isAuthenticated ? (
+                      user?.initials
+                    ) : (
+                      <CircleUserRound className="h-5 w-5 text-zinc-300" />
+                    )}
+                  </div>
+                </CollapsedSidebarStack>
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/[0.08] text-sm font-semibold text-white">
+                  {isAuthenticated && user?.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.displayName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : isAuthenticated ? (
+                    user?.initials
+                  ) : (
+                    <CircleUserRound className="h-4 w-4 text-zinc-300" />
+                  )}
+                </div>
+              )}
 
               {!isSidebarCollapsed ? (
                 <>

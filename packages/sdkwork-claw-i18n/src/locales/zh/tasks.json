@@ -2,6 +2,9 @@
     "page":  {
                  "title":  "定时任务",
                  "subtitle":  "在更清晰的任务工作台中设计、编排并运行周期性 AI 工作流。",
+                 "tabs":  {
+                              "tasks":  "任务列表"
+                          },
                  "stats":  {
                                "total":  "总任务数",
                                "active":  "已启用",

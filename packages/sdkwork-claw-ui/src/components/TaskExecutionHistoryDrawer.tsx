@@ -85,7 +85,7 @@ export function TaskExecutionHistoryDrawer({
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">{loadingText}</p>
               </div>
             ) : entries.length === 0 ? (
-              <div className="rounded-[28px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-10 text-center dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="rounded-[20px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-10 text-center dark:border-zinc-800 dark:bg-zinc-950">
                 <h3 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
                   {emptyTitle}
                 </h3>
@@ -98,7 +98,7 @@ export function TaskExecutionHistoryDrawer({
                 {entries.map((entry) => (
                   <article
                     key={entry.id}
-                    className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                    className="rounded-[18px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
                   >
                     <div className="flex flex-wrap gap-2">
                       <TaskRowBadge tone={getTaskHistoryBadgeTone(entry.status)}>

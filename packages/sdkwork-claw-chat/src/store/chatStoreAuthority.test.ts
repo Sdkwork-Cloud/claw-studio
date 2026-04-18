@@ -576,6 +576,13 @@ await runTest(
           { id: existingLocalSessionId, transport: 'local' },
         ],
       );
+      const createdSession = scopedSessions.find((session) => session.id === sessionId);
+      assert.ok(createdSession?.kernelSession);
+      assert.equal(createdSession?.kernelSession?.authority.kind, 'localProjection');
+      assert.equal(createdSession?.kernelSession?.authority.source, 'studioProjection');
+      assert.equal(createdSession?.kernelSession?.ref.kernelId, 'studio-direct');
+      assert.equal(createdSession?.kernelSession?.ref.instanceId, instanceId);
+      assert.equal(createdSession?.kernelSession?.lifecycle, 'draft');
       assert.equal(state.instanceRouteModeById[instanceId], 'instanceOpenAiHttp');
       assert.equal(state.lastErrorByInstance[instanceId], undefined);
     } finally {
@@ -1376,6 +1383,14 @@ await runTest(
       assert.ok(putConversationCalls.includes(activeLocalSessionId));
       assert.equal(activeSession?.messages.length ?? -1, 1);
       assert.equal(activeSession?.messages[0]?.content, 'hello local scope');
+      assert.ok(activeSession?.kernelSession);
+      assert.equal(activeSession?.kernelSession?.authority.kind, 'localProjection');
+      assert.ok(activeSession?.messages[0]?.kernelMessage);
+      assert.equal(
+        activeSession?.messages[0]?.kernelMessage?.sessionRef.sessionId,
+        activeLocalSessionId,
+      );
+      assert.equal(activeSession?.messages[0]?.kernelMessage?.text, 'hello local scope');
     } finally {
       resetChatStore();
       configurePlatformBridge(originalBridge);
@@ -1458,6 +1473,9 @@ await runTest(
       );
       assert.equal(state.activeSessionIdByInstance[instanceId], activeLocalSessionId);
       assert.equal(activeSession?.messages[0]?.content, 'final reply');
+      assert.ok(activeSession?.kernelSession);
+      assert.ok(activeSession?.messages[0]?.kernelMessage);
+      assert.equal(activeSession?.messages[0]?.kernelMessage?.text, 'final reply');
     } finally {
       resetChatStore();
     }

@@ -339,7 +339,7 @@ mod tests {
         assert_eq!(info.host.topology.kind, "localManagedNative");
         assert_eq!(info.host.topology.state, "installed");
         assert_eq!(info.host.runtime.state, "stopped");
-        assert_eq!(info.host.endpoint.preferred_port, 18_789);
+        assert_eq!(info.host.endpoint.preferred_port, 21_280);
         assert!(info.host.endpoint.base_url.starts_with("http://127.0.0.1:"));
         assert!(info.host.host.attach_supported);
         assert!(info.host.host.repair_supported);

@@ -1,10 +1,10 @@
 {
   "eyebrow": "OpenClaw Linked",
-  "title": "OpenClaw Networking",
+  "title": "Networking",
   "subtitle": "Inspect local OpenClaw instances and keep gateway connectivity visible in one place.",
   "description": "This OpenClaw-only networking view surfaces the registry-linked runtimes already managed inside Claw Studio so you can verify gateway endpoints, WebSocket exposure, and ACP routing readiness before agents go online.",
   "refresh": "Refresh Registry",
-  "loadFailed": "Failed to load OpenClaw networking",
+  "loadFailed": "Failed to load networking",
   "loadFailedDescription": "We could not read the local OpenClaw registry snapshot right now.",
   "emptyTitle": "No OpenClaw instances are registered yet",
   "emptyDescription": "Install or register an OpenClaw runtime first. Once it is available locally, this page will show its gateway endpoint, WebSocket entry, storage namespace, and route readiness.",

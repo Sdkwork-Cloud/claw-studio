@@ -1,5 +1,5 @@
-import { studio } from '@sdkwork/claw-infrastructure';
 import type { Agent, ListParams, PaginatedResult } from '@sdkwork/claw-types';
+import { kernelChatAgentCatalogService } from './kernelChatAgentCatalogService.ts';
 
 export interface CreateAgentDTO {
   name: string;
@@ -47,16 +47,6 @@ function paginateAgents(agents: Agent[], params: ListParams = {}): PaginatedResu
   };
 }
 
-function mapWorkbenchAgent(
-  record: NonNullable<
-    NonNullable<Awaited<ReturnType<typeof studio.getInstanceDetail>>>['workbench']
-  >['agents'][number],
-): Agent {
-  return {
-    ...record.agent,
-  };
-}
-
 class AgentService implements IAgentService {
   async getList(params: ListParams = {}, instanceId?: string): Promise<PaginatedResult<Agent>> {
     return paginateAgents(await this.getAgents(instanceId), params);
@@ -83,12 +73,7 @@ class AgentService implements IAgentService {
   }
 
   async getAgents(instanceId?: string): Promise<Agent[]> {
-    if (!instanceId) {
-      return [];
-    }
-
-    const detail = await studio.getInstanceDetail(instanceId);
-    return detail?.workbench?.agents.map(mapWorkbenchAgent) || [];
+    return kernelChatAgentCatalogService.listAgents(instanceId);
   }
 
   async getAgent(id: string, instanceId?: string): Promise<Agent> {

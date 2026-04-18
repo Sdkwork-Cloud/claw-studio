@@ -1,9 +1,14 @@
 import { createSimpleStore } from '@sdkwork/claw-core';
-import type { StudioConversationAttachment } from '@sdkwork/claw-types';
+import type {
+  KernelChatMessage,
+  KernelChatSession,
+  StudioConversationAttachment,
+} from '@sdkwork/claw-types';
 import {
   buildOpenClawThreadSessionKey,
   DEFAULT_CHAT_SESSION_TITLE,
   getSharedOpenClawGatewayClient,
+  hydrateLocalChatKernelProjection,
   openClawGatewayHistoryConfigService,
   type OpenClawToolCard,
   resolveAuthoritativeInstanceChatRoute,
@@ -32,6 +37,7 @@ export interface Message {
   attachments?: StudioConversationAttachment[];
   reasoning?: string | null;
   toolCards?: OpenClawToolCard[];
+  kernelMessage?: KernelChatMessage | null;
 }
 
 export interface ChatSession {
@@ -53,6 +59,7 @@ export interface ChatSession {
   lastMessagePreview?: string;
   historyState?: 'idle' | 'loading' | 'ready' | 'error';
   sessionKind?: string | null;
+  kernelSession?: KernelChatSession | null;
 }
 
 type ScopeMap<T> = Record<string, T>;
@@ -154,15 +161,23 @@ function cloneAttachments(
 }
 
 function normalizeSession(session: ChatSession): ChatSession {
-  return {
+  const normalizedSession = {
     ...session,
     transport: session.transport ?? 'local',
     messages: normalizeMessages(session.messages),
   };
+
+  if (normalizedSession.transport === 'openclawGateway') {
+    return normalizedSession;
+  }
+
+  return hydrateLocalChatKernelProjection({
+    session: normalizedSession,
+  });
 }
 
 function sortSessions(sessions: ChatSession[]) {
-  return sessions.sort((left, right) => right.updatedAt - left.updatedAt);
+  return sessions.map(normalizeSession).sort((left, right) => right.updatedAt - left.updatedAt);
 }
 
 function listScopeSessions(sessions: ChatSession[], instanceId: string | null | undefined) {
@@ -557,7 +572,7 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
 
     const resolvedModel = requestedModel || DEFAULT_MODEL;
     const timestamp = Date.now();
-    const session: ChatSession = {
+    const session: ChatSession = normalizeSession({
       id: createSessionId(instanceId),
       title: DEFAULT_TITLE,
       createdAt: timestamp,
@@ -566,7 +581,8 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
       model: resolvedModel,
       instanceId,
       transport: 'local',
-    };
+      sessionKind: 'direct',
+    });
 
     set((state) => {
       const nextSessions = sortSessions([session, ...state.sessions.map(normalizeSession)]);
@@ -864,6 +880,7 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
           updatedAt: timestamp,
           messages: [...currentMessages, nextMessage],
         };
+        nextSession = normalizeSession(nextSession);
 
         return nextSession;
       });
@@ -943,7 +960,7 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
             messages: normalizeMessages(session.messages).map((message) =>
               message.id === messageId ? { ...message, content, timestamp } : message,
             ),
-          };
+          } as ChatSession;
         }
 
         return normalizeSession(session);
@@ -1017,6 +1034,7 @@ export const chatStore = createSimpleStore<ChatState>((set, get) => ({
           updatedAt: Date.now(),
           lastMessagePreview: undefined,
         };
+        cleared = normalizeSession(cleared);
         return cleared;
       });
 

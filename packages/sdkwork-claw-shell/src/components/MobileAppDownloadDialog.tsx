@@ -87,7 +87,7 @@ function MobileAppDownloadChannelCard({
   };
 
   return (
-    <div className="flex h-full flex-col rounded-[28px] border border-white/10 bg-zinc-950/78 p-5 text-zinc-100 shadow-[0_24px_60px_rgba(9,9,11,0.22)]">
+    <div className="flex h-full flex-col rounded-[20px] border border-white/10 bg-zinc-950/78 p-5 text-zinc-100 shadow-[0_24px_60px_rgba(9,9,11,0.22)]">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/6 text-white">
           <Smartphone className="h-5 w-5" />
@@ -181,13 +181,13 @@ function MobileAppDownloadQrCode({
   return (
     <div
       data-slot="mobile-app-download-qr-code"
-      className="rounded-[28px] border border-sky-500/16 bg-white/90 p-5 text-zinc-950 shadow-[0_18px_40px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-zinc-900/92 dark:text-zinc-50"
+      className="rounded-[20px] border border-sky-500/16 bg-white/90 p-5 text-zinc-950 shadow-[0_18px_40px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-zinc-900/92 dark:text-zinc-50"
     >
       <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-600 dark:text-sky-300">
         {label}
       </div>
       <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{description}</p>
-      <div className="mt-4 flex justify-center rounded-[24px] bg-white p-4 shadow-inner">
+        <div className="mt-4 flex justify-center rounded-[18px] bg-white p-4 shadow-inner">
         {qrCodeDataUrl ? (
           <img
             src={qrCodeDataUrl}
@@ -269,7 +269,7 @@ export function MobileAppDownloadDialog({
 
       <div className="overflow-y-auto bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.10),_transparent_34%),linear-gradient(180deg,_rgba(9,9,11,0.02),_rgba(9,9,11,0))] px-6 py-6 dark:bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.14),_transparent_36%),linear-gradient(180deg,_rgba(24,24,27,0.76),_rgba(9,9,11,0.96))]">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_22rem]">
-          <div className="rounded-[28px] border border-sky-500/14 bg-sky-500/[0.06] px-5 py-5 text-sm leading-6 text-zinc-700 dark:text-sky-50/90">
+          <div className="rounded-[20px] border border-sky-500/14 bg-sky-500/[0.06] px-5 py-5 text-sm leading-6 text-zinc-700 dark:text-sky-50/90">
             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700 dark:text-sky-200/80">
               {t('install.mobileGuide.dialog.primaryTitle')}
             </div>

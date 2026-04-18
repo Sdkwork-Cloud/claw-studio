@@ -159,3 +159,38 @@ await runTest('getChatSessionDisplayTitle hides agent thread session ids when no
     'New Conversation',
   );
 });
+
+await runTest('getChatSessionDisplayTitle prefers kernel-authored first user message text over legacy content mirrors', () => {
+  assert.equal(
+    getChatSessionDisplayTitle({
+      title: 'New Conversation',
+      messages: [
+        {
+          role: 'user',
+          content: 'Legacy mirrored prompt',
+          kernelMessage: {
+            id: 'message-1',
+            sessionRef: {
+              kernelId: 'openclaw',
+              instanceId: 'instance-1',
+              sessionId: 'session-1',
+            },
+            role: 'user',
+            status: 'complete',
+            createdAt: 1,
+            updatedAt: 1,
+            text: 'Kernel authored prompt',
+            parts: [
+              {
+                kind: 'text',
+                text: 'Kernel authored prompt',
+              },
+            ],
+          },
+        },
+      ],
+      lastMessagePreview: undefined,
+    }),
+    'Kernel authored prompt',
+  );
+});

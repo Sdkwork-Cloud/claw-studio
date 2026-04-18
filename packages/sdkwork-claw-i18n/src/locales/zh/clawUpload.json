@@ -1,10 +1,10 @@
 {
   "eyebrow": "OpenClaw 已关联",
-  "title": "OpenClaw 联网",
+  "title": "联网",
   "subtitle": "集中查看本地 OpenClaw 实例，并保持网关连通性一目了然。",
   "description": "该页面仅用于 OpenClaw 联网视图，展示 Claw Studio 当前已管理并与注册表关联的 OpenClaw 运行时，便于在接入智能体前核对网关端点、WebSocket 暴露状态和 ACP 路由就绪度。",
   "refresh": "刷新注册中心",
-  "loadFailed": "加载 OpenClaw 联网信息失败",
+  "loadFailed": "加载联网信息失败",
   "loadFailedDescription": "当前无法读取本地 OpenClaw 注册表快照。",
   "emptyTitle": "尚未注册任何 OpenClaw 实例",
   "emptyDescription": "请先安装或注册 OpenClaw 运行时。待其在本地可用后，此页面会展示对应的网关端点、WebSocket 入口、存储命名空间和路由就绪度。",

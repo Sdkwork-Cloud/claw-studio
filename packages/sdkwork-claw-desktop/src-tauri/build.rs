@@ -109,12 +109,14 @@ fn repair_stale_directory_entry(directory: &Path, label: &str) {
         }
     };
 
-    if metadata.is_dir() {
+    if metadata.is_dir() && directory.exists() {
         return;
     }
 
     let remove_result = if metadata.file_type().is_symlink() || metadata.is_file() {
         fs::remove_file(directory)
+    } else if metadata.is_dir() && is_windows_reparse_directory(&metadata) {
+        fs::remove_dir(directory)
     } else {
         fs::remove_dir_all(directory)
     };
@@ -144,6 +146,20 @@ fn repair_stale_directory_entry(directory: &Path, label: &str) {
         label,
         directory.display()
     ));
+}
+
+#[cfg(windows)]
+fn is_windows_reparse_directory(metadata: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
+
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn is_windows_reparse_directory(_metadata: &fs::Metadata) -> bool {
+    false
 }
 
 fn ensure_generated_bundled_placeholder(directory: &Path) {

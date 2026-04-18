@@ -129,7 +129,7 @@ function createDetail(instanceId: string): StudioInstanceDetailRecord {
   };
 }
 
-await runTest('agentService reads agents from the instance workbench instead of the mock registry', async () => {
+await runTest('agentService reads agents through the kernel chat catalog projection instead of a mock registry', async () => {
   const originalBridge = getPlatformBridge();
 
   configurePlatformBridge({

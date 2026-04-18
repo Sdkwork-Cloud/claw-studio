@@ -102,7 +102,7 @@ await runTest(
   () => {
     assert.match(
       pageSource,
-      /import \{\s*resolveChatThinkingLevelDefaultOption,\s*resolveChatThinkingLevelOptions,\s*\} from '\.\.\/services';/,
+      /import \{[\s\S]*resolveKernelChatSessionState,[\s\S]*resolveChatThinkingLevelDefaultOption,\s*resolveChatThinkingLevelOptions,[\s\S]*\} from '\.\.\/services';/s,
     );
     assert.match(
       pageSource,
@@ -110,23 +110,27 @@ await runTest(
     );
     assert.match(
       pageSource,
-      /const activeThinkingLevel = isOpenClawGateway \? activeSession\?\.thinkingLevel \?\? null : null;/,
+      /const activeKernelSessionState = resolveKernelChatSessionState\(activeSession\);/,
     );
     assert.match(
       pageSource,
-      /const activeFastMode =\s*isOpenClawGateway\s*\?\s*activeSession\?\.fastMode === true\s*\?\s*'on'\s*:\s*activeSession\?\.fastMode === false\s*\?\s*'off'\s*:\s*null\s*:\s*null;/s,
+      /const activeThinkingLevel = isOpenClawGateway \? activeKernelSessionState\.thinkingLevel : null;/,
     );
     assert.match(
       pageSource,
-      /const activeVerboseLevel = isOpenClawGateway \? activeSession\?\.verboseLevel \?\? null : null;/,
+      /const activeFastMode =\s*isOpenClawGateway\s*\?\s*activeKernelSessionState\.fastMode === true\s*\?\s*'on'\s*:\s*activeKernelSessionState\.fastMode === false\s*\?\s*'off'\s*:\s*null\s*:\s*null;/s,
     );
     assert.match(
       pageSource,
-      /const activeReasoningLevel = isOpenClawGateway \? activeSession\?\.reasoningLevel \?\? null : null;/,
+      /const activeVerboseLevel = isOpenClawGateway \? activeKernelSessionState\.verboseLevel : null;/,
     );
     assert.match(
       pageSource,
-      /const activeThinkingModelId =\s*isOpenClawGateway \? sessionSelectedModelId \|\| activeModel\?\.id \|\| null : null;/s,
+      /const activeReasoningLevel = isOpenClawGateway \? activeKernelSessionState\.reasoningLevel : null;/,
+    );
+    assert.match(
+      pageSource,
+      /const activeThinkingModelId =\s*isOpenClawGateway\s*\?\s*activeKernelSessionState\.model \|\| activeKernelSessionState\.defaultModel \|\| activeModel\?\.id \|\| null\s*:\s*null;/s,
     );
     assert.match(
       pageSource,
@@ -219,6 +223,42 @@ await runTest(
     assert.match(
       pageSource,
       /onSelectReasoningLevel=\{isOpenClawGateway\s*\?\s*\(reasoningLevel\) => \{\s*if \(!activeInstanceId \|\| !activeSession\) \{\s*return;\s*\}\s*void setGatewaySessionReasoningLevel\(\{\s*instanceId: activeInstanceId,\s*sessionId: activeSession\.id,\s*reasoningLevel,\s*\}\)\.catch\(\(error\) => \{\s*console\.error\('Failed to update OpenClaw session reasoning level:', error\);/s,
+    );
+  },
+);
+
+await runTest(
+  'Chat page derives chat generation run state from the kernel session authority',
+  () => {
+    assert.match(
+      pageSource,
+      /const\s*\{\s*isActiveSessionGenerating,\s*isComposerLocked,\s*stopSessionId\s*\}\s*=\s*resolveChatGenerationViewState\(\{\s*effectiveActiveSessionId,\s*pendingSendSessionId,\s*activeSessionRunId:\s*activeKernelSessionState\.activeRunId,\s*runningSessionId,\s*\}\);/s,
+    );
+    assert.doesNotMatch(
+      pageSource,
+      /resolveChatGenerationViewState\(\{[\s\S]*activeSessionRunId:\s*activeSession\?\.runId\s*\?\?\s*null[\s\S]*\}\)/s,
+    );
+  },
+);
+
+await runTest(
+  'Chat page resolves message display state through the kernel message authority',
+  () => {
+    assert.match(
+      pageSource,
+      /import \{[\s\S]*resolveKernelChatMessageState,[\s\S]*\} from '\.\.\/services';/s,
+    );
+    assert.match(
+      pageSource,
+      /const activeMessageStates = useMemo\(\s*\(\) => activeMessages\.map\(\(message\) => resolveKernelChatMessageState\(message\)\),\s*\[activeMessages\],\s*\);/s,
+    );
+    assert.match(
+      pageSource,
+      /const activeMessageGroups = useMemo\(\s*\(\) => groupChatMessagesForDisplay\(activeMessageStates\),\s*\[activeMessageStates\],\s*\);/s,
+    );
+    assert.doesNotMatch(
+      pageSource,
+      /const activeMessageGroups = useMemo\(\s*\(\) => groupChatMessagesForDisplay\(activeMessages\),\s*\[activeMessages\],\s*\);/s,
     );
   },
 );

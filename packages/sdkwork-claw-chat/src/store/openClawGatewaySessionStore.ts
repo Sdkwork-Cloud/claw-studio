@@ -1,4 +1,8 @@
-import type { StudioConversationAttachment } from '@sdkwork/claw-types';
+import type {
+  KernelChatMessage,
+  KernelChatSession,
+  StudioConversationAttachment,
+} from '@sdkwork/claw-types';
 import type {
   OpenClawGatewayAgentEvent,
   OpenClawGatewayChatEvent,
@@ -18,6 +22,7 @@ import {
   buildGatewayAttachments,
   composeOutgoingChatText,
   DEFAULT_CHAT_SESSION_TITLE,
+  hydrateOpenClawKernelChatProjection,
   isGatewayMethodUnavailableError,
   isAnyOpenClawMainSession,
   resolveOpenClawMessagePresentation,
@@ -53,6 +58,7 @@ export interface OpenClawGatewayMessage {
   reasoning?: string | null;
   toolCards?: OpenClawToolCard[];
   pendingDelivery?: boolean;
+  kernelMessage?: KernelChatMessage | null;
 }
 
 export interface OpenClawGatewayChatSession {
@@ -75,6 +81,7 @@ export interface OpenClawGatewayChatSession {
   titleSource?: OpenClawGatewayTitleSource;
   historyState?: OpenClawGatewayHistoryState;
   sessionKind?: string | null;
+  kernelSession?: KernelChatSession | null;
 }
 
 export interface OpenClawGatewayInstanceSnapshot {
@@ -1471,7 +1478,12 @@ export class OpenClawGatewaySessionStore {
     const snapshot = this.instances.get(instanceId)?.snapshot ?? createInitialSnapshot();
     return {
       ...snapshot,
-      sessions: snapshot.sessions.map(cloneSession),
+      sessions: snapshot.sessions.map((session) =>
+        hydrateOpenClawKernelChatProjection({
+          instanceId,
+          session: cloneSession(session),
+        }),
+      ),
     };
   }
 
@@ -1537,7 +1549,10 @@ export class OpenClawGatewaySessionStore {
     this.sortSessions(state.snapshot);
     this.emit(instanceId);
     void this.synchronizeSessionMessageSubscription(instanceId, state);
-    return cloneSession(session);
+    return hydrateOpenClawKernelChatProjection({
+      instanceId,
+      session: cloneSession(session),
+    });
   }
 
   async setActiveSession(params: { instanceId: string; sessionId: string | null }) {

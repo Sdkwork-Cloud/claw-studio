@@ -108,15 +108,11 @@ export function GeneralSettings() {
     { id: 'chat', label: t('sidebar.aiChat') },
     { id: 'channels', label: t('sidebar.channels') },
     { id: 'tasks', label: t('sidebar.cronTasks') },
-    { id: 'dashboard', label: t('sidebar.dashboard') },
-    { id: 'usage', label: t('sidebar.usage') },
+    { id: 'instances', label: t('sidebar.instances') },
     { id: 'agents', label: t('sidebar.agentMarket') },
     { id: 'extensions', label: t('sidebar.extensions') },
     { id: 'claw-upload', label: t('sidebar.clawUpload') },
     { id: 'community', label: t('sidebar.community') },
-    { id: 'kernel', label: t('sidebar.kernelCenter') },
-    { id: 'nodes', label: t('sidebar.nodes') },
-    { id: 'instances', label: t('sidebar.instances') },
   ];
   const explicitLanguagePreference =
     languagePreference !== 'system' ? languagePreference : null;

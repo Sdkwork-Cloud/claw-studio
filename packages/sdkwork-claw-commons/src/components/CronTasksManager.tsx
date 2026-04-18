@@ -23,6 +23,8 @@ import {
   buildTaskAgentSelectState,
   buildTaskCardState,
   buildTaskCreateWorkspaceState,
+  buildTaskExecutionFeed,
+  isTaskExecutionFeedReady,
   buildCreateTaskInput,
   buildTaskFormValuesFromTask,
   collectTaskFormErrors,
@@ -68,7 +70,11 @@ import {
   SelectValue,
   Switch,
   TaskCatalog,
+  TaskExecutionFeedPanel,
   TaskExecutionHistoryDrawer,
+  TaskInspectorSummaryPanel,
+  TaskRuntimeSnapshotPanel,
+  TaskStudioTabs,
   type TaskCatalogItem,
   Textarea,
   cn,
@@ -88,13 +94,13 @@ import {
   getTaskFlowLinkedTaskSummary,
   getTaskFlowBlockedSummary,
   getTaskFlowCardSummary,
-  isActiveRuntimeStatus,
 } from './taskRuntimeFlowMeta.ts';
 
 type TaskRouteIntent =
   | { mode: 'create' }
   | { mode: 'edit'; taskId: string }
   | null;
+type TaskStudioTopTab = 'tasks' | 'history';
 
 type RuntimeTaskBoardRecord = TaskRuntimeOverview['taskBoard']['items'][number];
 type RuntimeTaskFlowRecord = TaskRuntimeOverview['taskFlows']['items'][number];
@@ -373,10 +379,12 @@ export function CronTasksManager({
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeTopTab, setActiveTopTab] = useState<TaskStudioTopTab>('tasks');
   const [editorMode, setEditorMode] = useState<'create' | 'edit' | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [historyTaskId, setHistoryTaskId] = useState<string | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [isHistoryFeedLoading, setIsHistoryFeedLoading] = useState(false);
   const [runtimeTaskDetailState, setRuntimeTaskDetailState] = useState<RuntimeTaskDetailState>(
     createEmptyRuntimeTaskDetailState(),
   );
@@ -402,6 +410,8 @@ export function CronTasksManager({
   const schedulePreview = buildSchedulePreview(taskForm);
   const historyTask = historyTaskId ? tasks.find((task) => task.id === historyTaskId) || null : null;
   const historyEntries = historyTaskId ? executionsByTaskId[historyTaskId] || [] : [];
+  const executionFeed = buildTaskExecutionFeed(tasks, executionsByTaskId);
+  const isExecutionFeedReady = isTaskExecutionFeedReady(tasks, executionsByTaskId);
   const runtimeTaskDetail = runtimeTaskDetailState.detail;
   const taskFlowDetail = taskFlowDetailState.detail;
   const readyToSave = Boolean(activeInstanceId) && workspaceState.readiness.ready;
@@ -431,14 +441,8 @@ export function CronTasksManager({
     activeInstanceIdRef.current = activeInstanceId;
   }, [activeInstanceId]);
 
-  const stats = {
-    total: tasks.length,
-    active: tasks.filter((task) => task.status === 'active').length,
-    paused: tasks.filter((task) => task.status === 'paused').length,
-    failed: tasks.filter((task) => task.status === 'failed').length,
-  };
-
   useEffect(() => {
+    setActiveTopTab('tasks');
     setEditorMode(null);
     setEditingTaskId(null);
     setHistoryTaskId(null);
@@ -449,6 +453,7 @@ export function CronTasksManager({
     setActiveCreateSection('basicInfo');
     setHasConsumedRouteIntent(false);
     setIsEditorResourcesLoading(false);
+    setIsHistoryFeedLoading(false);
     setEditorResourcesInstanceId(null);
     editorResourcesRequestRef.current = null;
     setTaskRuntimeOverview(createEmptyTaskRuntimeOverview());
@@ -462,6 +467,7 @@ export function CronTasksManager({
     mode: 'initial' | 'refresh' = 'refresh',
     options: {
       includeEditorResources?: boolean;
+      historyTaskIds?: string[];
     } = {},
   ) {
     if (!activeInstanceId) {
@@ -488,7 +494,7 @@ export function CronTasksManager({
       const snapshot = await loadTaskStudioSnapshot({
         instanceId: activeInstanceId,
         includeEditorResources: options.includeEditorResources,
-        historyTaskIds: historyTaskId ? [historyTaskId] : [],
+        historyTaskIds: options.historyTaskIds ?? (historyTaskId ? [historyTaskId] : []),
         getTasks: (instanceId) => taskService.getTasks(instanceId),
         getTaskRuntimeOverview: (instanceId) => taskRuntimeService.getOverview(instanceId),
         listDeliveryChannels: (instanceId) =>
@@ -545,6 +551,51 @@ export function CronTasksManager({
   useEffect(() => {
     void refreshTaskStudio('initial', { includeEditorResources: false });
   }, [activeInstanceId]);
+
+  async function ensureExecutionFeed(force = false) {
+    if (!activeInstanceId || tasks.length === 0) {
+      return;
+    }
+
+    const taskIds = tasks.map((task) => task.id);
+    const historyTaskIds = force
+      ? taskIds
+      : taskIds.filter((taskId) => !(taskId in executionsByTaskId));
+
+    if (historyTaskIds.length === 0) {
+      return;
+    }
+
+    setIsHistoryFeedLoading(true);
+    try {
+      const entries = await Promise.all(
+        historyTaskIds.map(async (taskId) => {
+          try {
+            return [taskId, await taskService.listTaskExecutions(taskId)] as const;
+          } catch {
+            return [taskId, [] as TaskExecutionHistoryEntry[]] as const;
+          }
+        }),
+      );
+
+      startTransition(() => {
+        setExecutionsByTaskId((current) => ({
+          ...current,
+          ...Object.fromEntries(entries),
+        }));
+      });
+    } catch {
+      toast.error(t('tasks.page.toasts.failedToLoadHistory'));
+    } finally {
+      setIsHistoryFeedLoading(false);
+    }
+  }
+
+  async function refreshVisibleTaskStudio() {
+    await refreshTaskStudio('refresh', {
+      historyTaskIds: activeTopTab === 'history' ? tasks.map((task) => task.id) : undefined,
+    });
+  }
 
   async function ensureEditorResources() {
     if (!activeInstanceId) {
@@ -622,6 +673,14 @@ export function CronTasksManager({
     clearTaskRouteIntent();
     setHasConsumedRouteIntent(true);
   }, [activeInstanceId, hasConsumedRouteIntent, isLoading, tasks]);
+
+  useEffect(() => {
+    if (activeTopTab !== 'history' || !activeInstanceId || isLoading) {
+      return;
+    }
+
+    void ensureExecutionFeed();
+  }, [activeInstanceId, activeTopTab, isLoading, tasks, executionsByTaskId]);
 
   function updateTaskFormField<Key extends keyof TaskFormValues>(field: Key, value: TaskFormValues[Key]) {
     setTaskForm((current) => ({ ...current, [field]: value }));
@@ -848,7 +907,7 @@ export function CronTasksManager({
         name: t('tasks.page.actions.cloneName', { name: task.name }),
       });
       toast.success(t('tasks.page.toasts.cloned'));
-      await refreshTaskStudio('refresh');
+      await refreshVisibleTaskStudio();
     } catch {
       toast.error(t('tasks.page.toasts.failedToClone'));
     } finally {
@@ -861,7 +920,7 @@ export function CronTasksManager({
     try {
       await taskService.runTaskNow(task.id);
       toast.success(t('tasks.page.toasts.ranNow'));
-      await refreshTaskStudio('refresh');
+      await refreshVisibleTaskStudio();
     } catch {
       toast.error(t('tasks.page.toasts.failedToRunNow'));
     } finally {
@@ -879,7 +938,7 @@ export function CronTasksManager({
     try {
       await taskService.updateTaskStatus(task.id, nextStatus);
       toast.success(t(nextStatus === 'active' ? 'tasks.page.toasts.enabled' : 'tasks.page.toasts.disabled'));
-      await refreshTaskStudio('refresh');
+      await refreshVisibleTaskStudio();
     } catch {
       toast.error(t('tasks.page.toasts.failedToUpdateStatus'));
     } finally {
@@ -895,7 +954,7 @@ export function CronTasksManager({
     try {
       await taskService.deleteTask(task.id);
       toast.success(t('tasks.page.toasts.deleted'));
-      await refreshTaskStudio('refresh');
+      await refreshVisibleTaskStudio();
     } catch {
       toast.error(t('tasks.page.toasts.failedToDelete'));
     } finally {
@@ -931,7 +990,7 @@ export function CronTasksManager({
         toast.success(t('tasks.page.toasts.created'));
       }
       closeEditor();
-      await refreshTaskStudio('refresh');
+      await refreshVisibleTaskStudio();
     } catch {
       toast.error(
         t(editorMode === 'edit' ? 'tasks.page.toasts.failedToUpdate' : 'tasks.page.toasts.failedToCreate'),
@@ -1005,7 +1064,7 @@ export function CronTasksManager({
     return (
       <div className="grid gap-5 xl:grid-cols-[1.08fr,0.92fr]">
         <section className="space-y-5">
-          <div className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="rounded-[18px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
               {t('tasks.page.workspace.overviewTitle')}
             </h3>
@@ -1053,7 +1112,7 @@ export function CronTasksManager({
             </div>
           </div>
 
-          <div className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="rounded-[18px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
               {t('tasks.page.workspace.promptTitle')}
             </h3>
@@ -1081,7 +1140,7 @@ export function CronTasksManager({
           </div>
         </section>
 
-        <section className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section className="rounded-[18px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
             {t('tasks.page.workspace.scheduleTitle')}
           </h3>
@@ -1283,7 +1342,7 @@ export function CronTasksManager({
     return (
       <div className="space-y-5">
         <div className="grid gap-5 xl:grid-cols-2">
-          <section className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <section className="rounded-[18px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
               {t('tasks.page.workspace.commonConfigTitle')}
             </h3>
@@ -1382,7 +1441,7 @@ export function CronTasksManager({
             </div>
           </section>
 
-          <section className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <section className="rounded-[18px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
               {t('tasks.page.workspace.deliveryTitle')}
             </h3>
@@ -1496,7 +1555,7 @@ export function CronTasksManager({
           </section>
         </div>
 
-        <section className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section className="rounded-[18px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
             {t('tasks.page.workspace.executionAdvancedTitle')}
           </h3>
@@ -1691,191 +1750,231 @@ export function CronTasksManager({
       return null;
     }
 
-    const runtimeTasks = taskRuntimeOverview.taskBoard.items.slice(0, 6);
-    const taskFlows = taskRuntimeOverview.taskFlows.items.slice(0, 6);
-    const activeRuntimeTasks = taskRuntimeOverview.taskBoard.items.filter((item) =>
-      isActiveRuntimeStatus(item.status),
-    ).length;
-    const activeTaskFlows = taskRuntimeOverview.taskFlows.items.filter((item) =>
-      isActiveRuntimeStatus(item.state),
-    ).length;
+    const neutralBadgeClassName =
+      'inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200';
 
     return (
-      <section className="rounded-[32px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-              {t('tasks.page.runtime.eyebrow')}
-            </div>
-            <h2 className="mt-2 text-2xl font-bold text-zinc-950 dark:text-zinc-50">
-              {t('tasks.page.runtime.title')}
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-              {t('tasks.page.runtime.description')}
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950/60">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                {t('tasks.page.runtime.cards.runtimeTasks')}
-              </div>
-              <div className="mt-2 text-3xl font-black tracking-tight text-zinc-950 dark:text-zinc-50">
-                {taskRuntimeOverview.taskBoard.items.length}
-              </div>
-              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                {t('tasks.page.runtime.cards.activeCount', { count: activeRuntimeTasks })}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950/60">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                {t('tasks.page.runtime.cards.taskFlows')}
-              </div>
-              <div className="mt-2 text-3xl font-black tracking-tight text-zinc-950 dark:text-zinc-50">
-                {taskRuntimeOverview.taskFlows.items.length}
-              </div>
-              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                {t('tasks.page.runtime.cards.activeCount', { count: activeTaskFlows })}
-              </div>
-            </div>
-          </div>
-        </div>
+      <TaskRuntimeSnapshotPanel
+        previewLimit={3}
+        boards={[
+          {
+            id: 'task-board',
+            title: t('tasks.page.runtime.taskBoard.title'),
+            count: taskRuntimeOverview.taskBoard.items.length,
+            message: taskRuntimeOverview.taskBoard.supported
+              ? t('tasks.page.runtime.taskBoard.empty')
+              : taskRuntimeOverview.taskBoard.message || t('tasks.page.runtime.taskBoard.unsupportedBody'),
+            messageTone: taskRuntimeOverview.taskBoard.supported ? 'neutral' : 'warning',
+            items: taskRuntimeOverview.taskBoard.supported
+              ? taskRuntimeOverview.taskBoard.items.map((item) => ({
+                  id: item.id,
+                  title: item.id,
+                  badges: [
+                    <span
+                      key="status"
+                      className={cn(
+                        'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
+                        getRuntimeStatusBadgeClass(item.status),
+                      )}
+                    >
+                      {formatRuntimeLabel(item.status)}
+                    </span>,
+                    ...(item.kind
+                      ? [
+                          <span key="kind" className={neutralBadgeClassName}>
+                            {formatRuntimeLabel(item.kind)}
+                          </span>,
+                        ]
+                      : []),
+                  ],
+                  summary: item.summary || t('tasks.page.runtime.taskBoard.summaryFallback'),
+                  meta: (
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                      <span>{t('tasks.page.runtime.fields.runId')}: {item.runId || '-'}</span>
+                      <span>{t('tasks.page.runtime.fields.deliveryStatus')}: {item.deliveryStatus ? formatRuntimeLabel(item.deliveryStatus) : '-'}</span>
+                      <span>{t('tasks.page.runtime.fields.lastEventAt')}: {item.updatedAt || '-'}</span>
+                    </div>
+                  ),
+                  action: (
+                    <Button variant="ghost" size="sm" onClick={() => void openRuntimeTaskDetail(item)}>
+                      <History className="h-4 w-4" />
+                      {t('tasks.page.history.details')}
+                    </Button>
+                  ),
+                }))
+              : [],
+          },
+          {
+            id: 'flow-board',
+            title: t('tasks.page.runtime.taskFlows.title'),
+            count: taskRuntimeOverview.taskFlows.items.length,
+            message: taskRuntimeOverview.taskFlows.supported
+              ? t('tasks.page.runtime.taskFlows.empty')
+              : taskRuntimeOverview.taskFlows.message || t('tasks.page.runtime.taskFlows.unsupportedBody'),
+            messageTone: taskRuntimeOverview.taskFlows.supported ? 'neutral' : 'warning',
+            items: taskRuntimeOverview.taskFlows.supported
+              ? taskRuntimeOverview.taskFlows.items.map((item) => ({
+                  id: item.id,
+                  title: item.lookupKey || item.id,
+                  badges: [
+                    <span
+                      key="state"
+                      className={cn(
+                        'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
+                        getRuntimeStatusBadgeClass(item.state),
+                      )}
+                    >
+                      {formatRuntimeLabel(item.state)}
+                    </span>,
+                    ...(item.syncMode
+                      ? [
+                          <span key="sync-mode" className={neutralBadgeClassName}>
+                            {formatRuntimeLabel(item.syncMode)}
+                          </span>,
+                        ]
+                      : []),
+                  ],
+                  summary: getTaskFlowCardSummary(
+                    item,
+                    t('tasks.page.runtime.taskFlows.summaryFallback'),
+                  ),
+                  meta: (
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                      <span>{t('tasks.page.runtime.fields.currentStep')}: {item.currentStep || '-'}</span>
+                      <span>{t('tasks.page.runtime.fields.activity')}: {formatTaskFlowActivity(item)}</span>
+                      <span>{t('tasks.page.runtime.fields.updatedAt')}: {item.updatedAt || '-'}</span>
+                    </div>
+                  ),
+                  action: (
+                    <Button variant="ghost" size="sm" onClick={() => void openTaskFlowDetail(item)}>
+                      <History className="h-4 w-4" />
+                      {t('tasks.page.history.details')}
+                    </Button>
+                  ),
+                }))
+              : [],
+          },
+        ]}
+      />
+    );
+  }
 
-        <div className="mt-6 grid gap-5 xl:grid-cols-2">
-          <div className="rounded-[28px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
-                  {t('tasks.page.runtime.taskBoard.title')}
-                </h3>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                  {t('tasks.page.runtime.taskBoard.description')}
-                </p>
-              </div>
-            </div>
+  function renderTopTabs() {
+    return (
+      <TaskStudioTabs
+        activeTab={activeTopTab}
+        tabs={[
+          {
+            id: 'tasks',
+            label: t('tasks.page.tabs.tasks'),
+            count: tasks.length,
+          },
+          {
+            id: 'history',
+            label: t('tasks.page.history.title'),
+            count: isExecutionFeedReady ? executionFeed.length : undefined,
+          },
+        ]}
+        onChange={(tabId) => setActiveTopTab(tabId as TaskStudioTopTab)}
+      />
+    );
+  }
 
-            {!taskRuntimeOverview.taskBoard.supported ? (
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-4 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
-                <div className="font-semibold">{t('tasks.page.runtime.taskBoard.unsupportedTitle')}</div>
-                <div className="mt-1 leading-6">
-                  {taskRuntimeOverview.taskBoard.message || t('tasks.page.runtime.taskBoard.unsupportedBody')}
-                </div>
-              </div>
-            ) : runtimeTasks.length === 0 ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-zinc-300 px-4 py-8 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                {t('tasks.page.runtime.taskBoard.empty')}
-              </div>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {runtimeTasks.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-zinc-200/80 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-900/90">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{item.id}</span>
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
-                          getRuntimeStatusBadgeClass(item.status),
-                        )}
-                      >
-                        {formatRuntimeLabel(item.status)}
-                      </span>
-                      {item.kind ? (
-                        <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                          {formatRuntimeLabel(item.kind)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                      {item.summary || t('tasks.page.runtime.taskBoard.summaryFallback')}
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Button variant="ghost" onClick={() => void openRuntimeTaskDetail(item)}>
-                        <History className="h-4 w-4" />
-                        {t('tasks.page.history.details')}
-                      </Button>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-xs text-zinc-500 dark:text-zinc-400 sm:grid-cols-2">
-                      <div>{t('tasks.page.runtime.fields.runId')}: {item.runId || '-'}</div>
-                      <div>{t('tasks.page.runtime.fields.deliveryStatus')}: {item.deliveryStatus ? formatRuntimeLabel(item.deliveryStatus) : '-'}</div>
-                      <div>{t('tasks.page.runtime.fields.childSession')}: {item.childSessionKey || '-'}</div>
-                      <div>{t('tasks.page.runtime.fields.flow')}: {item.flowLookupKey || item.flowId || '-'}</div>
-                      <div>{t('tasks.page.runtime.fields.lastEventAt')}: {item.updatedAt || '-'}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-[28px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
-                  {t('tasks.page.runtime.taskFlows.title')}
-                </h3>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                  {t('tasks.page.runtime.taskFlows.description')}
-                </p>
-              </div>
-            </div>
-
-            {!taskRuntimeOverview.taskFlows.supported ? (
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-4 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
-                <div className="font-semibold">{t('tasks.page.runtime.taskFlows.unsupportedTitle')}</div>
-                <div className="mt-1 leading-6">
-                  {taskRuntimeOverview.taskFlows.message || t('tasks.page.runtime.taskFlows.unsupportedBody')}
-                </div>
-              </div>
-            ) : taskFlows.length === 0 ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-zinc-300 px-4 py-8 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                {t('tasks.page.runtime.taskFlows.empty')}
-              </div>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {taskFlows.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-zinc-200/80 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-900/90">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{item.lookupKey || item.id}</span>
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
-                          getRuntimeStatusBadgeClass(item.state),
-                        )}
-                      >
-                        {formatRuntimeLabel(item.state)}
-                      </span>
-                      {item.syncMode ? (
-                        <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                          {formatRuntimeLabel(item.syncMode)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                      {getTaskFlowCardSummary(item, t('tasks.page.runtime.taskFlows.summaryFallback'))}
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Button variant="ghost" onClick={() => void openTaskFlowDetail(item)}>
-                        <History className="h-4 w-4" />
-                        {t('tasks.page.history.details')}
-                      </Button>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-xs text-zinc-500 dark:text-zinc-400 sm:grid-cols-2">
-                      <div>{t('tasks.page.runtime.fields.currentStep')}: {item.currentStep || '-'}</div>
-                      <div>{t('tasks.page.runtime.fields.notifyPolicy')}: {item.notifyPolicy ? formatRuntimeLabel(item.notifyPolicy) : '-'}</div>
-                      <div>{t('tasks.page.runtime.fields.owner')}: {item.ownerKey || '-'}</div>
-                      <div>{t('tasks.page.runtime.fields.requesterOrigin')}: {formatTaskFlowRequesterOrigin(item.requesterOrigin)}</div>
-                      <div>{t('tasks.page.runtime.fields.cancelRequestedAt')}: {item.cancelRequestedAt || '-'}</div>
-                      <div>{t('tasks.page.runtime.fields.revision')}: {item.revision ?? '-'}</div>
-                      <div>{t('tasks.page.runtime.fields.activity')}: {formatTaskFlowActivity(item)}</div>
-                      <div>{t('tasks.page.runtime.fields.flowId')}: {item.id}</div>
-                      <div>{t('tasks.page.runtime.fields.updatedAt')}: {item.updatedAt || '-'}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+  function renderNoInstanceState() {
+    return (
+      <section className="w-full rounded-[20px] border border-zinc-200/80 bg-white px-6 py-12 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:px-10 md:py-14">
+        <Clock className="mx-auto h-12 w-12 text-primary-500 dark:text-primary-300" />
+        <h2 className="mt-6 text-2xl font-bold text-zinc-950 dark:text-zinc-50">
+          {t('tasks.page.empty.noInstanceTitle')}
+        </h2>
+        <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-zinc-500 dark:text-zinc-400">
+          {t('tasks.page.empty.noInstanceDescription')}
+        </p>
       </section>
+    );
+  }
+
+  function renderTaskListSection(taskCatalogItems: TaskCatalogItem[]) {
+    if (!activeInstanceId) {
+      return renderNoInstanceState();
+    }
+
+    if (tasks.length === 0) {
+      return (
+        <section className="w-full rounded-[20px] border border-zinc-200/80 bg-white px-6 py-12 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:px-10 md:py-14">
+          <Zap className="mx-auto h-12 w-12 text-primary-500 dark:text-primary-300" />
+          <h2 className="mt-6 text-2xl font-bold text-zinc-950 dark:text-zinc-50">
+            {t('tasks.page.empty.title')}
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-zinc-500 dark:text-zinc-400">
+            {t('tasks.page.empty.description')}
+          </p>
+          <Button className="mt-8" onClick={openCreateEditor}>
+            <Plus className="h-4 w-4" />
+            {t('tasks.page.actions.newTask')}
+          </Button>
+        </section>
+      );
+    }
+
+    return (
+      <section className="w-full">
+        <TaskCatalog items={taskCatalogItems} className={embedded ? 'bg-white/75 shadow-none dark:bg-zinc-950/35' : undefined} />
+      </section>
+    );
+  }
+
+  function renderExecutionHistorySection() {
+    if (!activeInstanceId) {
+      return renderNoInstanceState();
+    }
+
+    const runtimeSection = renderTaskRuntimeSection();
+
+    return (
+      <div className="space-y-6">
+        <TaskExecutionFeedPanel
+          title={t('tasks.page.history.title')}
+          description={t('tasks.page.history.description')}
+          loading={isHistoryFeedLoading}
+          loadingText={t('tasks.page.history.loading')}
+          emptyTitle={t('tasks.page.history.emptyTitle')}
+          emptyDescription={t('tasks.page.history.emptyDescription')}
+          taskNameLabel={t('tasks.page.fields.taskName')}
+          scheduleLabel={t('tasks.page.cards.schedule')}
+          runIdLabel={t('tasks.page.runtime.fields.runId')}
+          startedAtLabel={t('tasks.page.history.startedAt')}
+          finishedAtLabel={t('tasks.page.history.finishedAt')}
+          entries={executionFeed.map((entry) => {
+            const task = tasks.find((item) => item.id === entry.taskId) || null;
+
+            return {
+              id: entry.id,
+              taskName: entry.taskName,
+              status: t(`tasks.page.history.status.${entry.status}`),
+              trigger: t(`tasks.page.history.triggers.${entry.trigger}`),
+              taskStatus: t(`tasks.page.status.${entry.taskStatus}`),
+              statusTone: getTaskHistoryBadgeTone(entry.status),
+              triggerTone: 'neutral',
+              taskStatusTone: getTaskStatusBadgeTone(entry.taskStatus),
+              summary: entry.summary,
+              details: entry.details,
+              schedule: entry.taskSchedule,
+              runId: entry.id,
+              startedAt: entry.startedAt,
+              finishedAt: entry.finishedAt || '-',
+              action: task ? (
+                <Button variant="ghost" size="sm" onClick={() => void openHistoryDrawer(task)}>
+                  <History className="h-4 w-4" />
+                  {t('tasks.page.actions.history')}
+                </Button>
+              ) : undefined,
+            };
+          })}
+        />
+
+        {runtimeSection}
+      </div>
     );
   }
 
@@ -1924,7 +2023,7 @@ export function CronTasksManager({
             </div>
           ) : runtimeTaskDetail ? (
             <div className="space-y-5">
-              <div className="rounded-[28px] border border-zinc-200/80 bg-white/90 p-5 dark:border-zinc-800 dark:bg-zinc-900/90">
+              <div className="rounded-[20px] border border-zinc-200/80 bg-white/90 p-5 dark:border-zinc-800 dark:bg-zinc-900/90">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
                     {runtimeTaskDetail.id}
@@ -1993,7 +2092,7 @@ export function CronTasksManager({
       }
 
       return (
-        <div className="rounded-[28px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
+        <div className="rounded-[20px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
           <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{label}</div>
           <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             {t('tasks.page.runtime.detail.payloadSummary')}: {formatTaskFlowDetailPayload(value)}
@@ -2040,7 +2139,7 @@ export function CronTasksManager({
             </div>
           ) : taskFlowDetail ? (
             <div className="space-y-5">
-              <div className="rounded-[28px] border border-zinc-200/80 bg-white/90 p-5 dark:border-zinc-800 dark:bg-zinc-900/90">
+              <div className="rounded-[20px] border border-zinc-200/80 bg-white/90 p-5 dark:border-zinc-800 dark:bg-zinc-900/90">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
                     {taskFlowDetail.lookupKey || taskFlowDetail.id}
@@ -2086,7 +2185,7 @@ export function CronTasksManager({
               {renderPayloadCard(t('tasks.page.runtime.detail.statePayload'), taskFlowDetail.statePayload)}
               {renderPayloadCard(t('tasks.page.runtime.detail.waitPayload'), taskFlowDetail.waitPayload)}
 
-              <div className="rounded-[28px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
+              <div className="rounded-[20px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
                 <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.detail.linkedTasksTitle')}</div>
                 <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                   {t('tasks.page.runtime.detail.linkedTasksDescription')}
@@ -2350,15 +2449,15 @@ export function CronTasksManager({
     if (embedded) {
       return (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-              {t('tasks.page.title')}
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0 overflow-x-auto">
+              {renderTopTabs()}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 xl:justify-end">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => void refreshTaskStudio('refresh')}
+                onClick={() => void refreshVisibleTaskStudio()}
                 disabled={isRefreshing}
               >
                 {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -2371,145 +2470,39 @@ export function CronTasksManager({
             </div>
           </div>
 
-          {renderTaskRuntimeSection()}
-
-          {!activeInstanceId ? (
-            <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/75 px-6 py-12 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950/35">
-              <Clock className="mx-auto h-10 w-10 text-primary-500 dark:text-primary-300" />
-              <h3 className="mt-5 text-xl font-semibold text-zinc-950 dark:text-zinc-50">
-                {t('tasks.page.empty.noInstanceTitle')}
-              </h3>
-              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                {t('tasks.page.empty.noInstanceDescription')}
-              </p>
-            </div>
-          ) : (
-            <TaskCatalog
-              className="bg-white/75 shadow-none dark:bg-zinc-950/35"
-              items={taskCatalogItems}
-              emptyState={
-                <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/75 px-6 py-12 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950/35">
-                  <Zap className="mx-auto h-10 w-10 text-primary-500 dark:text-primary-300" />
-                  <h3 className="mt-5 text-xl font-semibold text-zinc-950 dark:text-zinc-50">
-                    {t('tasks.page.empty.title')}
-                  </h3>
-                  <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                    {t('tasks.page.empty.description')}
-                  </p>
-                  <Button className="mt-6" onClick={openCreateEditor}>
-                    <Plus className="h-4 w-4" />
-                    {t('tasks.page.actions.newTask')}
-                  </Button>
-                </div>
-              }
-            />
-          )}
+          {activeTopTab === 'tasks'
+            ? renderTaskListSection(taskCatalogItems)
+            : renderExecutionHistorySection()}
         </div>
       );
     }
 
     return (
-      <div className="flex-1 overflow-y-auto p-4 md:p-8">
-        <div className="mx-auto max-w-[1440px] space-y-8">
-          <section className="rounded-[32px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
-            <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-              <div className="max-w-3xl">
-                <h1 className="text-3xl font-black tracking-tight text-zinc-950 dark:text-zinc-50 md:text-[34px]">
-                  {t('tasks.page.title')}
-                </h1>
-                <p className="mt-3 text-base leading-7 text-zinc-500 dark:text-zinc-400">
-                  {t('tasks.page.subtitle')}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <Button variant="outline" onClick={() => void refreshTaskStudio('refresh')} disabled={isRefreshing}>
-                  {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  {t('tasks.page.actions.refresh')}
-                </Button>
-                <Button onClick={openCreateEditor}>
-                  <Plus className="h-4 w-4" />
-                  {t('tasks.page.actions.newTask')}
-                </Button>
-              </div>
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="w-full space-y-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0 overflow-x-auto">
+              {renderTopTabs()}
             </div>
-          </section>
-
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              {
-                key: 'total',
-                value: stats.total,
-                icon: <Clock className="h-6 w-6 text-zinc-600 dark:text-zinc-300" />,
-                shell: 'bg-zinc-100 dark:bg-zinc-800',
-              },
-              {
-                key: 'active',
-                value: stats.active,
-                icon: <Play className="h-6 w-6 text-emerald-600 dark:text-emerald-300" />,
-                shell: 'bg-emerald-50 dark:bg-emerald-500/10',
-              },
-              {
-                key: 'paused',
-                value: stats.paused,
-                icon: <Pause className="h-6 w-6 text-amber-600 dark:text-amber-300" />,
-                shell: 'bg-amber-50 dark:bg-amber-500/10',
-              },
-              {
-                key: 'failed',
-                value: stats.failed,
-                icon: <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-300" />,
-                shell: 'bg-red-50 dark:bg-red-500/10',
-              },
-            ].map((item) => (
-              <div key={item.key} className="rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="flex items-center gap-4">
-                  <div className={cn('flex h-14 w-14 items-center justify-center rounded-2xl', item.shell)}>
-                    {item.icon}
-                  </div>
-                  <div>
-                    <div className="text-3xl font-black tracking-tight text-zinc-950 dark:text-zinc-50">
-                      {item.value}
-                    </div>
-                    <div className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                      {t(`tasks.page.stats.${item.key}`)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </section>
-
-          {renderTaskRuntimeSection()}
-
-          {!activeInstanceId ? (
-            <section className="rounded-[32px] border border-zinc-200/80 bg-white p-14 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-              <Clock className="mx-auto h-12 w-12 text-primary-500 dark:text-primary-300" />
-              <h2 className="mt-6 text-2xl font-bold text-zinc-950 dark:text-zinc-50">
-                {t('tasks.page.empty.noInstanceTitle')}
-              </h2>
-              <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-zinc-500 dark:text-zinc-400">
-                {t('tasks.page.empty.noInstanceDescription')}
-              </p>
-            </section>
-          ) : tasks.length === 0 ? (
-            <section className="rounded-[32px] border border-zinc-200/80 bg-white p-14 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-              <Zap className="mx-auto h-12 w-12 text-primary-500 dark:text-primary-300" />
-              <h2 className="mt-6 text-2xl font-bold text-zinc-950 dark:text-zinc-50">
-                {t('tasks.page.empty.title')}
-              </h2>
-              <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-zinc-500 dark:text-zinc-400">
-                {t('tasks.page.empty.description')}
-              </p>
-              <Button className="mt-8" onClick={openCreateEditor}>
+            <div className="flex flex-wrap gap-3 xl:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => void refreshVisibleTaskStudio()}
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {t('tasks.page.actions.refresh')}
+              </Button>
+              <Button onClick={openCreateEditor}>
                 <Plus className="h-4 w-4" />
                 {t('tasks.page.actions.newTask')}
               </Button>
-            </section>
-          ) : (
-            <section>
-              <TaskCatalog items={taskCatalogItems} />
-            </section>
-          )}
+            </div>
+          </div>
+
+          {activeTopTab === 'tasks'
+            ? renderTaskListSection(taskCatalogItems)
+            : renderExecutionHistorySection()}
         </div>
       </div>
     );
@@ -2572,7 +2565,7 @@ export function CronTasksManager({
                   </button>
                 ))}
               </div>
-              <div className="mt-6 rounded-[24px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="mt-6 rounded-[18px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
                 <div className="flex items-center gap-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
                   {readyToSave ? (
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />

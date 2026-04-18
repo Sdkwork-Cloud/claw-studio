@@ -1,5 +1,7 @@
-import type { StudioConversationAttachment } from '@sdkwork/claw-types';
+import type { KernelChatMessage, KernelChatSession, StudioConversationAttachment } from '@sdkwork/claw-types';
 import { getChatSessionDisplayTitle, normalizeChatSessionTitle } from './chatSessionTitlePresentation.ts';
+import { resolveKernelChatMessageState } from './kernelChatMessageState.ts';
+import { resolveKernelChatSessionState } from './kernelChatSessionState.ts';
 
 const DEFAULT_PREVIEW_LENGTH = 96;
 
@@ -7,6 +9,7 @@ type ChatSessionListMessageLike = {
   role?: string;
   content?: string;
   attachments?: StudioConversationAttachment[];
+  kernelMessage?: KernelChatMessage | null;
 };
 
 type ChatSessionListSessionLike = {
@@ -16,6 +19,7 @@ type ChatSessionListSessionLike = {
   lastMessagePreview?: string;
   messages?: ChatSessionListMessageLike[];
   runId?: string | null;
+  kernelSession?: KernelChatSession | null;
 };
 
 export type ChatSessionListItemPresentation = {
@@ -45,13 +49,13 @@ function collectMessagePreviewCandidates(messages: ChatSessionListMessageLike[] 
   const candidates: string[] = [];
 
   for (let index = normalizedMessages.length - 1; index >= 0; index -= 1) {
-    const message = normalizedMessages[index];
-    const contentCandidate = normalizePreviewCandidate(message?.content);
+    const messageState = resolveKernelChatMessageState(normalizedMessages[index]);
+    const contentCandidate = normalizePreviewCandidate(messageState.content);
     if (contentCandidate) {
       candidates.push(contentCandidate);
     }
 
-    const attachmentCandidate = listAttachmentPreviewNames(message?.attachments);
+    const attachmentCandidate = listAttachmentPreviewNames(messageState.attachments);
     if (attachmentCandidate) {
       candidates.push(attachmentCandidate);
     }
@@ -131,6 +135,7 @@ export function presentChatSessionListItem(params: {
 }): ChatSessionListItemPresentation {
   const displayTitle = getChatSessionDisplayTitle(params.session);
   const isPinned = Boolean(params.isGatewayMainSession);
+  const sessionState = resolveKernelChatSessionState(params.session);
 
   return {
     displayTitle,
@@ -140,7 +145,7 @@ export function presentChatSessionListItem(params: {
       now: params.now,
       locale: params.locale,
     }),
-    isRunning: Boolean(params.session.runId?.trim()),
+    isRunning: Boolean(sessionState.activeRunId),
     isPinned,
     showDeleteAction: !isPinned,
   };

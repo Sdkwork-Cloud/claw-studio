@@ -2,6 +2,9 @@
   "page": {
     "title": "Scheduled Tasks",
     "subtitle": "Design, schedule, and operate recurring AI workflows from a clearer task studio.",
+    "tabs": {
+      "tasks": "Task List"
+    },
     "stats": {
       "total": "Total Tasks",
       "active": "Active",

@@ -52,6 +52,39 @@ function readOptionValue(argv, index, flag) {
   return normalizedNext;
 }
 
+function resolveSpawnCommand(command, platform = process.platform, env = process.env) {
+  const normalizedCommand = String(command ?? '').trim();
+  if (!normalizedCommand || platform !== 'win32' || path.extname(normalizedCommand)) {
+    return normalizedCommand;
+  }
+
+  const systemRoot =
+    String(env.SystemRoot ?? env.WINDIR ?? '').trim() || 'C:\\Windows';
+
+  if (normalizedCommand === 'tar') {
+    const tarPath = path.win32.join(systemRoot, 'System32', 'tar.exe');
+    return existsSync(tarPath) ? tarPath : 'tar.exe';
+  }
+
+  if (normalizedCommand === 'powershell') {
+    const powershellPath = path.win32.join(
+      systemRoot,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe',
+    );
+    return existsSync(powershellPath) ? powershellPath : 'powershell.exe';
+  }
+
+  if (normalizedCommand === 'taskkill') {
+    const taskkillPath = path.win32.join(systemRoot, 'System32', 'taskkill.exe');
+    return existsSync(taskkillPath) ? taskkillPath : 'taskkill.exe';
+  }
+
+  return normalizedCommand;
+}
+
 export function resolveServerReleaseAssetManifestPath({
   releaseAssetsDir = DEFAULT_RELEASE_ASSETS_DIR,
   platform,
@@ -146,10 +179,13 @@ function runCommand({
   cwd,
   label,
   shell = false,
+  platform = process.platform,
+  env = process.env,
 } = {}) {
-  const result = spawnSync(command, args, {
+  const result = spawnSync(resolveSpawnCommand(command, platform, env), args, {
     cwd,
     encoding: 'utf8',
+    env,
     shell,
   });
   if (result.error) {
@@ -174,7 +210,7 @@ export async function extractServerArchive({
   if (lowerCaseArchivePath.endsWith('.zip')) {
     if (process.platform === 'win32') {
       const result = spawnSync(
-        'powershell',
+        resolveSpawnCommand('powershell'),
         [
           '-NoLogo',
           '-NoProfile',
@@ -263,7 +299,7 @@ async function waitForChildExit(child, timeoutMs = 5000, {
 
 export async function stopChildProcess(child, {
   platform = process.platform,
-  runTaskkillFn = (command, args, options) => spawnSync(command, args, options),
+  runTaskkillFn = (command, args, options) => spawnSync(resolveSpawnCommand(command, platform), args, options),
   waitForExitFn = waitForChildExit,
   onceFn = once,
   delayFn = delay,

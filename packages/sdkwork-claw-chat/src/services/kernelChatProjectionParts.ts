@@ -1,0 +1,83 @@
+import type {
+  KernelChatAttachment,
+  KernelChatMessagePart,
+  StudioConversationAttachment,
+} from '@sdkwork/claw-types';
+import type { OpenClawToolCard } from './openClawMessagePresentation.ts';
+
+export interface KernelChatProjectionPartsSource {
+  content: string;
+  reasoning?: string | null;
+  attachments?: StudioConversationAttachment[];
+  toolCards?: OpenClawToolCard[];
+}
+
+export function trimOptionalString(value: string | null | undefined) {
+  if (typeof value !== 'string') {
+    return value ?? null;
+  }
+
+  const normalized = value.trim();
+  return normalized ? normalized : null;
+}
+
+function trimToolDetail(value: string | undefined) {
+  const normalized = trimOptionalString(value);
+  return normalized ?? undefined;
+}
+
+function mapAttachment(attachment: StudioConversationAttachment): KernelChatAttachment {
+  return {
+    ...attachment,
+  };
+}
+
+function mapToolCardPart(toolCard: OpenClawToolCard): KernelChatMessagePart {
+  if (toolCard.kind === 'call') {
+    return {
+      kind: 'toolCall',
+      toolName: toolCard.name.trim() || 'Tool',
+      detail: trimToolDetail(toolCard.detail) ?? null,
+    };
+  }
+
+  return {
+    kind: 'toolResult',
+    toolName: toolCard.name.trim() || 'Tool',
+    preview: trimToolDetail(toolCard.preview) ?? null,
+  };
+}
+
+export function buildKernelChatMessageParts(
+  message: KernelChatProjectionPartsSource,
+): KernelChatMessagePart[] {
+  const parts: KernelChatMessagePart[] = [];
+  const normalizedText = message.content.trim();
+  if (normalizedText) {
+    parts.push({
+      kind: 'text',
+      text: message.content,
+    });
+  }
+
+  const normalizedReasoning = trimOptionalString(message.reasoning);
+  if (normalizedReasoning) {
+    parts.push({
+      kind: 'reasoning',
+      text: normalizedReasoning,
+    });
+  }
+
+  for (const attachment of message.attachments ?? []) {
+    parts.push({
+      kind: 'attachment',
+      attachment: mapAttachment(attachment),
+    });
+  }
+
+  for (const toolCard of message.toolCards ?? []) {
+    parts.push(mapToolCardPart(toolCard));
+  }
+
+  return parts;
+}

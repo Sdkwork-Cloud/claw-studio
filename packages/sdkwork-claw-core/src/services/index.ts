@@ -26,6 +26,7 @@ export * from './providerRoutingCatalogService.ts';
 export * from './rolloutService.ts';
 export * from './settingsService.ts';
 export * from './taskCreateWorkspace.ts';
+export * from './taskExecutionFeed.ts';
 export * from './taskFormMapping.ts';
 export * from './taskListPresentation.ts';
 export * from './taskRuntimeService.ts';

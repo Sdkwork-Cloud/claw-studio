@@ -107,3 +107,69 @@ await runTest(
     );
   },
 );
+
+await runTest(
+  'detectChatCronActivityNotification compares kernel session run state before legacy mirrors',
+  () => {
+    assert.deepEqual(
+      detectChatCronActivityNotification({
+        previousSession: {
+          id: 'agent:main:cron:nightly-sync',
+          title: 'Nightly Sync',
+          lastMessagePreview: 'Waiting to run',
+          runId: null,
+          kernelSession: {
+            ref: {
+              kernelId: 'openclaw',
+              instanceId: 'instance-1',
+              sessionId: 'agent:main:cron:nightly-sync',
+            },
+            authority: {
+              kind: 'gateway',
+              source: 'kernel',
+              durable: true,
+              writable: true,
+            },
+            lifecycle: 'ready',
+            title: 'Nightly Sync',
+            createdAt: 1,
+            updatedAt: 1,
+            messageCount: 0,
+            activeRunId: null,
+          },
+        },
+        nextSession: {
+          id: 'agent:main:cron:nightly-sync',
+          title: 'Nightly Sync',
+          lastMessagePreview: 'Preparing execution',
+          runId: null,
+          kernelSession: {
+            ref: {
+              kernelId: 'openclaw',
+              instanceId: 'instance-1',
+              sessionId: 'agent:main:cron:nightly-sync',
+            },
+            authority: {
+              kind: 'gateway',
+              source: 'kernel',
+              durable: true,
+              writable: true,
+            },
+            lifecycle: 'running',
+            title: 'Nightly Sync',
+            createdAt: 1,
+            updatedAt: 2,
+            messageCount: 0,
+            activeRunId: 'kernel-run-1',
+          },
+        },
+      }),
+      {
+        kind: 'started',
+        title: 'Cron: Nightly Sync',
+        body: 'Preparing execution',
+        sessionId: 'agent:main:cron:nightly-sync',
+      },
+    );
+  },
+);

@@ -18,7 +18,9 @@ use crate::framework::{
     paths::AppPaths,
     services::{
         kernel_runtime_authority::KernelRuntimeAuthorityService,
-        openclaw_runtime::{load_manifest, ActivatedOpenClawRuntime, OPENCLAW_RUNTIME_ID},
+        openclaw_runtime::{
+            load_manifest, ActivatedOpenClawRuntime, DEFAULT_GATEWAY_PORT, OPENCLAW_RUNTIME_ID,
+        },
         supervisor::SERVICE_ID_OPENCLAW_GATEWAY,
     },
     Result,
@@ -29,7 +31,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-const DEFAULT_PREFERRED_PORT: u16 = 18_789;
+const DEFAULT_PREFERRED_PORT: u16 = DEFAULT_GATEWAY_PORT;
 const KERNEL_HOST_OWNERSHIP_MARKER_FILE: &str = "kernel-host/runtime-owner.json";
 
 #[cfg(test)]

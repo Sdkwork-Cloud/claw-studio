@@ -4543,15 +4543,15 @@ await runTest(
     const session = snapshot.sessions.find((entry) => entry.id === draft.id);
     assert.ok(session);
     assert.equal(session?.title, 'dashboard-shot.png');
-    assert.deepEqual(session?.messages, [
-      {
-        id: session?.messages[0]?.id,
-        role: 'user',
-        content: '',
-        timestamp: 600,
-        attachments: [attachment],
-      },
-    ]);
+    assert.equal(session?.messages.length, 1);
+    assert.equal(session?.messages[0]?.role, 'user');
+    assert.equal(session?.messages[0]?.content, '');
+    assert.equal(session?.messages[0]?.timestamp, 600);
+    assert.deepEqual(session?.messages[0]?.attachments, [attachment]);
+    assert.deepEqual(
+      session?.messages[0]?.kernelMessage?.parts.map((part) => part.kind),
+      ['attachment'],
+    );
     assert.deepEqual(client.sendCalls, [
       {
         sessionKey: 'claw-studio:instance-a:draft-attachment',

@@ -46,6 +46,10 @@ const DEFAULT_OPENCLAW_GATEWAY_START_RETRY_ATTEMPTS: usize = 3;
 const DEFAULT_OPENCLAW_GATEWAY_START_RETRY_DELAY_MS: u64 = 250;
 const DEFAULT_OPENCLAW_GATEWAY_HEALTH_PROBE_INTERVAL_MS: u64 = 500;
 const DEFAULT_OPENCLAW_GATEWAY_HEALTH_PROBE_TIMEOUT_MS: u64 = 750;
+const DEFAULT_OPENCLAW_GATEWAY_HTTP_CONNECT_TIMEOUT_MS: u64 = 200;
+const DEFAULT_OPENCLAW_GATEWAY_HTTP_READY_IO_TIMEOUT_MS: u64 = 1_500;
+const DEFAULT_OPENCLAW_GATEWAY_HTTP_INVOKE_IO_TIMEOUT_MS: u64 = 300;
+const DEFAULT_OPENCLAW_GATEWAY_HTTP_READY_PATH: &str = "/readyz";
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 #[cfg(windows)]
@@ -973,13 +977,22 @@ fn probe_gateway_ready(
     paths: &AppPaths,
     include_health_probe: bool,
 ) -> GatewayProbeStatus {
+    let http_ready_probe = probe_gateway_http_ready(runtime);
+    if http_ready_probe.is_ready() {
+        return http_ready_probe;
+    }
+
     let invoke_probe = probe_gateway_invoke_ready(runtime);
     if invoke_probe.is_ready() {
         return invoke_probe;
     }
 
     if !include_health_probe {
-        return invoke_probe;
+        return GatewayProbeStatus::Pending(format!(
+            "{}; {}",
+            http_ready_probe.detail(),
+            invoke_probe.detail()
+        ));
     }
 
     let health_probe = probe_gateway_cli_health_ready(
@@ -992,15 +1005,99 @@ fn probe_gateway_ready(
     }
 
     GatewayProbeStatus::Pending(format!(
-        "{}; {}",
+        "{}; {}; {}",
+        http_ready_probe.detail(),
         invoke_probe.detail(),
         health_probe.detail()
     ))
 }
 
+fn probe_gateway_http_ready(runtime: &ActivatedOpenClawRuntime) -> GatewayProbeStatus {
+    probe_gateway_http_status(runtime, DEFAULT_OPENCLAW_GATEWAY_HTTP_READY_PATH, "ready probe")
+}
+
+fn probe_gateway_http_status(
+    runtime: &ActivatedOpenClawRuntime,
+    path: &str,
+    label: &str,
+) -> GatewayProbeStatus {
+    let loopback = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, runtime.gateway_port));
+    let mut stream = match TcpStream::connect_timeout(
+        &loopback,
+        Duration::from_millis(DEFAULT_OPENCLAW_GATEWAY_HTTP_CONNECT_TIMEOUT_MS),
+    ) {
+        Ok(stream) => stream,
+        Err(error) => {
+            return GatewayProbeStatus::Pending(format!(
+                "{label} could not connect to {}: {}",
+                loopback, error
+            ));
+        }
+    };
+
+    if stream
+        .set_read_timeout(Some(Duration::from_millis(
+            DEFAULT_OPENCLAW_GATEWAY_HTTP_READY_IO_TIMEOUT_MS,
+        )))
+        .is_err()
+        || stream
+            .set_write_timeout(Some(Duration::from_millis(
+                DEFAULT_OPENCLAW_GATEWAY_HTTP_READY_IO_TIMEOUT_MS,
+            )))
+            .is_err()
+    {
+        return GatewayProbeStatus::Pending(format!(
+            "{label} could not configure socket timeouts for {}",
+            loopback
+        ));
+    }
+
+    let request = format!(
+        "GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAccept: application/json\r\nConnection: close\r\n\r\n",
+        port = runtime.gateway_port,
+    );
+
+    if let Err(error) = stream.write_all(request.as_bytes()) {
+        return GatewayProbeStatus::Pending(format!(
+            "{label} write failed for {}: {}",
+            loopback, error
+        ));
+    }
+    if let Err(error) = stream.flush() {
+        return GatewayProbeStatus::Pending(format!(
+            "{label} flush failed for {}: {}",
+            loopback, error
+        ));
+    }
+
+    let status_line = match read_http_status_line(&mut stream) {
+        Ok(Some(status_line)) => status_line,
+        Ok(None) => {
+            return GatewayProbeStatus::Pending(format!(
+                "{label} returned an empty response"
+            ))
+        }
+        Err(error) => {
+            return GatewayProbeStatus::Pending(format!(
+                "{label} read failed for {}: {}",
+                loopback, error
+            ));
+        }
+    };
+
+    if status_line.starts_with("HTTP/1.1 200") || status_line.starts_with("HTTP/1.0 200") {
+        return GatewayProbeStatus::Ready;
+    }
+
+    GatewayProbeStatus::Pending(format!("{label} returned {}", status_line))
+}
+
 fn probe_gateway_invoke_ready(runtime: &ActivatedOpenClawRuntime) -> GatewayProbeStatus {
     let loopback = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, runtime.gateway_port));
-    let mut stream = match TcpStream::connect_timeout(&loopback, Duration::from_millis(200)) {
+    let mut stream = match TcpStream::connect_timeout(
+        &loopback,
+        Duration::from_millis(DEFAULT_OPENCLAW_GATEWAY_HTTP_CONNECT_TIMEOUT_MS),
+    ) {
         Ok(stream) => stream,
         Err(error) => {
             return GatewayProbeStatus::Pending(format!(
@@ -1011,10 +1108,14 @@ fn probe_gateway_invoke_ready(runtime: &ActivatedOpenClawRuntime) -> GatewayProb
     };
 
     if stream
-        .set_read_timeout(Some(Duration::from_millis(300)))
+        .set_read_timeout(Some(Duration::from_millis(
+            DEFAULT_OPENCLAW_GATEWAY_HTTP_INVOKE_IO_TIMEOUT_MS,
+        )))
         .is_err()
         || stream
-            .set_write_timeout(Some(Duration::from_millis(300)))
+            .set_write_timeout(Some(Duration::from_millis(
+                DEFAULT_OPENCLAW_GATEWAY_HTTP_INVOKE_IO_TIMEOUT_MS,
+            )))
             .is_err()
     {
         return GatewayProbeStatus::Pending(format!(
@@ -2067,6 +2168,64 @@ mod tests {
 
         readiness.expect(
             "gateway should become ready via upstream gateway health even when /tools/invoke stays unavailable",
+        );
+    }
+
+    #[test]
+    fn wait_for_gateway_ready_accepts_readyz_when_legacy_probes_are_stuck() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_gateway_runtime_with_script(
+            &paths,
+            "import fs from 'node:fs';\nimport http from 'node:http';\nconst args = process.argv.slice(2);\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nconst readyPath = `${configPath}.readyz-ready`;\nif (args[0] === 'gateway' && args[1] === 'health') {\n  setTimeout(() => {\n    process.stderr.write('health transport still warming');\n    process.exit(1);\n  }, 4_000);\n} else {\n  const server = http.createServer((req, res) => {\n    if (req.url === '/ready' || req.url === '/readyz') {\n      if (!fs.existsSync(readyPath)) {\n        res.writeHead(503, { 'content-type': 'application/json' });\n        res.end(JSON.stringify({ ready: false, failing: ['startup'], uptimeMs: 0 }));\n        return;\n      }\n      res.writeHead(200, { 'content-type': 'application/json' });\n      res.end(JSON.stringify({ ready: true, failing: [], uptimeMs: 700 }));\n      return;\n    }\n    if (req.url === '/tools/invoke' && req.method === 'POST') {\n      req.on('data', () => {});\n      req.on('end', () => {});\n      return;\n    }\n    res.writeHead(404, { 'content-type': 'application/json' });\n    res.end(JSON.stringify({ ok: false, error: { message: 'unexpected path' } }));\n  });\n  server.listen(gatewayPort, '127.0.0.1', () => {\n    setTimeout(() => {\n      fs.writeFileSync(readyPath, 'ok');\n    }, 700);\n  });\n  setInterval(() => {}, 1000);\n}\n"
+                .to_string(),
+        );
+
+        let mut gateway = Command::new(&runtime.node_path);
+        configure_command_for_managed_process(&mut gateway);
+        gateway.arg(&runtime.cli_path);
+        gateway.arg("gateway");
+        gateway.current_dir(&runtime.runtime_dir);
+        gateway.envs(runtime.managed_env());
+        let mut gateway = gateway.spawn().expect("spawn gateway");
+
+        wait_for_test_loopback_listener(runtime.gateway_port, 5_000);
+        let readiness = wait_for_gateway_ready(&mut gateway, &runtime, &paths, 5_000);
+
+        let _ = force_process_shutdown(&mut gateway);
+        let _ = gateway.wait();
+
+        readiness.expect(
+            "gateway should become ready once /readyz returns HTTP 200 even if the legacy invoke and health probes are still unavailable",
+        );
+    }
+
+    #[test]
+    fn wait_for_gateway_ready_accepts_slow_readyz_responses_during_cold_start() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_gateway_runtime_with_script(
+            &paths,
+            "import fs from 'node:fs';\nimport http from 'node:http';\nconst args = process.argv.slice(2);\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nif (args[0] === 'gateway' && args[1] === 'health') {\n  setTimeout(() => {\n    process.stdout.write(JSON.stringify({ ok: true, result: { status: 'ok' } }));\n    process.exit(0);\n  }, 1_200);\n} else {\n  const server = http.createServer((req, res) => {\n    if (req.url === '/ready' || req.url === '/readyz') {\n      setTimeout(() => {\n        res.writeHead(200, { 'content-type': 'application/json' });\n        res.end(JSON.stringify({ ready: true, failing: [], uptimeMs: 1_200 }));\n      }, 1_200);\n      return;\n    }\n    if (req.url === '/tools/invoke' && req.method === 'POST') {\n      req.on('data', () => {});\n      req.on('end', () => {\n        setTimeout(() => {\n          res.writeHead(200, { 'content-type': 'application/json' });\n          res.end(JSON.stringify({ ok: true, result: { method: 'cron.status' } }));\n        }, 1_200);\n      });\n      return;\n    }\n    res.writeHead(404, { 'content-type': 'application/json' });\n    res.end(JSON.stringify({ ok: false, error: { message: 'unexpected path' } }));\n  });\n  server.listen(gatewayPort, '127.0.0.1');\n  setInterval(() => {}, 1000);\n}\n"
+                .to_string(),
+        );
+
+        let mut gateway = Command::new(&runtime.node_path);
+        configure_command_for_managed_process(&mut gateway);
+        gateway.arg(&runtime.cli_path);
+        gateway.arg("gateway");
+        gateway.current_dir(&runtime.runtime_dir);
+        gateway.envs(runtime.managed_env());
+        let mut gateway = gateway.spawn().expect("spawn gateway");
+
+        wait_for_test_loopback_listener(runtime.gateway_port, 5_000);
+        let readiness = wait_for_gateway_ready(&mut gateway, &runtime, &paths, 5_000);
+
+        let _ = force_process_shutdown(&mut gateway);
+        let _ = gateway.wait();
+
+        readiness.expect(
+            "gateway should become ready even when cold-start readyz responses take around 1.2s",
         );
     }
 

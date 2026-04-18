@@ -1,4 +1,5 @@
 import type { InstanceChatRouteMode } from './instanceChatRouteService.ts';
+import { resolveKernelChatSessionState } from './kernelChatSessionState.ts';
 
 export type ChatBootstrapAction =
   | { type: 'wait' }
@@ -128,10 +129,9 @@ export function filterUserFacingOpenClawSessionsByAgent<T extends { id: string }
   agentId: string | null | undefined,
 ) {
   return sessions.filter((session) => {
-    const sessionKind =
-      'sessionKind' in session && typeof session.sessionKind === 'string'
-        ? session.sessionKind
-        : null;
+    const sessionKind = resolveKernelChatSessionState(
+      session as Parameters<typeof resolveKernelChatSessionState>[0],
+    ).sessionKind;
     if (shouldHideOpenClawBackgroundSession({ sessionId: session.id, sessionKind })) {
       return false;
     }
@@ -151,10 +151,9 @@ export function shouldKeepHiddenOpenClawSessionVisible<T extends { id: string }>
     return false;
   }
 
-  const sessionKind =
-    'sessionKind' in session && typeof session.sessionKind === 'string'
-      ? session.sessionKind
-      : null;
+  const sessionKind = resolveKernelChatSessionState(
+    session as Parameters<typeof resolveKernelChatSessionState>[0],
+  ).sessionKind;
   return shouldHideOpenClawBackgroundSession({
     sessionId: session.id,
     sessionKind,

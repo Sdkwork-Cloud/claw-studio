@@ -3,6 +3,7 @@ import type {
   StudioConversationMessage,
   StudioConversationRecord,
 } from '@sdkwork/claw-types';
+import { hydrateLocalChatKernelProjection } from './services/store/index.ts';
 import type { ChatSession, Message } from './store/useChatStore';
 
 function normalizeMessageStatus(_message: Message): StudioConversationMessage['status'] {
@@ -27,7 +28,7 @@ export function mapStudioMessage(message: StudioConversationMessage): Message {
 }
 
 export function mapStudioConversation(record: StudioConversationRecord): ChatSession {
-  return {
+  const session: ChatSession = {
     id: record.id,
     title: record.title,
     createdAt: record.createdAt,
@@ -35,7 +36,13 @@ export function mapStudioConversation(record: StudioConversationRecord): ChatSes
     messages: record.messages.map(mapStudioMessage),
     model: record.messages.find((message) => message.model)?.model || 'unknown',
     instanceId: record.primaryInstanceId,
+    transport: 'local',
+    sessionKind: 'direct',
   };
+
+  return hydrateLocalChatKernelProjection({
+    session,
+  });
 }
 
 export function mapChatSession(session: ChatSession): StudioConversationRecord {

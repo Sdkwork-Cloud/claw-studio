@@ -26,6 +26,8 @@ import {
   resolveChatConversationBodyState,
   resolveChatInstanceHydrationKey,
   resolveChatMessageRenderKey,
+  resolveKernelChatMessageState,
+  resolveKernelChatSessionState,
   resolveChatRunningSessionId,
   resolveChatSendSessionId,
   resolveChatSessionViewState,
@@ -199,21 +201,22 @@ export function Chat() {
     isOpenClawGateway,
     selectableSessions: selectableInstanceSessions,
   });
+  const activeKernelSessionState = resolveKernelChatSessionState(activeSession);
   const sessionSelectedModelId =
     isOpenClawGateway && activeSession
-      ? activeSession.model || activeSession.defaultModel || null
+      ? activeKernelSessionState.model || activeKernelSessionState.defaultModel || null
       : null;
-  const activeThinkingLevel = isOpenClawGateway ? activeSession?.thinkingLevel ?? null : null;
+  const activeThinkingLevel = isOpenClawGateway ? activeKernelSessionState.thinkingLevel : null;
   const activeFastMode =
     isOpenClawGateway
-      ? activeSession?.fastMode === true
+      ? activeKernelSessionState.fastMode === true
         ? 'on'
-        : activeSession?.fastMode === false
+        : activeKernelSessionState.fastMode === false
           ? 'off'
           : null
       : null;
-  const activeVerboseLevel = isOpenClawGateway ? activeSession?.verboseLevel ?? null : null;
-  const activeReasoningLevel = isOpenClawGateway ? activeSession?.reasoningLevel ?? null : null;
+  const activeVerboseLevel = isOpenClawGateway ? activeKernelSessionState.verboseLevel : null;
+  const activeReasoningLevel = isOpenClawGateway ? activeKernelSessionState.reasoningLevel : null;
 
   const {
     data: modelCatalog,
@@ -243,14 +246,18 @@ export function Chat() {
     messageCount: activeMessages.length,
     isGatewayHistoryLoading,
   });
-  const activeMessageGroups = useMemo(
-    () => groupChatMessagesForDisplay(activeMessages),
+  const activeMessageStates = useMemo(
+    () => activeMessages.map((message) => resolveKernelChatMessageState(message)),
     [activeMessages],
+  );
+  const activeMessageGroups = useMemo(
+    () => groupChatMessagesForDisplay(activeMessageStates),
+    [activeMessageStates],
   );
   const { isActiveSessionGenerating, isComposerLocked, stopSessionId } = resolveChatGenerationViewState({
     effectiveActiveSessionId,
     pendingSendSessionId,
-    activeSessionRunId: activeSession?.runId ?? null,
+    activeSessionRunId: activeKernelSessionState.activeRunId,
     runningSessionId,
   });
   const isBusy = isComposerLocked;
@@ -261,7 +268,9 @@ export function Chat() {
     activeModelId,
   });
   const activeThinkingModelId =
-    isOpenClawGateway ? sessionSelectedModelId || activeModel?.id || null : null;
+    isOpenClawGateway
+      ? activeKernelSessionState.model || activeKernelSessionState.defaultModel || activeModel?.id || null
+      : null;
   const thinkingLevelOptions = resolveChatThinkingLevelOptions(activeThinkingModelId).map((value) => ({
     value,
     label: t(`chat.page.thinkingLevels.${value}`),

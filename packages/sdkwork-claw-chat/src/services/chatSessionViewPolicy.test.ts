@@ -96,7 +96,13 @@ await runTest(
       { id: 'agent:research:main' },
       { id: 'agent:research:main:thread:claw-studio:session-1' },
       { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
-      { id: 'global:shared-session', sessionKind: 'global' },
+      {
+        id: 'global:shared-session',
+        sessionKind: 'direct',
+        kernelSession: {
+          sessionKind: 'global',
+        },
+      },
       { id: 'unknown:shared-session', sessionKind: 'unknown' },
       { id: 'cron:nightly-roundup', sessionKind: 'direct' },
       { id: 'agent:research:cron:job-1', sessionKind: 'direct' },
@@ -133,7 +139,13 @@ await runTest(
       { id: 'agent:research:main' },
       { id: 'agent:research:main:thread:claw-studio:session-1' },
       { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
-      { id: 'global:shared-session', sessionKind: 'global' },
+      {
+        id: 'global:shared-session',
+        sessionKind: 'direct',
+        kernelSession: {
+          sessionKind: 'global',
+        },
+      },
       { id: 'cron:nightly-roundup', sessionKind: 'direct' },
     ];
 
@@ -149,13 +161,25 @@ await runTest(
           { id: 'agent:research:main' },
           { id: 'agent:research:main:thread:claw-studio:session-1' },
           { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
-          { id: 'global:shared-session', sessionKind: 'global' },
+          {
+            id: 'global:shared-session',
+            sessionKind: 'direct',
+            kernelSession: {
+              sessionKind: 'global',
+            },
+          },
         ],
         selectableSessions: [
           { id: 'agent:research:main' },
           { id: 'agent:research:main:thread:claw-studio:session-1' },
           { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
-          { id: 'global:shared-session', sessionKind: 'global' },
+          {
+            id: 'global:shared-session',
+            sessionKind: 'direct',
+            kernelSession: {
+              sessionKind: 'global',
+            },
+          },
         ],
         effectiveActiveSessionId: 'global:shared-session',
       },
@@ -327,6 +351,34 @@ await runTest(
         selectableSessions: [
           { id: 'agent:research:main', runId: null },
           { id: 'agent:research:main:thread:visible', runId: 'run-visible' },
+        ],
+      }),
+      'agent:research:main:thread:visible',
+    );
+  },
+);
+
+await runTest(
+  'resolveChatRunningSessionId prefers kernel activeRunId when the legacy gateway runId is absent',
+  () => {
+    assert.equal(
+      resolveChatRunningSessionId({
+        isOpenClawGateway: true,
+        selectableSessions: [
+          {
+            id: 'agent:research:main',
+            runId: null,
+            kernelSession: {
+              activeRunId: null,
+            },
+          },
+          {
+            id: 'agent:research:main:thread:visible',
+            runId: null,
+            kernelSession: {
+              activeRunId: 'kernel-run-visible',
+            },
+          },
         ],
       }),
       'agent:research:main:thread:visible',

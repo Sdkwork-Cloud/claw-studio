@@ -28,7 +28,7 @@ const BUNDLED_RESOURCE_DIR: &str = "openclaw";
 const NESTED_BUNDLED_RESOURCE_DIR: &str = "resources/openclaw";
 const BUNDLED_RUNTIME_ARCHIVE_FILE_NAME: &str = "runtime.zip";
 const PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME: &str = ".sdkwork-openclaw-runtime.json";
-const DEFAULT_GATEWAY_PORT: u16 = 18_789;
+pub(crate) const DEFAULT_GATEWAY_PORT: u16 = 21_280;
 const OPENCLAW_NODE_PATH_OVERRIDE_ENV: &str = "SDKWORK_OPENCLAW_NODE_PATH";
 const TAURI_CONTROL_UI_ALLOWED_ORIGINS: [&str; 3] = [
     "http://tauri.localhost",
@@ -894,7 +894,7 @@ fn apply_zip_entry_permissions(_destination_path: &Path, _unix_mode: Option<u32>
 
 fn ensure_managed_openclaw_state(
     paths: &AppPaths,
-    _bundled_openclaw_version: Option<&str>,
+    bundled_openclaw_version: Option<&str>,
 ) -> Result<ManagedOpenClawState> {
     fs::create_dir_all(&paths.openclaw_root_dir)?;
     fs::create_dir_all(&paths.openclaw_root_dir)?;
@@ -919,7 +919,9 @@ fn ensure_managed_openclaw_state(
     set_nested_string(&mut config, &["gateway", "mode"], "local");
     set_nested_string(&mut config, &["gateway", "bind"], "loopback");
     let configured_port = get_nested_u16(&config, &["gateway", "port"]).filter(|port| *port > 0);
-    let gateway_port = allocate_gateway_port(configured_port.unwrap_or(DEFAULT_GATEWAY_PORT))?;
+    let requested_port =
+        resolve_requested_managed_gateway_port(configured_port, bundled_openclaw_version);
+    let gateway_port = allocate_gateway_port(requested_port)?;
     let gateway_auth_token = get_nested_string(&config, &["gateway", "auth", "token"])
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(generate_gateway_auth_token);
@@ -959,6 +961,17 @@ fn ensure_managed_openclaw_state(
         gateway_port,
         gateway_auth_token,
     })
+}
+
+fn resolve_requested_managed_gateway_port(
+    configured_port: Option<u16>,
+    bundled_openclaw_version: Option<&str>,
+) -> u16 {
+    if bundled_openclaw_version.is_some() {
+        return DEFAULT_GATEWAY_PORT;
+    }
+
+    configured_port.unwrap_or(DEFAULT_GATEWAY_PORT)
 }
 
 fn resolve_external_node_path() -> Result<PathBuf> {
@@ -1422,6 +1435,52 @@ mod tests {
                 .get(OPENCLAW_RUNTIME_ID)
                 .and_then(|entry| entry.active_version.as_deref()),
             Some(expected_install_key.as_str())
+        );
+    }
+
+    #[test]
+    fn bundled_runtime_uses_21280_as_the_canonical_default_gateway_port() {
+        assert_eq!(
+            DEFAULT_GATEWAY_PORT, 21_280,
+            "the bundled OpenClaw runtime should default to port 21280 to avoid conflicts with legacy local gateways"
+        );
+    }
+
+    #[test]
+    fn activation_rewrites_a_legacy_saved_gateway_port_into_the_canonical_default_window() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+
+        fs::write(
+            &paths.openclaw_config_file,
+            "{\n  \"gateway\": {\n    \"port\": 18878\n  }\n}\n",
+        )
+        .expect("seed legacy config file");
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+
+        assert_ne!(
+            activated.gateway_port, 18_878,
+            "bundled activation should stop preserving previously generated managed ports"
+        );
+        assert!(
+            activated.gateway_port >= DEFAULT_GATEWAY_PORT
+                && activated.gateway_port < DEFAULT_GATEWAY_PORT.saturating_add(32),
+            "bundled activation should request the canonical built-in port window even when 21280 itself is already occupied"
+        );
+
+        let config = serde_json::from_str::<Value>(
+            &fs::read_to_string(&activated.config_path).expect("config file"),
+        )
+        .expect("config json");
+        assert_eq!(
+            config.pointer("/gateway/port").and_then(Value::as_u64),
+            Some(u64::from(activated.gateway_port))
         );
     }
 

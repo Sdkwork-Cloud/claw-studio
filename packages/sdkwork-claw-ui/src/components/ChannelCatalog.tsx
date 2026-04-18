@@ -143,12 +143,18 @@ function OfficialLinkButton({
   link,
   label,
   className,
+  dataSlot,
+  variant = 'outline',
+  size = 'sm',
   onOpenOfficialLink,
 }: {
   channel: ChannelCatalogItem;
   link: ChannelOfficialLink;
   label: string;
   className?: string;
+  dataSlot?: string;
+  variant?: React.ComponentProps<typeof Button>['variant'];
+  size?: React.ComponentProps<typeof Button>['size'];
   onOpenOfficialLink?: (
     channel: ChannelCatalogItem,
     link: ChannelOfficialLink,
@@ -157,8 +163,9 @@ function OfficialLinkButton({
   if (onOpenOfficialLink) {
     return (
       <Button
-        variant="outline"
-        size="sm"
+        data-slot={dataSlot}
+        variant={variant}
+        size={size}
         className={className}
         type="button"
         title={link.label}
@@ -173,7 +180,7 @@ function OfficialLinkButton({
   }
 
   return (
-    <Button variant="outline" size="sm" className={className} asChild>
+    <Button data-slot={dataSlot} variant={variant} size={size} className={className} asChild>
       <a href={link.href} target="_blank" rel="noreferrer" title={link.label}>
         {label}
         <ExternalLink className="h-4 w-4" />
@@ -215,7 +222,7 @@ function RegionEmptyState({
   title: string;
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-dashed border-zinc-300 bg-white/75 p-6 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/35 dark:text-zinc-400">
+    <div className="rounded-[18px] border border-dashed border-zinc-300 bg-white/75 p-6 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/35 dark:text-zinc-400">
       {title}
     </div>
   );
@@ -301,7 +308,7 @@ export function ChannelCatalog({
         ) : null}
         <div
           data-slot="channel-catalog-summary"
-          className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 bg-white/75 dark:border-zinc-800 dark:bg-zinc-950/35"
+          className="overflow-hidden rounded-[18px] border border-zinc-200/70 bg-white/75 dark:border-zinc-800 dark:bg-zinc-950/35"
         >
           {visibleItems.map((channel, index) => {
             const badge = getStatusBadge(channel, texts, variant);
@@ -391,7 +398,7 @@ export function ChannelCatalog({
       ) : null}
       <div
         data-slot="channel-catalog-management"
-        className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+        className="overflow-hidden rounded-[20px] border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
       >
         <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {visibleItems.map((channel) => {
@@ -406,19 +413,42 @@ export function ChannelCatalog({
               >
                 <div className="flex flex-1 items-start gap-5">
                   <ChannelIdentity channel={channel} />
-                  <div className="flex-1">
-                    <div className="mb-1.5 flex flex-wrap items-center gap-3">
-                      <h3 className="text-lg font-bold text-zinc-900 transition-colors group-hover:text-primary-600 dark:text-zinc-100 dark:group-hover:text-primary-400">
-                        {channel.name}
-                      </h3>
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider',
-                          badge.className,
-                        )}
-                      >
-                        {badge.label}
-                      </span>
+                  <div className="min-w-0 flex-1">
+                    <div
+                      data-slot="channel-catalog-management-heading"
+                      className="mb-2 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h3 className="text-lg font-bold text-zinc-900 transition-colors group-hover:text-primary-600 dark:text-zinc-100 dark:group-hover:text-primary-400">
+                            {channel.name}
+                          </h3>
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider',
+                              badge.className,
+                            )}
+                          >
+                            {badge.label}
+                          </span>
+                        </div>
+                      </div>
+                      {officialLink ? (
+                        <div
+                          data-slot="channel-catalog-management-link-action"
+                          className="shrink-0"
+                        >
+                          <OfficialLinkButton
+                            channel={channel}
+                            link={officialLink}
+                            label={getOfficialActionLabel(channel, texts)}
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 rounded-lg px-2.5 text-xs font-semibold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                            onOpenOfficialLink={onOpenOfficialLink}
+                          />
+                        </div>
+                      ) : null}
                     </div>
                     <p className="max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
                       {channel.description}
@@ -426,16 +456,10 @@ export function ChannelCatalog({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 sm:border-l sm:border-zinc-100 sm:pl-6 dark:sm:border-zinc-800">
-                  {officialLink ? (
-                    <OfficialLinkButton
-                      channel={channel}
-                      link={officialLink}
-                      label={getOfficialActionLabel(channel, texts)}
-                      onOpenOfficialLink={onOpenOfficialLink}
-                    />
-                  ) : null}
-
+                <div
+                  data-slot="channel-catalog-management-actions"
+                  className="flex flex-wrap items-center gap-3 sm:border-l sm:border-zinc-100 sm:pl-6 dark:sm:border-zinc-800"
+                >
                   {isDownloadAppChannel ? (
                     onToggleEnabled ? (
                       <Switch

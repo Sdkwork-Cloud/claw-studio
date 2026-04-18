@@ -3,7 +3,7 @@
   "notFound": {
     "title": "未找到该注册条目",
     "description": "请求的 OpenClaw 主体不在当前注册快照中，或标识符无效。",
-    "back": "返回联网中心"
+    "back": "返回注册中心"
   },
   "kind": {
     "agent": "智能体",

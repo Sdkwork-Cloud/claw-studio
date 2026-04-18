@@ -22,7 +22,7 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('sdkwork-claw-shell keeps kernel, nodes, agents, and usage surfaces wired across the retained host shell', () => {
+runTest('sdkwork-claw-shell keeps retained secondary routes addressable while the primary chrome stays simplified', () => {
   const shellPackage = readJson<{ dependencies?: Record<string, string> }>(
     'packages/sdkwork-claw-shell/package.json',
   );
@@ -46,13 +46,16 @@ runTest('sdkwork-claw-shell keeps kernel, nodes, agents, and usage surfaces wire
   assert.match(routePrefetchSource, /\['\/kernel', \(\) => import\('@sdkwork\/claw-settings'\)\]/);
   assert.match(routePrefetchSource, /\['\/nodes', \(\) => import\('@sdkwork\/claw-instances'\)\]/);
   assert.match(sidebarSource, /id: 'agents'/);
-  assert.match(sidebarSource, /id: 'kernel'/);
-  assert.match(sidebarSource, /id: 'nodes'/);
-  assert.match(sidebarSource, /id: 'usage'/);
   assert.match(settingsSource, /id: 'agents', label: t\('sidebar\.agentMarket'\)/);
-  assert.match(settingsSource, /id: 'kernel', label: t\('sidebar\.kernelCenter'\)/);
-  assert.match(settingsSource, /id: 'nodes', label: t\('sidebar\.nodes'\)/);
-  assert.match(settingsSource, /id: 'usage', label: t\('sidebar\.usage'\)/);
+  assert.match(sidebarSource, /id: 'instances'/);
+  assert.match(sidebarSource, /id: 'docs'/);
+  assert.doesNotMatch(sidebarSource, /id: 'kernel'/);
+  assert.doesNotMatch(sidebarSource, /id: 'nodes'/);
+  assert.doesNotMatch(sidebarSource, /id: 'usage'/);
+  assert.match(settingsSource, /id: 'instances', label: t\('sidebar\.instances'\)/);
+  assert.doesNotMatch(settingsSource, /id: 'kernel', label: t\('sidebar\.kernelCenter'\)/);
+  assert.doesNotMatch(settingsSource, /id: 'nodes', label: t\('sidebar\.nodes'\)/);
+  assert.doesNotMatch(settingsSource, /id: 'usage', label: t\('sidebar\.usage'\)/);
   assert.match(commandPaletteSource, /id: 'nav-agents'/);
   assert.match(commandPaletteSource, /id: 'nav-kernel'/);
   assert.match(commandPaletteSource, /id: 'nav-nodes'/);

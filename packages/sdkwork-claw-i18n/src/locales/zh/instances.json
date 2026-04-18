@@ -11,8 +11,35 @@
     "title": "实例",
     "subtitle": "创建、关联并管理当前工作区需要使用的 OpenClaw 运行时。",
     "activeBadge": "活跃",
-    "emptyTitle": "还没有连接到任何实例",
-    "emptyDescription": "可以从内置 OpenClaw 安装开始，也可以关联本机已安装的 OpenClaw，或直接接入远程网关，让 Claw Studio 拥有可用的运行时。",
+    "tabs": {
+      "activeInstances": "激活实例",
+      "supportedKernels": "支持 Kernels"
+    },
+    "supportedKernels": {
+      "summary": {
+        "openclaw": "Claw Studio 直接内置支持的主内核，可以直接安装并纳入托管。",
+        "hermes": "面向外部运行时接入的多 kernel 扩展，需要通过受支持的宿主环境或远程 Linux 独立部署。"
+      },
+      "deployment": {
+        "bundled": "内置实例",
+        "external": "外部运行时"
+      },
+      "fields": {
+        "stableVersion": "稳定版本",
+        "defaultChannel": "默认通道",
+        "requirements": "运行依赖",
+        "platforms": "支持平台"
+      },
+      "actions": {
+        "installBuiltInInstance": "安装内置实例"
+      },
+      "platforms": {
+        "native": "Windows / macOS / Linux",
+        "wsl2OrRemoteOnly": "Linux / macOS / Windows WSL2 / 远程 Linux"
+      }
+    },
+    "emptyTitle": "当前还没有可用实例",
+    "emptyDescription": "等待实例完成注册后，这里会展示状态、资源指标和详情入口。",
     "emptyPrimaryAction": "安装内置 OpenClaw",
     "emptySecondaryAction": "关联已安装 OpenClaw",
     "confirmUninstall": "确认要卸载这个实例吗？",

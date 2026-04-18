@@ -66,6 +66,34 @@ const runtimeSidecarManifestRelativePath = path.join('runtime', '.sdkwork-opencl
 const trackedResourcePlaceholder = 'packages/sdkwork-claw-desktop/src-tauri/resources/openclaw/.gitkeep';
 const fakeNodeExecutableContent = 'not-a-real-node-runtime';
 
+function resolveExpectedWindowsSystemCommand(command) {
+  const normalizedCommand = String(command ?? '').trim().toLowerCase();
+  const systemRoot =
+    String(process.env.SystemRoot ?? process.env.WINDIR ?? '').trim() || 'C:\\Windows';
+
+  if (process.platform !== 'win32') {
+    return normalizedCommand === 'tar' ? 'tar' : normalizedCommand === 'powershell' ? 'powershell' : command;
+  }
+
+  if (normalizedCommand === 'tar') {
+    const tarPath = path.win32.join(systemRoot, 'System32', 'tar.exe');
+    return existsSync(tarPath) ? tarPath : 'tar.exe';
+  }
+
+  if (normalizedCommand === 'powershell') {
+    const powershellPath = path.win32.join(
+      systemRoot,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe',
+    );
+    return existsSync(powershellPath) ? powershellPath : 'powershell.exe';
+  }
+
+  return command;
+}
+
 function formatTarOctal(value, width) {
   return `${value.toString(8).padStart(width - 2, '0')}\0 `;
 }
@@ -2295,8 +2323,23 @@ try {
     target,
     hasTarCommand: true,
   });
-  if (windowsExtractor.command.toLowerCase() !== 'tar') {
+  if (windowsExtractor.command.toLowerCase() !== resolveExpectedWindowsSystemCommand('tar').toLowerCase()) {
     throw new Error(`Expected Windows zip extraction to prefer tar, received ${windowsExtractor.command}`);
+  }
+
+  const windowsPowerShellExtractor = resolveNodeArchiveExtractionCommand({
+    archivePath: 'C:\\temp\\node-v22.16.0-win-x64.zip',
+    extractRoot: 'C:\\temp\\extract-root',
+    target,
+    hasTarCommand: false,
+  });
+  if (
+    windowsPowerShellExtractor.command.toLowerCase()
+    !== resolveExpectedWindowsSystemCommand('powershell').toLowerCase()
+  ) {
+    throw new Error(
+      `Expected Windows zip extraction to fall back to PowerShell, received ${windowsPowerShellExtractor.command}`,
+    );
   }
 
   if (!shouldRetryDirectoryCleanup(Object.assign(new Error('directory not empty'), { code: 'ENOTEMPTY' }))) {

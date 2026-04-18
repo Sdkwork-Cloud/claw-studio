@@ -136,3 +136,62 @@ await runTest(
     );
   },
 );
+
+await runTest(
+  'presentChatHeader prefers kernel session run state and model binding over legacy session mirrors',
+  () => {
+    assert.equal(typeof presentChatHeader, 'function');
+
+    assert.deepEqual(
+      presentChatHeader({
+        isOpenClawGateway: true,
+        gatewayConnectionStatus: 'connected',
+        syncState: 'idle',
+        activeAgentName: null,
+        activeModelName: 'fallback-model',
+        activeSession: {
+          id: 'agent:research:main',
+          title: 'main',
+          model: 'legacy-model',
+          defaultModel: 'legacy-default',
+          runId: null,
+          kernelSession: {
+            ref: {
+              kernelId: 'openclaw',
+              instanceId: 'instance-1',
+              sessionId: 'agent:research:main',
+            },
+            authority: {
+              kind: 'gateway',
+              source: 'kernel',
+              durable: true,
+              writable: true,
+            },
+            lifecycle: 'running',
+            title: 'main',
+            createdAt: Date.UTC(2026, 3, 3, 10, 40, 0),
+            updatedAt: Date.UTC(2026, 3, 3, 11, 0, 0),
+            messageCount: 1,
+            modelBinding: {
+              model: 'kernel-model',
+              defaultModel: 'kernel-default',
+            },
+            activeRunId: 'kernel-run-1',
+          },
+          messages: [
+            {
+              role: 'user',
+              content: 'Kernel session title',
+            },
+          ],
+        },
+        isActiveSessionGenerating: false,
+      }),
+      {
+        title: 'Kernel session title',
+        status: 'responding',
+        detailItems: ['kernel-model'],
+      },
+    );
+  },
+);

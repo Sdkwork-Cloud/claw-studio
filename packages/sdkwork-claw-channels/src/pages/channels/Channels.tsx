@@ -331,19 +331,10 @@ export function Channels() {
 
   return (
     <div className="flex h-full overflow-hidden bg-zinc-50 dark:bg-zinc-950">
-      <div className="scrollbar-hide flex-1 overflow-y-auto p-4 md:p-8">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-              {t('channels.page.title')}
-            </h1>
-            <p className="mt-2 text-lg text-zinc-500 dark:text-zinc-400">
-              {t('channels.page.subtitle')}
-            </p>
-          </div>
-
+      <div className="scrollbar-hide flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="w-full space-y-6">
           {errorMessage ? (
-            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
               {errorMessage}
             </div>
           ) : null}

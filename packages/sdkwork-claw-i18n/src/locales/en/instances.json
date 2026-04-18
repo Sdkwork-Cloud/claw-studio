@@ -11,8 +11,35 @@
     "title": "Instances",
     "subtitle": "Create, connect, and manage every OpenClaw runtime that should participate in this workspace.",
     "activeBadge": "Active",
-    "emptyTitle": "No instances are connected yet",
-    "emptyDescription": "Start with the built-in OpenClaw install, attach an existing local install, or connect a remote gateway so Claw Studio has a runtime to work with.",
+    "tabs": {
+      "activeInstances": "Active Instances",
+      "supportedKernels": "Supported Kernels"
+    },
+    "supportedKernels": {
+      "summary": {
+        "openclaw": "The primary built-in kernel supported directly by Claw Studio and ready for managed installation.",
+        "hermes": "A multi-kernel external runtime that stays attached through supported host or remote environments."
+      },
+      "deployment": {
+        "bundled": "Built-In",
+        "external": "External Runtime"
+      },
+      "fields": {
+        "stableVersion": "Stable Version",
+        "defaultChannel": "Default Channel",
+        "requirements": "Required Runtimes",
+        "platforms": "Supported Platforms"
+      },
+      "actions": {
+        "installBuiltInInstance": "Install Built-In Instance"
+      },
+      "platforms": {
+        "native": "Windows / macOS / Linux",
+        "wsl2OrRemoteOnly": "Linux / macOS / Windows WSL2 / Remote Linux"
+      }
+    },
+    "emptyTitle": "No instances are available yet",
+    "emptyDescription": "Once instances are registered, this page will show their status, resource metrics, and detail entry points.",
     "emptyPrimaryAction": "Install Built-In OpenClaw",
     "emptySecondaryAction": "Associate Installed OpenClaw",
     "confirmUninstall": "Are you sure you want to uninstall this instance?",

@@ -1,4 +1,5 @@
 import { DEFAULT_CHAT_SESSION_TITLE, getChatSessionDisplayTitle } from './chatSessionTitlePresentation.ts';
+import { resolveKernelChatSessionState } from './kernelChatSessionState.ts';
 
 type ChatHeaderMessageLike = {
   role?: string;
@@ -13,6 +14,13 @@ type ChatHeaderSessionLike = {
   model?: string;
   defaultModel?: string | null;
   runId?: string | null;
+  kernelSession?: {
+    modelBinding?: {
+      model?: string | null;
+      defaultModel?: string | null;
+    } | null;
+    activeRunId?: string | null;
+  } | null;
 };
 
 type ChatHeaderGatewayConnectionStatus =
@@ -111,9 +119,10 @@ export function presentChatHeader(params: {
     ? getChatSessionDisplayTitle(params.activeSession)
     : DEFAULT_CHAT_SESSION_TITLE;
   const detailItems: string[] = [];
+  const activeSessionState = resolveKernelChatSessionState(params.activeSession);
   const activeSessionModel =
-    normalizeLabel(params.activeSession?.model) ||
-    normalizeLabel(params.activeSession?.defaultModel) ||
+    normalizeLabel(activeSessionState.model) ||
+    normalizeLabel(activeSessionState.defaultModel) ||
     null;
   const visibleModelName = activeSessionModel || normalizeLabel(params.activeModelName) || null;
 
@@ -128,7 +137,7 @@ export function presentChatHeader(params: {
       gatewayConnectionStatus: params.gatewayConnectionStatus,
       syncState: params.syncState,
       isActiveSessionGenerating: Boolean(params.isActiveSessionGenerating),
-      activeSessionRunId: params.activeSession?.runId,
+      activeSessionRunId: activeSessionState.activeRunId,
     }),
     detailItems,
   };

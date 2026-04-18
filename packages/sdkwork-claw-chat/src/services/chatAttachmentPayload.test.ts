@@ -50,6 +50,8 @@ await runTest('chat attachment payloads round-trip through the studio conversati
   assert.equal(attachment.kind, 'image');
   assert.equal(attachment.name, 'diagram.png');
   assert.equal(attachment.url, 'https://cdn.example.com/diagram.png');
+  assert.equal((record as any).kernelSession, undefined);
+  assert.equal((record.messages[0] as any)?.kernelMessage, undefined);
 
   const roundTrip = mapStudioConversation(record);
   const roundTripAttachment = roundTrip.messages[0]?.attachments?.[0];
@@ -58,4 +60,15 @@ await runTest('chat attachment payloads round-trip through the studio conversati
   assert.equal(roundTripAttachment.id, 'asset-1');
   assert.equal(roundTripAttachment.kind, 'image');
   assert.equal(roundTripAttachment.url, 'https://cdn.example.com/diagram.png');
+  assert.equal(roundTrip.transport, 'local');
+  assert.ok(roundTrip.kernelSession);
+  assert.equal(roundTrip.kernelSession?.authority.kind, 'localProjection');
+  assert.equal(roundTrip.kernelSession?.ref.kernelId, 'studio-direct');
+  assert.equal(roundTrip.kernelSession?.ref.instanceId, 'local-built-in');
+  assert.equal(roundTrip.kernelSession?.lifecycle, 'ready');
+  assert.ok(roundTrip.messages[0]?.kernelMessage);
+  assert.deepEqual(
+    roundTrip.messages[0]?.kernelMessage?.parts.map((part) => part.kind),
+    ['attachment'],
+  );
 });
