@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import type { PlatformAPI } from '@sdkwork/claw-infrastructure';
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
 import { parseJson5 } from './json5Compat.ts';
+import { OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS } from './openClawBuiltInCompatTestFixture.ts';
 import { parseOpenClawConfigDocument } from './openClawConfigService.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
@@ -65,14 +66,14 @@ function createPlatformBridgeStub(overrides: Partial<PlatformAPI> = {}): Platfor
   };
 }
 
-function createInstanceDetailWithManagedConfig(
+function createInstanceDetailWithConfigFileAccess(
   configPath = 'D:/OpenClaw/.openclaw/openclaw.json',
 ): StudioInstanceDetailRecord {
   return {
     instance: {
       id: 'openclaw-local-external',
       name: 'OpenClaw Host',
-      description: 'Host-managed OpenClaw runtime',
+      description: 'Host OpenClaw runtime',
       runtimeKind: 'openclaw',
       deploymentMode: 'local-external',
       transportKind: 'openclawGatewayWs',
@@ -191,11 +192,11 @@ function createInstanceDetailWithManagedConfig(
   };
 }
 
-function createBuiltInManagedOpenClawDetailWithLegacyConfigPath() {
-  const detail = createInstanceDetailWithManagedConfig(
-    'C:/ProgramData/SdkWork/CrawStudio/state/kernels/openclaw/managed-config/openclaw.json',
+function createBuiltInOpenClawDetailWithLegacyConfigPath() {
+  const detail = createInstanceDetailWithConfigFileAccess(
+    OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.legacyConfigPath,
   );
-  const canonicalWorkspacePath = 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace';
+  const canonicalWorkspacePath = OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.canonicalWorkspacePath;
 
   detail.instance.id = 'local-built-in';
   detail.instance.name = 'Local Built-In OpenClaw';
@@ -214,7 +215,7 @@ function createBuiltInManagedOpenClawDetailWithLegacyConfigPath() {
     target: canonicalWorkspacePath,
     readonly: false,
     authoritative: true,
-    detail: 'Managed OpenClaw workspace directory.',
+    detail: 'Built-in OpenClaw workspace directory.',
     source: 'config',
   });
   detail.artifacts.push({
@@ -224,7 +225,7 @@ function createBuiltInManagedOpenClawDetailWithLegacyConfigPath() {
     status: 'available',
     location: canonicalWorkspacePath,
     readonly: false,
-    detail: 'Managed OpenClaw workspace directory.',
+    detail: 'Built-in OpenClaw workspace directory.',
     source: 'config',
   });
 
@@ -2880,7 +2881,7 @@ await runTest('openClawConfigService reads provider runtime config from canonica
 await runTest('openClawConfigService resolves a file-backed config path from instance detail data access first', async () => {
   const { openClawConfigService } = await import('./openClawConfigService.ts');
 
-  const detail = createInstanceDetailWithManagedConfig();
+  const detail = createInstanceDetailWithConfigFileAccess();
 
   assert.equal(
     openClawConfigService.resolveInstanceConfigPath(detail),
@@ -2889,15 +2890,15 @@ await runTest('openClawConfigService resolves a file-backed config path from ins
 });
 
 await runTest(
-  'openClawConfigService canonicalizes built-in managed OpenClaw config paths when legacy machine targets drift',
+  'openClawConfigService canonicalizes built-in OpenClaw config paths when legacy machine targets drift',
   async () => {
     const { openClawConfigService } = await import('./openClawConfigService.ts');
 
-    const detail = createBuiltInManagedOpenClawDetailWithLegacyConfigPath();
+    const detail = createBuiltInOpenClawDetailWithLegacyConfigPath();
 
     assert.equal(
       openClawConfigService.resolveInstanceConfigPath(detail),
-      'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+      'C:/Users/admin/.openclaw/openclaw.json',
     );
   },
 );
@@ -2907,7 +2908,7 @@ await runTest(
   async () => {
     const { openClawConfigService } = await import('./openClawConfigService.ts');
 
-    const detail = createInstanceDetailWithManagedConfig();
+    const detail = createInstanceDetailWithConfigFileAccess();
     detail.dataAccess.routes[0] = {
       ...detail.dataAccess.routes[0]!,
       mode: 'metadataOnly',
@@ -2925,7 +2926,7 @@ await runTest(
   async () => {
     const { openClawConfigService } = await import('./openClawConfigService.ts');
 
-    const detail = createInstanceDetailWithManagedConfig();
+    const detail = createInstanceDetailWithConfigFileAccess();
     detail.dataAccess.routes = [];
 
     assert.equal(

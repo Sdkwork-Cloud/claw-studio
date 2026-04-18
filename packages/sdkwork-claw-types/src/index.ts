@@ -877,7 +877,7 @@ export type StudioInstanceConsoleAuthMode =
   | 'unknown';
 
 export type StudioInstanceConsoleAuthSource =
-  | 'managedConfig'
+  | 'configFile'
   | 'installRecord'
   | 'workspaceConfig'
   | 'secretRef'

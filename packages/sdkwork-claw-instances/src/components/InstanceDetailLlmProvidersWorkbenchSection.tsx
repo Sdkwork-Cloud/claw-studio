@@ -8,15 +8,15 @@ import {
   type InstanceDetailLlmProvidersSectionProps,
 } from './InstanceDetailLlmProvidersSection.tsx';
 
-interface InstanceDetailManagedLlmProvidersSectionProps {
+interface InstanceDetailLlmProvidersWorkbenchSectionProps {
   sectionProps: InstanceDetailLlmProvidersSectionProps;
   dialogProps: InstanceDetailLlmProviderDialogsProps;
 }
 
-export function InstanceDetailManagedLlmProvidersSection({
+export function InstanceDetailLlmProvidersWorkbenchSection({
   sectionProps,
   dialogProps,
-}: InstanceDetailManagedLlmProvidersSectionProps) {
+}: InstanceDetailLlmProvidersWorkbenchSectionProps) {
   return (
     <>
       <InstanceDetailLlmProvidersSection {...sectionProps} />

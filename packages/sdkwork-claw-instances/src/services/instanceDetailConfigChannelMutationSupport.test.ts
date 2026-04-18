@@ -13,25 +13,25 @@ function runTest(name: string, fn: () => void | Promise<void>) {
     });
 }
 
-async function loadInstanceDetailManagedChannelMutationSupportModule() {
-  const moduleUrl = new URL('./instanceDetailManagedChannelMutationSupport.ts', import.meta.url);
+async function loadInstanceDetailConfigChannelMutationSupportModule() {
+  const moduleUrl = new URL('./instanceDetailConfigChannelMutationSupport.ts', import.meta.url);
 
   assert.ok(
     existsSync(moduleUrl),
-    'expected instanceDetailManagedChannelMutationSupport.ts to exist',
+    'expected instanceDetailConfigChannelMutationSupport.ts to exist',
   );
 
-  return import('./instanceDetailManagedChannelMutationSupport.ts');
+  return import('./instanceDetailConfigChannelMutationSupport.ts');
 }
 
 await runTest(
-  'createInstanceDetailManagedChannelMutationExecutors routes save and toggle through the injected instance service surface',
+  'createInstanceDetailConfigChannelMutationExecutors routes save and toggle through the injected instance service surface',
   async () => {
-    const { createInstanceDetailManagedChannelMutationExecutors } =
-      await loadInstanceDetailManagedChannelMutationSupportModule();
+    const { createInstanceDetailConfigChannelMutationExecutors } =
+      await loadInstanceDetailConfigChannelMutationSupportModule();
     const calls: string[] = [];
 
-    const executors = createInstanceDetailManagedChannelMutationExecutors({
+    const executors = createInstanceDetailConfigChannelMutationExecutors({
       instanceService: {
         saveOpenClawChannelConfig: async (instanceId, channelId, values) => {
           calls.push(`save:${instanceId}:${channelId}:${values.token}`);

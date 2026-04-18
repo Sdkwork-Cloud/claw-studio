@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
 import {
   hasReadyOpenClawGateway,
-  hasManagedOpenClawConfigRoute,
-  isProviderCenterManagedOpenClawDetail,
+  hasWritableOpenClawConfigRoute,
+  isProviderCenterControlledOpenClawDetail,
   shouldProbeOpenClawGateway,
 } from './openClawManagementCapabilities.ts';
 
@@ -129,7 +129,7 @@ function createDetail(overrides: DetailOverrides = {}): StudioInstanceDetailReco
   };
 }
 
-await runTest('isProviderCenterManagedOpenClawDetail returns true for built-in managed workbench lifecycles', () => {
+await runTest('isProviderCenterControlledOpenClawDetail returns true for built-in workbench lifecycles', () => {
   const detail = createDetail({
     instance: {
       id: 'local-built-in',
@@ -149,11 +149,11 @@ await runTest('isProviderCenterManagedOpenClawDetail returns true for built-in m
     },
   });
 
-  assert.equal(isProviderCenterManagedOpenClawDetail(detail), true);
-  assert.equal(hasManagedOpenClawConfigRoute(detail), false);
+  assert.equal(isProviderCenterControlledOpenClawDetail(detail), true);
+  assert.equal(hasWritableOpenClawConfigRoute(detail), false);
 });
 
-await runTest('isProviderCenterManagedOpenClawDetail returns true for writable managed config routes', () => {
+await runTest('isProviderCenterControlledOpenClawDetail returns true for writable config routes', () => {
   const detail = createDetail({
     instance: {
       id: 'managed-openclaw',
@@ -179,19 +179,19 @@ await runTest('isProviderCenterManagedOpenClawDetail returns true for writable m
           target: 'D:/OpenClaw/.openclaw/openclaw.json',
           readonly: false,
           authoritative: true,
-          detail: 'Writable managed config file.',
+          detail: 'Writable OpenClaw config file.',
           source: 'integration',
         },
       ],
     },
   });
 
-  assert.equal(hasManagedOpenClawConfigRoute(detail), true);
-  assert.equal(isProviderCenterManagedOpenClawDetail(detail), true);
+  assert.equal(hasWritableOpenClawConfigRoute(detail), true);
+  assert.equal(isProviderCenterControlledOpenClawDetail(detail), true);
 });
 
 await runTest(
-  'isProviderCenterManagedOpenClawDetail does not treat remote api config control as Provider Center managed without local config authority',
+  'isProviderCenterControlledOpenClawDetail does not treat remote api config control as Provider Center controlled without local config authority',
   () => {
     const detail = createDetail({
       lifecycle: {
@@ -221,13 +221,13 @@ await runTest(
       },
     });
 
-    assert.equal(hasManagedOpenClawConfigRoute(detail), false);
-    assert.equal(isProviderCenterManagedOpenClawDetail(detail), false);
+    assert.equal(hasWritableOpenClawConfigRoute(detail), false);
+    assert.equal(isProviderCenterControlledOpenClawDetail(detail), false);
   },
 );
 
 await runTest(
-  'isProviderCenterManagedOpenClawDetail does not infer managed status from deploymentMode alone when explicit lifecycle capability is absent',
+  'isProviderCenterControlledOpenClawDetail does not infer controlled status from deploymentMode alone when explicit lifecycle capability is absent',
   () => {
     const detail = createDetail({
       instance: {
@@ -245,12 +245,12 @@ await runTest(
       },
     });
 
-    assert.equal(hasManagedOpenClawConfigRoute(detail), false);
-    assert.equal(isProviderCenterManagedOpenClawDetail(detail), false);
+    assert.equal(hasWritableOpenClawConfigRoute(detail), false);
+    assert.equal(isProviderCenterControlledOpenClawDetail(detail), false);
   },
 );
 
-await runTest('isProviderCenterManagedOpenClawDetail returns false for metadata-only custom local-managed openclaw', () => {
+await runTest('isProviderCenterControlledOpenClawDetail returns false for metadata-only custom local-managed openclaw', () => {
   const detail = createDetail({
     instance: {
       id: 'custom-local-managed',
@@ -286,11 +286,11 @@ await runTest('isProviderCenterManagedOpenClawDetail returns false for metadata-
     },
   });
 
-  assert.equal(hasManagedOpenClawConfigRoute(detail), false);
-  assert.equal(isProviderCenterManagedOpenClawDetail(detail), false);
+  assert.equal(hasWritableOpenClawConfigRoute(detail), false);
+  assert.equal(isProviderCenterControlledOpenClawDetail(detail), false);
 });
 
-await runTest('isProviderCenterManagedOpenClawDetail returns false for remote openclaw endpoints', () => {
+await runTest('isProviderCenterControlledOpenClawDetail returns false for remote openclaw endpoints', () => {
   const detail = createDetail({
     dataAccess: {
       routes: [
@@ -310,8 +310,8 @@ await runTest('isProviderCenterManagedOpenClawDetail returns false for remote op
     },
   });
 
-  assert.equal(hasManagedOpenClawConfigRoute(detail), false);
-  assert.equal(isProviderCenterManagedOpenClawDetail(detail), false);
+  assert.equal(hasWritableOpenClawConfigRoute(detail), false);
+  assert.equal(isProviderCenterControlledOpenClawDetail(detail), false);
 });
 
 await runTest(
@@ -368,7 +368,7 @@ await runTest(
 );
 
 await runTest(
-  'shouldProbeOpenClawGateway keeps probing built-in managed OpenClaw runtimes even when instance status lags behind runtime readiness',
+  'shouldProbeOpenClawGateway keeps probing built-in OpenClaw runtimes even when instance status lags behind runtime readiness',
   () => {
     const builtInManagedDetail = createDetail({
       instance: {

@@ -31,7 +31,7 @@ await runTest(
     assert.equal(typeof agentWorkbenchSupportModule?.normalizeWorkbenchAgent, 'function');
     assert.equal(typeof agentWorkbenchSupportModule?.mergeWorkbenchAgents, 'function');
     assert.equal(typeof agentWorkbenchSupportModule?.mergeOpenClawAgentCollections, 'function');
-    assert.equal(typeof agentWorkbenchSupportModule?.buildManagedOpenClawAgents, 'function');
+    assert.equal(typeof agentWorkbenchSupportModule?.buildOpenClawWorkbenchAgents, 'function');
   },
 );
 
@@ -110,7 +110,7 @@ await runTest(
           agent: {
             id: 'Ops Lead',
             name: 'Ops Lead',
-            description: 'Managed profile',
+            description: 'Config-backed profile',
             avatar: 'O',
             systemPrompt: 'Base prompt',
             creator: 'OpenClaw',
@@ -127,7 +127,7 @@ await runTest(
           paramSources: {
             temperature: 'defaults',
           },
-          configSource: 'managedConfig',
+          configSource: 'configFile',
         },
       ] as any,
       [
@@ -187,14 +187,14 @@ await runTest(
 );
 
 await runTest(
-  'buildManagedOpenClawAgents overlays runtime metadata onto managed defaults and appends runtime-only agents',
+  'buildOpenClawWorkbenchAgents overlays runtime metadata onto config-defined defaults and appends runtime-only agents',
   () => {
-    const managedAgents = agentWorkbenchSupportModule?.buildManagedOpenClawAgents(
+    const configBackedAgents = agentWorkbenchSupportModule?.buildOpenClawWorkbenchAgents(
       [
         {
           id: 'Ops Lead',
           name: 'Ops Lead',
-          description: 'Managed ops agent',
+          description: 'Config-backed ops agent',
           avatar: 'O',
           workspace: 'D:/OpenClaw/workspace',
           agentDir: 'D:/OpenClaw/agents/ops/agent',
@@ -244,16 +244,16 @@ await runTest(
     );
 
     assert.deepEqual(
-      managedAgents?.map((agent) => agent.agent.id),
+      configBackedAgents?.map((agent) => agent.agent.id),
       ['ops-lead', 'scribe'],
     );
-    assert.equal(managedAgents?.[0]?.agent.systemPrompt, 'Handle incidents');
-    assert.equal(managedAgents?.[0]?.agent.creator, 'Runtime');
-    assert.deepEqual(managedAgents?.[0]?.focusAreas, ['Operations']);
-    assert.equal(managedAgents?.[0]?.automationFitScore, 88);
-    assert.equal(managedAgents?.[0]?.isDefault, true);
-    assert.deepEqual(managedAgents?.[0]?.params, { temperature: 0.3 });
-    assert.deepEqual(managedAgents?.[0]?.paramSources, { temperature: 'defaults' });
-    assert.equal(managedAgents?.[1]?.agent.id, 'scribe');
+    assert.equal(configBackedAgents?.[0]?.agent.systemPrompt, 'Handle incidents');
+    assert.equal(configBackedAgents?.[0]?.agent.creator, 'Runtime');
+    assert.deepEqual(configBackedAgents?.[0]?.focusAreas, ['Operations']);
+    assert.equal(configBackedAgents?.[0]?.automationFitScore, 88);
+    assert.equal(configBackedAgents?.[0]?.isDefault, true);
+    assert.deepEqual(configBackedAgents?.[0]?.params, { temperature: 0.3 });
+    assert.deepEqual(configBackedAgents?.[0]?.paramSources, { temperature: 'defaults' });
+    assert.equal(configBackedAgents?.[1]?.agent.id, 'scribe');
   },
 );

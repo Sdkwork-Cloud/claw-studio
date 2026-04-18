@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { InstanceDetailManagedToolsSection } from './InstanceDetailManagedToolsSection.tsx';
+import { InstanceDetailConfigToolsSection } from './InstanceDetailConfigToolsSection.tsx';
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -16,15 +16,15 @@ function runTest(name: string, fn: () => void | Promise<void>) {
 }
 
 await runTest(
-  'InstanceDetailManagedToolsSection composes managed tools panels from page-owned state instead of requiring prebuilt JSX nodes',
+  'InstanceDetailConfigToolsSection composes config tools panels from page-owned state instead of requiring prebuilt JSX nodes',
   () => {
     const markup = renderToStaticMarkup(
-      <InstanceDetailManagedToolsSection
+      <InstanceDetailConfigToolsSection
         emptyState={<div>empty-tools</div>}
         workbench={{
           tools: [],
         } as any}
-        managedWebSearchConfig={{
+        configWebSearch={{
           providers: [{ id: 'provider-1', label: 'Primary Provider' }],
         } as any}
         webSearchSharedDraft={{
@@ -50,12 +50,12 @@ await runTest(
         }}
         webSearchError={null}
         isSavingWebSearch={false}
-        canEditManagedWebSearch
+        canEditConfigWebSearch
         onSaveWebSearchConfig={() => undefined}
         onWebSearchSharedDraftChange={() => undefined}
         onWebSearchProviderDraftChange={() => undefined}
         onSelectedWebSearchProviderIdChange={() => undefined}
-        managedWebFetchConfig={null}
+        configWebFetch={null}
         webFetchSharedDraft={null}
         webFetchFallbackDraft={{
           apiKeySource: '',
@@ -64,25 +64,25 @@ await runTest(
         }}
         webFetchError={null}
         isSavingWebFetch={false}
-        canEditManagedWebFetch={false}
+        canEditConfigWebFetch={false}
         onSaveWebFetchConfig={() => undefined}
         onWebFetchSharedDraftChange={() => undefined}
         onWebFetchFallbackDraftChange={() => undefined}
-        managedWebSearchNativeCodexConfig={null}
+        configWebSearchNativeCodex={null}
         webSearchNativeCodexDraft={null}
         webSearchNativeCodexError={null}
         isSavingWebSearchNativeCodex={false}
-        canEditManagedWebSearchNativeCodex={false}
+        canEditConfigWebSearchNativeCodex={false}
         onSaveWebSearchNativeCodexConfig={() => undefined}
         onWebSearchNativeCodexDraftChange={() => undefined}
-        managedXSearchConfig={null}
+        configXSearch={null}
         xSearchDraft={null}
         xSearchError={null}
         isSavingXSearch={false}
-        canEditManagedXSearch={false}
+        canEditConfigXSearch={false}
         onSaveXSearchConfig={() => undefined}
         onXSearchDraftChange={() => undefined}
-        managedAuthCooldownsConfig={{
+        configAuthCooldowns={{
           billingMaxHours: 24,
         } as any}
         authCooldownsDraft={{
@@ -95,7 +95,7 @@ await runTest(
         }}
         authCooldownsError={null}
         isSavingAuthCooldowns={false}
-        canEditManagedAuthCooldowns
+        canEditConfigAuthCooldowns
         onSaveAuthCooldownsConfig={() => undefined}
         onAuthCooldownsDraftChange={() => undefined}
         formatWorkbenchLabel={(value) => `label:${value}`}
@@ -105,31 +105,31 @@ await runTest(
       />,
     );
 
-    assert.match(markup, /data-slot="instance-detail-managed-web-search"/);
-    assert.match(markup, /data-slot="instance-detail-managed-auth-cooldowns"/);
+    assert.match(markup, /data-slot="instance-detail-config-web-search"/);
+    assert.match(markup, /data-slot="instance-detail-config-auth-cooldowns"/);
     assert.match(markup, /empty-tools/);
   },
 );
 
 await runTest(
-  'InstanceDetailManagedToolsSection still falls back to the supplied empty state when runtime and managed tool surfaces are both absent',
+  'InstanceDetailConfigToolsSection still falls back to the supplied empty state when runtime and config tool surfaces are both absent',
   () => {
     const markup = renderToStaticMarkup(
-      <InstanceDetailManagedToolsSection
+      <InstanceDetailConfigToolsSection
         emptyState={<div>empty-tools</div>}
         workbench={null}
-        managedWebSearchConfig={null}
+        configWebSearch={null}
         webSearchSharedDraft={null}
         selectedWebSearchProvider={null}
         selectedWebSearchProviderDraft={null}
         webSearchError={null}
         isSavingWebSearch={false}
-        canEditManagedWebSearch={false}
+        canEditConfigWebSearch={false}
         onSaveWebSearchConfig={() => undefined}
         onWebSearchSharedDraftChange={() => undefined}
         onWebSearchProviderDraftChange={() => undefined}
         onSelectedWebSearchProviderIdChange={() => undefined}
-        managedWebFetchConfig={null}
+        configWebFetch={null}
         webFetchSharedDraft={null}
         webFetchFallbackDraft={{
           apiKeySource: '',
@@ -138,29 +138,29 @@ await runTest(
         }}
         webFetchError={null}
         isSavingWebFetch={false}
-        canEditManagedWebFetch={false}
+        canEditConfigWebFetch={false}
         onSaveWebFetchConfig={() => undefined}
         onWebFetchSharedDraftChange={() => undefined}
         onWebFetchFallbackDraftChange={() => undefined}
-        managedWebSearchNativeCodexConfig={null}
+        configWebSearchNativeCodex={null}
         webSearchNativeCodexDraft={null}
         webSearchNativeCodexError={null}
         isSavingWebSearchNativeCodex={false}
-        canEditManagedWebSearchNativeCodex={false}
+        canEditConfigWebSearchNativeCodex={false}
         onSaveWebSearchNativeCodexConfig={() => undefined}
         onWebSearchNativeCodexDraftChange={() => undefined}
-        managedXSearchConfig={null}
+        configXSearch={null}
         xSearchDraft={null}
         xSearchError={null}
         isSavingXSearch={false}
-        canEditManagedXSearch={false}
+        canEditConfigXSearch={false}
         onSaveXSearchConfig={() => undefined}
         onXSearchDraftChange={() => undefined}
-        managedAuthCooldownsConfig={null}
+        configAuthCooldowns={null}
         authCooldownsDraft={null}
         authCooldownsError={null}
         isSavingAuthCooldowns={false}
-        canEditManagedAuthCooldowns={false}
+        canEditConfigAuthCooldowns={false}
         onSaveAuthCooldownsConfig={() => undefined}
         onAuthCooldownsDraftChange={() => undefined}
         formatWorkbenchLabel={(value) => `label:${value}`}

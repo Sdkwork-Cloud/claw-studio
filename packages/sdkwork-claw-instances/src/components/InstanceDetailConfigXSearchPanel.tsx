@@ -2,7 +2,7 @@ import React from 'react';
 import { Button, Input, Label, Switch, Textarea } from '@sdkwork/claw-ui';
 import { RowMetric } from './InstanceWorkbenchPrimitives.tsx';
 
-interface ManagedXSearchDraft {
+interface ConfigXSearchDraft {
   enabled: boolean;
   apiKeySource: string;
   model: string;
@@ -13,30 +13,30 @@ interface ManagedXSearchDraft {
   advancedConfig: string;
 }
 
-interface InstanceDetailManagedXSearchPanelProps {
-  xSearchDraft: ManagedXSearchDraft;
+interface InstanceDetailConfigXSearchPanelProps {
+  xSearchDraft: ConfigXSearchDraft;
   xSearchError: string | null;
   isSavingXSearch: boolean;
-  canEditManagedXSearch: boolean;
+  canEditConfigXSearch: boolean;
   formatWorkbenchLabel: (value: string) => string;
   t: (key: string) => string;
   onSave: () => Promise<void> | void;
-  onDraftChange: (key: keyof ManagedXSearchDraft, value: string | boolean) => void;
+  onDraftChange: (key: keyof ConfigXSearchDraft, value: string | boolean) => void;
 }
 
-export function InstanceDetailManagedXSearchPanel({
+export function InstanceDetailConfigXSearchPanel({
   xSearchDraft,
   xSearchError,
   isSavingXSearch,
-  canEditManagedXSearch,
+  canEditConfigXSearch,
   formatWorkbenchLabel,
   t,
   onSave,
   onDraftChange,
-}: InstanceDetailManagedXSearchPanelProps) {
+}: InstanceDetailConfigXSearchPanelProps) {
   return (
     <div
-      data-slot="instance-detail-managed-x-search"
+      data-slot="instance-detail-config-x-search"
       className="rounded-[1.8rem] border border-zinc-200/70 bg-white/80 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-950/35"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -60,7 +60,7 @@ export function InstanceDetailManagedXSearchPanel({
           <Button
             type="button"
             onClick={() => void onSave()}
-            disabled={!canEditManagedXSearch || isSavingXSearch}
+            disabled={!canEditConfigXSearch || isSavingXSearch}
           >
             {isSavingXSearch ? t('common.loading') : t('common.save')}
           </Button>
@@ -83,7 +83,7 @@ export function InstanceDetailManagedXSearchPanel({
                 <Switch
                   checked={xSearchDraft.enabled}
                   onCheckedChange={(checked) => onDraftChange('enabled', checked)}
-                  disabled={!canEditManagedXSearch}
+                  disabled={!canEditConfigXSearch}
                 />
               </div>
             </div>
@@ -101,7 +101,7 @@ export function InstanceDetailManagedXSearchPanel({
                 <Switch
                   checked={xSearchDraft.inlineCitations}
                   onCheckedChange={(checked) => onDraftChange('inlineCitations', checked)}
-                  disabled={!canEditManagedXSearch}
+                  disabled={!canEditConfigXSearch}
                 />
               </div>
             </div>
@@ -111,7 +111,7 @@ export function InstanceDetailManagedXSearchPanel({
               <Input
                 value={xSearchDraft.apiKeySource}
                 onChange={(event) => onDraftChange('apiKeySource', event.target.value)}
-                disabled={!canEditManagedXSearch}
+                disabled={!canEditConfigXSearch}
                 placeholder={t('instances.detail.instanceWorkbench.xSearch.placeholders.apiKeySource')}
               />
             </div>
@@ -121,7 +121,7 @@ export function InstanceDetailManagedXSearchPanel({
               <Input
                 value={xSearchDraft.model}
                 onChange={(event) => onDraftChange('model', event.target.value)}
-                disabled={!canEditManagedXSearch}
+                disabled={!canEditConfigXSearch}
                 placeholder={t('instances.detail.instanceWorkbench.xSearch.placeholders.model')}
               />
             </div>
@@ -131,7 +131,7 @@ export function InstanceDetailManagedXSearchPanel({
               <Input
                 value={xSearchDraft.maxTurns}
                 onChange={(event) => onDraftChange('maxTurns', event.target.value)}
-                disabled={!canEditManagedXSearch}
+                disabled={!canEditConfigXSearch}
                 inputMode="numeric"
               />
             </div>
@@ -141,7 +141,7 @@ export function InstanceDetailManagedXSearchPanel({
               <Input
                 value={xSearchDraft.timeoutSeconds}
                 onChange={(event) => onDraftChange('timeoutSeconds', event.target.value)}
-                disabled={!canEditManagedXSearch}
+                disabled={!canEditConfigXSearch}
                 inputMode="numeric"
               />
             </div>
@@ -151,7 +151,7 @@ export function InstanceDetailManagedXSearchPanel({
               <Input
                 value={xSearchDraft.cacheTtlMinutes}
                 onChange={(event) => onDraftChange('cacheTtlMinutes', event.target.value)}
-                disabled={!canEditManagedXSearch}
+                disabled={!canEditConfigXSearch}
                 inputMode="numeric"
               />
             </div>
@@ -175,7 +175,7 @@ export function InstanceDetailManagedXSearchPanel({
             <Textarea
               value={xSearchDraft.advancedConfig}
               onChange={(event) => onDraftChange('advancedConfig', event.target.value)}
-              disabled={!canEditManagedXSearch}
+              disabled={!canEditConfigXSearch}
               rows={10}
               placeholder={t('instances.detail.instanceWorkbench.xSearch.placeholders.advancedConfig')}
             />

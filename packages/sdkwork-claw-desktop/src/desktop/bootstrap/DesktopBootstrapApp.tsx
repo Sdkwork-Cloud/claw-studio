@@ -780,7 +780,7 @@ export function DesktopBootstrapApp({
         );
         backgroundRuntimeReadinessRecoveryModeRef.current = recoveryMode;
         return probeDesktopHostedRuntimeReadiness({
-          requiresManagedOpenClawEvidence: recoveryMode === 'managed-openclaw',
+          requiresBuiltInOpenClawEvidence: recoveryMode === 'managed-openclaw',
           onRetry: ({ attempt, elapsedMs, error }) => {
             if (!isCurrentRun()) {
               return;

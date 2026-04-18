@@ -9,29 +9,29 @@ import type {
   OpenClawXSearchDraftValue,
 } from '../services/index.ts';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
-import { InstanceDetailManagedAuthCooldownsPanel } from './InstanceDetailManagedAuthCooldownsPanel.tsx';
-import { InstanceDetailManagedWebFetchPanel } from './InstanceDetailManagedWebFetchPanel.tsx';
-import { InstanceDetailManagedWebSearchNativeCodexPanel } from './InstanceDetailManagedWebSearchNativeCodexPanel.tsx';
-import { InstanceDetailManagedWebSearchPanel } from './InstanceDetailManagedWebSearchPanel.tsx';
-import { InstanceDetailManagedXSearchPanel } from './InstanceDetailManagedXSearchPanel.tsx';
+import { InstanceDetailConfigAuthCooldownsPanel } from './InstanceDetailConfigAuthCooldownsPanel.tsx';
+import { InstanceDetailConfigWebFetchPanel } from './InstanceDetailConfigWebFetchPanel.tsx';
+import { InstanceDetailConfigWebSearchNativeCodexPanel } from './InstanceDetailConfigWebSearchNativeCodexPanel.tsx';
+import { InstanceDetailConfigWebSearchPanel } from './InstanceDetailConfigWebSearchPanel.tsx';
+import { InstanceDetailConfigXSearchPanel } from './InstanceDetailConfigXSearchPanel.tsx';
 import {
   InstanceDetailToolsSection,
   type InstanceDetailToolsSectionProps,
 } from './InstanceDetailToolsSection.tsx';
 
-type ManagedWebSearchConfig = InstanceWorkbenchSnapshot['managedWebSearchConfig'];
-type ManagedWebSearchProvider = NonNullable<ManagedWebSearchConfig>['providers'][number];
+type ConfigWebSearchConfig = InstanceWorkbenchSnapshot['configWebSearch'];
+type ConfigWebSearchProvider = NonNullable<ConfigWebSearchConfig>['providers'][number];
 
-export interface InstanceDetailManagedToolsSectionProps {
+export interface InstanceDetailConfigToolsSectionProps {
   emptyState: React.ReactNode;
   workbench: Pick<InstanceWorkbenchSnapshot, 'tools'> | null;
-  managedWebSearchConfig: ManagedWebSearchConfig;
+  configWebSearch: ConfigWebSearchConfig;
   webSearchSharedDraft: OpenClawWebSearchSharedDraftValue | null;
-  selectedWebSearchProvider: ManagedWebSearchProvider | null;
+  selectedWebSearchProvider: ConfigWebSearchProvider | null;
   selectedWebSearchProviderDraft: OpenClawWebSearchProviderDraftValue | null;
   webSearchError: string | null;
   isSavingWebSearch: boolean;
-  canEditManagedWebSearch: boolean;
+  canEditConfigWebSearch: boolean;
   onSaveWebSearchConfig: () => Promise<void> | void;
   onWebSearchSharedDraftChange: (
     key: keyof OpenClawWebSearchSharedDraftValue,
@@ -42,12 +42,12 @@ export interface InstanceDetailManagedToolsSectionProps {
     value: string,
   ) => void;
   onSelectedWebSearchProviderIdChange: (providerId: string) => void;
-  managedWebFetchConfig: InstanceWorkbenchSnapshot['managedWebFetchConfig'];
+  configWebFetch: InstanceWorkbenchSnapshot['configWebFetch'];
   webFetchSharedDraft: OpenClawWebFetchSharedDraftValue | null;
   webFetchFallbackDraft: OpenClawWebFetchFallbackDraftValue;
   webFetchError: string | null;
   isSavingWebFetch: boolean;
-  canEditManagedWebFetch: boolean;
+  canEditConfigWebFetch: boolean;
   onSaveWebFetchConfig: () => Promise<void> | void;
   onWebFetchSharedDraftChange: (
     key: keyof OpenClawWebFetchSharedDraftValue,
@@ -57,31 +57,31 @@ export interface InstanceDetailManagedToolsSectionProps {
     key: keyof OpenClawWebFetchFallbackDraftValue,
     value: string,
   ) => void;
-  managedWebSearchNativeCodexConfig: InstanceWorkbenchSnapshot['managedWebSearchNativeCodexConfig'];
+  configWebSearchNativeCodex: InstanceWorkbenchSnapshot['configWebSearchNativeCodex'];
   webSearchNativeCodexDraft: OpenClawWebSearchNativeCodexDraftValue | null;
   webSearchNativeCodexError: string | null;
   isSavingWebSearchNativeCodex: boolean;
-  canEditManagedWebSearchNativeCodex: boolean;
+  canEditConfigWebSearchNativeCodex: boolean;
   onSaveWebSearchNativeCodexConfig: () => Promise<void> | void;
   onWebSearchNativeCodexDraftChange: (
     key: keyof OpenClawWebSearchNativeCodexDraftValue,
     value: string | boolean,
   ) => void;
-  managedXSearchConfig: InstanceWorkbenchSnapshot['managedXSearchConfig'];
+  configXSearch: InstanceWorkbenchSnapshot['configXSearch'];
   xSearchDraft: OpenClawXSearchDraftValue | null;
   xSearchError: string | null;
   isSavingXSearch: boolean;
-  canEditManagedXSearch: boolean;
+  canEditConfigXSearch: boolean;
   onSaveXSearchConfig: () => Promise<void> | void;
   onXSearchDraftChange: (
     key: keyof OpenClawXSearchDraftValue,
     value: string | boolean,
   ) => void;
-  managedAuthCooldownsConfig: InstanceWorkbenchSnapshot['managedAuthCooldownsConfig'];
+  configAuthCooldowns: InstanceWorkbenchSnapshot['configAuthCooldowns'];
   authCooldownsDraft: OpenClawAuthCooldownsDraftValue | null;
   authCooldownsError: string | null;
   isSavingAuthCooldowns: boolean;
-  canEditManagedAuthCooldowns: boolean;
+  canEditConfigAuthCooldowns: boolean;
   onSaveAuthCooldownsConfig: () => Promise<void> | void;
   onAuthCooldownsDraftChange: (
     key: keyof OpenClawAuthCooldownsDraftValue,
@@ -93,68 +93,68 @@ export interface InstanceDetailManagedToolsSectionProps {
   t: (key: string) => string;
 }
 
-export function InstanceDetailManagedToolsSection({
+export function InstanceDetailConfigToolsSection({
   emptyState,
   workbench,
-  managedWebSearchConfig,
+  configWebSearch,
   webSearchSharedDraft,
   selectedWebSearchProvider,
   selectedWebSearchProviderDraft,
   webSearchError,
   isSavingWebSearch,
-  canEditManagedWebSearch,
+  canEditConfigWebSearch,
   onSaveWebSearchConfig,
   onWebSearchSharedDraftChange,
   onWebSearchProviderDraftChange,
   onSelectedWebSearchProviderIdChange,
-  managedWebFetchConfig,
+  configWebFetch,
   webFetchSharedDraft,
   webFetchFallbackDraft,
   webFetchError,
   isSavingWebFetch,
-  canEditManagedWebFetch,
+  canEditConfigWebFetch,
   onSaveWebFetchConfig,
   onWebFetchSharedDraftChange,
   onWebFetchFallbackDraftChange,
-  managedWebSearchNativeCodexConfig,
+  configWebSearchNativeCodex,
   webSearchNativeCodexDraft,
   webSearchNativeCodexError,
   isSavingWebSearchNativeCodex,
-  canEditManagedWebSearchNativeCodex,
+  canEditConfigWebSearchNativeCodex,
   onSaveWebSearchNativeCodexConfig,
   onWebSearchNativeCodexDraftChange,
-  managedXSearchConfig,
+  configXSearch,
   xSearchDraft,
   xSearchError,
   isSavingXSearch,
-  canEditManagedXSearch,
+  canEditConfigXSearch,
   onSaveXSearchConfig,
   onXSearchDraftChange,
-  managedAuthCooldownsConfig,
+  configAuthCooldowns,
   authCooldownsDraft,
   authCooldownsError,
   isSavingAuthCooldowns,
-  canEditManagedAuthCooldowns,
+  canEditConfigAuthCooldowns,
   onSaveAuthCooldownsConfig,
   onAuthCooldownsDraftChange,
   formatWorkbenchLabel,
   getDangerBadge,
   getStatusBadge,
   t,
-}: InstanceDetailManagedToolsSectionProps) {
-  const managedWebSearchPanel =
-    managedWebSearchConfig &&
+}: InstanceDetailConfigToolsSectionProps) {
+  const configWebSearchPanel =
+    configWebSearch &&
     webSearchSharedDraft &&
     selectedWebSearchProvider &&
     selectedWebSearchProviderDraft ? (
-      <InstanceDetailManagedWebSearchPanel
-        managedWebSearchConfig={managedWebSearchConfig}
+      <InstanceDetailConfigWebSearchPanel
+        configWebSearch={configWebSearch}
         webSearchSharedDraft={webSearchSharedDraft}
         selectedWebSearchProvider={selectedWebSearchProvider}
         selectedWebSearchProviderDraft={selectedWebSearchProviderDraft}
         webSearchError={webSearchError}
         isSavingWebSearch={isSavingWebSearch}
-        canEditManagedWebSearch={canEditManagedWebSearch}
+        canEditConfigWebSearch={canEditConfigWebSearch}
         formatWorkbenchLabel={formatWorkbenchLabel}
         t={t}
         onSave={onSaveWebSearchConfig}
@@ -164,15 +164,15 @@ export function InstanceDetailManagedToolsSection({
       />
     ) : null;
 
-  const managedWebFetchPanel =
-    managedWebFetchConfig && webFetchSharedDraft ? (
-      <InstanceDetailManagedWebFetchPanel
-        managedWebFetchConfig={managedWebFetchConfig}
+  const configWebFetchPanel =
+    configWebFetch && webFetchSharedDraft ? (
+      <InstanceDetailConfigWebFetchPanel
+        configWebFetch={configWebFetch}
         webFetchSharedDraft={webFetchSharedDraft}
         webFetchFallbackDraft={webFetchFallbackDraft}
         webFetchError={webFetchError}
         isSavingWebFetch={isSavingWebFetch}
-        canEditManagedWebFetch={canEditManagedWebFetch}
+        canEditConfigWebFetch={canEditConfigWebFetch}
         t={t}
         onSave={onSaveWebFetchConfig}
         onWebFetchSharedDraftChange={onWebFetchSharedDraftChange}
@@ -180,13 +180,13 @@ export function InstanceDetailManagedToolsSection({
       />
     ) : null;
 
-  const managedWebSearchNativeCodexPanel =
-    managedWebSearchNativeCodexConfig && webSearchNativeCodexDraft ? (
-      <InstanceDetailManagedWebSearchNativeCodexPanel
+  const configWebSearchNativeCodexPanel =
+    configWebSearchNativeCodex && webSearchNativeCodexDraft ? (
+      <InstanceDetailConfigWebSearchNativeCodexPanel
         webSearchNativeCodexDraft={webSearchNativeCodexDraft}
         webSearchNativeCodexError={webSearchNativeCodexError}
         isSavingWebSearchNativeCodex={isSavingWebSearchNativeCodex}
-        canEditManagedWebSearchNativeCodex={canEditManagedWebSearchNativeCodex}
+        canEditConfigWebSearchNativeCodex={canEditConfigWebSearchNativeCodex}
         formatWorkbenchLabel={formatWorkbenchLabel}
         t={t}
         onSave={onSaveWebSearchNativeCodexConfig}
@@ -194,13 +194,13 @@ export function InstanceDetailManagedToolsSection({
       />
     ) : null;
 
-  const managedXSearchPanel =
-    managedXSearchConfig && xSearchDraft ? (
-      <InstanceDetailManagedXSearchPanel
+  const configXSearchPanel =
+    configXSearch && xSearchDraft ? (
+      <InstanceDetailConfigXSearchPanel
         xSearchDraft={xSearchDraft}
         xSearchError={xSearchError}
         isSavingXSearch={isSavingXSearch}
-        canEditManagedXSearch={canEditManagedXSearch}
+        canEditConfigXSearch={canEditConfigXSearch}
         formatWorkbenchLabel={formatWorkbenchLabel}
         t={t}
         onSave={onSaveXSearchConfig}
@@ -208,13 +208,13 @@ export function InstanceDetailManagedToolsSection({
       />
     ) : null;
 
-  const managedAuthCooldownsPanel =
-    managedAuthCooldownsConfig && authCooldownsDraft ? (
-      <InstanceDetailManagedAuthCooldownsPanel
+  const configAuthCooldownsPanel =
+    configAuthCooldowns && authCooldownsDraft ? (
+      <InstanceDetailConfigAuthCooldownsPanel
         authCooldownsDraft={authCooldownsDraft}
         authCooldownsError={authCooldownsError}
         isSavingAuthCooldowns={isSavingAuthCooldowns}
-        canEditManagedAuthCooldowns={canEditManagedAuthCooldowns}
+        canEditConfigAuthCooldowns={canEditConfigAuthCooldowns}
         formatWorkbenchLabel={formatWorkbenchLabel}
         t={t}
         onSave={onSaveAuthCooldownsConfig}
@@ -223,11 +223,11 @@ export function InstanceDetailManagedToolsSection({
     ) : null;
 
   const sectionProps: Omit<InstanceDetailToolsSectionProps, 'hasRuntimeTools' | 'emptyState'> = {
-    managedAuthCooldownsPanel,
-    managedWebSearchPanel,
-    managedWebSearchNativeCodexPanel,
-    managedXSearchPanel,
-    managedWebFetchPanel,
+    configAuthCooldownsPanel,
+    configWebSearchPanel,
+    configWebSearchNativeCodexPanel,
+    configXSearchPanel,
+    configWebFetchPanel,
     tools: workbench?.tools || [],
     getDangerBadge,
     getStatusBadge,
@@ -237,11 +237,11 @@ export function InstanceDetailManagedToolsSection({
   const hasRuntimeTools = sectionProps.tools.length > 0;
   const hasAnyToolsSurface = Boolean(
     hasRuntimeTools ||
-      sectionProps.managedAuthCooldownsPanel ||
-      sectionProps.managedWebSearchPanel ||
-      sectionProps.managedWebSearchNativeCodexPanel ||
-      sectionProps.managedXSearchPanel ||
-      sectionProps.managedWebFetchPanel,
+      sectionProps.configAuthCooldownsPanel ||
+      sectionProps.configWebSearchPanel ||
+      sectionProps.configWebSearchNativeCodexPanel ||
+      sectionProps.configXSearchPanel ||
+      sectionProps.configWebFetchPanel,
   );
 
   if (!hasAnyToolsSurface) {

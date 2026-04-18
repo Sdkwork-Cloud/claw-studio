@@ -936,7 +936,7 @@ mod tests {
     fn stable_built_in_openclaw_instances_still_match_status_event_semantics() {
         let instance = StudioInstanceRecord {
             id: "managed-openclaw-primary".to_string(),
-            name: "Managed OpenClaw Primary".to_string(),
+            name: "Built-In OpenClaw Primary".to_string(),
             description: Some("Stable built-in OpenClaw identity.".to_string()),
             runtime_kind: StudioRuntimeKind::Openclaw,
             deployment_mode: StudioInstanceDeploymentMode::LocalManaged,

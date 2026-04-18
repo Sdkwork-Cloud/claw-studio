@@ -88,6 +88,14 @@ runTest('sdkwork-claw-instances is implemented locally instead of re-exporting c
   assert.ok(exists('packages/sdkwork-claw-instances/src/types/index.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-instances']);
+  assert.ok(
+    pkg.dependencies?.react,
+    'sdkwork-claw-instances should declare react so package-local component tests resolve the shared runtime locally',
+  );
+  assert.ok(
+    pkg.dependencies?.['react-dom'],
+    'sdkwork-claw-instances should declare react-dom so renderToStaticMarkup resolves from the same workspace dependency tree as react',
+  );
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-instances/);
   assert.match(indexSource, /Instances/);
   assert.match(indexSource, /InstanceDetail/);
@@ -304,39 +312,38 @@ runTest(
 );
 
 runTest(
-  'sdkwork-claw-instances routes managed config draft types and form-state factories through a shared helper',
+  'sdkwork-claw-instances routes config draft types and form-state factories through a shared helper',
   () => {
     const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
     const derivedStateSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
     );
-    const managedConfigSyncSource = read(
-      'packages/sdkwork-claw-instances/src/services/instanceDetailManagedConfigSyncState.ts',
+    const configSyncSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceDetailConfigSyncState.ts',
     );
     const instanceDetailResetSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailResetState.ts',
     );
-    const managedConfigDraftSource = read(
-      'packages/sdkwork-claw-instances/src/services/openClawManagedConfigDrafts.ts',
+    const configDraftSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawConfigDrafts.ts',
     );
-    const managedConfigPresentationSource = read(
-      'packages/sdkwork-claw-instances/src/services/openClawManagedConfigPresentation.ts',
+    const configPresentationSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawConfigPresentation.ts',
     );
-
-    assert.match(managedConfigSyncSource, /createOpenClawXSearchDraft as createXSearchFormState/);
+    assert.match(configSyncSource, /createOpenClawXSearchDraft as createXSearchFormState/);
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /createOpenClawWebSearchNativeCodexDraft as createWebSearchNativeCodexFormState/,
     );
-    assert.match(managedConfigSyncSource, /createOpenClawWebSearchDraftState/);
-    assert.match(managedConfigSyncSource, /createOpenClawWebFetchDraftState/);
+    assert.match(configSyncSource, /createOpenClawWebSearchDraftState/);
+    assert.match(configSyncSource, /createOpenClawWebFetchDraftState/);
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /createOpenClawAuthCooldownsDraft as createAuthCooldownsFormState/,
     );
-    assert.match(managedConfigSyncSource, /createOpenClawDreamingFormState/);
-    assert.match(instanceDetailResetSource, /createOpenClawManagedConfigResetState/);
+    assert.match(configSyncSource, /createOpenClawDreamingFormState/);
+    assert.match(instanceDetailResetSource, /createOpenClawConfigResetState/);
     assert.match(
       detailSource,
       /type OpenClawWebSearchSharedDraftValue as OpenClawWebSearchSharedFormState/,
@@ -362,6 +369,8 @@ runTest(
       detailSource,
       /type OpenClawAuthCooldownsDraftValue as OpenClawAuthCooldownsFormState/,
     );
+    assert.match(derivedStateSource, /from '\.\/openClawConfigDrafts\.ts'/);
+    assert.doesNotMatch(derivedStateSource, /from '\.\/openClawManagedConfigDrafts\.ts'/);
     assert.doesNotMatch(detailSource, /createOpenClawXSearchDraft as createXSearchFormState/);
     assert.doesNotMatch(
       detailSource,
@@ -401,193 +410,193 @@ runTest(
     );
     assert.doesNotMatch(detailSource, /createWebFetchSharedFormState\(/);
     assert.doesNotMatch(detailSource, /createWebFetchFallbackFormState\(/);
-    const managedWebSearchSyncEffect = extractBetween(
+    const configWebSearchSyncEffect = extractBetween(
       detailSource,
-      'const managedWebSearchConfig = workbench?.managedWebSearchConfig || null;',
-      'const managedAuthCooldownsConfig = workbench?.managedAuthCooldownsConfig || null;',
+      'const configWebSearch = workbench?.configWebSearch || null;',
+      'const configAuthCooldowns = workbench?.configAuthCooldowns || null;',
     );
-    const managedAuthCooldownsSyncEffect = extractBetween(
+    const configAuthCooldownsSyncEffect = extractBetween(
       detailSource,
-      'const managedAuthCooldownsConfig = workbench?.managedAuthCooldownsConfig || null;',
-      'const managedDreamingConfig = workbench?.managedDreamingConfig || null;',
+      'const configAuthCooldowns = workbench?.configAuthCooldowns || null;',
+      'const configDreaming = workbench?.configDreaming || null;',
     );
-    const managedDreamingSyncEffect = extractBetween(
+    const configDreamingSyncEffect = extractBetween(
       detailSource,
-      'const managedDreamingConfig = workbench?.managedDreamingConfig || null;',
-      'const managedXSearchConfig = workbench?.managedXSearchConfig || null;',
+      'const configDreaming = workbench?.configDreaming || null;',
+      'const configXSearch = workbench?.configXSearch || null;',
     );
-    const managedXSearchSyncEffect = extractBetween(
+    const configXSearchSyncEffect = extractBetween(
       detailSource,
-      'const managedXSearchConfig = workbench?.managedXSearchConfig || null;',
-      'const managedWebSearchNativeCodexConfig = workbench?.managedWebSearchNativeCodexConfig || null;',
+      'const configXSearch = workbench?.configXSearch || null;',
+      'const configWebSearchNativeCodex = workbench?.configWebSearchNativeCodex || null;',
     );
-    const managedWebSearchNativeCodexSyncEffect = extractBetween(
+    const configWebSearchNativeCodexSyncEffect = extractBetween(
       detailSource,
-      'const managedWebSearchNativeCodexConfig = workbench?.managedWebSearchNativeCodexConfig || null;',
-      'const managedWebFetchConfig = workbench?.managedWebFetchConfig || null;',
+      'const configWebSearchNativeCodex = workbench?.configWebSearchNativeCodex || null;',
+      'const configWebFetch = workbench?.configWebFetch || null;',
     );
-    const managedWebFetchSyncEffect = extractBetween(
+    const configWebFetchSyncEffect = extractBetween(
       detailSource,
-      'const managedWebFetchConfig = workbench?.managedWebFetchConfig || null;',
+      'const configWebFetch = workbench?.configWebFetch || null;',
       'const agents = workbench?.agents || [];',
     );
-    const managedConfigResetEffect = extractBetween(
+    const configResetEffect = extractBetween(
       detailSource,
       'applyInstanceDetailInstanceSwitchResetState({',
       'setIsAgentDialogOpen,',
     );
-    assert.match(managedWebSearchSyncEffect, /applyInstanceDetailManagedWebSearchSyncState\(\{/);
-    assert.match(managedWebSearchSyncEffect, /currentProviderId: selectedWebSearchProviderId,/);
-    assert.match(managedWebSearchSyncEffect, /setSelectedWebSearchProviderId,/);
-    assert.match(managedWebSearchSyncEffect, /setWebSearchSharedDraft,/);
-    assert.match(managedWebSearchSyncEffect, /setWebSearchProviderDrafts,/);
-    assert.match(managedWebSearchSyncEffect, /setWebSearchError,/);
-    assert.doesNotMatch(managedWebSearchSyncEffect, /createOpenClawWebSearchDraftState/);
-    assert.doesNotMatch(managedWebSearchSyncEffect, /providers\.some/);
-    assert.doesNotMatch(managedWebSearchSyncEffect, /createWebSearchSharedFormState/);
+    assert.match(configWebSearchSyncEffect, /applyInstanceDetailConfigWebSearchSyncState\(\{/);
+    assert.match(configWebSearchSyncEffect, /currentProviderId: selectedWebSearchProviderId,/);
+    assert.match(configWebSearchSyncEffect, /setSelectedWebSearchProviderId,/);
+    assert.match(configWebSearchSyncEffect, /setWebSearchSharedDraft,/);
+    assert.match(configWebSearchSyncEffect, /setWebSearchProviderDrafts,/);
+    assert.match(configWebSearchSyncEffect, /setWebSearchError,/);
+    assert.doesNotMatch(configWebSearchSyncEffect, /createOpenClawWebSearchDraftState/);
+    assert.doesNotMatch(configWebSearchSyncEffect, /providers\.some/);
+    assert.doesNotMatch(configWebSearchSyncEffect, /createWebSearchSharedFormState/);
     assert.match(
-      managedAuthCooldownsSyncEffect,
-      /applyInstanceDetailManagedAuthCooldownsSyncState\(\{/,
+      configAuthCooldownsSyncEffect,
+      /applyInstanceDetailConfigAuthCooldownsSyncState\(\{/,
     );
-    assert.match(managedAuthCooldownsSyncEffect, /setAuthCooldownsDraft,/);
-    assert.match(managedAuthCooldownsSyncEffect, /setAuthCooldownsError,/);
-    assert.doesNotMatch(managedAuthCooldownsSyncEffect, /createAuthCooldownsFormState/);
-    assert.match(managedDreamingSyncEffect, /applyInstanceDetailManagedDreamingSyncState\(\{/);
-    assert.match(managedDreamingSyncEffect, /setDreamingDraft,/);
-    assert.match(managedDreamingSyncEffect, /setDreamingError,/);
-    assert.doesNotMatch(managedDreamingSyncEffect, /createOpenClawDreamingFormState/);
-    assert.match(managedXSearchSyncEffect, /applyInstanceDetailManagedXSearchSyncState\(\{/);
-    assert.match(managedXSearchSyncEffect, /setXSearchDraft,/);
-    assert.match(managedXSearchSyncEffect, /setXSearchError,/);
-    assert.doesNotMatch(managedXSearchSyncEffect, /createXSearchFormState/);
+    assert.match(configAuthCooldownsSyncEffect, /setAuthCooldownsDraft,/);
+    assert.match(configAuthCooldownsSyncEffect, /setAuthCooldownsError,/);
+    assert.doesNotMatch(configAuthCooldownsSyncEffect, /createAuthCooldownsFormState/);
+    assert.match(configDreamingSyncEffect, /applyInstanceDetailConfigDreamingSyncState\(\{/);
+    assert.match(configDreamingSyncEffect, /setDreamingDraft,/);
+    assert.match(configDreamingSyncEffect, /setDreamingError,/);
+    assert.doesNotMatch(configDreamingSyncEffect, /createOpenClawDreamingFormState/);
+    assert.match(configXSearchSyncEffect, /applyInstanceDetailConfigXSearchSyncState\(\{/);
+    assert.match(configXSearchSyncEffect, /setXSearchDraft,/);
+    assert.match(configXSearchSyncEffect, /setXSearchError,/);
+    assert.doesNotMatch(configXSearchSyncEffect, /createXSearchFormState/);
     assert.match(
-      managedWebSearchNativeCodexSyncEffect,
-      /applyInstanceDetailManagedWebSearchNativeCodexSyncState\(\{/,
+      configWebSearchNativeCodexSyncEffect,
+      /applyInstanceDetailConfigWebSearchNativeCodexSyncState\(\{/,
     );
-    assert.match(managedWebSearchNativeCodexSyncEffect, /setWebSearchNativeCodexDraft,/);
-    assert.match(managedWebSearchNativeCodexSyncEffect, /setWebSearchNativeCodexError,/);
+    assert.match(configWebSearchNativeCodexSyncEffect, /setWebSearchNativeCodexDraft,/);
+    assert.match(configWebSearchNativeCodexSyncEffect, /setWebSearchNativeCodexError,/);
     assert.doesNotMatch(
-      managedWebSearchNativeCodexSyncEffect,
+      configWebSearchNativeCodexSyncEffect,
       /createWebSearchNativeCodexFormState/,
     );
-    assert.match(managedWebFetchSyncEffect, /applyInstanceDetailManagedWebFetchSyncState\(\{/);
-    assert.match(managedWebFetchSyncEffect, /setWebFetchSharedDraft,/);
-    assert.match(managedWebFetchSyncEffect, /setWebFetchFallbackDraft,/);
-    assert.match(managedWebFetchSyncEffect, /setWebFetchError,/);
-    assert.doesNotMatch(managedWebFetchSyncEffect, /createOpenClawWebFetchDraftState/);
-    assert.doesNotMatch(managedAuthCooldownsSyncEffect, /if \(!managedAuthCooldownsConfig\)/);
-    assert.doesNotMatch(managedDreamingSyncEffect, /if \(!managedDreamingConfig\)/);
-    assert.doesNotMatch(managedXSearchSyncEffect, /if \(!managedXSearchConfig\)/);
+    assert.match(configWebFetchSyncEffect, /applyInstanceDetailConfigWebFetchSyncState\(\{/);
+    assert.match(configWebFetchSyncEffect, /setWebFetchSharedDraft,/);
+    assert.match(configWebFetchSyncEffect, /setWebFetchFallbackDraft,/);
+    assert.match(configWebFetchSyncEffect, /setWebFetchError,/);
+    assert.doesNotMatch(configWebFetchSyncEffect, /createOpenClawWebFetchDraftState/);
+    assert.doesNotMatch(configAuthCooldownsSyncEffect, /if \(!configAuthCooldowns\)/);
+    assert.doesNotMatch(configDreamingSyncEffect, /if \(!configDreaming\)/);
+    assert.doesNotMatch(configXSearchSyncEffect, /if \(!configXSearch\)/);
     assert.doesNotMatch(
-      managedWebSearchNativeCodexSyncEffect,
-      /if \(!managedWebSearchNativeCodexConfig\)/,
+      configWebSearchNativeCodexSyncEffect,
+      /if \(!configWebSearchNativeCodex\)/,
     );
     assert.match(
-      managedConfigSyncSource,
-      /export function applyInstanceDetailManagedWebSearchSyncState\(/,
+      configSyncSource,
+      /export function applyInstanceDetailConfigWebSearchSyncState\(/,
     );
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /const webSearchDraftState = createOpenClawWebSearchDraftState\(\{/,
     );
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /setSelectedWebSearchProviderId\(webSearchDraftState\.selectedProviderId\);/,
     );
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /setWebSearchSharedDraft\(webSearchDraftState\.sharedDraft\);/,
     );
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /setWebSearchProviderDrafts\(webSearchDraftState\.providerDrafts\);/,
     );
     assert.match(
-      managedConfigSyncSource,
-      /export function applyInstanceDetailManagedAuthCooldownsSyncState\(/,
+      configSyncSource,
+      /export function applyInstanceDetailConfigAuthCooldownsSyncState\(/,
     );
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /setAuthCooldownsDraft\(createAuthCooldownsFormState\(config\)\);/,
     );
     assert.match(
-      managedConfigSyncSource,
-      /export function applyInstanceDetailManagedDreamingSyncState\(/,
+      configSyncSource,
+      /export function applyInstanceDetailConfigDreamingSyncState\(/,
     );
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /setDreamingDraft\(createOpenClawDreamingFormState\(config\)\);/,
     );
     assert.match(
-      managedConfigSyncSource,
-      /export function applyInstanceDetailManagedXSearchSyncState\(/,
+      configSyncSource,
+      /export function applyInstanceDetailConfigXSearchSyncState\(/,
     );
-    assert.match(managedConfigSyncSource, /setXSearchDraft\(createXSearchFormState\(config\)\);/);
+    assert.match(configSyncSource, /setXSearchDraft\(createXSearchFormState\(config\)\);/);
     assert.match(
-      managedConfigSyncSource,
-      /export function applyInstanceDetailManagedWebSearchNativeCodexSyncState\(/,
+      configSyncSource,
+      /export function applyInstanceDetailConfigWebSearchNativeCodexSyncState\(/,
     );
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /setWebSearchNativeCodexDraft\(createWebSearchNativeCodexFormState\(config\)\);/,
     );
     assert.match(
-      managedConfigSyncSource,
-      /export function applyInstanceDetailManagedWebFetchSyncState\(/,
+      configSyncSource,
+      /export function applyInstanceDetailConfigWebFetchSyncState\(/,
     );
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /const webFetchDraftState = createOpenClawWebFetchDraftState\(config\);/,
     );
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /setWebFetchSharedDraft\(webFetchDraftState\.sharedDraft\);/,
     );
     assert.match(
-      managedConfigSyncSource,
+      configSyncSource,
       /setWebFetchFallbackDraft\(webFetchDraftState\.fallbackDraft\);/,
     );
-    assert.doesNotMatch(managedConfigSyncSource, /toast\./);
-    assert.doesNotMatch(managedConfigSyncSource, /instanceService\./);
-    assert.match(managedConfigResetEffect, /setSelectedWebSearchProviderId,/);
-    assert.match(managedConfigResetEffect, /setWebSearchSharedDraft,/);
-    assert.match(managedConfigResetEffect, /setWebSearchProviderDrafts,/);
-    assert.match(managedConfigResetEffect, /setWebFetchSharedDraft,/);
-    assert.match(managedConfigResetEffect, /setWebFetchFallbackDraft,/);
-    assert.match(managedConfigResetEffect, /setAuthCooldownsDraft,/);
-    assert.match(managedConfigResetEffect, /setDreamingDraft,/);
-    assert.doesNotMatch(detailSource, /createOpenClawManagedConfigResetState/);
+    assert.doesNotMatch(configSyncSource, /toast\./);
+    assert.doesNotMatch(configSyncSource, /instanceService\./);
+    assert.match(configResetEffect, /setSelectedWebSearchProviderId,/);
+    assert.match(configResetEffect, /setWebSearchSharedDraft,/);
+    assert.match(configResetEffect, /setWebSearchProviderDrafts,/);
+    assert.match(configResetEffect, /setWebFetchSharedDraft,/);
+    assert.match(configResetEffect, /setWebFetchFallbackDraft,/);
+    assert.match(configResetEffect, /setAuthCooldownsDraft,/);
+    assert.match(configResetEffect, /setDreamingDraft,/);
+    assert.doesNotMatch(detailSource, /createOpenClawConfigResetState/);
     assert.match(
       instanceDetailResetSource,
-      /const managedConfigResetState = createOpenClawManagedConfigResetState\(\);/,
+      /const configResetState = createOpenClawConfigResetState\(\);/,
     );
     assert.match(
       instanceDetailResetSource,
-      /setSelectedWebSearchProviderId\(managedConfigResetState\.webSearch\.selectedProviderId\);/,
+      /setSelectedWebSearchProviderId\(configResetState\.webSearch\.selectedProviderId\);/,
     );
     assert.match(
       instanceDetailResetSource,
-      /setWebSearchSharedDraft\(managedConfigResetState\.webSearch\.sharedDraft\);/,
+      /setWebSearchSharedDraft\(configResetState\.webSearch\.sharedDraft\);/,
     );
     assert.match(
       instanceDetailResetSource,
-      /setWebSearchProviderDrafts\(managedConfigResetState\.webSearch\.providerDrafts\);/,
+      /setWebSearchProviderDrafts\(configResetState\.webSearch\.providerDrafts\);/,
     );
     assert.match(
       instanceDetailResetSource,
-      /setWebFetchSharedDraft\(managedConfigResetState\.webFetch\.sharedDraft\);/,
+      /setWebFetchSharedDraft\(configResetState\.webFetch\.sharedDraft\);/,
     );
     assert.match(
       instanceDetailResetSource,
-      /setWebFetchFallbackDraft\(managedConfigResetState\.webFetch\.fallbackDraft\);/,
+      /setWebFetchFallbackDraft\(configResetState\.webFetch\.fallbackDraft\);/,
     );
     assert.match(
       instanceDetailResetSource,
-      /setAuthCooldownsDraft\(managedConfigResetState\.authCooldowns\.draft\);/,
+      /setAuthCooldownsDraft\(configResetState\.authCooldowns\.draft\);/,
     );
     assert.match(
       instanceDetailResetSource,
-      /setDreamingDraft\(managedConfigResetState\.dreaming\.draft\);/,
+      /setDreamingDraft\(configResetState\.dreaming\.draft\);/,
     );
     assert.doesNotMatch(instanceDetailResetSource, /setSelectedWebSearchProviderId\(null\);/);
     assert.doesNotMatch(instanceDetailResetSource, /setWebSearchSharedDraft\(null\);/);
@@ -598,12 +607,12 @@ runTest(
     assert.doesNotMatch(instanceDetailResetSource, /setAuthCooldownsDraft\(null\);/);
     assert.doesNotMatch(instanceDetailResetSource, /setDreamingDraft\(null\);/);
     assert.ok(
-      exists('packages/sdkwork-claw-instances/src/services/openClawManagedConfigPresentation.ts'),
+      exists('packages/sdkwork-claw-instances/src/services/openClawConfigPresentation.ts'),
     );
-    assert.match(servicesIndexSource, /openClawManagedConfigPresentation/);
+    assert.match(servicesIndexSource, /openClawConfigPresentation/);
     assert.match(detailSource, /buildInstanceDetailDerivedState/);
     assert.match(derivedStateSource, /buildOpenClawWebSearchProviderSelectionState/);
-    assert.match(detailSource, /buildOpenClawManagedConfigDraftChangeHandlers/);
+    assert.match(detailSource, /buildOpenClawConfigDraftChangeHandlers/);
     assert.doesNotMatch(detailSource, /applyOpenClawWebSearchProviderDraftChange/);
     assert.doesNotMatch(detailSource, /applyOpenClawNullableDraftFieldChange/);
     assert.doesNotMatch(detailSource, /applyOpenClawDraftFieldChange/);
@@ -617,198 +626,213 @@ runTest(
     assert.doesNotMatch(detailSource, /const handleWebFetchFallbackDraftChange = \(/);
     assert.doesNotMatch(detailSource, /const handleAuthCooldownsDraftChange = \(/);
     assert.doesNotMatch(detailSource, /const handleDreamingDraftChange = \(/);
-    const managedConfigDraftChangeBuilder = extractBetween(
+    const configDraftChangeBuilder = extractBetween(
       detailSource,
-      '  const managedConfigDraftChangeHandlers = ',
-      '  const managedConfigMutationHandlers = ',
+      '  const configDraftChangeHandlers = ',
+      '  const configMutationHandlers = ',
     );
     assert.match(
-      managedConfigDraftChangeBuilder,
-      /buildOpenClawManagedConfigDraftChangeHandlers\(\{/,
+      configDraftChangeBuilder,
+      /buildOpenClawConfigDraftChangeHandlers\(\{/,
     );
-    assert.match(managedConfigDraftChangeBuilder, /selectedWebSearchProvider,/);
-    assert.match(managedConfigDraftChangeBuilder, /setWebSearchError,/);
-    assert.match(managedConfigDraftChangeBuilder, /setWebSearchSharedDraft,/);
-    assert.match(managedConfigDraftChangeBuilder, /setWebSearchProviderDrafts,/);
-    assert.match(managedConfigDraftChangeBuilder, /setXSearchError,/);
-    assert.match(managedConfigDraftChangeBuilder, /setXSearchDraft,/);
-    assert.match(managedConfigDraftChangeBuilder, /setWebSearchNativeCodexError,/);
-    assert.match(managedConfigDraftChangeBuilder, /setWebSearchNativeCodexDraft,/);
-    assert.match(managedConfigDraftChangeBuilder, /setWebFetchError,/);
-    assert.match(managedConfigDraftChangeBuilder, /setWebFetchSharedDraft,/);
-    assert.match(managedConfigDraftChangeBuilder, /setWebFetchFallbackDraft,/);
-    assert.match(managedConfigDraftChangeBuilder, /setAuthCooldownsError,/);
-    assert.match(managedConfigDraftChangeBuilder, /setAuthCooldownsDraft,/);
-    assert.match(managedConfigDraftChangeBuilder, /setDreamingError,/);
-    assert.match(managedConfigDraftChangeBuilder, /setDreamingDraft,/);
+    assert.match(configDraftChangeBuilder, /selectedWebSearchProvider,/);
+    assert.match(configDraftChangeBuilder, /setWebSearchError,/);
+    assert.match(configDraftChangeBuilder, /setWebSearchSharedDraft,/);
+    assert.match(configDraftChangeBuilder, /setWebSearchProviderDrafts,/);
+    assert.match(configDraftChangeBuilder, /setXSearchError,/);
+    assert.match(configDraftChangeBuilder, /setXSearchDraft,/);
+    assert.match(configDraftChangeBuilder, /setWebSearchNativeCodexError,/);
+    assert.match(configDraftChangeBuilder, /setWebSearchNativeCodexDraft,/);
+    assert.match(configDraftChangeBuilder, /setWebFetchError,/);
+    assert.match(configDraftChangeBuilder, /setWebFetchSharedDraft,/);
+    assert.match(configDraftChangeBuilder, /setWebFetchFallbackDraft,/);
+    assert.match(configDraftChangeBuilder, /setAuthCooldownsError,/);
+    assert.match(configDraftChangeBuilder, /setAuthCooldownsDraft,/);
+    assert.match(configDraftChangeBuilder, /setDreamingError,/);
+    assert.match(configDraftChangeBuilder, /setDreamingDraft,/);
     assert.match(
       detailSource,
-      /onDreamingDraftChange: managedConfigDraftChangeHandlers\.onDreamingDraftChange/,
-    );
-    assert.match(
-      detailSource,
-      /onWebSearchSharedDraftChange: managedConfigDraftChangeHandlers\.onWebSearchSharedDraftChange/,
+      /onDreamingDraftChange: configDraftChangeHandlers\.onDreamingDraftChange/,
     );
     assert.match(
       detailSource,
-      /onWebSearchProviderDraftChange:\s+managedConfigDraftChangeHandlers\.onWebSearchProviderDraftChange/,
+      /onWebSearchSharedDraftChange: configDraftChangeHandlers\.onWebSearchSharedDraftChange/,
     );
     assert.match(
       detailSource,
-      /onWebFetchSharedDraftChange: managedConfigDraftChangeHandlers\.onWebFetchSharedDraftChange/,
+      /onWebSearchProviderDraftChange:\s+configDraftChangeHandlers\.onWebSearchProviderDraftChange/,
     );
     assert.match(
       detailSource,
-      /onWebFetchFallbackDraftChange:\s+managedConfigDraftChangeHandlers\.onWebFetchFallbackDraftChange/,
+      /onWebFetchSharedDraftChange: configDraftChangeHandlers\.onWebFetchSharedDraftChange/,
     );
     assert.match(
       detailSource,
-      /onWebSearchNativeCodexDraftChange:\s+managedConfigDraftChangeHandlers\.onWebSearchNativeCodexDraftChange/,
+      /onWebFetchFallbackDraftChange:\s+configDraftChangeHandlers\.onWebFetchFallbackDraftChange/,
     );
     assert.match(
       detailSource,
-      /onXSearchDraftChange: managedConfigDraftChangeHandlers\.onXSearchDraftChange/,
+      /onWebSearchNativeCodexDraftChange:\s+configDraftChangeHandlers\.onWebSearchNativeCodexDraftChange/,
     );
     assert.match(
       detailSource,
-      /onAuthCooldownsDraftChange:\s+managedConfigDraftChangeHandlers\.onAuthCooldownsDraftChange/,
+      /onXSearchDraftChange: configDraftChangeHandlers\.onXSearchDraftChange/,
     );
     assert.match(
-      managedConfigPresentationSource,
-      /export function buildOpenClawManagedConfigDraftChangeHandlers\(/,
+      detailSource,
+      /onAuthCooldownsDraftChange:\s+configDraftChangeHandlers\.onAuthCooldownsDraftChange/,
     );
     assert.match(
-      managedConfigPresentationSource,
+      configPresentationSource,
+      /export function buildOpenClawConfigDraftChangeHandlers\(/,
+    );
+    assert.match(
+      configPresentationSource,
       /applyOpenClawWebSearchProviderDraftChange/,
     );
     assert.match(
-      managedConfigPresentationSource,
+      configPresentationSource,
       /applyOpenClawNullableDraftFieldChange/,
     );
     assert.match(
-      managedConfigPresentationSource,
+      configPresentationSource,
       /applyOpenClawDraftFieldChange/,
     );
-    assert.doesNotMatch(managedConfigPresentationSource, /instanceService\./);
-    assert.doesNotMatch(managedConfigPresentationSource, /toast\./);
-    assert.doesNotMatch(managedConfigPresentationSource, /loadWorkbench\(/);
+    assert.doesNotMatch(configPresentationSource, /instanceService\./);
+    assert.doesNotMatch(configPresentationSource, /toast\./);
+    assert.doesNotMatch(configPresentationSource, /loadWorkbench\(/);
 
-    assert.match(managedConfigDraftSource, /export function createOpenClawWebSearchSharedDraft/);
-    assert.match(managedConfigDraftSource, /export function createOpenClawWebSearchDraftState/);
-    assert.match(managedConfigDraftSource, /export function createOpenClawWebSearchProviderDraft/);
+    assert.match(configDraftSource, /export function createOpenClawWebSearchSharedDraft/);
+    assert.match(configDraftSource, /export function createOpenClawWebSearchDraftState/);
+    assert.match(configDraftSource, /export function createOpenClawWebSearchProviderDraft/);
     assert.match(
-      managedConfigDraftSource,
+      configDraftSource,
       /export function buildOpenClawWebSearchProviderSelectionState/,
     );
     assert.match(
-      managedConfigDraftSource,
+      configDraftSource,
       /export function applyOpenClawWebSearchProviderDraftChange/,
     );
-    assert.match(managedConfigDraftSource, /export function applyOpenClawNullableDraftFieldChange/);
-    assert.match(managedConfigDraftSource, /export function applyOpenClawDraftFieldChange/);
-    assert.match(managedConfigDraftSource, /export function createOpenClawXSearchDraft/);
-    assert.match(managedConfigDraftSource, /export function createOpenClawWebSearchNativeCodexDraft/);
-    assert.match(managedConfigDraftSource, /export function createOpenClawWebFetchSharedDraft/);
-    assert.match(managedConfigDraftSource, /export function createOpenClawWebFetchFallbackDraft/);
-    assert.match(managedConfigDraftSource, /export function createOpenClawWebFetchDraftState/);
-    assert.match(managedConfigDraftSource, /export function createOpenClawManagedConfigResetState/);
-    assert.match(managedConfigDraftSource, /export function createOpenClawAuthCooldownsDraft/);
+    assert.match(configDraftSource, /export function applyOpenClawNullableDraftFieldChange/);
+    assert.match(configDraftSource, /export function applyOpenClawDraftFieldChange/);
+    assert.match(configDraftSource, /export function createOpenClawXSearchDraft/);
+    assert.match(configDraftSource, /export function createOpenClawWebSearchNativeCodexDraft/);
+    assert.match(configDraftSource, /export function createOpenClawWebFetchSharedDraft/);
+    assert.match(configDraftSource, /export function createOpenClawWebFetchFallbackDraft/);
+    assert.match(configDraftSource, /export function createOpenClawWebFetchDraftState/);
+    assert.match(configDraftSource, /export function createOpenClawConfigResetState/);
+    assert.match(configDraftSource, /export function createOpenClawAuthCooldownsDraft/);
+    assert.doesNotMatch(configDraftSource, /openClawManagedConfigDrafts\.ts/);
+    assert.equal(
+      exists('packages/sdkwork-claw-instances/src/services/openClawManagedConfigDrafts.ts'),
+      false,
+    );
+    assert.equal(
+      exists('packages/sdkwork-claw-instances/src/services/openClawManagedConfigPresentation.ts'),
+      false,
+    );
+    assert.equal(
+      exists(
+        'packages/sdkwork-claw-instances/src/services/instanceDetailManagedConfigSyncState.ts',
+      ),
+      false,
+    );
   },
 );
 
 runTest(
-  'sdkwork-claw-instances routes managed config save handler construction through a shared helper while keeping write authority in the page',
+  'sdkwork-claw-instances routes config save handler construction through a shared helper while keeping write authority in the page',
   () => {
     const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
-    const managedConfigMutationSupportSource = read(
-      'packages/sdkwork-claw-instances/src/services/openClawManagedConfigMutationSupport.ts',
+    const configMutationSupportSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawConfigMutationSupport.ts',
     );
-    const managedConfigMutationExecutorSupportSource = read(
-      'packages/sdkwork-claw-instances/src/services/instanceDetailManagedConfigMutationSupport.ts',
+    const configMutationExecutorSupportSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceDetailConfigMutationSupport.ts',
     );
-    const managedConfigRunner = extractBetween(
+    const configRunner = extractBetween(
       detailSource,
-      '  const runManagedConfigSave = ',
-      '  const managedConfigMutationHandlers = ',
+      '  const runConfigSave = ',
+      '  const configMutationHandlers = ',
     );
-    const managedConfigHandlerBuilder = extractBetween(
+    const configHandlerBuilder = extractBetween(
       detailSource,
-      '  const managedConfigMutationHandlers = ',
+      '  const configMutationHandlers = ',
       '  const renderWorkbenchSectionAvailability = createInstanceDetailSectionAvailabilityRenderer({',
     );
 
     assert.ok(
-      exists('packages/sdkwork-claw-instances/src/services/openClawManagedConfigMutationSupport.ts'),
+      exists('packages/sdkwork-claw-instances/src/services/openClawConfigMutationSupport.ts'),
     );
     assert.ok(
-      exists('packages/sdkwork-claw-instances/src/services/instanceDetailManagedConfigMutationSupport.ts'),
+      exists('packages/sdkwork-claw-instances/src/services/instanceDetailConfigMutationSupport.ts'),
     );
-    assert.match(servicesIndexSource, /openClawManagedConfigMutationSupport/);
-    assert.match(servicesIndexSource, /instanceDetailManagedConfigMutationSupport/);
-    assert.doesNotMatch(detailSource, /const runManagedConfigSave = async/);
-    assert.match(managedConfigRunner, /createOpenClawManagedConfigSaveRunner\(\{/);
+    assert.match(servicesIndexSource, /openClawConfigMutationSupport/);
+    assert.match(servicesIndexSource, /instanceDetailConfigMutationSupport/);
+    assert.doesNotMatch(detailSource, /const runConfigSave = async/);
+    assert.match(configRunner, /createOpenClawConfigSaveRunner\(\{/);
     assert.match(
-      managedConfigRunner,
+      configRunner,
       /reloadWorkbench: workbenchReloadHandlers\.reloadWorkbench,/,
     );
-    assert.match(managedConfigRunner, /reportSuccess: toastReporters\.reportSuccess,/);
+    assert.match(configRunner, /reportSuccess: toastReporters\.reportSuccess,/);
 
     assert.match(
-      managedConfigHandlerBuilder,
-      /buildOpenClawManagedConfigMutationHandlers\(\{/,
+      configHandlerBuilder,
+      /buildOpenClawConfigMutationHandlers\(\{/,
     );
-    assert.match(managedConfigHandlerBuilder, /executeSaveRequest: runManagedConfigSave/);
+    assert.match(configHandlerBuilder, /executeSaveRequest: runConfigSave/);
     assert.match(
       detailSource,
-      /const managedConfigMutationExecutors = createInstanceDetailManagedConfigMutationExecutors\(\{\s*instanceService,\s*\}\);/,
+      /const configMutationExecutors = createInstanceDetailConfigMutationExecutors\(\{\s*instanceService,\s*\}\);/,
     );
     assert.match(
-      managedConfigHandlerBuilder,
-      /executeSave: managedConfigMutationExecutors\.webSearch\.executeSave,/,
+      configHandlerBuilder,
+      /executeSave: configMutationExecutors\.webSearch\.executeSave,/,
     );
     assert.match(
-      managedConfigHandlerBuilder,
-      /executeSave: managedConfigMutationExecutors\.xSearch\.executeSave,/,
+      configHandlerBuilder,
+      /executeSave: configMutationExecutors\.xSearch\.executeSave,/,
     );
     assert.match(
-      managedConfigHandlerBuilder,
-      /executeSave: managedConfigMutationExecutors\.webSearchNativeCodex\.executeSave,/,
+      configHandlerBuilder,
+      /executeSave: configMutationExecutors\.webSearchNativeCodex\.executeSave,/,
     );
     assert.match(
-      managedConfigHandlerBuilder,
-      /executeSave: managedConfigMutationExecutors\.webFetch\.executeSave,/,
+      configHandlerBuilder,
+      /executeSave: configMutationExecutors\.webFetch\.executeSave,/,
     );
     assert.match(
-      managedConfigHandlerBuilder,
-      /executeSave: managedConfigMutationExecutors\.authCooldowns\.executeSave,/,
+      configHandlerBuilder,
+      /executeSave: configMutationExecutors\.authCooldowns\.executeSave,/,
     );
     assert.match(
-      managedConfigHandlerBuilder,
-      /executeSave: managedConfigMutationExecutors\.dreaming\.executeSave,/,
+      configHandlerBuilder,
+      /executeSave: configMutationExecutors\.dreaming\.executeSave,/,
     );
     assert.doesNotMatch(
-      managedConfigHandlerBuilder,
+      configHandlerBuilder,
       /executeSave: \(instanceId, input\) => instanceService\.saveOpenClawWebSearchConfig\(instanceId, input\)/,
     );
     assert.doesNotMatch(
-      managedConfigHandlerBuilder,
+      configHandlerBuilder,
       /executeSave: \(instanceId, input\) => instanceService\.saveOpenClawXSearchConfig\(instanceId, input\)/,
     );
     assert.doesNotMatch(
-      managedConfigHandlerBuilder,
+      configHandlerBuilder,
       /executeSave: \(instanceId, input\) =>\s+instanceService\.saveOpenClawWebSearchNativeCodexConfig\(instanceId, input\)/,
     );
     assert.doesNotMatch(
-      managedConfigHandlerBuilder,
+      configHandlerBuilder,
       /executeSave: \(instanceId, input\) => instanceService\.saveOpenClawWebFetchConfig\(instanceId, input\)/,
     );
     assert.doesNotMatch(
-      managedConfigHandlerBuilder,
+      configHandlerBuilder,
       /executeSave: \(instanceId, input\) =>\s+instanceService\.saveOpenClawAuthCooldownsConfig\(instanceId, input\)/,
     );
     assert.doesNotMatch(
-      managedConfigHandlerBuilder,
+      configHandlerBuilder,
       /executeSave: \(instanceId, input\) => instanceService\.saveOpenClawDreamingConfig\(instanceId, input\)/,
     );
     assert.doesNotMatch(detailSource, /const handleSaveWebSearchConfig = async \(\) => \{/);
@@ -819,71 +843,91 @@ runTest(
     assert.doesNotMatch(detailSource, /const handleSaveDreamingConfig = async \(\) => \{/);
     assert.match(
       detailSource,
-      /onSaveDreamingConfig:\s*managedConfigMutationHandlers\.onSaveDreamingConfig/,
+      /onSaveDreamingConfig:\s*configMutationHandlers\.onSaveDreamingConfig/,
     );
     assert.match(
       detailSource,
-      /onSaveWebSearchConfig:\s*managedConfigMutationHandlers\.onSaveWebSearchConfig/,
+      /onSaveWebSearchConfig:\s*configMutationHandlers\.onSaveWebSearchConfig/,
     );
     assert.match(
       detailSource,
-      /onSaveWebFetchConfig:\s*managedConfigMutationHandlers\.onSaveWebFetchConfig/,
+      /onSaveWebFetchConfig:\s*configMutationHandlers\.onSaveWebFetchConfig/,
     );
     assert.match(
       detailSource,
-      /onSaveWebSearchNativeCodexConfig:\s*managedConfigMutationHandlers\.onSaveWebSearchNativeCodexConfig/,
+      /onSaveWebSearchNativeCodexConfig:\s*configMutationHandlers\.onSaveWebSearchNativeCodexConfig/,
     );
     assert.match(
       detailSource,
-      /onSaveXSearchConfig:\s*managedConfigMutationHandlers\.onSaveXSearchConfig/,
+      /onSaveXSearchConfig:\s*configMutationHandlers\.onSaveXSearchConfig/,
     );
     assert.match(
       detailSource,
-      /onSaveAuthCooldownsConfig:\s*managedConfigMutationHandlers\.onSaveAuthCooldownsConfig/,
+      /onSaveAuthCooldownsConfig:\s*configMutationHandlers\.onSaveAuthCooldownsConfig/,
     );
 
     assert.match(
-      managedConfigMutationSupportSource,
-      /export function createOpenClawManagedConfigSaveRunner/,
+      configMutationSupportSource,
+      /export function createOpenClawConfigSaveRunner/,
     );
     assert.match(
-      managedConfigMutationSupportSource,
-      /export function buildOpenClawManagedConfigMutationHandlers/,
+      configMutationSupportSource,
+      /export function buildOpenClawConfigMutationHandlers/,
     );
-    assert.doesNotMatch(managedConfigMutationSupportSource, /instanceService\./);
-    assert.doesNotMatch(managedConfigMutationSupportSource, /toast\./);
-    assert.doesNotMatch(managedConfigMutationSupportSource, /await loadWorkbench\(/);
-    assert.match(
-      managedConfigMutationExecutorSupportSource,
-      /export function createInstanceDetailManagedConfigMutationExecutors/,
+    assert.doesNotMatch(
+      configMutationSupportSource,
+      /openClawManagedConfigMutationSupport\.ts/,
     );
+    assert.doesNotMatch(configMutationSupportSource, /instanceService\./);
+    assert.doesNotMatch(configMutationSupportSource, /toast\./);
+    assert.doesNotMatch(configMutationSupportSource, /await loadWorkbench\(/);
     assert.match(
-      managedConfigMutationExecutorSupportSource,
-      /saveOpenClawWebSearchConfig: ManagedConfigMutationExecutors\['webSearch'\]\['executeSave'\]/,
-    );
-    assert.match(
-      managedConfigMutationExecutorSupportSource,
-      /saveOpenClawXSearchConfig: ManagedConfigMutationExecutors\['xSearch'\]\['executeSave'\]/,
+      configMutationExecutorSupportSource,
+      /export function createInstanceDetailConfigMutationExecutors/,
     );
     assert.match(
-      managedConfigMutationExecutorSupportSource,
-      /saveOpenClawWebSearchNativeCodexConfig: ManagedConfigMutationExecutors\['webSearchNativeCodex'\]\['executeSave'\]/,
+      configMutationExecutorSupportSource,
+      /saveOpenClawWebSearchConfig: ConfigMutationExecutors\['webSearch'\]\['executeSave'\]/,
     );
     assert.match(
-      managedConfigMutationExecutorSupportSource,
-      /saveOpenClawWebFetchConfig: ManagedConfigMutationExecutors\['webFetch'\]\['executeSave'\]/,
+      configMutationExecutorSupportSource,
+      /saveOpenClawXSearchConfig: ConfigMutationExecutors\['xSearch'\]\['executeSave'\]/,
     );
     assert.match(
-      managedConfigMutationExecutorSupportSource,
-      /saveOpenClawAuthCooldownsConfig: ManagedConfigMutationExecutors\['authCooldowns'\]\['executeSave'\]/,
+      configMutationExecutorSupportSource,
+      /saveOpenClawWebSearchNativeCodexConfig: ConfigMutationExecutors\['webSearchNativeCodex'\]\['executeSave'\]/,
     );
     assert.match(
-      managedConfigMutationExecutorSupportSource,
-      /saveOpenClawDreamingConfig: ManagedConfigMutationExecutors\['dreaming'\]\['executeSave'\]/,
+      configMutationExecutorSupportSource,
+      /saveOpenClawWebFetchConfig: ConfigMutationExecutors\['webFetch'\]\['executeSave'\]/,
     );
-    assert.doesNotMatch(managedConfigMutationExecutorSupportSource, /toast\./);
-    assert.doesNotMatch(managedConfigMutationExecutorSupportSource, /navigate\(/);
-    assert.doesNotMatch(managedConfigMutationExecutorSupportSource, /loadWorkbench\(/);
+    assert.match(
+      configMutationExecutorSupportSource,
+      /saveOpenClawAuthCooldownsConfig: ConfigMutationExecutors\['authCooldowns'\]\['executeSave'\]/,
+    );
+    assert.match(
+      configMutationExecutorSupportSource,
+      /saveOpenClawDreamingConfig: ConfigMutationExecutors\['dreaming'\]\['executeSave'\]/,
+    );
+    assert.doesNotMatch(
+      configMutationExecutorSupportSource,
+      /openClawManagedConfigMutationSupport\.ts/,
+    );
+    assert.equal(
+      exists(
+        'packages/sdkwork-claw-instances/src/services/openClawManagedConfigMutationSupport.ts',
+      ),
+      false,
+    );
+    assert.equal(
+      exists(
+        'packages/sdkwork-claw-instances/src/services/instanceDetailManagedConfigMutationSupport.ts',
+      ),
+      false,
+    );
+    assert.doesNotMatch(configMutationExecutorSupportSource, /toast\./);
+    assert.doesNotMatch(configMutationExecutorSupportSource, /navigate\(/);
+    assert.doesNotMatch(configMutationExecutorSupportSource, /loadWorkbench\(/);
   },
 );
 
@@ -947,7 +991,7 @@ runTest(
     );
     const availabilityRendererBuilder = extractBetween(
       detailSource,
-      '  const managedConfigMutationHandlers = ',
+      '  const configMutationHandlers = ',
       '  const agentSectionProps = buildAgentSectionProps({',
     );
 
@@ -1080,15 +1124,15 @@ runTest(
       '  const runLifecycleAction = ',
       '  const lifecycleActionHandlers = ',
     );
-    const managedChannelRunner = extractBetween(
+    const configChannelRunner = extractBetween(
       detailSource,
-      '  const runManagedChannelMutation = ',
-      '  const managedChannelStateHandlers = ',
+      '  const runConfigChannelMutation = ',
+      '  const configChannelStateHandlers = ',
     );
-    const managedConfigRunner = extractBetween(
+    const configRunner = extractBetween(
       detailSource,
-      '  const runManagedConfigSave = ',
-      '  const managedConfigDraftChangeHandlers = ',
+      '  const runConfigSave = ',
+      '  const configDraftChangeHandlers = ',
     );
 
     assert.match(
@@ -1101,10 +1145,10 @@ runTest(
     assert.match(agentRunner, /reloadWorkbench: workbenchReloadHandlers\.reloadWorkbench,/);
     assert.match(lifecycleRunner, /reloadWorkbench: workbenchReloadHandlers\.reloadWorkbenchImmediately,/);
     assert.match(
-      managedChannelRunner,
+      configChannelRunner,
       /reloadWorkbench: workbenchReloadHandlers\.reloadWorkbench,/,
     );
-    assert.match(managedConfigRunner, /reloadWorkbench: workbenchReloadHandlers\.reloadWorkbench,/);
+    assert.match(configRunner, /reloadWorkbench: workbenchReloadHandlers\.reloadWorkbench,/);
 
     assert.doesNotMatch(
       detailSource,
@@ -2036,7 +2080,7 @@ runTest(
     const deleteHandlers = extractBetween(
       detailSource,
       '  const deleteHandler = buildInstanceDeleteHandler({',
-      '  const runManagedChannelMutation = createOpenClawManagedChannelMutationRunner({',
+      '  const runConfigChannelMutation = createOpenClawConfigChannelMutationRunner({',
     );
 
     assert.ok(
@@ -2263,44 +2307,44 @@ runTest('sdkwork-claw-instances opens channel official setup links through the h
 });
 
 runTest(
-  'sdkwork-claw-instances routes managed-channel page handlers through shared helpers while keeping write authority in the page',
+  'sdkwork-claw-instances routes config-channel page handlers through shared helpers while keeping write authority in the page',
   () => {
     const detailSource = readInstanceDetailPageSources();
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
-    const managedChannelPresentationSource = read(
-      'packages/sdkwork-claw-instances/src/services/openClawManagedChannelPresentation.ts',
+    const configChannelPresentationSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawConfigChannelPresentation.ts',
     );
-    const managedChannelMutationSupportSource = read(
-      'packages/sdkwork-claw-instances/src/services/openClawManagedChannelMutationSupport.ts',
+    const configChannelMutationSupportSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawConfigChannelMutationSupport.ts',
     );
-    const managedChannelMutationExecutorSupportSource = read(
-      'packages/sdkwork-claw-instances/src/services/instanceDetailManagedChannelMutationSupport.ts',
+    const configChannelMutationExecutorSupportSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceDetailConfigChannelMutationSupport.ts',
     );
 
     assert.ok(
-      exists('packages/sdkwork-claw-instances/src/services/openClawManagedChannelPresentation.ts'),
+      exists('packages/sdkwork-claw-instances/src/services/openClawConfigChannelPresentation.ts'),
     );
     assert.ok(
-      exists('packages/sdkwork-claw-instances/src/services/openClawManagedChannelMutationSupport.ts'),
+      exists('packages/sdkwork-claw-instances/src/services/openClawConfigChannelMutationSupport.ts'),
     );
     assert.ok(
       exists(
-        'packages/sdkwork-claw-instances/src/services/instanceDetailManagedChannelMutationSupport.ts',
+        'packages/sdkwork-claw-instances/src/services/instanceDetailConfigChannelMutationSupport.ts',
       ),
     );
-    assert.match(servicesIndexSource, /openClawManagedChannelPresentation/);
-    assert.match(servicesIndexSource, /openClawManagedChannelMutationSupport/);
-    assert.match(servicesIndexSource, /instanceDetailManagedChannelMutationSupport/);
-    assert.doesNotMatch(detailSource, /const runManagedChannelMutation = async/);
+    assert.match(servicesIndexSource, /openClawConfigChannelPresentation/);
+    assert.match(servicesIndexSource, /openClawConfigChannelMutationSupport/);
+    assert.match(servicesIndexSource, /instanceDetailConfigChannelMutationSupport/);
+    assert.doesNotMatch(detailSource, /const runConfigChannelMutation = async/);
     assert.match(
       detailSource,
-      /const managedChannelMutationExecutors = createInstanceDetailManagedChannelMutationExecutors\(\{\s*instanceService,\s*\}\);/,
+      /const configChannelMutationExecutors = createInstanceDetailConfigChannelMutationExecutors\(\{\s*instanceService,\s*\}\);/,
     );
     assert.match(
       detailSource,
-      /const runManagedChannelMutation = createOpenClawManagedChannelMutationRunner\(\{/,
+      /const runConfigChannelMutation = createOpenClawConfigChannelMutationRunner\(\{/,
     );
-    assert.match(detailSource, /\.\.\.managedChannelMutationExecutors,/);
+    assert.match(detailSource, /\.\.\.configChannelMutationExecutors,/);
     assert.match(
       detailSource,
       /reloadWorkbench: workbenchReloadHandlers\.reloadWorkbench,/,
@@ -2315,211 +2359,211 @@ runTest(
       detailSource,
       /executeToggleEnabled: \(instanceId, channelId, enabled\) =>\s+instanceService\.setOpenClawChannelEnabled\(instanceId, channelId, enabled\)/,
     );
-    assert.doesNotMatch(detailSource, /runOpenClawManagedChannelMutation\(\{/);
-    assert.match(detailSource, /buildOpenClawManagedChannelStateHandlers/);
-    assert.match(detailSource, /buildOpenClawManagedChannelMutationHandlers/);
+    assert.doesNotMatch(detailSource, /runOpenClawConfigChannelMutation\(\{/);
+    assert.match(detailSource, /buildOpenClawConfigChannelStateHandlers/);
+    assert.match(detailSource, /buildOpenClawConfigChannelMutationHandlers/);
     assert.match(
       detailSource,
-      /const managedChannelStateHandlers = buildOpenClawManagedChannelStateHandlers\(\{/,
-    );
-    assert.match(
-      detailSource,
-      /const managedChannelMutationHandlers = buildOpenClawManagedChannelMutationHandlers\(\{/,
-    );
-    assert.match(detailSource, /selectedManagedChannel,/);
-    assert.match(detailSource, /selectedManagedChannelDraft,/);
-    assert.match(detailSource, /managedChannels,/);
-    assert.match(detailSource, /setManagedChannelError,/);
-    assert.match(detailSource, /setSelectedManagedChannelId,/);
-    assert.match(detailSource, /setManagedChannelDrafts,/);
-    assert.match(detailSource, /setSavingManagedChannel: setIsSavingManagedChannel,/);
-    assert.match(detailSource, /executeMutation: runManagedChannelMutation,/);
-    assert.doesNotMatch(detailSource, /const handleManagedChannelSelectionChange = /);
-    assert.doesNotMatch(detailSource, /const handleManagedChannelDraftChange = /);
-    assert.doesNotMatch(detailSource, /const handleToggleManagedChannel = async /);
-    assert.doesNotMatch(detailSource, /const handleSaveManagedChannel = async /);
-    assert.doesNotMatch(detailSource, /const handleDeleteManagedChannelConfiguration = async /);
-    assert.match(
-      detailSource,
-      /onSelectedManagedChannelIdChange=\{managedChannelStateHandlers\.onSelectedManagedChannelIdChange\}/,
+      /const configChannelStateHandlers = buildOpenClawConfigChannelStateHandlers\(\{/,
     );
     assert.match(
       detailSource,
-      /onManagedChannelFieldChange=\{managedChannelStateHandlers\.onManagedChannelFieldChange\}/,
+      /const configChannelMutationHandlers = buildOpenClawConfigChannelMutationHandlers\(\{/,
+    );
+    assert.match(detailSource, /selectedConfigChannel,/);
+    assert.match(detailSource, /selectedConfigChannelDraft,/);
+    assert.match(detailSource, /configChannels,/);
+    assert.match(detailSource, /setConfigChannelError,/);
+    assert.match(detailSource, /setSelectedConfigChannelId,/);
+    assert.match(detailSource, /setConfigChannelDrafts,/);
+    assert.match(detailSource, /setSavingConfigChannel: setIsSavingConfigChannel,/);
+    assert.match(detailSource, /executeMutation: runConfigChannelMutation,/);
+    assert.doesNotMatch(detailSource, /const handleConfigChannelSelectionChange = /);
+    assert.doesNotMatch(detailSource, /const handleConfigChannelDraftChange = /);
+    assert.doesNotMatch(detailSource, /const handleToggleConfigChannel = async /);
+    assert.doesNotMatch(detailSource, /const handleSaveConfigChannel = async /);
+    assert.doesNotMatch(detailSource, /const handleDeleteConfigChannelConfiguration = async /);
+    assert.match(
+      detailSource,
+      /onSelectedConfigChannelIdChange=\{configChannelStateHandlers\.onSelectedConfigChannelIdChange\}/,
     );
     assert.match(
       detailSource,
-      /onSaveManagedChannel=\{managedChannelMutationHandlers\.onSaveManagedChannel\}/,
+      /onConfigChannelFieldChange=\{configChannelStateHandlers\.onConfigChannelFieldChange\}/,
     );
     assert.match(
       detailSource,
-      /onDeleteManagedChannelConfiguration=\{\s*managedChannelMutationHandlers\.onDeleteManagedChannelConfiguration\s*\}/,
+      /onSaveConfigChannel=\{configChannelMutationHandlers\.onSaveConfigChannel\}/,
     );
     assert.match(
       detailSource,
-      /onToggleManagedChannel=\{managedChannelMutationHandlers\.onToggleManagedChannel\}/,
+      /onDeleteConfigChannelConfiguration=\{\s*configChannelMutationHandlers\.onDeleteConfigChannelConfiguration\s*\}/,
     );
     assert.match(
-      managedChannelPresentationSource,
-      /export function buildOpenClawManagedChannelStateHandlers\(/,
-    );
-    assert.match(managedChannelPresentationSource, /applyOpenClawManagedChannelDraftChange/);
-    assert.doesNotMatch(managedChannelPresentationSource, /toast\./);
-    assert.doesNotMatch(managedChannelPresentationSource, /instanceService\./);
-    assert.doesNotMatch(managedChannelPresentationSource, /loadWorkbench\(/);
-    assert.match(
-      managedChannelMutationSupportSource,
-      /export function applyOpenClawManagedChannelDraftChange/,
+      detailSource,
+      /onToggleConfigChannel=\{configChannelMutationHandlers\.onToggleConfigChannel\}/,
     );
     assert.match(
-      managedChannelMutationSupportSource,
-      /export function buildOpenClawManagedChannelToggleMutationRequest/,
+      configChannelPresentationSource,
+      /export function buildOpenClawConfigChannelStateHandlers\(/,
+    );
+    assert.match(configChannelPresentationSource, /applyOpenClawConfigChannelDraftChange/);
+    assert.doesNotMatch(configChannelPresentationSource, /toast\./);
+    assert.doesNotMatch(configChannelPresentationSource, /instanceService\./);
+    assert.doesNotMatch(configChannelPresentationSource, /loadWorkbench\(/);
+    assert.match(
+      configChannelMutationSupportSource,
+      /export function applyOpenClawConfigChannelDraftChange/,
     );
     assert.match(
-      managedChannelMutationSupportSource,
-      /export function buildOpenClawManagedChannelSaveMutationRequest/,
+      configChannelMutationSupportSource,
+      /export function buildOpenClawConfigChannelToggleMutationRequest/,
     );
     assert.match(
-      managedChannelMutationSupportSource,
-      /export function buildOpenClawManagedChannelDeleteMutationRequest/,
+      configChannelMutationSupportSource,
+      /export function buildOpenClawConfigChannelSaveMutationRequest/,
     );
     assert.match(
-      managedChannelMutationSupportSource,
-      /export function buildOpenClawManagedChannelMutationHandlers\(/,
+      configChannelMutationSupportSource,
+      /export function buildOpenClawConfigChannelDeleteMutationRequest/,
     );
     assert.match(
-      managedChannelMutationSupportSource,
-      /export function createOpenClawManagedChannelMutationRunner/,
+      configChannelMutationSupportSource,
+      /export function buildOpenClawConfigChannelMutationHandlers\(/,
     );
     assert.match(
-      managedChannelMutationSupportSource,
-      /export async function runOpenClawManagedChannelMutation/,
+      configChannelMutationSupportSource,
+      /export function createOpenClawConfigChannelMutationRunner/,
     );
     assert.match(
-      managedChannelMutationSupportSource,
-      /args\.setManagedChannelDrafts\(\(current\) => \(\{/,
-    );
-    assert.doesNotMatch(managedChannelMutationSupportSource, /instanceService\./);
-    assert.doesNotMatch(managedChannelMutationSupportSource, /toast\./);
-    assert.doesNotMatch(managedChannelMutationSupportSource, /await loadWorkbench\(/);
-    assert.match(
-      managedChannelMutationExecutorSupportSource,
-      /export function createInstanceDetailManagedChannelMutationExecutors/,
+      configChannelMutationSupportSource,
+      /export async function runOpenClawConfigChannelMutation/,
     );
     assert.match(
-      managedChannelMutationExecutorSupportSource,
-      /saveOpenClawChannelConfig: ManagedChannelMutationExecutors\['executeSaveConfig'\]/,
+      configChannelMutationSupportSource,
+      /args\.setConfigChannelDrafts\(\(current\) => \(\{/,
+    );
+    assert.doesNotMatch(configChannelMutationSupportSource, /instanceService\./);
+    assert.doesNotMatch(configChannelMutationSupportSource, /toast\./);
+    assert.doesNotMatch(configChannelMutationSupportSource, /await loadWorkbench\(/);
+    assert.match(
+      configChannelMutationExecutorSupportSource,
+      /export function createInstanceDetailConfigChannelMutationExecutors/,
     );
     assert.match(
-      managedChannelMutationExecutorSupportSource,
-      /setOpenClawChannelEnabled: ManagedChannelMutationExecutors\['executeToggleEnabled'\]/,
+      configChannelMutationExecutorSupportSource,
+      /saveOpenClawChannelConfig: ConfigChannelMutationExecutors\['executeSaveConfig'\]/,
     );
-    assert.doesNotMatch(managedChannelMutationExecutorSupportSource, /toast\./);
-    assert.doesNotMatch(managedChannelMutationExecutorSupportSource, /navigate\(/);
-    assert.doesNotMatch(managedChannelMutationExecutorSupportSource, /loadWorkbench\(/);
+    assert.match(
+      configChannelMutationExecutorSupportSource,
+      /setOpenClawChannelEnabled: ConfigChannelMutationExecutors\['executeToggleEnabled'\]/,
+    );
+    assert.doesNotMatch(configChannelMutationExecutorSupportSource, /toast\./);
+    assert.doesNotMatch(configChannelMutationExecutorSupportSource, /navigate\(/);
+    assert.doesNotMatch(configChannelMutationExecutorSupportSource, /loadWorkbench\(/);
   },
 );
 
 runTest(
-  'sdkwork-claw-instances routes managed-channel selection and draft derivation through a shared presentation helper',
+  'sdkwork-claw-instances routes config-channel selection and draft derivation through a shared presentation helper',
   () => {
     const detailSource = readInstanceDetailPageSources();
     const derivedStateSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
     );
-    const managedChannelPresentationSource = read(
-      'packages/sdkwork-claw-instances/src/services/openClawManagedChannelPresentation.ts',
+    const configChannelPresentationSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawConfigChannelPresentation.ts',
     );
-    const managedChannelSelectionStateBuilder = extractBetween(
-      managedChannelPresentationSource,
-      'export function buildOpenClawManagedChannelSelectionState(',
-      'export function buildOpenClawManagedChannelWorkspaceItems(',
+    const configChannelSelectionStateBuilder = extractBetween(
+      configChannelPresentationSource,
+      'export function buildOpenClawConfigChannelSelectionState(',
+      'export function buildOpenClawConfigChannelWorkspaceItems(',
     );
 
     assert.match(detailSource, /buildInstanceDetailDerivedState/);
-    assert.match(detailSource, /managedChannelSelectionState,/);
-    assert.match(derivedStateSource, /buildOpenClawManagedChannelSelectionState/);
-    assert.match(detailSource, /const \{ selectedManagedChannel, selectedManagedChannelDraft \} = managedChannelSelectionState;/);
-    assert.doesNotMatch(detailSource, /const selectedManagedChannel = useMemo\(/);
+    assert.match(detailSource, /configChannelSelectionState,/);
+    assert.match(derivedStateSource, /buildOpenClawConfigChannelSelectionState/);
+    assert.match(detailSource, /const \{ selectedConfigChannel, selectedConfigChannelDraft \} = configChannelSelectionState;/);
+    assert.doesNotMatch(detailSource, /const selectedConfigChannel = useMemo\(/);
     assert.doesNotMatch(
       detailSource,
-      /managedChannels\.find\(\(channel\) => channel\.id === selectedManagedChannelId\) \|\| null/,
+      /configChannels\.find\(\(channel\) => channel\.id === selectedConfigChannelId\) \|\| null/,
     );
     assert.doesNotMatch(
       detailSource,
-      /const selectedManagedChannelDraft = selectedManagedChannel[\s\S]*managedChannelDrafts\[selectedManagedChannel\.id\] \|\| selectedManagedChannel\.values/,
+      /const selectedConfigChannelDraft = selectedConfigChannel[\s\S]*configChannelDrafts\[selectedConfigChannel\.id\] \|\| selectedConfigChannel\.values/,
     );
 
     assert.match(
-      managedChannelPresentationSource,
-      /export function buildOpenClawManagedChannelSelectionState\(/,
+      configChannelPresentationSource,
+      /export function buildOpenClawConfigChannelSelectionState\(/,
     );
-    assert.doesNotMatch(managedChannelSelectionStateBuilder, /setSelectedManagedChannelId/);
-    assert.doesNotMatch(managedChannelSelectionStateBuilder, /toast\./);
-    assert.doesNotMatch(managedChannelSelectionStateBuilder, /instanceService\./);
-    assert.doesNotMatch(managedChannelSelectionStateBuilder, /loadWorkbench\(/);
+    assert.doesNotMatch(configChannelSelectionStateBuilder, /setSelectedConfigChannelId/);
+    assert.doesNotMatch(configChannelSelectionStateBuilder, /toast\./);
+    assert.doesNotMatch(configChannelSelectionStateBuilder, /instanceService\./);
+    assert.doesNotMatch(configChannelSelectionStateBuilder, /loadWorkbench\(/);
   },
 );
 
 runTest(
-  'sdkwork-claw-instances routes managed-channel workspace projection through a shared presentation helper',
+  'sdkwork-claw-instances routes config-channel workspace projection through a shared presentation helper',
   () => {
     const detailSource = readInstanceDetailPageSources();
     const derivedStateSource = read(
       'packages/sdkwork-claw-instances/src/services/instanceDetailDerivedState.ts',
     );
-    const managedChannelPresentationSource = read(
-      'packages/sdkwork-claw-instances/src/services/openClawManagedChannelPresentation.ts',
+    const configChannelPresentationSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawConfigChannelPresentation.ts',
     );
-    const managedChannelWorkspaceItemsBuilder = extractBetween(
-      managedChannelPresentationSource,
-      'export function buildOpenClawManagedChannelWorkspaceItems(',
-      'export function buildOpenClawManagedChannelStateHandlers(',
+    const configChannelWorkspaceItemsBuilder = extractBetween(
+      configChannelPresentationSource,
+      'export function buildOpenClawConfigChannelWorkspaceItems(',
+      'export function buildOpenClawConfigChannelStateHandlers(',
     );
 
     assert.match(detailSource, /buildInstanceDetailDerivedState/);
-    assert.match(detailSource, /managedChannelWorkspaceItems,/);
-    assert.match(derivedStateSource, /buildOpenClawManagedChannelWorkspaceItems/);
+    assert.match(detailSource, /configChannelWorkspaceItems,/);
+    assert.match(derivedStateSource, /buildOpenClawConfigChannelWorkspaceItems/);
     assert.doesNotMatch(
       detailSource,
-      /const managedChannelWorkspaceItems = useMemo<ChannelWorkspaceItem\[]>\(\s*\(\) =>\s*managedChannels\.map\(\(channel\) => \{/,
+      /const configChannelWorkspaceItems = useMemo<ChannelWorkspaceItem\[]>\(\s*\(\) =>\s*configChannels\.map\(\(channel\) => \{/,
     );
     assert.doesNotMatch(detailSource, /const configuredFieldCount = channel\.fields\.filter/);
     assert.doesNotMatch(detailSource, /const derivedStatus =/);
 
     assert.match(
-      managedChannelPresentationSource,
-      /export function buildOpenClawManagedChannelWorkspaceItems\(/,
+      configChannelPresentationSource,
+      /export function buildOpenClawConfigChannelWorkspaceItems\(/,
     );
-    assert.doesNotMatch(managedChannelWorkspaceItemsBuilder, /setSelectedManagedChannelId/);
-    assert.doesNotMatch(managedChannelWorkspaceItemsBuilder, /toast\./);
-    assert.doesNotMatch(managedChannelWorkspaceItemsBuilder, /instanceService\./);
-    assert.doesNotMatch(managedChannelWorkspaceItemsBuilder, /loadWorkbench\(/);
+    assert.doesNotMatch(configChannelWorkspaceItemsBuilder, /setSelectedConfigChannelId/);
+    assert.doesNotMatch(configChannelWorkspaceItemsBuilder, /toast\./);
+    assert.doesNotMatch(configChannelWorkspaceItemsBuilder, /instanceService\./);
+    assert.doesNotMatch(configChannelWorkspaceItemsBuilder, /loadWorkbench\(/);
   },
 );
 
 runTest(
-  'sdkwork-claw-instances routes managed-channel toggle target lookup through the shared mutation helper',
+  'sdkwork-claw-instances routes config-channel toggle target lookup through the shared mutation helper',
   () => {
     const detailSource = readInstanceDetailPageSources();
-    const managedChannelMutationSupportSource = read(
-      'packages/sdkwork-claw-instances/src/services/openClawManagedChannelMutationSupport.ts',
+    const configChannelMutationSupportSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawConfigChannelMutationSupport.ts',
     );
 
-    assert.match(detailSource, /onToggleManagedChannel=\{managedChannelMutationHandlers\.onToggleManagedChannel\}/);
-    assert.doesNotMatch(detailSource, /onToggleManagedChannel=\{\(channelId, nextEnabled\) => \{/);
+    assert.match(detailSource, /onToggleConfigChannel=\{configChannelMutationHandlers\.onToggleConfigChannel\}/);
+    assert.doesNotMatch(detailSource, /onToggleConfigChannel=\{\(channelId, nextEnabled\) => \{/);
 
     assert.match(
-      managedChannelMutationSupportSource,
-      /const managedChannel = findManagedChannelById\(args\.managedChannels, channelId\);/,
+      configChannelMutationSupportSource,
+      /const configChannel = findConfigChannelById\(args\.configChannels, channelId\);/,
     );
     assert.match(
-      managedChannelMutationSupportSource,
-      /buildOpenClawManagedChannelToggleMutationRequest/,
+      configChannelMutationSupportSource,
+      /buildOpenClawConfigChannelToggleMutationRequest/,
     );
-    assert.doesNotMatch(managedChannelMutationSupportSource, /toast\./);
-    assert.doesNotMatch(managedChannelMutationSupportSource, /instanceService\./);
-    assert.doesNotMatch(managedChannelMutationSupportSource, /await loadWorkbench\(/);
+    assert.doesNotMatch(configChannelMutationSupportSource, /toast\./);
+    assert.doesNotMatch(configChannelMutationSupportSource, /instanceService\./);
+    assert.doesNotMatch(configChannelMutationSupportSource, /await loadWorkbench\(/);
   },
 );
 
@@ -2596,7 +2640,7 @@ runTest('sdkwork-claw-instances keeps instance-level destructive actions in the 
     'packages/sdkwork-claw-instances/src/components/InstanceDetailFilesSection.tsx',
   );
   const toolsSectionSource = read(
-    'packages/sdkwork-claw-instances/src/components/InstanceDetailManagedToolsSection.tsx',
+    'packages/sdkwork-claw-instances/src/components/InstanceDetailConfigToolsSection.tsx',
   );
 
   assert.match(detailSource, /InstanceDetailHeader/);
@@ -2637,28 +2681,47 @@ runTest(
 );
 
 runTest(
-  'sdkwork-claw-instances routes memory and tools section composition through the dedicated managed section components',
+  'sdkwork-claw-instances routes memory and config tools section composition through the dedicated section components',
   () => {
     const detailSource = readInstanceDetailPageSources();
     const sectionModelsSource = read(
       'packages/sdkwork-claw-instances/src/components/instanceDetailSectionModels.ts',
     );
-    const managedMemorySource = read(
-      'packages/sdkwork-claw-instances/src/components/InstanceDetailManagedMemorySection.tsx',
+    const memorySectionSource = read(
+      'packages/sdkwork-claw-instances/src/components/InstanceDetailMemoryWorkbenchSection.tsx',
     );
-    const managedToolsSource = read(
-      'packages/sdkwork-claw-instances/src/components/InstanceDetailManagedToolsSection.tsx',
+    const configToolsSource = read(
+      'packages/sdkwork-claw-instances/src/components/InstanceDetailConfigToolsSection.tsx',
+    );
+    const managedWebSearchPanelSource = read(
+      'packages/sdkwork-claw-instances/src/components/InstanceDetailConfigWebSearchPanel.tsx',
+    );
+    const managedWebFetchPanelSource = read(
+      'packages/sdkwork-claw-instances/src/components/InstanceDetailConfigWebFetchPanel.tsx',
+    );
+    const managedWebSearchNativeCodexPanelSource = read(
+      'packages/sdkwork-claw-instances/src/components/InstanceDetailConfigWebSearchNativeCodexPanel.tsx',
+    );
+    const managedXSearchPanelSource = read(
+      'packages/sdkwork-claw-instances/src/components/InstanceDetailConfigXSearchPanel.tsx',
+    );
+    const managedAuthCooldownsPanelSource = read(
+      'packages/sdkwork-claw-instances/src/components/InstanceDetailConfigAuthCooldownsPanel.tsx',
+    );
+    const toolsSectionSource = read(
+      'packages/sdkwork-claw-instances/src/components/InstanceDetailToolsSection.tsx',
     );
 
-    assert.match(detailSource, /buildManagedMemorySectionContent/);
-    assert.match(detailSource, /buildManagedToolsSectionContent/);
+    assert.match(detailSource, /buildMemoryWorkbenchSectionContent/);
+    assert.match(detailSource, /buildConfigToolsSectionContent/);
+    assert.doesNotMatch(detailSource, /buildManagedToolsSectionContent/);
     assert.doesNotMatch(
       detailSource,
-      /const memorySectionContent = <InstanceDetailManagedMemorySection \{\.\.\.memorySectionProps\} \/>;/,
+      /const memorySectionContent = <InstanceDetailMemoryWorkbenchSection \{\.\.\.memorySectionProps\} \/>;/,
     );
     assert.doesNotMatch(
       detailSource,
-      /const toolsSectionContent = <InstanceDetailManagedToolsSection \{\.\.\.toolsSectionProps\} \/>;/,
+      /const toolsSectionContent = <InstanceDetailConfigToolsSection \{\.\.\.toolsSectionProps\} \/>;/,
     );
     assert.doesNotMatch(detailSource, /const memorySectionProps = workbench \?/);
     assert.doesNotMatch(detailSource, /const managedWebSearchPanel =/);
@@ -2668,18 +2731,66 @@ runTest(
     assert.doesNotMatch(detailSource, /const managedAuthCooldownsPanel =/);
     assert.doesNotMatch(detailSource, /const toolsSectionProps = \{/);
 
-    assert.match(sectionModelsSource, /export function buildManagedMemorySectionContent/);
-    assert.match(sectionModelsSource, /export function buildManagedToolsSectionContent/);
-    assert.match(sectionModelsSource, /InstanceDetailManagedMemorySection/);
-    assert.match(sectionModelsSource, /InstanceDetailManagedToolsSection/);
-    assert.match(managedMemorySource, /InstanceDetailMemorySection/);
-    assert.match(managedMemorySource, /latestDreamDiaryUpdatedAt/);
-    assert.match(managedToolsSource, /InstanceDetailManagedWebSearchPanel/);
-    assert.match(managedToolsSource, /InstanceDetailManagedWebFetchPanel/);
-    assert.match(managedToolsSource, /InstanceDetailManagedWebSearchNativeCodexPanel/);
-    assert.match(managedToolsSource, /InstanceDetailManagedXSearchPanel/);
-    assert.match(managedToolsSource, /InstanceDetailManagedAuthCooldownsPanel/);
-    assert.match(managedToolsSource, /InstanceDetailToolsSection/);
+    assert.match(sectionModelsSource, /export function buildMemoryWorkbenchSectionContent/);
+    assert.match(sectionModelsSource, /export function buildConfigToolsSectionContent/);
+    assert.doesNotMatch(sectionModelsSource, /export function buildManagedToolsSectionContent/);
+    assert.match(sectionModelsSource, /InstanceDetailMemoryWorkbenchSection/);
+    assert.match(sectionModelsSource, /InstanceDetailConfigToolsSection/);
+    assert.match(sectionModelsSource, /createElement\(InstanceDetailConfigToolsSection, sectionProps\)/);
+    assert.doesNotMatch(
+      sectionModelsSource,
+      /createElement\(InstanceDetailManagedToolsSection, sectionProps\)/,
+    );
+    assert.match(memorySectionSource, /InstanceDetailMemorySection/);
+    assert.match(memorySectionSource, /latestDreamDiaryUpdatedAt/);
+    assert.match(configToolsSource, /InstanceDetailConfigWebSearchPanel/);
+    assert.match(configToolsSource, /InstanceDetailConfigWebFetchPanel/);
+    assert.match(configToolsSource, /InstanceDetailConfigWebSearchNativeCodexPanel/);
+    assert.match(configToolsSource, /InstanceDetailConfigXSearchPanel/);
+    assert.match(configToolsSource, /InstanceDetailConfigAuthCooldownsPanel/);
+    assert.match(configToolsSource, /InstanceDetailToolsSection/);
+    assert.match(configToolsSource, /const configWebSearchPanel =/);
+    assert.match(configToolsSource, /const configWebFetchPanel =/);
+    assert.match(configToolsSource, /const configWebSearchNativeCodexPanel =/);
+    assert.match(configToolsSource, /const configXSearchPanel =/);
+    assert.match(configToolsSource, /const configAuthCooldownsPanel =/);
+    assert.doesNotMatch(configToolsSource, /const managedWebSearchPanel =/);
+    assert.doesNotMatch(configToolsSource, /const managedWebFetchPanel =/);
+    assert.doesNotMatch(configToolsSource, /const managedWebSearchNativeCodexPanel =/);
+    assert.doesNotMatch(configToolsSource, /const managedXSearchPanel =/);
+    assert.doesNotMatch(configToolsSource, /const managedAuthCooldownsPanel =/);
+    assert.match(managedWebSearchPanelSource, /data-slot="instance-detail-config-web-search"/);
+    assert.match(managedWebFetchPanelSource, /data-slot="instance-detail-config-web-fetch"/);
+    assert.match(
+      managedWebSearchNativeCodexPanelSource,
+      /data-slot="instance-detail-config-web-search-native-codex"/,
+    );
+    assert.match(managedXSearchPanelSource, /data-slot="instance-detail-config-x-search"/);
+    assert.match(
+      managedAuthCooldownsPanelSource,
+      /data-slot="instance-detail-config-auth-cooldowns"/,
+    );
+    assert.doesNotMatch(managedWebSearchPanelSource, /data-slot="instance-detail-managed-web-search"/);
+    assert.doesNotMatch(managedWebFetchPanelSource, /data-slot="instance-detail-managed-web-fetch"/);
+    assert.doesNotMatch(
+      managedWebSearchNativeCodexPanelSource,
+      /data-slot="instance-detail-managed-web-search-native-codex"/,
+    );
+    assert.doesNotMatch(managedXSearchPanelSource, /data-slot="instance-detail-managed-x-search"/);
+    assert.doesNotMatch(
+      managedAuthCooldownsPanelSource,
+      /data-slot="instance-detail-managed-auth-cooldowns"/,
+    );
+    assert.match(toolsSectionSource, /configAuthCooldownsPanel: React\.ReactNode;/);
+    assert.match(toolsSectionSource, /configWebSearchPanel: React\.ReactNode;/);
+    assert.match(toolsSectionSource, /configWebSearchNativeCodexPanel: React\.ReactNode;/);
+    assert.match(toolsSectionSource, /configXSearchPanel: React\.ReactNode;/);
+    assert.match(toolsSectionSource, /configWebFetchPanel: React\.ReactNode;/);
+    assert.doesNotMatch(toolsSectionSource, /managedAuthCooldownsPanel: React\.ReactNode;/);
+    assert.doesNotMatch(toolsSectionSource, /managedWebSearchPanel: React\.ReactNode;/);
+    assert.doesNotMatch(toolsSectionSource, /managedWebSearchNativeCodexPanel: React\.ReactNode;/);
+    assert.doesNotMatch(toolsSectionSource, /managedXSearchPanel: React\.ReactNode;/);
+    assert.doesNotMatch(toolsSectionSource, /managedWebFetchPanel: React\.ReactNode;/);
   },
 );
 
@@ -2691,13 +2802,15 @@ runTest(
       'packages/sdkwork-claw-instances/src/components/instanceDetailSectionModels.ts',
     );
 
-    assert.match(detailSource, /buildManagedMemorySectionProps/);
-    assert.match(detailSource, /buildManagedToolsSectionProps/);
+    assert.match(detailSource, /buildMemoryWorkbenchSectionProps/);
+    assert.match(detailSource, /buildConfigToolsSectionProps/);
+    assert.doesNotMatch(detailSource, /buildManagedToolsSectionProps/);
     assert.doesNotMatch(detailSource, /instances\.detail\.instanceWorkbench\.empty\.memory/);
     assert.doesNotMatch(detailSource, /instances\.detail\.instanceWorkbench\.empty\.tools/);
 
-    assert.match(sectionModelsSource, /export function buildManagedMemorySectionProps/);
-    assert.match(sectionModelsSource, /export function buildManagedToolsSectionProps/);
+    assert.match(sectionModelsSource, /export function buildMemoryWorkbenchSectionProps/);
+    assert.match(sectionModelsSource, /export function buildConfigToolsSectionProps/);
+    assert.doesNotMatch(sectionModelsSource, /export function buildManagedToolsSectionProps/);
     assert.match(
       sectionModelsSource,
       /instances\.detail\.instanceWorkbench\.empty\.memory/,
@@ -2731,7 +2844,7 @@ runTest(
     assert.match(sectionModelsSource, /export function buildLlmProvidersSectionContent/);
     assert.match(sectionModelsSource, /export function buildTasksSectionContent/);
     assert.match(sectionModelsSource, /InstanceDetailAgentsSection/);
-    assert.match(sectionModelsSource, /InstanceDetailManagedLlmProvidersSection/);
+    assert.match(sectionModelsSource, /InstanceDetailLlmProvidersWorkbenchSection/);
     assert.match(sectionModelsSource, /CronTasksManager/);
   },
 );
@@ -2817,12 +2930,12 @@ runTest(
     assert.doesNotMatch(detailSource, /const memoryWorkbenchState = buildInstanceMemoryWorkbenchState\(workbench\);/);
     assert.doesNotMatch(detailSource, /const managementSummary = useMemo/);
     assert.doesNotMatch(detailSource, /const providerSelectionState = useMemo/);
-    assert.doesNotMatch(detailSource, /const managedChannelSelectionState = useMemo/);
+    assert.doesNotMatch(detailSource, /const configChannelSelectionState = useMemo/);
     assert.doesNotMatch(detailSource, /const webSearchProviderSelectionState = useMemo/);
     assert.doesNotMatch(detailSource, /const providerDialogPresentation = useMemo/);
     assert.doesNotMatch(detailSource, /const availableAgentModelOptions = buildOpenClawAgentModelOptions/);
     assert.doesNotMatch(detailSource, /const readonlyChannelWorkspaceItems = useMemo/);
-    assert.doesNotMatch(detailSource, /const managedChannelWorkspaceItems = useMemo/);
+    assert.doesNotMatch(detailSource, /const configChannelWorkspaceItems = useMemo/);
 
     assert.match(helperSource, /export function buildInstanceDetailDerivedState/);
     assert.match(helperSource, /buildInstanceActionCapabilities/);
@@ -2830,12 +2943,12 @@ runTest(
     assert.match(helperSource, /buildInstanceMemoryWorkbenchState/);
     assert.match(helperSource, /buildInstanceManagementSummary/);
     assert.match(helperSource, /buildOpenClawProviderSelectionState/);
-    assert.match(helperSource, /buildOpenClawManagedChannelSelectionState/);
+    assert.match(helperSource, /buildOpenClawConfigChannelSelectionState/);
     assert.match(helperSource, /buildOpenClawWebSearchProviderSelectionState/);
     assert.match(helperSource, /buildOpenClawProviderDialogPresentation/);
     assert.match(helperSource, /buildOpenClawAgentModelOptions/);
     assert.match(helperSource, /buildReadonlyChannelWorkspaceItems/);
-    assert.match(helperSource, /buildOpenClawManagedChannelWorkspaceItems/);
+    assert.match(helperSource, /buildOpenClawConfigChannelWorkspaceItems/);
   },
 );
 
@@ -2960,7 +3073,7 @@ runTest('sdkwork-claw-instances adds an instance-native LLM provider workspace w
     'packages/sdkwork-claw-instances/src/components/InstanceDetailLlmProvidersSection.tsx',
   );
   const managedProvidersSource = read(
-    'packages/sdkwork-claw-instances/src/components/InstanceDetailManagedLlmProvidersSection.tsx',
+    'packages/sdkwork-claw-instances/src/components/InstanceDetailLlmProvidersWorkbenchSection.tsx',
   );
   const sectionModelsSource = read(
     'packages/sdkwork-claw-instances/src/components/instanceDetailSectionModels.ts',
@@ -2976,7 +3089,7 @@ runTest('sdkwork-claw-instances adds an instance-native LLM provider workspace w
   assert.match(providersSource, /data-slot="instance-llm-provider-list"/);
   assert.match(providersSource, /isProviderConfigReadonly/);
   assert.match(providersSource, /providerCenter\.page\.title/);
-  assert.match(sectionModelsSource, /InstanceDetailManagedLlmProvidersSection/);
+  assert.match(sectionModelsSource, /InstanceDetailLlmProvidersWorkbenchSection/);
   assert.match(managedProvidersSource, /InstanceDetailLlmProvidersSection/);
   assert.match(panelSource, /data-slot="instance-llm-config-panel"/);
   assert.match(panelSource, /onOpenProviderCenter\?: \(\) => void;/);
@@ -3042,7 +3155,7 @@ runTest('sdkwork-claw-instances promotes instance management metadata into the o
   assert.match(overviewSource, /instanceWorkbench\.overview\.management\.title/);
   assert.match(overviewSource, /instanceWorkbench\.overview\.management\.description/);
   assert.match(presentationSource, /managementScope/);
-  assert.match(presentationSource, /configAuthority/);
+  assert.match(presentationSource, /kernelConfig/);
   assert.match(presentationSource, /defaultWorkspace/);
   assert.match(presentationSource, /instanceWorkbench\.overview\.management\.labels\.controlPlane/);
   assert.match(presentationSource, /instanceWorkbench\.overview\.management\.details\.scopeFull/);
@@ -3177,6 +3290,9 @@ runTest('sdkwork-claw-instances keeps local-external OpenClaw config-backed whil
   const providerWorkspaceSource = read(
     'packages/sdkwork-claw-instances/src/services/openClawProviderWorkspacePresentation.ts',
   );
+  const capabilitiesSource = read(
+    'packages/sdkwork-claw-instances/src/services/openClawManagementCapabilities.ts',
+  );
   const workbenchSource = readSources([
     'packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts',
     'packages/sdkwork-claw-instances/src/services/instanceWorkbenchServiceCore.ts',
@@ -3188,14 +3304,14 @@ runTest('sdkwork-claw-instances keeps local-external OpenClaw config-backed whil
 
   assert.match(detailSource, /buildLlmProvidersSectionContent/);
   assert.match(channelsSource, /ChannelWorkspace/);
-  assert.match(sectionContentSource, /managedFilePath=\{managedConfigPath\}/);
-  assert.match(channelsSource, /managedFileLabel: formatWorkbenchLabel\('managedFile'\)/);
+  assert.match(sectionContentSource, /configFilePath=\{effectiveConfigFilePath\}/);
+  assert.match(channelsSource, /configFileLabel: formatWorkbenchLabel\('configFile'\)/);
   assert.match(detailSource, /buildInstanceDetailDerivedState/);
   assert.match(derivedStateSource, /buildOpenClawProviderWorkspaceState/);
   assert.match(derivedStateSource, /buildOpenClawProviderSelectionState/);
-  assert.match(derivedStateSource, /detail\?\.lifecycle\.configWritable/);
+  assert.match(derivedStateSource, /kernelAuthority\?\.configControl/);
   assert.match(providersSource, /isReadonly=\{isProviderConfigReadonly\}/);
-  assert.match(sectionModelsSource, /InstanceDetailManagedLlmProvidersSection/);
+  assert.match(sectionModelsSource, /InstanceDetailLlmProvidersWorkbenchSection/);
   assert.match(
     providersSource,
     /readonlyMessage=\{t\('instances\.detail\.instanceWorkbench\.llmProviders\.readonlyNotice'\)\}/,
@@ -3208,27 +3324,39 @@ runTest('sdkwork-claw-instances keeps local-external OpenClaw config-backed whil
   assert.doesNotMatch(detailSource, /const selectedProviderRequestDraft = selectedProvider/);
   assert.doesNotMatch(detailSource, /const selectedProviderRequestParseError = useMemo\(/);
   assert.doesNotMatch(detailSource, /const hasPendingProviderChanges = Boolean\(/);
-  assert.match(derivedStateSource, /canEditManagedChannels: Boolean\(id && isOpenClawConfigWritable && managedChannels\.length\)/);
+  assert.match(derivedStateSource, /canEditConfigChannels: Boolean\(id && isOpenClawConfigWritable && configChannels\.length\)/);
   assert.match(
     derivedStateSource,
-    /canEditManagedAuthCooldowns: Boolean\(\s*id && isOpenClawConfigWritable && managedAuthCooldownsConfig,\s*\)/,
+    /canEditConfigAuthCooldowns: Boolean\(\s*id && isOpenClawConfigWritable && configAuthCooldowns,\s*\)/,
   );
 
   assert.match(instanceServiceSource, /openClawConfigService/);
-  assert.match(instanceServiceSource, /createManagedOpenClawProviderControlPlaneError/);
+  assert.match(instanceServiceSource, /createProviderCenterControlledOpenClawProviderError/);
+  assert.doesNotMatch(instanceServiceSource, /createManagedOpenClawProviderControlPlaneError/);
   assert.match(instanceServiceSource, /Provider Center/);
-  assert.match(instanceServiceSource, /resolveManagedOpenClawConfig/);
+  assert.match(instanceServiceSource, /resolveOpenClawConfigBinding/);
+  assert.doesNotMatch(instanceServiceSource, /resolveManagedOpenClawConfig/);
   assert.match(instanceServiceSource, /resolvedDetail\.lifecycle\.configWritable/);
   assert.match(instanceServiceSource, /openClawConfigService\.resolveInstanceConfigPath/);
+  assert.doesNotMatch(instanceServiceSource, /ManagedOpenClawConfigSchemaSnapshot/);
+  assert.doesNotMatch(instanceServiceSource, /getManagedOpenClawConfigDocument/);
+  assert.doesNotMatch(instanceServiceSource, /updateManagedOpenClawConfigDocument/);
+  assert.doesNotMatch(instanceServiceSource, /getManagedOpenClawConfigSchema/);
+  assert.doesNotMatch(instanceServiceSource, /openManagedOpenClawConfigFile/);
+  assert.doesNotMatch(instanceServiceSource, /applyManagedOpenClawConfigDocument/);
+  assert.doesNotMatch(instanceServiceSource, /runManagedOpenClawUpdate/);
 
-  assert.match(providerWorkspaceSource, /isProviderCenterManagedOpenClawDetail/);
+  assert.match(providerWorkspaceSource, /buildKernelAuthorityProjection/);
   assert.match(providerWorkspaceSource, /export function buildOpenClawProviderSelectionState/);
   assert.match(providerWorkspaceSource, /createOpenClawProviderConfigDraft/);
   assert.match(providerWorkspaceSource, /createOpenClawProviderRequestDraft/);
   assert.match(providerWorkspaceSource, /hasPendingOpenClawProviderConfigChanges/);
+  assert.match(providerWorkspaceSource, /hasWritableOpenClawConfigRoute/);
   assert.match(providerWorkspaceSource, /parseOpenClawProviderRequestOverridesDraft/);
-  assert.match(providerWorkspaceSource, /isProviderConfigReadonly:\s*providerCenterManaged/);
+  assert.match(providerWorkspaceSource, /isProviderConfigReadonly:\s*providerCenterControlled/);
   assert.match(providerWorkspaceSource, /canManageProviderCatalog:\s*false/);
+  assert.doesNotMatch(providerWorkspaceSource, /hasManagedOpenClawConfigRoute/);
+  assert.doesNotMatch(capabilitiesSource, /export const hasManagedOpenClawConfigRoute =/);
   assert.doesNotMatch(providerWorkspaceSource, /instanceService\./);
   assert.doesNotMatch(providerWorkspaceSource, /toast\./);
   assert.doesNotMatch(providerWorkspaceSource, /loadWorkbench\(/);
@@ -3236,8 +3364,8 @@ runTest('sdkwork-claw-instances keeps local-external OpenClaw config-backed whil
   assert.match(workbenchSource, /openClawConfigService/);
   assert.match(workbenchSource, /resolveInstanceConfigPath/);
   assert.match(workbenchSource, /detail\.dataAccess/);
-  assert.match(workbenchSource, /isProviderCenterManagedOpenClawDetail/);
-  assert.match(workbenchSource, /providerSnapshots\.map\(mapManagedProvider\)/);
+  assert.match(workbenchSource, /isProviderCenterControlledOpenClawDetail/);
+  assert.match(workbenchSource, /providerSnapshots\.map\(mapConfigBackedProvider\)/);
 });
 
 runTest('sdkwork-claw-instances keeps OpenClaw agent CRUD real while provider routes stay discoverable in instance detail', () => {
@@ -3260,6 +3388,9 @@ runTest('sdkwork-claw-instances keeps OpenClaw agent CRUD real while provider ro
   const agentWorkbenchSupportSource = read(
     'packages/sdkwork-claw-instances/src/services/openClawAgentWorkbenchSupport.ts',
   );
+  const capabilitiesSource = read(
+    'packages/sdkwork-claw-instances/src/services/openClawManagementCapabilities.ts',
+  );
   const sectionModelsSource = read(
     'packages/sdkwork-claw-instances/src/components/instanceDetailSectionModels.ts',
   );
@@ -3272,15 +3403,23 @@ runTest('sdkwork-claw-instances keeps OpenClaw agent CRUD real while provider ro
   );
   assert.match(providersSource, /isProviderConfigReadonly/);
   assert.match(providersSource, /canManageOpenClawProviders/);
-  assert.match(sectionModelsSource, /InstanceDetailManagedLlmProvidersSection/);
+  assert.match(sectionModelsSource, /InstanceDetailLlmProvidersWorkbenchSection/);
   assert.match(detailSource, /onEditAgent:\s*agentDialogStateHandlers\.openEditAgentDialog/);
   assert.match(agentsSectionSource, /instances\.detail\.instanceWorkbench\.agents\.deleteDialog\.title/);
   assert.match(agentsSectionSource, /onEditAgent=\{onEditAgent\}/);
   assert.match(instanceServiceSource, /createOpenClawAgent/);
   assert.match(instanceServiceSource, /updateOpenClawAgent/);
   assert.match(instanceServiceSource, /deleteOpenClawAgent/);
-  assert.match(agentWorkbenchSupportSource, /configSource: 'managedConfig'/);
-  assert.match(workbenchSource, /managedConfigSnapshot\?\.agentSnapshots/);
+  assert.match(agentWorkbenchSupportSource, /configSource: 'configFile'/);
+  assert.match(agentWorkbenchSupportSource, /function mapConfigBackedAgent\(/);
+  assert.doesNotMatch(agentWorkbenchSupportSource, /function mapManagedAgent\(/);
+  assert.match(agentWorkbenchSupportSource, /export function buildOpenClawWorkbenchAgents\(/);
+  assert.doesNotMatch(agentWorkbenchSupportSource, /export function buildManagedOpenClawAgents\(/);
+  assert.match(capabilitiesSource, /function isBuiltInOpenClawProbeCandidate\(/);
+  assert.doesNotMatch(capabilitiesSource, /function isBuiltInManagedOpenClawProbeCandidate\(/);
+  assert.match(workbenchSource, /configSnapshot\?\.agentSnapshots/);
+  assert.match(workbenchSource, /buildOpenClawWorkbenchAgents\(/);
+  assert.doesNotMatch(workbenchSource, /buildManagedOpenClawAgents\(/);
 });
 
 runTest('sdkwork-claw-instances keeps the OpenClaw workbench file explorer aligned with the standard bootstrap file set', () => {
@@ -3394,6 +3533,92 @@ runTest('sdkwork-claw-instances routes fallback OpenClaw config-path resolution 
   );
 });
 
+runTest(
+  'sdkwork-claw-instances keeps instanceServiceCore config bindings aligned with kernel-config terminology inside runtime config flows',
+  () => {
+    const instanceServiceCoreSource = read(
+      'packages/sdkwork-claw-instances/src/services/instanceServiceCore.ts',
+    );
+
+    assert.match(
+      instanceServiceCoreSource,
+      /private async saveOpenClawConfigWithGateway\(\s*id: string,\s*configBinding: \{/,
+    );
+    assert.match(
+      instanceServiceCoreSource,
+      /private async assertOpenClawConfigDocumentAvailable\(configPath: string\)/,
+    );
+    assert.match(
+      instanceServiceCoreSource,
+      /private async resolveOpenClawConfigBinding\(\s*id: string,\s*detail\?: StudioInstanceDetailRecord \| null,/,
+    );
+    assert.match(instanceServiceCoreSource, /configBinding\.detail/);
+    assert.match(instanceServiceCoreSource, /configBinding\.configPath/);
+    assert.match(
+      instanceServiceCoreSource,
+      /const configBinding = await this\.resolveOpenClawConfigBinding\(/,
+    );
+    assert.doesNotMatch(
+      instanceServiceCoreSource,
+      /const managedConfig = await this\.resolveOpenClawConfigBinding\(/,
+    );
+    assert.doesNotMatch(
+      instanceServiceCoreSource,
+      /assertManagedOpenClawConfigDocumentAvailable|resolveManagedOpenClawConfig|saveManagedOpenClawConfigWithGateway/,
+    );
+  },
+);
+
+runTest(
+  'sdkwork-claw-instances keeps internal workbench config snapshot typing aligned with kernel-config terminology',
+  () => {
+    const agentWorkbenchServiceCoreSource = read(
+      'packages/sdkwork-claw-instances/src/services/agentWorkbenchServiceCore.ts',
+    );
+    const agentWorkbenchSupportSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawAgentWorkbenchSupport.ts',
+    );
+    const channelWorkbenchSupportSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawChannelWorkbenchSupport.ts',
+    );
+    const providerWorkbenchSupportSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawProviderWorkbenchSupport.ts',
+    );
+    const combinedSource = [
+      agentWorkbenchServiceCoreSource,
+      agentWorkbenchSupportSource,
+      channelWorkbenchSupportSource,
+      providerWorkbenchSupportSource,
+    ].join('\n');
+
+    assert.doesNotMatch(combinedSource, /ManagedOpenClawConfigSnapshot/);
+    assert.match(
+      agentWorkbenchServiceCoreSource,
+      /import type { OpenClawConfigSnapshot } from '@sdkwork\/claw-core';/,
+    );
+    assert.match(
+      agentWorkbenchSupportSource,
+      /type OpenClawAgentConfigSnapshot = OpenClawConfigSnapshot\['agentSnapshots'\]\[number\];/,
+    );
+    assert.match(
+      channelWorkbenchSupportSource,
+      /type OpenClawChannelConfigSnapshot = OpenClawConfigSnapshot\['channelSnapshots'\]\[number\];/,
+    );
+    assert.match(
+      providerWorkbenchSupportSource,
+      /export function mapConfigBackedProvider\(/,
+    );
+    assert.doesNotMatch(
+      providerWorkbenchSupportSource,
+      /export function mapManagedProvider\(/,
+    );
+    assert.match(
+      providerWorkbenchSupportSource,
+      /provider: OpenClawConfigSnapshot\['providerSnapshots'\]\[number\],/,
+    );
+  },
+);
+
 runTest('sdkwork-claw-instances routes OpenClaw file path derivation through a shared helper', () => {
   const instanceWorkbenchServiceCoreSource = read(
     'packages/sdkwork-claw-instances/src/services/instanceWorkbenchServiceCore.ts',
@@ -3436,7 +3661,7 @@ runTest(
     const providerWorkspaceSyncEffect = extractBetween(
       detailSource,
       'const providers = workbench?.llmProviders || [];',
-      'const managedChannels = workbench?.managedChannels || [];',
+      'const configChannels = workbench?.configChannels || [];',
     );
 
     assert.match(detailSource, /buildOpenClawProviderWorkspaceSyncState/);
@@ -3475,56 +3700,56 @@ runTest(
 );
 
 runTest(
-  'sdkwork-claw-instances routes managed channel workspace sync-state shaping through a shared helper while keeping setter ownership in the page',
+  'sdkwork-claw-instances routes config channel workspace sync-state shaping through a shared helper while keeping setter ownership in the page',
   () => {
     const detailSource = readInstanceDetailPageSources();
-    const managedChannelPresentationSource = read(
-      'packages/sdkwork-claw-instances/src/services/openClawManagedChannelPresentation.ts',
+    const configChannelPresentationSource = read(
+      'packages/sdkwork-claw-instances/src/services/openClawConfigChannelPresentation.ts',
     );
     const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
-    const managedChannelWorkspaceSyncBuilder = extractBetween(
-      managedChannelPresentationSource,
-      'export function buildOpenClawManagedChannelWorkspaceSyncState(',
-      'export function buildOpenClawManagedChannelSelectionState(',
+    const configChannelWorkspaceSyncBuilder = extractBetween(
+      configChannelPresentationSource,
+      'export function buildOpenClawConfigChannelWorkspaceSyncState(',
+      'export function buildOpenClawConfigChannelSelectionState(',
     );
-    const managedChannelSyncEffect = extractBetween(
+    const configChannelSyncEffect = extractBetween(
       detailSource,
-      'const managedChannels = workbench?.managedChannels || [];',
-      'const managedWebSearchConfig = workbench?.managedWebSearchConfig || null;',
+      'const configChannels = workbench?.configChannels || [];',
+      'const configWebSearch = workbench?.configWebSearch || null;',
     );
 
-    assert.match(detailSource, /buildOpenClawManagedChannelWorkspaceSyncState/);
+    assert.match(detailSource, /buildOpenClawConfigChannelWorkspaceSyncState/);
     assert.match(
-      managedChannelSyncEffect,
-      /const managedChannelWorkspaceSyncState = buildOpenClawManagedChannelWorkspaceSyncState\(\{/,
+      configChannelSyncEffect,
+      /const configChannelWorkspaceSyncState = buildOpenClawConfigChannelWorkspaceSyncState\(\{/,
     );
     assert.match(
-      managedChannelSyncEffect,
-      /setSelectedManagedChannelId\(managedChannelWorkspaceSyncState\.resolveSelectedManagedChannelId\);/,
+      configChannelSyncEffect,
+      /setSelectedConfigChannelId\(configChannelWorkspaceSyncState\.resolveSelectedConfigChannelId\);/,
     );
     assert.match(
-      managedChannelSyncEffect,
-      /setManagedChannelDrafts\(managedChannelWorkspaceSyncState\.managedChannelDrafts\);/,
+      configChannelSyncEffect,
+      /setConfigChannelDrafts\(configChannelWorkspaceSyncState\.configChannelDrafts\);/,
     );
     assert.match(
-      managedChannelSyncEffect,
-      /setManagedChannelError\(managedChannelWorkspaceSyncState\.managedChannelError\);/,
+      configChannelSyncEffect,
+      /setConfigChannelError\(configChannelWorkspaceSyncState\.configChannelError\);/,
     );
-    assert.doesNotMatch(managedChannelSyncEffect, /if \(managedChannels\.length === 0\)/);
-    assert.doesNotMatch(managedChannelSyncEffect, /managedChannels\.some/);
-    assert.doesNotMatch(managedChannelSyncEffect, /setSelectedManagedChannelId\(\(current\) =>/);
-    assert.doesNotMatch(managedChannelSyncEffect, /setManagedChannelDrafts\(\{\}\);/);
-    assert.doesNotMatch(managedChannelSyncEffect, /setManagedChannelError\(null\);/);
+    assert.doesNotMatch(configChannelSyncEffect, /if \(configChannels\.length === 0\)/);
+    assert.doesNotMatch(configChannelSyncEffect, /configChannels\.some/);
+    assert.doesNotMatch(configChannelSyncEffect, /setSelectedConfigChannelId\(\(current\) =>/);
+    assert.doesNotMatch(configChannelSyncEffect, /setConfigChannelDrafts\(\{\}\);/);
+    assert.doesNotMatch(configChannelSyncEffect, /setConfigChannelError\(null\);/);
 
     assert.match(
-      managedChannelPresentationSource,
-      /export function buildOpenClawManagedChannelWorkspaceSyncState\(/,
+      configChannelPresentationSource,
+      /export function buildOpenClawConfigChannelWorkspaceSyncState\(/,
     );
-    assert.match(servicesIndexSource, /openClawManagedChannelPresentation/);
-    assert.doesNotMatch(managedChannelWorkspaceSyncBuilder, /setSelectedManagedChannelId/);
-    assert.doesNotMatch(managedChannelWorkspaceSyncBuilder, /toast\./);
-    assert.doesNotMatch(managedChannelWorkspaceSyncBuilder, /instanceService\./);
-    assert.doesNotMatch(managedChannelWorkspaceSyncBuilder, /loadWorkbench\(/);
+    assert.match(servicesIndexSource, /openClawConfigChannelPresentation/);
+    assert.doesNotMatch(configChannelWorkspaceSyncBuilder, /setSelectedConfigChannelId/);
+    assert.doesNotMatch(configChannelWorkspaceSyncBuilder, /toast\./);
+    assert.doesNotMatch(configChannelWorkspaceSyncBuilder, /instanceService\./);
+    assert.doesNotMatch(configChannelWorkspaceSyncBuilder, /loadWorkbench\(/);
   },
 );
 
@@ -4079,8 +4304,8 @@ runTest('sdkwork-claw-instances routes OpenClaw channel workbench shaping throug
   assert.ok(exists('packages/sdkwork-claw-instances/src/services/openClawChannelWorkbenchSupport.ts'));
   assert.match(instanceWorkbenchServiceCoreSource, /from '\.\/instanceWorkbenchSnapshotSupport\.ts'/);
   assert.match(snapshotSupportSource, /from '\.\/openClawChannelWorkbenchSupport\.ts'/);
-  assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function mapManagedChannel\(/);
-  assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function cloneManagedChannel\(/);
+  assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function mapConfigChannel\(/);
+  assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function cloneConfigChannel\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function cloneWorkbenchChannel\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function isConfiguredValue\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function normalizeChannelConnectionStatus\(/);
@@ -4107,7 +4332,7 @@ runTest('sdkwork-claw-instances routes OpenClaw agent workbench shaping through 
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function clampScore\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function deriveFocusAreas\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function mapAgent\(/);
-  assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function mapManagedAgent\(/);
+  assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function mapConfigBackedAgent\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function cloneWorkbenchAgent\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function normalizeWorkbenchAgent\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function mergeWorkbenchAgents\(/);
@@ -4118,31 +4343,36 @@ runTest('sdkwork-claw-instances routes OpenClaw agent workbench shaping through 
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function buildManagedOpenClawAgents\(/);
 });
 
-runTest('sdkwork-claw-instances routes managed OpenClaw workbench config shaping through a shared helper', () => {
+runTest('sdkwork-claw-instances routes OpenClaw config workbench shaping through the standard helper', () => {
   const instanceWorkbenchServiceCoreSource = read(
     'packages/sdkwork-claw-instances/src/services/instanceWorkbenchServiceCore.ts',
   );
   const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
 
   assert.ok(
+    exists('packages/sdkwork-claw-instances/src/services/openClawConfigWorkbenchSupport.ts'),
+  );
+  assert.equal(
     exists('packages/sdkwork-claw-instances/src/services/openClawManagedConfigWorkbenchSupport.ts'),
+    false,
   );
   assert.match(
     instanceWorkbenchServiceCoreSource,
-    /from '\.\/openClawManagedConfigWorkbenchSupport\.ts'/,
+    /from '\.\/openClawConfigWorkbenchSupport\.ts'/,
   );
-  assert.match(servicesIndexSource, /openClawManagedConfigWorkbenchSupport/);
+  assert.match(servicesIndexSource, /openClawConfigWorkbenchSupport/);
+  assert.doesNotMatch(servicesIndexSource, /openClawManagedConfigWorkbenchSupport/);
   assert.doesNotMatch(
     instanceWorkbenchServiceCoreSource,
-    /function createEmptyManagedOpenClawConfigSnapshot\(/,
-  );
-  assert.doesNotMatch(
-    instanceWorkbenchServiceCoreSource,
-    /function buildManagedConfigSectionCount\(/,
+    /function createEmptyOpenClawConfigSnapshot\(/,
   );
   assert.doesNotMatch(
     instanceWorkbenchServiceCoreSource,
-    /function buildManagedConfigInsights\(/,
+    /function buildConfigSectionCount\(/,
+  );
+  assert.doesNotMatch(
+    instanceWorkbenchServiceCoreSource,
+    /function buildKernelConfigInsights\(/,
   );
   assert.doesNotMatch(
     instanceWorkbenchServiceCoreSource,
@@ -4184,7 +4414,7 @@ runTest('sdkwork-claw-instances routes OpenClaw provider workbench shaping throu
     /from '\.\/openClawProviderWorkbenchSupport\.ts'/,
   );
   assert.match(servicesIndexSource, /openClawProviderWorkbenchSupport/);
-  assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function mapManagedProvider\(/);
+  assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function mapConfigBackedProvider\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function mapLlmProvider\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function providerMatchesId\(/);
   assert.doesNotMatch(instanceWorkbenchServiceCoreSource, /function buildOpenClawLlmProviders\(/);
@@ -4508,12 +4738,38 @@ runTest('sdkwork-claw-instances config workbench keeps control-ui style config a
   assert.match(diffSource, /availableSectionKeys\.has\(entry\.sectionKey\)/);
   assert.match(diffSource, /setActiveMode\('raw'\)/);
 
-  assert.match(serviceSource, /openManagedOpenClawConfigFile/);
-  assert.match(serviceSource, /applyManagedOpenClawConfigDocument/);
-  assert.match(serviceSource, /runManagedOpenClawUpdate/);
+  assert.match(panelSource, /type OpenClawConfigSchemaSnapshot/);
+  assert.match(panelSource, /instanceService\.getOpenClawConfigDocument\(props\.instanceId\)/);
+  assert.match(panelSource, /instanceService\.getOpenClawConfigSchema\(props\.instanceId\)/);
+  assert.match(panelSource, /instanceService\.updateOpenClawConfigDocument\(props\.instanceId, rawDraft\)/);
+  assert.match(panelSource, /instanceService\.openClawConfigFile\(props\.instanceId\)/);
+  assert.match(panelSource, /instanceService\.applyOpenClawConfigDocument\(props\.instanceId, rawDraft\)/);
+  assert.match(panelSource, /instanceService\.runOpenClawUpdate\(props\.instanceId\)/);
+  assert.doesNotMatch(panelSource, /ManagedOpenClawConfigSchemaSnapshot/);
+  assert.doesNotMatch(panelSource, /getManagedOpenClawConfigDocument/);
+  assert.doesNotMatch(panelSource, /getManagedOpenClawConfigSchema/);
+  assert.doesNotMatch(panelSource, /updateManagedOpenClawConfigDocument/);
+  assert.doesNotMatch(panelSource, /openManagedOpenClawConfigFile/);
+  assert.doesNotMatch(panelSource, /applyManagedOpenClawConfigDocument/);
+  assert.doesNotMatch(panelSource, /runManagedOpenClawUpdate/);
+
+  assert.match(serviceSource, /OpenClawConfigSchemaSnapshot/);
+  assert.match(serviceSource, /getOpenClawConfigDocument/);
+  assert.match(serviceSource, /updateOpenClawConfigDocument/);
+  assert.match(serviceSource, /getOpenClawConfigSchema/);
+  assert.match(serviceSource, /openClawConfigFile/);
+  assert.match(serviceSource, /applyOpenClawConfigDocument/);
+  assert.match(serviceSource, /runOpenClawUpdate/);
   assert.match(serviceSource, /openClawGatewayClient\.openConfigFile/);
   assert.match(serviceSource, /openClawGatewayClient\.applyConfig/);
   assert.match(serviceSource, /openClawGatewayClient\.runUpdate/);
+  assert.doesNotMatch(serviceSource, /ManagedOpenClawConfigSchemaSnapshot/);
+  assert.doesNotMatch(serviceSource, /getManagedOpenClawConfigDocument/);
+  assert.doesNotMatch(serviceSource, /updateManagedOpenClawConfigDocument/);
+  assert.doesNotMatch(serviceSource, /getManagedOpenClawConfigSchema/);
+  assert.doesNotMatch(serviceSource, /openManagedOpenClawConfigFile/);
+  assert.doesNotMatch(serviceSource, /applyManagedOpenClawConfigDocument/);
+  assert.doesNotMatch(serviceSource, /runManagedOpenClawUpdate/);
   assert.match(servicesIndexSource, /instanceConfigWorkbenchPresentation/);
 });
 
@@ -4549,4 +4805,53 @@ runTest('sdkwork-claw-instances config workbench keeps navigation, section hero,
   assert.match(rawPanelSource, /Hidden until you reveal sensitive values\./);
   assert.match(rawPanelSource, /Use reveal to inspect and edit the raw config\./);
   assert.match(rawPanelSource, /MonacoEditor/);
+});
+
+runTest('sdkwork-claw-instances test narratives use OpenClaw config file wording instead of legacy config file wording', () => {
+  const testSource = readSources([
+    'packages/sdkwork-claw-instances/src/services/agentSkillManagementService.test.ts',
+    'packages/sdkwork-claw-instances/src/services/instanceManagementPresentation.test.ts',
+    'packages/sdkwork-claw-instances/src/services/instanceService.test.ts',
+    'packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.test.ts',
+    'packages/sdkwork-claw-instances/src/services/openClawManagementCapabilities.test.ts',
+    'packages/sdkwork-claw-instances/src/services/openClawProviderWorkspacePresentation.test.ts',
+  ]);
+
+  assert.doesNotMatch(testSource, /Managed config file/);
+  assert.doesNotMatch(testSource, /managed config file path/);
+  assert.doesNotMatch(testSource, /Writable managed config file\./);
+  assert.doesNotMatch(testSource, /no managed config file is attached/);
+});
+
+runTest('OpenClaw test fixtures use the canonical user-root config path outside explicit legacy compatibility cases', () => {
+  const testSource = readSources([
+    'packages/sdkwork-claw-types/src/kernelModel.test.ts',
+    'packages/sdkwork-claw-settings/src/services/kernelCenterService.test.ts',
+    'packages/sdkwork-claw-instances/src/services/agentWorkbenchService.test.ts',
+    'packages/sdkwork-claw-instances/src/services/instanceConfigWorkbench.test.ts',
+    'packages/sdkwork-claw-instances/src/services/instanceManagementPresentation.test.ts',
+    'packages/sdkwork-claw-instances/src/services/nodeInventoryService.test.ts',
+    'packages/sdkwork-claw-instances/src/services/kernelConfigProjection.test.ts',
+    'packages/sdkwork-claw-channels/src/services/channelService.test.ts',
+    'packages/sdkwork-claw-instances/src/services/openClawConfigPathFallback.test.ts',
+    'packages/sdkwork-claw-core/src/services/openClawConfigService.test.ts',
+    'packages/sdkwork-claw-core/src/services/kernelPlatformService.test.ts',
+    'packages/sdkwork-claw-core/src/services/openClawMirrorService.test.ts',
+    'packages/sdkwork-claw-instances/src/components/InstanceDetailSectionContent.test.tsx',
+    'packages/sdkwork-claw-infrastructure/src/platform/registry.test.ts',
+  ]);
+
+  assert.match(testSource, /\.openclaw\/openclaw\.json/);
+  assert.doesNotMatch(
+    testSource,
+    /(?:[A-Za-z]:\/Users\/admin|\/home\/admin)\/\.sdkwork\/crawstudio\/\.openclaw\/openclaw\.json/,
+  );
+});
+
+runTest('sdkwork-claw-core OpenClaw config tests avoid managed-config helper naming outside explicit legacy paths', () => {
+  const testSource = read('packages/sdkwork-claw-core/src/services/openClawConfigService.test.ts');
+
+  assert.doesNotMatch(testSource, /createInstanceDetailWithManagedConfig/);
+  assert.doesNotMatch(testSource, /createBuiltInManagedOpenClawDetailWithLegacyConfigPath/);
+  assert.doesNotMatch(testSource, /Managed OpenClaw workspace directory\./);
 });

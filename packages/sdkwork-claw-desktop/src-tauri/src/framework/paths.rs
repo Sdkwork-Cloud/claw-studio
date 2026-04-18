@@ -17,8 +17,8 @@ pub struct KernelPaths {
     pub authority_file: PathBuf,
     pub migrations_file: PathBuf,
     pub runtime_upgrades_file: PathBuf,
-    pub managed_config_dir: PathBuf,
-    pub managed_config_file: PathBuf,
+    pub config_dir: PathBuf,
+    pub config_file: PathBuf,
     pub quarantine_dir: PathBuf,
 }
 
@@ -118,17 +118,17 @@ impl AppPaths {
 
         let kernel_state_dir = self.kernels_state_dir.join(normalized_runtime_id);
         let runtime_dir = self.managed_runtimes_dir.join(normalized_runtime_id);
-        let (managed_config_dir, managed_config_file) =
+        let (config_dir, config_file) =
             if normalized_runtime_id == OPENCLAW_KERNEL_ID {
                 (
                     self.openclaw_root_dir.clone(),
                     self.openclaw_config_file.clone(),
                 )
             } else {
-                let managed_config_dir = kernel_state_dir.join("managed-config");
+                let config_dir = kernel_state_dir.join("config");
                 (
-                    managed_config_dir.clone(),
-                    managed_config_dir.join(format!("{normalized_runtime_id}.json")),
+                    config_dir.clone(),
+                    config_dir.join(format!("{normalized_runtime_id}.json")),
                 )
             };
         Ok(KernelPaths {
@@ -138,8 +138,8 @@ impl AppPaths {
             authority_file: kernel_state_dir.join("authority.json"),
             migrations_file: kernel_state_dir.join("migrations.json"),
             runtime_upgrades_file: kernel_state_dir.join("runtime-upgrades.json"),
-            managed_config_dir,
-            managed_config_file,
+            config_dir,
+            config_file,
             quarantine_dir: kernel_state_dir.join("quarantine"),
         })
     }
@@ -207,7 +207,7 @@ impl AppPaths {
         for runtime_id in supported_kernel_ids() {
             if let Ok(kernel) = self.kernel_paths(runtime_id) {
                 roots.push(kernel.kernel_state_dir);
-                roots.push(kernel.managed_config_dir);
+                roots.push(kernel.config_dir);
                 roots.push(kernel.quarantine_dir);
             }
         }
@@ -677,10 +677,8 @@ mod tests {
             .ends_with("machine/state/kernels/openclaw/migrations.json"));
         assert!(normalize(&openclaw.runtime_upgrades_file)
             .ends_with("machine/state/kernels/openclaw/runtime-upgrades.json"));
-        assert!(normalize(&openclaw.managed_config_dir).ends_with("user-home/.openclaw"));
-        assert!(
-            normalize(&openclaw.managed_config_file).ends_with("user-home/.openclaw/openclaw.json")
-        );
+        assert!(normalize(&openclaw.config_dir).ends_with("user-home/.openclaw"));
+        assert!(normalize(&openclaw.config_file).ends_with("user-home/.openclaw/openclaw.json"));
         assert!(normalize(&openclaw.quarantine_dir)
             .ends_with("machine/state/kernels/openclaw/quarantine"));
     }
@@ -700,10 +698,8 @@ mod tests {
             .ends_with("machine/state/kernels/hermes/migrations.json"));
         assert!(normalize(&hermes.runtime_upgrades_file)
             .ends_with("machine/state/kernels/hermes/runtime-upgrades.json"));
-        assert!(normalize(&hermes.managed_config_dir)
-            .ends_with("machine/state/kernels/hermes/managed-config"));
-        assert!(normalize(&hermes.managed_config_file)
-            .ends_with("machine/state/kernels/hermes/managed-config/hermes.json"));
+        assert!(normalize(&hermes.config_dir).ends_with("machine/state/kernels/hermes/config"));
+        assert!(normalize(&hermes.config_file).ends_with("machine/state/kernels/hermes/config/hermes.json"));
         assert!(
             normalize(&hermes.quarantine_dir).ends_with("machine/state/kernels/hermes/quarantine")
         );
@@ -739,10 +735,8 @@ mod tests {
             .ends_with("machine/state/kernels/openclaw/migrations.json"));
         assert!(normalize(&openclaw.runtime_upgrades_file)
             .ends_with("machine/state/kernels/openclaw/runtime-upgrades.json"));
-        assert!(normalize(&openclaw.managed_config_dir).ends_with("user-home/.openclaw"));
-        assert!(
-            normalize(&openclaw.managed_config_file).ends_with("user-home/.openclaw/openclaw.json")
-        );
+        assert!(normalize(&openclaw.config_dir).ends_with("user-home/.openclaw"));
+        assert!(normalize(&openclaw.config_file).ends_with("user-home/.openclaw/openclaw.json"));
         assert!(normalize(&openclaw.quarantine_dir)
             .ends_with("machine/state/kernels/openclaw/quarantine"));
     }

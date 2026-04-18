@@ -248,7 +248,7 @@ pub struct DesktopOpenClawRuntimeAuthorityProbeInfo {
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopOpenClawRuntimeAuthorityInfo {
-    pub managed_config_path: String,
+    pub config_file_path: String,
     pub owned_runtime_roots: Vec<String>,
     pub readiness_probe: DesktopOpenClawRuntimeAuthorityProbeInfo,
 }
@@ -297,7 +297,7 @@ pub struct DesktopKernelRuntimeAuthorityProbeInfo {
 #[serde(rename_all = "camelCase")]
 pub struct DesktopKernelRuntimeAuthorityInfo {
     pub runtime_id: String,
-    pub managed_config_path: String,
+    pub config_file_path: String,
     pub owned_runtime_roots: Vec<String>,
     pub readiness_probe: DesktopKernelRuntimeAuthorityProbeInfo,
     #[serde(skip_serializing_if = "Option::is_none")]

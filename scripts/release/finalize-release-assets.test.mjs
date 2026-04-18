@@ -104,12 +104,12 @@ function buildDesktopStartupSmokeReport({
     {
       id: 'built-in-instance',
       status: 'passed',
-      detail: 'desktop startup evidence preserved the managed built-in instance projection',
+      detail: 'desktop startup evidence preserved the built-in OpenClaw instance projection',
     },
     {
       id: 'gateway-websocket',
       status: 'passed',
-      detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
+      detail: 'desktop startup evidence proved the OpenClaw gateway websocket was dialable',
     },
     {
       id: 'local-ai-proxy-runtime',
@@ -1125,12 +1125,12 @@ test('release asset finalizer rejects desktop release assets when startup smoke 
           {
             id: 'built-in-instance',
             status: 'passed',
-            detail: 'desktop startup evidence preserved the managed built-in instance projection',
+            detail: 'desktop startup evidence preserved the built-in OpenClaw instance projection',
           },
           {
             id: 'gateway-websocket',
             status: 'passed',
-            detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
+            detail: 'desktop startup evidence proved the OpenClaw gateway websocket was dialable',
           },
         ],
       }), null, 2)}\n`,
@@ -1325,12 +1325,12 @@ test('release asset finalizer lifts desktop startup smoke metadata onto desktop 
           {
             id: 'built-in-instance',
             status: 'passed',
-            detail: 'desktop startup evidence preserved the managed built-in instance projection',
+            detail: 'desktop startup evidence preserved the built-in OpenClaw instance projection',
           },
           {
             id: 'gateway-websocket',
             status: 'passed',
-            detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
+            detail: 'desktop startup evidence proved the OpenClaw gateway websocket was dialable',
           },
           {
             id: 'local-ai-proxy-runtime',

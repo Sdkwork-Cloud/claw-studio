@@ -6,12 +6,12 @@ import {
   createOpenClawWebSearchDraftState,
   createOpenClawWebSearchNativeCodexDraft as createWebSearchNativeCodexFormState,
   createOpenClawXSearchDraft as createXSearchFormState,
-} from './openClawManagedConfigDrafts.ts';
+} from './openClawConfigDrafts.ts';
 
 type Setter<T> = (value: T) => void;
 
-export interface ApplyInstanceDetailManagedWebSearchSyncStateInput {
-  config: InstanceWorkbenchSnapshot['managedWebSearchConfig'] | null | undefined;
+export interface ApplyInstanceDetailConfigWebSearchSyncStateInput {
+  config: InstanceWorkbenchSnapshot['configWebSearch'] | null | undefined;
   currentProviderId: string | null;
   setSelectedWebSearchProviderId: Setter<string | null>;
   setWebSearchSharedDraft: Setter<ReturnType<typeof createOpenClawWebSearchDraftState>['sharedDraft']>;
@@ -21,45 +21,45 @@ export interface ApplyInstanceDetailManagedWebSearchSyncStateInput {
   setWebSearchError: Setter<string | null>;
 }
 
-export interface ApplyInstanceDetailManagedAuthCooldownsSyncStateInput {
-  config: InstanceWorkbenchSnapshot['managedAuthCooldownsConfig'] | null | undefined;
+export interface ApplyInstanceDetailConfigAuthCooldownsSyncStateInput {
+  config: InstanceWorkbenchSnapshot['configAuthCooldowns'] | null | undefined;
   setAuthCooldownsDraft: Setter<ReturnType<typeof createAuthCooldownsFormState>>;
   setAuthCooldownsError: Setter<string | null>;
 }
 
-export interface ApplyInstanceDetailManagedDreamingSyncStateInput {
-  config: InstanceWorkbenchSnapshot['managedDreamingConfig'] | null | undefined;
+export interface ApplyInstanceDetailConfigDreamingSyncStateInput {
+  config: InstanceWorkbenchSnapshot['configDreaming'] | null | undefined;
   setDreamingDraft: Setter<ReturnType<typeof createOpenClawDreamingFormState>>;
   setDreamingError: Setter<string | null>;
 }
 
-export interface ApplyInstanceDetailManagedXSearchSyncStateInput {
-  config: InstanceWorkbenchSnapshot['managedXSearchConfig'] | null | undefined;
+export interface ApplyInstanceDetailConfigXSearchSyncStateInput {
+  config: InstanceWorkbenchSnapshot['configXSearch'] | null | undefined;
   setXSearchDraft: Setter<ReturnType<typeof createXSearchFormState>>;
   setXSearchError: Setter<string | null>;
 }
 
-export interface ApplyInstanceDetailManagedWebSearchNativeCodexSyncStateInput {
-  config: InstanceWorkbenchSnapshot['managedWebSearchNativeCodexConfig'] | null | undefined;
+export interface ApplyInstanceDetailConfigWebSearchNativeCodexSyncStateInput {
+  config: InstanceWorkbenchSnapshot['configWebSearchNativeCodex'] | null | undefined;
   setWebSearchNativeCodexDraft: Setter<ReturnType<typeof createWebSearchNativeCodexFormState>>;
   setWebSearchNativeCodexError: Setter<string | null>;
 }
 
-export interface ApplyInstanceDetailManagedWebFetchSyncStateInput {
-  config: InstanceWorkbenchSnapshot['managedWebFetchConfig'] | null | undefined;
+export interface ApplyInstanceDetailConfigWebFetchSyncStateInput {
+  config: InstanceWorkbenchSnapshot['configWebFetch'] | null | undefined;
   setWebFetchSharedDraft: Setter<ReturnType<typeof createOpenClawWebFetchDraftState>['sharedDraft']>;
   setWebFetchFallbackDraft: Setter<ReturnType<typeof createOpenClawWebFetchDraftState>['fallbackDraft']>;
   setWebFetchError: Setter<string | null>;
 }
 
-export function applyInstanceDetailManagedWebSearchSyncState({
+export function applyInstanceDetailConfigWebSearchSyncState({
   config,
   currentProviderId,
   setSelectedWebSearchProviderId,
   setWebSearchSharedDraft,
   setWebSearchProviderDrafts,
   setWebSearchError,
-}: ApplyInstanceDetailManagedWebSearchSyncStateInput) {
+}: ApplyInstanceDetailConfigWebSearchSyncStateInput) {
   const webSearchDraftState = createOpenClawWebSearchDraftState({
     config,
     currentProviderId,
@@ -71,48 +71,48 @@ export function applyInstanceDetailManagedWebSearchSyncState({
   setWebSearchError(null);
 }
 
-export function applyInstanceDetailManagedAuthCooldownsSyncState({
+export function applyInstanceDetailConfigAuthCooldownsSyncState({
   config,
   setAuthCooldownsDraft,
   setAuthCooldownsError,
-}: ApplyInstanceDetailManagedAuthCooldownsSyncStateInput) {
+}: ApplyInstanceDetailConfigAuthCooldownsSyncStateInput) {
   setAuthCooldownsDraft(createAuthCooldownsFormState(config));
   setAuthCooldownsError(null);
 }
 
-export function applyInstanceDetailManagedDreamingSyncState({
+export function applyInstanceDetailConfigDreamingSyncState({
   config,
   setDreamingDraft,
   setDreamingError,
-}: ApplyInstanceDetailManagedDreamingSyncStateInput) {
+}: ApplyInstanceDetailConfigDreamingSyncStateInput) {
   setDreamingDraft(createOpenClawDreamingFormState(config));
   setDreamingError(null);
 }
 
-export function applyInstanceDetailManagedXSearchSyncState({
+export function applyInstanceDetailConfigXSearchSyncState({
   config,
   setXSearchDraft,
   setXSearchError,
-}: ApplyInstanceDetailManagedXSearchSyncStateInput) {
+}: ApplyInstanceDetailConfigXSearchSyncStateInput) {
   setXSearchDraft(createXSearchFormState(config));
   setXSearchError(null);
 }
 
-export function applyInstanceDetailManagedWebSearchNativeCodexSyncState({
+export function applyInstanceDetailConfigWebSearchNativeCodexSyncState({
   config,
   setWebSearchNativeCodexDraft,
   setWebSearchNativeCodexError,
-}: ApplyInstanceDetailManagedWebSearchNativeCodexSyncStateInput) {
+}: ApplyInstanceDetailConfigWebSearchNativeCodexSyncStateInput) {
   setWebSearchNativeCodexDraft(createWebSearchNativeCodexFormState(config));
   setWebSearchNativeCodexError(null);
 }
 
-export function applyInstanceDetailManagedWebFetchSyncState({
+export function applyInstanceDetailConfigWebFetchSyncState({
   config,
   setWebFetchSharedDraft,
   setWebFetchFallbackDraft,
   setWebFetchError,
-}: ApplyInstanceDetailManagedWebFetchSyncStateInput) {
+}: ApplyInstanceDetailConfigWebFetchSyncStateInput) {
   const webFetchDraftState = createOpenClawWebFetchDraftState(config);
 
   setWebFetchSharedDraft(webFetchDraftState.sharedDraft);

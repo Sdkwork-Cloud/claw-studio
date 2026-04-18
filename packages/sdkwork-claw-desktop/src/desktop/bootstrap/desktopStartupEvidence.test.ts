@@ -190,9 +190,9 @@ test('desktop startup evidence builds a passed launch document with a sanitized 
         builtInInstanceBaseUrl: 'http://127.0.0.1:18797',
         builtInInstanceWebsocketUrl: 'ws://127.0.0.1:18797/ws',
         builtInInstancePublished: true,
-        builtInInstanceRuntimeKindMatchesManagedOpenClaw: true,
-        builtInInstanceDeploymentModeMatchesManagedOpenClaw: true,
-        builtInInstanceTransportKindMatchesManagedOpenClaw: true,
+        builtInInstanceRuntimeKindMatchesOpenClaw: true,
+        builtInInstanceDeploymentModeMatchesLocalManaged: true,
+        builtInInstanceTransportKindMatchesOpenClawGateway: true,
         builtInInstanceOnline: true,
         builtInInstanceUrlsPublished: true,
         builtInInstanceBaseUrlMatchesGateway: true,
@@ -295,7 +295,7 @@ test('desktop startup evidence resolves the built-in instance from readiness evi
       instances: [
         {
           id: 'managed-openclaw-primary',
-          name: 'Managed OpenClaw Primary',
+          name: 'Built-In OpenClaw Primary',
           version: '2026.4.11',
           runtimeKind: 'openclaw',
           deploymentMode: 'local-managed',

@@ -434,7 +434,7 @@ impl KernelHostRuntimeLoop {
 
             self.shutdown();
             return Err(FrameworkError::Conflict(format!(
-                "kernel host lost the managed OpenClaw gateway on 127.0.0.1:{}",
+                "kernel host lost the OpenClaw gateway on 127.0.0.1:{}",
                 self.runtime.gateway_port
             )));
         }
@@ -637,15 +637,15 @@ mod tests {
         }
     }
 
-    fn managed_openclaw_config_path(
+    fn openclaw_config_file_path(
         paths: &crate::framework::paths::AppPaths,
     ) -> std::path::PathBuf {
         KernelRuntimeAuthorityService::new()
-            .active_managed_config_path("openclaw", paths)
+            .active_config_file_path("openclaw", paths)
             .unwrap_or_else(|_| {
                 paths
                     .kernel_paths("openclaw")
-                    .map(|kernel| kernel.managed_config_file)
+                    .map(|kernel| kernel.config_file)
                     .unwrap_or_else(|_| paths.openclaw_config_file.clone())
             })
     }
@@ -778,7 +778,7 @@ mod tests {
             .map(|entries| entries.filter_map(|entry| entry.ok()).count())
             .unwrap_or(0);
         assert_eq!(managed_runtime_entries, 0);
-        assert!(!managed_openclaw_config_path(&paths).exists());
+        assert!(!openclaw_config_file_path(&paths).exists());
     }
 
     #[test]

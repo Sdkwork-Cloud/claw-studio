@@ -14,7 +14,7 @@ const knownWorkbenchLabels: Record<string, string> = {
   customHttp: 'Custom HTTP',
   customWs: 'Custom WebSocket',
   managedFile: 'Config File',
-  managedDirectory: 'Managed Directory',
+  managedDirectory: 'Config Directory',
   storageBinding: 'Storage Binding',
   remoteEndpoint: 'Remote Endpoint',
   metadataOnly: 'Metadata Only',

@@ -485,7 +485,7 @@ await runTest('sdkwork-claw-chat re-runs gateway warmup for warmed instances whe
   );
 });
 
-await runTest('sdkwork-claw-chat wires managed OpenClaw history config into the gateway session store', () => {
+await runTest('sdkwork-claw-chat wires OpenClaw history config into the gateway session store', () => {
   const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/chatStore.ts');
 
   assert.match(chatStoreSource, /openClawGatewayHistoryConfigService/);

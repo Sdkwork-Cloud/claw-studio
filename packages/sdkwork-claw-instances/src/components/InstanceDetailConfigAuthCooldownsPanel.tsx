@@ -2,7 +2,7 @@ import React from 'react';
 import { Button, Input, Label } from '@sdkwork/claw-ui';
 import { RowMetric } from './InstanceWorkbenchPrimitives.tsx';
 
-interface ManagedAuthCooldownsDraft {
+interface ConfigAuthCooldownsDraft {
   rateLimitedProfileRotations: string;
   overloadedProfileRotations: string;
   overloadedBackoffMs: string;
@@ -11,27 +11,27 @@ interface ManagedAuthCooldownsDraft {
   failureWindowHours: string;
 }
 
-interface InstanceDetailManagedAuthCooldownsPanelProps {
-  authCooldownsDraft: ManagedAuthCooldownsDraft;
+interface InstanceDetailConfigAuthCooldownsPanelProps {
+  authCooldownsDraft: ConfigAuthCooldownsDraft;
   authCooldownsError: string | null;
   isSavingAuthCooldowns: boolean;
-  canEditManagedAuthCooldowns: boolean;
+  canEditConfigAuthCooldowns: boolean;
   formatWorkbenchLabel: (value: string) => string;
   t: (key: string) => string;
   onSave: () => Promise<void> | void;
-  onDraftChange: (key: keyof ManagedAuthCooldownsDraft, value: string) => void;
+  onDraftChange: (key: keyof ConfigAuthCooldownsDraft, value: string) => void;
 }
 
-export function InstanceDetailManagedAuthCooldownsPanel({
+export function InstanceDetailConfigAuthCooldownsPanel({
   authCooldownsDraft,
   authCooldownsError,
   isSavingAuthCooldowns,
-  canEditManagedAuthCooldowns,
+  canEditConfigAuthCooldowns,
   formatWorkbenchLabel,
   t,
   onSave,
   onDraftChange,
-}: InstanceDetailManagedAuthCooldownsPanelProps) {
+}: InstanceDetailConfigAuthCooldownsPanelProps) {
   const configuredFieldCount = [
     authCooldownsDraft.rateLimitedProfileRotations,
     authCooldownsDraft.overloadedProfileRotations,
@@ -43,7 +43,7 @@ export function InstanceDetailManagedAuthCooldownsPanel({
 
   return (
     <div
-      data-slot="instance-detail-managed-auth-cooldowns"
+      data-slot="instance-detail-config-auth-cooldowns"
       className="rounded-[1.8rem] border border-zinc-200/70 bg-white/80 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-950/35"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -67,7 +67,7 @@ export function InstanceDetailManagedAuthCooldownsPanel({
           <Button
             type="button"
             onClick={() => void onSave()}
-            disabled={!canEditManagedAuthCooldowns || isSavingAuthCooldowns}
+            disabled={!canEditConfigAuthCooldowns || isSavingAuthCooldowns}
           >
             {isSavingAuthCooldowns ? t('common.loading') : t('common.save')}
           </Button>
@@ -84,7 +84,7 @@ export function InstanceDetailManagedAuthCooldownsPanel({
               <Input
                 value={authCooldownsDraft.rateLimitedProfileRotations}
                 onChange={(event) => onDraftChange('rateLimitedProfileRotations', event.target.value)}
-                disabled={!canEditManagedAuthCooldowns}
+                disabled={!canEditConfigAuthCooldowns}
                 inputMode="numeric"
                 placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
               />
@@ -97,7 +97,7 @@ export function InstanceDetailManagedAuthCooldownsPanel({
               <Input
                 value={authCooldownsDraft.overloadedProfileRotations}
                 onChange={(event) => onDraftChange('overloadedProfileRotations', event.target.value)}
-                disabled={!canEditManagedAuthCooldowns}
+                disabled={!canEditConfigAuthCooldowns}
                 inputMode="numeric"
                 placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
               />
@@ -108,7 +108,7 @@ export function InstanceDetailManagedAuthCooldownsPanel({
               <Input
                 value={authCooldownsDraft.overloadedBackoffMs}
                 onChange={(event) => onDraftChange('overloadedBackoffMs', event.target.value)}
-                disabled={!canEditManagedAuthCooldowns}
+                disabled={!canEditConfigAuthCooldowns}
                 inputMode="numeric"
                 placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
               />
@@ -119,7 +119,7 @@ export function InstanceDetailManagedAuthCooldownsPanel({
               <Input
                 value={authCooldownsDraft.billingBackoffHours}
                 onChange={(event) => onDraftChange('billingBackoffHours', event.target.value)}
-                disabled={!canEditManagedAuthCooldowns}
+                disabled={!canEditConfigAuthCooldowns}
                 inputMode="numeric"
                 placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
               />
@@ -130,7 +130,7 @@ export function InstanceDetailManagedAuthCooldownsPanel({
               <Input
                 value={authCooldownsDraft.billingMaxHours}
                 onChange={(event) => onDraftChange('billingMaxHours', event.target.value)}
-                disabled={!canEditManagedAuthCooldowns}
+                disabled={!canEditConfigAuthCooldowns}
                 inputMode="numeric"
                 placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
               />
@@ -141,7 +141,7 @@ export function InstanceDetailManagedAuthCooldownsPanel({
               <Input
                 value={authCooldownsDraft.failureWindowHours}
                 onChange={(event) => onDraftChange('failureWindowHours', event.target.value)}
-                disabled={!canEditManagedAuthCooldowns}
+                disabled={!canEditConfigAuthCooldowns}
                 inputMode="numeric"
                 placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
               />

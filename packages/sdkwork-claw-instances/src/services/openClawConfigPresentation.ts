@@ -6,23 +6,23 @@ import type {
   OpenClawWebSearchProviderDraftValue,
   OpenClawWebSearchSharedDraftValue,
   OpenClawXSearchDraftValue,
-} from './openClawManagedConfigDrafts.ts';
+} from './openClawConfigDrafts.ts';
 import {
   applyOpenClawDraftFieldChange,
   applyOpenClawNullableDraftFieldChange,
   applyOpenClawWebSearchProviderDraftChange,
-} from './openClawManagedConfigDrafts.ts';
+} from './openClawConfigDrafts.ts';
 import type { OpenClawDreamingFormState } from './instanceMemoryWorkbenchPresentation.ts';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
 
 type NullableDraftSetter<T> = (updater: (current: T | null) => T | null) => void;
 type DraftSetter<T> = (updater: (current: T) => T) => void;
 type ErrorSetter = (value: string | null) => void;
-type ManagedWebSearchProvider =
-  NonNullable<InstanceWorkbenchSnapshot['managedWebSearchConfig']>['providers'][number];
+type ConfigWebSearchProvider =
+  NonNullable<InstanceWorkbenchSnapshot['configWebSearch']>['providers'][number];
 
-export interface BuildOpenClawManagedConfigDraftChangeHandlersArgs {
-  selectedWebSearchProvider: ManagedWebSearchProvider | null;
+export interface BuildOpenClawConfigDraftChangeHandlersArgs {
+  selectedWebSearchProvider: ConfigWebSearchProvider | null;
   setWebSearchError: ErrorSetter;
   setWebSearchSharedDraft: NullableDraftSetter<OpenClawWebSearchSharedDraftValue>;
   setWebSearchProviderDrafts: (
@@ -43,8 +43,8 @@ export interface BuildOpenClawManagedConfigDraftChangeHandlersArgs {
   setDreamingDraft: NullableDraftSetter<OpenClawDreamingFormState>;
 }
 
-export function buildOpenClawManagedConfigDraftChangeHandlers(
-  args: BuildOpenClawManagedConfigDraftChangeHandlersArgs,
+export function buildOpenClawConfigDraftChangeHandlers(
+  args: BuildOpenClawConfigDraftChangeHandlersArgs,
 ) {
   return {
     onWebSearchSharedDraftChange: (

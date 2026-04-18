@@ -62,7 +62,7 @@ async fn get_openclaw_runtime(
             categorized_error_response(
                 "openclaw_runtime_unavailable",
                 InternalErrorCategory::Dependency,
-                "The managed OpenClaw runtime projection is not available for this host shell.",
+                "The OpenClaw runtime projection is not available for this host shell.",
                 StatusCode::SERVICE_UNAVAILABLE,
                 true,
                 InternalErrorResolution::WaitAndRetry,
@@ -85,7 +85,7 @@ async fn get_openclaw_gateway(
             categorized_error_response(
                 "openclaw_gateway_projection_unavailable",
                 InternalErrorCategory::Dependency,
-                "The managed OpenClaw gateway projection is not available for this host shell.",
+                "The OpenClaw gateway projection is not available for this host shell.",
                 StatusCode::SERVICE_UNAVAILABLE,
                 true,
                 InternalErrorResolution::WaitAndRetry,
@@ -109,7 +109,7 @@ async fn invoke_openclaw_gateway(
             categorized_error_response(
                 "openclaw_gateway_unavailable",
                 InternalErrorCategory::Dependency,
-                "The managed OpenClaw gateway is not available for this host shell.",
+                "The OpenClaw gateway is not available for this host shell.",
                 StatusCode::SERVICE_UNAVAILABLE,
                 true,
                 InternalErrorResolution::WaitAndRetry,

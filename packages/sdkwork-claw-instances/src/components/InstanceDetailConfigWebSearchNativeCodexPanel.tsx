@@ -2,7 +2,7 @@ import React from 'react';
 import { Button, Input, Label, Switch, Textarea } from '@sdkwork/claw-ui';
 import { RowMetric } from './InstanceWorkbenchPrimitives.tsx';
 
-interface ManagedWebSearchNativeCodexDraft {
+interface ConfigWebSearchNativeCodexDraft {
   enabled: boolean;
   mode: string;
   allowedDomains: string;
@@ -13,30 +13,30 @@ interface ManagedWebSearchNativeCodexDraft {
   advancedConfig: string;
 }
 
-interface InstanceDetailManagedWebSearchNativeCodexPanelProps {
-  webSearchNativeCodexDraft: ManagedWebSearchNativeCodexDraft;
+interface InstanceDetailConfigWebSearchNativeCodexPanelProps {
+  webSearchNativeCodexDraft: ConfigWebSearchNativeCodexDraft;
   webSearchNativeCodexError: string | null;
   isSavingWebSearchNativeCodex: boolean;
-  canEditManagedWebSearchNativeCodex: boolean;
+  canEditConfigWebSearchNativeCodex: boolean;
   formatWorkbenchLabel: (value: string) => string;
   t: (key: string) => string;
   onSave: () => Promise<void> | void;
   onDraftChange: (
-    key: keyof ManagedWebSearchNativeCodexDraft,
+    key: keyof ConfigWebSearchNativeCodexDraft,
     value: string | boolean,
   ) => void;
 }
 
-export function InstanceDetailManagedWebSearchNativeCodexPanel({
+export function InstanceDetailConfigWebSearchNativeCodexPanel({
   webSearchNativeCodexDraft,
   webSearchNativeCodexError,
   isSavingWebSearchNativeCodex,
-  canEditManagedWebSearchNativeCodex,
+  canEditConfigWebSearchNativeCodex,
   formatWorkbenchLabel,
   t,
   onSave,
   onDraftChange,
-}: InstanceDetailManagedWebSearchNativeCodexPanelProps) {
+}: InstanceDetailConfigWebSearchNativeCodexPanelProps) {
   const allowedDomains = webSearchNativeCodexDraft.allowedDomains
     .split(/\r?\n|,/)
     .map((entry) => entry.trim())
@@ -44,7 +44,7 @@ export function InstanceDetailManagedWebSearchNativeCodexPanel({
 
   return (
     <div
-      data-slot="instance-detail-managed-web-search-native-codex"
+      data-slot="instance-detail-config-web-search-native-codex"
       className="rounded-[1.8rem] border border-zinc-200/70 bg-white/80 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-950/35"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -68,7 +68,7 @@ export function InstanceDetailManagedWebSearchNativeCodexPanel({
           <Button
             type="button"
             onClick={() => void onSave()}
-            disabled={!canEditManagedWebSearchNativeCodex || isSavingWebSearchNativeCodex}
+            disabled={!canEditConfigWebSearchNativeCodex || isSavingWebSearchNativeCodex}
           >
             {isSavingWebSearchNativeCodex ? t('common.loading') : t('common.save')}
           </Button>
@@ -91,7 +91,7 @@ export function InstanceDetailManagedWebSearchNativeCodexPanel({
                 <Switch
                   checked={webSearchNativeCodexDraft.enabled}
                   onCheckedChange={(checked) => onDraftChange('enabled', checked)}
-                  disabled={!canEditManagedWebSearchNativeCodex}
+                  disabled={!canEditConfigWebSearchNativeCodex}
                 />
               </div>
             </div>
@@ -101,7 +101,7 @@ export function InstanceDetailManagedWebSearchNativeCodexPanel({
               <Input
                 value={webSearchNativeCodexDraft.mode}
                 onChange={(event) => onDraftChange('mode', event.target.value)}
-                disabled={!canEditManagedWebSearchNativeCodex}
+                disabled={!canEditConfigWebSearchNativeCodex}
                 placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.mode')}
               />
             </div>
@@ -113,7 +113,7 @@ export function InstanceDetailManagedWebSearchNativeCodexPanel({
               <Input
                 value={webSearchNativeCodexDraft.contextSize}
                 onChange={(event) => onDraftChange('contextSize', event.target.value)}
-                disabled={!canEditManagedWebSearchNativeCodex}
+                disabled={!canEditConfigWebSearchNativeCodex}
                 placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.contextSize')}
               />
             </div>
@@ -125,7 +125,7 @@ export function InstanceDetailManagedWebSearchNativeCodexPanel({
               <Textarea
                 value={webSearchNativeCodexDraft.allowedDomains}
                 onChange={(event) => onDraftChange('allowedDomains', event.target.value)}
-                disabled={!canEditManagedWebSearchNativeCodex}
+                disabled={!canEditConfigWebSearchNativeCodex}
                 rows={5}
                 placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.allowedDomains')}
               />
@@ -153,7 +153,7 @@ export function InstanceDetailManagedWebSearchNativeCodexPanel({
               <Input
                 value={webSearchNativeCodexDraft.userLocationCountry}
                 onChange={(event) => onDraftChange('userLocationCountry', event.target.value)}
-                disabled={!canEditManagedWebSearchNativeCodex}
+                disabled={!canEditConfigWebSearchNativeCodex}
                 placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.userLocationCountry')}
               />
             </div>
@@ -165,7 +165,7 @@ export function InstanceDetailManagedWebSearchNativeCodexPanel({
               <Input
                 value={webSearchNativeCodexDraft.userLocationCity}
                 onChange={(event) => onDraftChange('userLocationCity', event.target.value)}
-                disabled={!canEditManagedWebSearchNativeCodex}
+                disabled={!canEditConfigWebSearchNativeCodex}
                 placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.userLocationCity')}
               />
             </div>
@@ -177,7 +177,7 @@ export function InstanceDetailManagedWebSearchNativeCodexPanel({
               <Input
                 value={webSearchNativeCodexDraft.userLocationTimezone}
                 onChange={(event) => onDraftChange('userLocationTimezone', event.target.value)}
-                disabled={!canEditManagedWebSearchNativeCodex}
+                disabled={!canEditConfigWebSearchNativeCodex}
                 placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.userLocationTimezone')}
               />
             </div>
@@ -189,7 +189,7 @@ export function InstanceDetailManagedWebSearchNativeCodexPanel({
               <Textarea
                 value={webSearchNativeCodexDraft.advancedConfig}
                 onChange={(event) => onDraftChange('advancedConfig', event.target.value)}
-                disabled={!canEditManagedWebSearchNativeCodex}
+                disabled={!canEditConfigWebSearchNativeCodex}
                 rows={7}
                 placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.advancedConfig')}
               />

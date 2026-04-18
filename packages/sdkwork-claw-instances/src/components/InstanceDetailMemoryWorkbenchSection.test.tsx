@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { InstanceDetailManagedMemorySection } from './InstanceDetailManagedMemorySection.tsx';
+import { InstanceDetailMemoryWorkbenchSection } from './InstanceDetailMemoryWorkbenchSection.tsx';
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -16,10 +16,10 @@ function runTest(name: string, fn: () => void | Promise<void>) {
 }
 
 await runTest(
-  'InstanceDetailManagedMemorySection composes the dreaming workspace from page-owned state instead of requiring prebuilt section props',
+  'InstanceDetailMemoryWorkbenchSection composes the dreaming workspace from page-owned state instead of requiring prebuilt section props',
   () => {
     const markup = renderToStaticMarkup(
-      <InstanceDetailManagedMemorySection
+      <InstanceDetailMemoryWorkbenchSection
         isLoading={false}
         emptyState={<div>empty-memory</div>}
         loadingLabel="loading"
@@ -37,7 +37,7 @@ await runTest(
           hasMemoryEntries: true,
           dreamDiaryEntries: [{ updatedAt: '2026-04-09T10:30:00.000Z' }],
         }}
-        managedDreamingConfig={{ enabled: true } as any}
+        configDreaming={{ enabled: true } as any}
         dreamingDraft={{
           enabled: true,
           frequency: 'daily',
@@ -50,7 +50,7 @@ await runTest(
         } as any}
         dreamingError={null}
         isSavingDreaming={false}
-        canEditManagedDreaming
+        canEditDreamingConfig
         formatWorkbenchLabel={(value) => `label:${value}`}
         getDangerBadge={(status) => `danger:${status}`}
         getStatusBadge={(status) => `status:${status}`}

@@ -125,7 +125,7 @@ function createDetail(overrides: DetailOverrides = {}): StudioInstanceDetailReco
 }
 
 await runTest(
-  'buildOpenClawProviderWorkspaceState treats managed directory routes as Provider Center managed even without a managed config file path',
+  'buildOpenClawProviderWorkspaceState treats managed directory routes as Provider Center controlled even without an OpenClaw config file path',
   () => {
     const state = providerWorkspacePresentation.buildOpenClawProviderWorkspaceState(
       createDetail({
@@ -159,7 +159,7 @@ await runTest(
       }),
     );
 
-    assert.equal(state.providerCenterManaged, true);
+    assert.equal(state.providerCenterControlled, true);
     assert.equal(state.isProviderConfigReadonly, true);
     assert.equal(state.canManageProviderCatalog, false);
   },
@@ -198,14 +198,14 @@ await runTest(
       },
     } as any);
 
-    assert.equal(state.providerCenterManaged, false);
+    assert.equal(state.providerCenterControlled, false);
     assert.equal(state.isProviderConfigReadonly, false);
     assert.equal(state.canManageProviderCatalog, false);
   },
 );
 
 await runTest(
-  'buildOpenClawProviderWorkspaceState keeps remote openclaw provider config editable when no Provider Center managed route exists',
+  'buildOpenClawProviderWorkspaceState keeps remote openclaw provider config editable when no Provider Center controlled route exists',
   () => {
     const state = providerWorkspacePresentation.buildOpenClawProviderWorkspaceState({
       detail: createDetail({
@@ -232,7 +232,7 @@ await runTest(
       },
     } as any);
 
-    assert.equal(state.providerCenterManaged, false);
+    assert.equal(state.providerCenterControlled, false);
     assert.equal(state.isProviderConfigReadonly, false);
     assert.equal(state.canManageProviderCatalog, false);
   },
@@ -250,7 +250,7 @@ await runTest(
       }),
     );
 
-    assert.equal(state.providerCenterManaged, false);
+    assert.equal(state.providerCenterControlled, false);
     assert.equal(state.isProviderConfigReadonly, false);
     assert.equal(state.canManageProviderCatalog, true);
   },

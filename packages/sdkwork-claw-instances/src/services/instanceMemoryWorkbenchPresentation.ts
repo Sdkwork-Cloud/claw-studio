@@ -7,7 +7,7 @@ export interface OpenClawDreamingFormState {
 }
 
 export interface InstanceMemoryWorkbenchState {
-  hasManagedDreamingPanel: boolean;
+  hasDreamingConfigPanel: boolean;
   hasMemoryEntries: boolean;
   isEmpty: boolean;
   dreamDiaryEntries: InstanceWorkbenchMemoryEntry[];
@@ -45,18 +45,18 @@ export function isDreamDiaryMemoryEntry(entry: InstanceWorkbenchMemoryEntry) {
 }
 
 export function buildInstanceMemoryWorkbenchState(workbench: {
-  managedDreamingConfig?: OpenClawDreamingConfigSnapshot | null;
+  configDreaming?: OpenClawDreamingConfigSnapshot | null;
   memories: InstanceWorkbenchMemoryEntry[];
 } | null | undefined): InstanceMemoryWorkbenchState {
   const memories = workbench?.memories || [];
   const dreamDiaryEntries = memories.filter(isDreamDiaryMemoryEntry);
-  const hasManagedDreamingPanel = Boolean(workbench?.managedDreamingConfig);
+  const hasDreamingConfigPanel = Boolean(workbench?.configDreaming);
   const hasMemoryEntries = memories.length > 0;
 
   return {
-    hasManagedDreamingPanel,
+    hasDreamingConfigPanel,
     hasMemoryEntries,
-    isEmpty: !hasManagedDreamingPanel && !hasMemoryEntries,
+    isEmpty: !hasDreamingConfigPanel && !hasMemoryEntries,
     dreamDiaryEntries,
   };
 }

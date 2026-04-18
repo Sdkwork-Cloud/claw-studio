@@ -22,15 +22,15 @@ function runTest(name: string, fn: () => Promise<void> | void) {
     });
 }
 
-type ManagedConfigSnapshot =
+type ConfigSnapshot =
   Awaited<ReturnType<InstanceWorkbenchServiceDependencies['openClawConfigService']['readConfigSnapshot']>>;
-type ManagedConfigRoute = StudioInstanceDetailRecord['dataAccess']['routes'][number];
-type ManagedChannelField =
+type ConfigRoute = StudioInstanceDetailRecord['dataAccess']['routes'][number];
+type ConfigChannelField =
   ReturnType<InstanceWorkbenchServiceDependencies['openClawConfigService']['getChannelDefinitions']>[number]['fields'][number];
 type LiveTask =
   Awaited<ReturnType<InstanceWorkbenchServiceDependencies['openClawGatewayClient']['listWorkbenchCronJobs']>>[number];
 
-function createChannelField(key: string): ManagedChannelField {
+function createChannelField(key: string): ConfigChannelField {
   const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase());
 
   return {
@@ -40,10 +40,10 @@ function createChannelField(key: string): ManagedChannelField {
   };
 }
 
-function createManagedConfigSnapshot(
+function createConfigSnapshot(
   configPath = '',
-  overrides: Partial<ManagedConfigSnapshot> = {},
-): ManagedConfigSnapshot {
+  overrides: Partial<ConfigSnapshot> = {},
+): ConfigSnapshot {
   return {
     configPath,
     providerSnapshots: [],
@@ -117,10 +117,10 @@ function createManagedConfigSnapshot(
   };
 }
 
-function createManagedConfigRoute(
+function createConfigRoute(
   target: string,
-  overrides: Partial<ManagedConfigRoute> = {},
-): ManagedConfigRoute {
+  overrides: Partial<ConfigRoute> = {},
+): ConfigRoute {
   return {
     id: 'config',
     label: 'Configuration',
@@ -130,7 +130,7 @@ function createManagedConfigRoute(
     target,
     readonly: false,
     authoritative: true,
-    detail: 'Managed config file is writable.',
+    detail: 'OpenClaw config file is writable.',
     source: 'integration',
     ...overrides,
   };
@@ -240,7 +240,7 @@ function resolveConfigPath(detail: StudioInstanceDetailRecord | null | undefined
 const openClawConfigService: InstanceWorkbenchServiceDependencies['openClawConfigService'] = {
   resolveInstanceConfigPath: (detail: StudioInstanceDetailRecord | null | undefined) =>
     resolveConfigPath(detail),
-  readConfigSnapshot: async (configPath: string) => createManagedConfigSnapshot(configPath),
+  readConfigSnapshot: async (configPath: string) => createConfigSnapshot(configPath),
   getChannelDefinitions: () =>
     DEFAULT_CHANNEL_DEFINITIONS.map((definition) => ({
       ...definition,
@@ -249,7 +249,7 @@ const openClawConfigService: InstanceWorkbenchServiceDependencies['openClawConfi
     })),
 };
 
-function createManagedChannelSnapshots(): ManagedConfigSnapshot['channelSnapshots'] {
+function createConfigChannelSnapshots(): ConfigSnapshot['channelSnapshots'] {
   return openClawConfigService.getChannelDefinitions().map((definition) => ({
     id: definition.id,
     name: definition.name,
@@ -859,7 +859,7 @@ await runTest('getInstanceWorkbench builds a remote OpenClaw snapshot from gatew
             id: 'diag-helper',
             name: 'Diagnostics Helper',
             description: 'Troubleshoot runtime incidents.',
-            author: 'Managed OpenClaw',
+            author: 'OpenClaw',
             version: '1.0.0',
             size: '4 KB',
             updatedAt: '2025-03-19T03:00:00.000Z',
@@ -978,7 +978,6 @@ await runTest('getInstanceWorkbench builds a remote OpenClaw snapshot from gatew
   assert.equal(workbench?.sectionAvailability.files.status, 'ready');
   assert.equal(workbench?.sectionAvailability.memory.status, 'ready');
 });
-
 await runTest('getInstanceWorkbench defers OpenClaw file and memory reads until a section requests them', async () => {
   const getAgentFileCalls: string[] = [];
   let listAgentFilesCalls = 0;
@@ -2192,11 +2191,11 @@ await runTest('listInstanceMemories includes Dream Diary and dreaming cadence wh
 });
 
 await runTest('getInstanceWorkbench keeps Provider Center managed llmProviders authoritative while overlaying other live OpenClaw sections', async () => {
-  const managedConfigPath = 'D:/OpenClaw/.openclaw/openclaw.json';
+  const configFilePath = 'D:/OpenClaw/.openclaw/openclaw.json';
   const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot.bind(openClawConfigService);
 
   openClawConfigService.readConfigSnapshot = async (_configPath: string) =>
-    createManagedConfigSnapshot(managedConfigPath, {
+    createConfigSnapshot(configFilePath, {
       providerSnapshots: [
       {
         id: 'sdkwork-local-proxy',
@@ -2251,10 +2250,10 @@ await runTest('getInstanceWorkbench keeps Provider Center managed llmProviders a
                 scope: 'config',
                 mode: 'managedFile',
                 status: 'ready',
-                target: managedConfigPath,
+                target: configFilePath,
                 readonly: false,
                 authoritative: true,
-                detail: 'Managed config file is writable.',
+                detail: 'OpenClaw config file is writable.',
                 source: 'integration',
               },
             ],
@@ -2388,7 +2387,7 @@ await runTest('getInstanceWorkbench keeps Provider Center managed llmProviders a
 });
 
 await runTest(
-  'getInstanceWorkbench does not attach a managed config path for metadata-only config access even when a config artifact is present',
+  'getInstanceWorkbench does not attach a config path for metadata-only config access even when a config artifact is present',
   async () => {
     let readConfigSnapshotCalls = 0;
     const service = createInstanceWorkbenchService({
@@ -2440,7 +2439,7 @@ await runTest(
         ...openClawConfigService,
         readConfigSnapshot: async (configPath: string) => {
           readConfigSnapshotCalls += 1;
-          return createManagedConfigSnapshot(configPath);
+          return createConfigSnapshot(configPath);
         },
       },
     });
@@ -2448,19 +2447,19 @@ await runTest(
     const workbench = await service.getInstanceWorkbench('metadata-only-openclaw');
 
     assert.equal(workbench?.kernelConfig, null);
-    assert.equal(workbench?.managedConfigPath, null);
+    assert.equal('managedConfigPath' in (workbench || {}), false);
     assert.equal(readConfigSnapshotCalls, 0);
   },
 );
 
-await runTest('getInstanceWorkbench keeps managed channel editing metadata when OpenClaw is sourced from live gateway sections', async () => {
-  const managedConfigPath = 'D:/OpenClaw/.openclaw/openclaw.json';
-  const managedChannelSnapshots = createManagedChannelSnapshots();
+await runTest('getInstanceWorkbench keeps config channel editing metadata when OpenClaw is sourced from live gateway sections', async () => {
+  const configFilePath = 'D:/OpenClaw/.openclaw/openclaw.json';
+  const configChannelSnapshots = createConfigChannelSnapshots();
   const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot.bind(openClawConfigService);
 
   openClawConfigService.readConfigSnapshot = async (_configPath: string) =>
-    createManagedConfigSnapshot(managedConfigPath, {
-      channelSnapshots: managedChannelSnapshots,
+    createConfigSnapshot(configFilePath, {
+      channelSnapshots: configChannelSnapshots,
       webSearchConfig: {
       enabled: true,
       provider: 'searxng',
@@ -2547,7 +2546,7 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
             workbench: null,
             dataAccess: {
               routes: [
-                createManagedConfigRoute(managedConfigPath),
+                createConfigRoute(configFilePath),
               ],
             },
           }),
@@ -2603,7 +2602,7 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
     assert.equal(workbench?.sectionCounts.config, 1);
     assert.equal(workbench?.sectionAvailability.config.status, 'ready');
     assert.deepEqual(workbench?.kernelConfig, {
-      configFile: managedConfigPath,
+      configFile: configFilePath,
       configRoot: 'D:/OpenClaw/.openclaw',
       userRoot: 'D:/OpenClaw',
       format: 'json',
@@ -2613,24 +2612,24 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
       resolved: true,
       schemaVersion: null,
     });
-    assert.equal(workbench?.managedConfigPath, managedConfigPath);
-    assert.equal(workbench?.managedChannels?.some((channel) => channel.id === 'qq'), true);
-    assert.equal(workbench?.managedChannels?.some((channel) => channel.id === 'whatsapp'), true);
-    assert.equal(workbench?.managedWebSearchConfig?.provider, 'searxng');
-    assert.equal(workbench?.managedWebSearchConfig?.providers[0]?.baseUrl, 'http://127.0.0.1:8080');
-    assert.equal(workbench?.managedXSearchConfig?.apiKeySource, 'xai-live');
-    assert.equal(workbench?.managedXSearchConfig?.model, 'grok-4-1-fast-non-reasoning');
-    assert.equal(workbench?.managedWebSearchNativeCodexConfig?.mode, 'cached');
+    assert.equal('managedConfigPath' in (workbench || {}), false);
+    assert.equal(workbench?.configChannels?.some((channel) => channel.id === 'qq'), true);
+    assert.equal(workbench?.configChannels?.some((channel) => channel.id === 'whatsapp'), true);
+    assert.equal(workbench?.configWebSearch?.provider, 'searxng');
+    assert.equal(workbench?.configWebSearch?.providers[0]?.baseUrl, 'http://127.0.0.1:8080');
+    assert.equal(workbench?.configXSearch?.apiKeySource, 'xai-live');
+    assert.equal(workbench?.configXSearch?.model, 'grok-4-1-fast-non-reasoning');
+    assert.equal(workbench?.configWebSearchNativeCodex?.mode, 'cached');
     assert.equal(
-      workbench?.managedWebSearchNativeCodexConfig?.userLocation.timezone,
+      workbench?.configWebSearchNativeCodex?.userLocation.timezone,
       'America/New_York',
     );
-    assert.equal(workbench?.managedWebFetchConfig?.fallbackProvider.providerId, 'firecrawl');
-    assert.equal(workbench?.managedWebFetchConfig?.fallbackProvider.baseUrl, 'https://api.firecrawl.dev');
-    assert.equal(workbench?.managedAuthCooldownsConfig?.rateLimitedProfileRotations, 2);
-    assert.equal(workbench?.managedAuthCooldownsConfig?.overloadedBackoffMs, 45000);
-    assert.equal(workbench?.managedDreamingConfig?.enabled, true);
-    assert.equal(workbench?.managedDreamingConfig?.frequency, '0 3 * * *');
+    assert.equal(workbench?.configWebFetch?.fallbackProvider.providerId, 'firecrawl');
+    assert.equal(workbench?.configWebFetch?.fallbackProvider.baseUrl, 'https://api.firecrawl.dev');
+    assert.equal(workbench?.configAuthCooldowns?.rateLimitedProfileRotations, 2);
+    assert.equal(workbench?.configAuthCooldowns?.overloadedBackoffMs, 45000);
+    assert.equal(workbench?.configDreaming?.enabled, true);
+    assert.equal(workbench?.configDreaming?.frequency, '0 3 * * *');
     assert.equal(workbench?.channels.find((channel) => channel.id === 'slack')?.status, 'connected');
     assert.equal(workbench?.channels.find((channel) => channel.id === 'qq')?.status, 'not_configured');
   } finally {
@@ -2703,7 +2702,7 @@ await runTest(
 );
 
 await runTest(
-  'getInstanceWorkbench hides managed config access when the attached config file is missing and the OpenClaw gateway is offline',
+  'getInstanceWorkbench hides config access when the attached config file is missing and the OpenClaw gateway is offline',
   async () => {
     let readConfigSnapshotCalls = 0;
 
@@ -2722,9 +2721,9 @@ await runTest(
             },
             dataAccess: {
               routes: [
-                createManagedConfigRoute('D:/Missing/.openclaw/openclaw.json', {
+                createConfigRoute('D:/Missing/.openclaw/openclaw.json', {
                   readonly: true,
-                  detail: 'Managed config file is readable.',
+                  detail: 'OpenClaw config file is readable.',
                 }),
               ],
             },
@@ -2743,7 +2742,7 @@ await runTest(
         }),
         readConfigSnapshot: async (configPath: string) => {
           readConfigSnapshotCalls += 1;
-          return createManagedConfigSnapshot(configPath);
+          return createConfigSnapshot(configPath);
         },
       },
     });
@@ -2751,7 +2750,7 @@ await runTest(
     const workbench = await service.getInstanceWorkbench('offline-missing-config-openclaw');
 
     assert.equal(workbench?.kernelConfig, null);
-    assert.equal(workbench?.managedConfigPath, null);
+    assert.equal('managedConfigPath' in (workbench || {}), false);
     assert.equal(workbench?.sectionCounts.config, 0);
     assert.equal(workbench?.sectionAvailability.config.status, 'planned');
     assert.equal(readConfigSnapshotCalls, 0);
@@ -2759,20 +2758,20 @@ await runTest(
 );
 
 await runTest(
-  'getInstanceWorkbench keeps managed agent default params visible as inherited sources in workbench agents',
+  'getInstanceWorkbench keeps config-backed agent default params visible as inherited sources in workbench agents',
   async () => {
-    const managedConfigPath = 'D:/OpenClaw/.openclaw/openclaw.json';
+    const configFilePath = 'D:/OpenClaw/.openclaw/openclaw.json';
     const originalReadConfigSnapshot =
       openClawConfigService.readConfigSnapshot.bind(openClawConfigService);
 
     openClawConfigService.readConfigSnapshot = async (_configPath: string) =>
-      createManagedConfigSnapshot(managedConfigPath, {
+      createConfigSnapshot(configFilePath, {
         agentSnapshots: [
         {
           id: 'ops',
           name: 'Ops',
           avatar: 'O',
-          description: 'Ops agent backed by managed config.',
+          description: 'Ops agent backed by config.',
           workspace: 'D:/OpenClaw/.openclaw/workspace',
           agentDir: 'D:/OpenClaw/.openclaw/agents/ops/agent',
           isDefault: true,
@@ -2802,7 +2801,7 @@ await runTest(
               workbench: null,
               dataAccess: {
                 routes: [
-                  createManagedConfigRoute(managedConfigPath),
+                  createConfigRoute(configFilePath),
                 ],
               },
             }),
@@ -2871,22 +2870,22 @@ await runTest(
 );
 
 await runTest(
-  'getInstanceWorkbench preserves channel account runtime state when managed config overlays live OpenClaw sections',
+  'getInstanceWorkbench preserves channel account runtime state when config overlays live OpenClaw sections',
   async () => {
-    const managedConfigPath = 'D:/OpenClaw/.openclaw/openclaw.json';
-    const managedChannelSnapshots = createManagedChannelSnapshots();
+    const configFilePath = 'D:/OpenClaw/.openclaw/openclaw.json';
+    const configChannelSnapshots = createConfigChannelSnapshots();
     const originalReadConfigSnapshot =
       openClawConfigService.readConfigSnapshot.bind(openClawConfigService);
 
     openClawConfigService.readConfigSnapshot = async (_configPath: string) =>
-      createManagedConfigSnapshot(managedConfigPath, {
-        channelSnapshots: managedChannelSnapshots,
+      createConfigSnapshot(configFilePath, {
+        channelSnapshots: configChannelSnapshots,
       });
 
     try {
       const service = createInstanceWorkbenchService({
         studioApi: {
-          getInstanceDetail: async () => createOpenClawDetail('managed-channel-accounts', { workbench: null }),
+          getInstanceDetail: async () => createOpenClawDetail('config-channel-accounts', { workbench: null }),
         },
         openClawGatewayClient: {
           getConfig: async () => ({
@@ -2959,7 +2958,7 @@ await runTest(
         },
       });
 
-      const workbench = await service.getInstanceWorkbench('managed-channel-accounts');
+      const workbench = await service.getInstanceWorkbench('config-channel-accounts');
       const slack = workbench?.channels.find((channel) => channel.id === 'slack');
 
       assert.ok(slack);

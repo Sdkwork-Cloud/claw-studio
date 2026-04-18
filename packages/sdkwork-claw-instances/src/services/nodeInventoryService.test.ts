@@ -60,8 +60,8 @@ function createKernelSnapshot(overrides: Record<string, unknown> = {}) {
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
-      configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
-      runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+      configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+      runtimeHomeDir: 'C:/Users/admin',
       runtimeInstallDir:
         `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-windows-x64`,
     },

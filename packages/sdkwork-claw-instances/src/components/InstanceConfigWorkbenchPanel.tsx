@@ -29,7 +29,7 @@ import {
   type InstanceConfigWorkbenchModeId,
   type InstanceConfigWorkbenchPresentableSection,
   type InstanceConfigWorkbenchSectionCategoryId,
-  type ManagedOpenClawConfigSchemaSnapshot,
+  type OpenClawConfigSchemaSnapshot,
 } from '../services';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
 import { InstanceConfigWorkbenchDiffPanel } from './InstanceConfigWorkbenchDiffPanel.tsx';
@@ -257,8 +257,7 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
   const isZh = i18n.language.startsWith('zh');
   const tr: Translate = (key, en, zh, options = {}) =>
     t(key, { ...options, defaultValue: isZh ? zh : en });
-  const configFilePath =
-    props.workbench.kernelConfig?.configFile || props.workbench.managedConfigPath || null;
+  const configFilePath = props.workbench.kernelConfig?.configFile || null;
 
   const [activeMode, setActiveMode] = useState<InstanceConfigWorkbenchModeId>('config');
   const [activeSectionKey, setActiveSectionKey] = useState<string | null>(null);
@@ -273,7 +272,7 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaSnapshot, setSchemaSnapshot] =
-    useState<ManagedOpenClawConfigSchemaSnapshot | null>(null);
+    useState<OpenClawConfigSchemaSnapshot | null>(null);
   const [envSensitiveVisible, setEnvSensitiveVisible] = useState(false);
   const [rawSensitiveVisible, setRawSensitiveVisible] = useState(false);
   const [validityDismissed, setValidityDismissed] = useState(false);
@@ -305,8 +304,8 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
     }
 
     const [rawResult, schemaResult] = await Promise.allSettled([
-      instanceService.getManagedOpenClawConfigDocument(props.instanceId),
-      instanceService.getManagedOpenClawConfigSchema(props.instanceId),
+      instanceService.getOpenClawConfigDocument(props.instanceId),
+      instanceService.getOpenClawConfigSchema(props.instanceId),
     ]);
 
     if (rawResult.status === 'fulfilled') {
@@ -472,7 +471,7 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
 
     setIsSaving(true);
     try {
-      await instanceService.updateManagedOpenClawConfigDocument(props.instanceId, rawDraft);
+      await instanceService.updateOpenClawConfigDocument(props.instanceId, rawDraft);
       setRawDocument(rawDraft);
       toast.success(
         tr(
@@ -499,7 +498,7 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
 
   const openConfigFile = async () => {
     try {
-      await instanceService.openManagedOpenClawConfigFile(props.instanceId);
+      await instanceService.openClawConfigFile(props.instanceId);
       toast.success(
         tr(
           'instances.detail.instanceWorkbench.config.workbench.toasts.opened',
@@ -527,7 +526,7 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
 
     setIsApplying(true);
     try {
-      await instanceService.applyManagedOpenClawConfigDocument(props.instanceId, rawDraft);
+      await instanceService.applyOpenClawConfigDocument(props.instanceId, rawDraft);
       setRawDocument(rawDraft);
       toast.success(
         tr(
@@ -556,7 +555,7 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
   const runUpdate = async () => {
     setIsUpdating(true);
     try {
-      await instanceService.runManagedOpenClawUpdate(props.instanceId);
+      await instanceService.runOpenClawUpdate(props.instanceId);
       toast.success(
         tr(
           'instances.detail.instanceWorkbench.config.workbench.toasts.updateStarted',

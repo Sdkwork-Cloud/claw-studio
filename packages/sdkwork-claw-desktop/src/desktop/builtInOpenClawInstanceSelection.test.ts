@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { resolveBuiltInOpenClawInstance } from './builtInOpenClawInstanceSelection.ts';
 
-test('resolveBuiltInOpenClawInstance prefers the managed OpenClaw instance that matches the active gateway urls', () => {
+test('resolveBuiltInOpenClawInstance prefers the built-in OpenClaw instance that matches the active gateway urls', () => {
   const resolved = resolveBuiltInOpenClawInstance(
     [
       {
@@ -20,7 +20,7 @@ test('resolveBuiltInOpenClawInstance prefers the managed OpenClaw instance that 
       },
       {
         id: 'managed-openclaw-primary',
-        name: 'Managed OpenClaw Primary',
+        name: 'Built-In OpenClaw Primary',
         runtimeKind: 'openclaw',
         deploymentMode: 'local-managed',
         transportKind: 'openclawGatewayWs',
@@ -45,7 +45,7 @@ test('resolveBuiltInOpenClawInstance honors an explicit preferred instance id wh
     [
       {
         id: 'managed-openclaw-primary',
-        name: 'Managed OpenClaw Primary',
+        name: 'Built-In OpenClaw Primary',
         runtimeKind: 'openclaw',
         deploymentMode: 'local-managed',
         transportKind: 'openclawGatewayWs',
@@ -57,7 +57,7 @@ test('resolveBuiltInOpenClawInstance honors an explicit preferred instance id wh
       },
       {
         id: 'managed-openclaw-secondary',
-        name: 'Managed OpenClaw Secondary',
+        name: 'Built-In OpenClaw Secondary',
         runtimeKind: 'openclaw',
         deploymentMode: 'local-managed',
         transportKind: 'openclawGatewayWs',

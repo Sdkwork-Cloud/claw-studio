@@ -742,7 +742,7 @@ fn studio_public_api_openclaw_gateway_error_response(
         );
     }
 
-    if normalized.contains("does not expose a managed openclaw gateway")
+    if normalized.contains("does not expose an openclaw gateway")
         || normalized.contains("invalid")
         || normalized.contains("required")
         || normalized.contains("unsupported")
@@ -764,7 +764,7 @@ fn studio_public_api_openclaw_gateway_error_response(
         "studio_public_api_openclaw_gateway_unavailable",
         InternalErrorCategory::Dependency,
         &format!(
-            "The canonical studio public API could not reach the managed OpenClaw gateway for studio instance \"{instance_id}\": {error}"
+            "The canonical studio public API could not reach the OpenClaw gateway for studio instance \"{instance_id}\": {error}"
         ),
         StatusCode::SERVICE_UNAVAILABLE,
         true,

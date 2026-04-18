@@ -11,7 +11,7 @@ export type {
   IInstanceService,
   InstanceServiceDependencies,
   InstanceServiceDependencyOverrides,
-  ManagedOpenClawConfigSchemaSnapshot,
+  OpenClawConfigSchemaSnapshot,
   UpdateInstanceDTO,
 } from './instanceServiceCore.ts';
 

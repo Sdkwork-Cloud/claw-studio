@@ -134,8 +134,18 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
       officialRuntimeNotes: [],
       workbench: null,
     } as any,
-    managedConfigPath: 'D:/OpenClaw/.openclaw/openclaw.json',
-    managedChannels: [
+    kernelConfig: {
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configRoot: 'D:/OpenClaw/.openclaw',
+      userRoot: 'D:/OpenClaw',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    },
+    configChannels: [
       {
         id: 'sdkworkchat',
         name: 'Sdkwork Chat',
@@ -166,14 +176,14 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
         fields: [],
       },
     ],
-    managedConfigInsights: {
+    kernelConfigInsights: {
       defaultAgentId: 'main',
       defaultModelRef: 'openai/gpt-5.4',
       sessionsVisibility: 'tree',
       agentToAgentEnabled: true,
       agentToAgentAllow: ['research', 'ops'],
     },
-    managedWebSearchConfig: {
+    configWebSearch: {
       enabled: true,
       provider: 'searxng',
       maxResults: 8,
@@ -194,7 +204,7 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
         },
       ],
     },
-    managedAuthCooldownsConfig: {
+    configAuthCooldowns: {
       rateLimitedProfileRotations: 2,
       overloadedProfileRotations: 1,
       overloadedBackoffMs: 45000,
@@ -253,7 +263,7 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
           primary: 'openai/gpt-5.4',
           fallbacks: ['openai/gpt-5.4-mini'],
         },
-        configSource: 'managedConfig',
+        configSource: 'configFile',
       },
       {
         agent: {
@@ -273,7 +283,7 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
           primary: 'openai/gpt-5.4-mini',
           fallbacks: [],
         },
-        configSource: 'managedConfig',
+        configSource: 'configFile',
       },
     ],
     skills: [],
@@ -493,14 +503,13 @@ await runTest(
 );
 
 await runTest(
-  'buildInstanceConfigWorkbenchModel prefers kernel config truth and authority writability over legacy managed config path fields',
+  'buildInstanceConfigWorkbenchModel prefers kernel config truth and authority writability',
   () => {
     const workbench = createWorkbench();
-    workbench.managedConfigPath = 'D:/Legacy/managed/openclaw.json';
     workbench.kernelConfig = {
-      configFile: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
-      configRoot: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw',
-      userRoot: 'C:/Users/admin/.sdkwork/crawstudio',
+      configFile: 'C:/Users/admin/.openclaw/openclaw.json',
+      configRoot: 'C:/Users/admin/.openclaw',
+      userRoot: 'C:/Users/admin',
       format: 'json',
       access: 'localFs',
       provenance: 'standardUserRoot',
@@ -527,7 +536,7 @@ await runTest(
 
     assert.equal(
       model.document.configPath,
-      'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+      'C:/Users/admin/.openclaw/openclaw.json',
     );
     assert.equal(model.document.isWritable, false);
   },

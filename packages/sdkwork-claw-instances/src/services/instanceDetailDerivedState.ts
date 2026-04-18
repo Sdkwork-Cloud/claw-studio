@@ -15,15 +15,15 @@ import {
 import { buildOpenClawAgentModelOptions } from './openClawAgentPresentation.ts';
 import { buildReadonlyChannelWorkspaceItems } from './openClawChannelPresentation.ts';
 import {
-  buildOpenClawManagedChannelSelectionState,
-  buildOpenClawManagedChannelWorkspaceItems,
-  type OpenClawManagedChannelSelectionState,
-} from './openClawManagedChannelPresentation.ts';
+  buildOpenClawConfigChannelSelectionState,
+  buildOpenClawConfigChannelWorkspaceItems,
+  type OpenClawConfigChannelSelectionState,
+} from './openClawConfigChannelPresentation.ts';
 import {
   buildOpenClawWebSearchProviderSelectionState,
   type OpenClawWebSearchProviderDraftValue,
   type OpenClawWebSearchProviderSelectionState,
-} from './openClawManagedConfigDrafts.ts';
+} from './openClawConfigDrafts.ts';
 import type { OpenClawProviderFormState } from './openClawProviderDrafts.ts';
 import {
   buildOpenClawProviderDialogPresentation,
@@ -48,8 +48,8 @@ export interface BuildInstanceDetailDerivedStateInput {
   providerModelDeleteId: string | null;
   providerDrafts: Record<string, InstanceLLMProviderUpdate>;
   providerRequestDrafts: Record<string, string>;
-  selectedManagedChannelId: string | null;
-  managedChannelDrafts: Record<string, Record<string, string>>;
+  selectedConfigChannelId: string | null;
+  configChannelDrafts: Record<string, Record<string, string>>;
   selectedWebSearchProviderId: string | null;
   webSearchProviderDrafts: Record<string, OpenClawWebSearchProviderDraftValue>;
   providerDialogDraft: OpenClawProviderFormState;
@@ -59,15 +59,15 @@ export interface BuildInstanceDetailDerivedStateInput {
 export interface InstanceDetailDerivedState {
   instance: InstanceWorkbenchSnapshot['instance'] | null;
   detail: InstanceWorkbenchSnapshot['detail'] | null;
-  managedConfigPath: string | null;
-  managedChannels: InstanceWorkbenchSnapshot['managedChannels'];
-  managedWebSearchConfig: InstanceWorkbenchSnapshot['managedWebSearchConfig'] | null;
-  managedXSearchConfig: InstanceWorkbenchSnapshot['managedXSearchConfig'] | null;
-  managedWebSearchNativeCodexConfig:
-    InstanceWorkbenchSnapshot['managedWebSearchNativeCodexConfig'] | null;
-  managedWebFetchConfig: InstanceWorkbenchSnapshot['managedWebFetchConfig'] | null;
-  managedAuthCooldownsConfig: InstanceWorkbenchSnapshot['managedAuthCooldownsConfig'] | null;
-  managedDreamingConfig: InstanceWorkbenchSnapshot['managedDreamingConfig'] | null;
+  configFilePath: string | null;
+  configChannels: InstanceWorkbenchSnapshot['configChannels'];
+  configWebSearch: InstanceWorkbenchSnapshot['configWebSearch'] | null;
+  configXSearch: InstanceWorkbenchSnapshot['configXSearch'] | null;
+  configWebSearchNativeCodex:
+    InstanceWorkbenchSnapshot['configWebSearchNativeCodex'] | null;
+  configWebFetch: InstanceWorkbenchSnapshot['configWebFetch'] | null;
+  configAuthCooldowns: InstanceWorkbenchSnapshot['configAuthCooldowns'] | null;
+  configDreaming: InstanceWorkbenchSnapshot['configDreaming'] | null;
   isOpenClawConfigWritable: boolean;
   canControlLifecycle: boolean;
   canRestartLifecycle: boolean;
@@ -75,25 +75,25 @@ export interface InstanceDetailDerivedState {
   canStartLifecycle: boolean;
   canDelete: boolean;
   canSetActive: boolean;
-  canEditManagedChannels: boolean;
-  canEditManagedWebSearch: boolean;
-  canEditManagedXSearch: boolean;
-  canEditManagedWebSearchNativeCodex: boolean;
-  canEditManagedWebFetch: boolean;
-  canEditManagedAuthCooldowns: boolean;
-  canEditManagedDreaming: boolean;
+  canEditConfigChannels: boolean;
+  canEditConfigWebSearch: boolean;
+  canEditConfigXSearch: boolean;
+  canEditConfigWebSearchNativeCodex: boolean;
+  canEditConfigWebFetch: boolean;
+  canEditConfigAuthCooldowns: boolean;
+  canEditDreamingConfig: boolean;
   isProviderConfigReadonly: boolean;
   canManageOpenClawProviders: boolean;
   canOpenControlPage: boolean;
   memoryWorkbenchState: InstanceMemoryWorkbenchState;
   managementSummary: InstanceManagementSummary | null;
   providerSelectionState: OpenClawProviderSelectionState;
-  managedChannelSelectionState: OpenClawManagedChannelSelectionState;
+  configChannelSelectionState: OpenClawConfigChannelSelectionState;
   webSearchProviderSelectionState: OpenClawWebSearchProviderSelectionState;
   providerDialogPresentation: OpenClawProviderDialogPresentation;
   availableAgentModelOptions: ReturnType<typeof buildOpenClawAgentModelOptions>;
   readonlyChannelWorkspaceItems: ChannelWorkspaceItem[];
-  managedChannelWorkspaceItems: ChannelWorkspaceItem[];
+  configChannelWorkspaceItems: ChannelWorkspaceItem[];
 }
 
 export function buildInstanceDetailDerivedState({
@@ -104,8 +104,8 @@ export function buildInstanceDetailDerivedState({
   providerModelDeleteId,
   providerDrafts,
   providerRequestDrafts,
-  selectedManagedChannelId,
-  managedChannelDrafts,
+  selectedConfigChannelId,
+  configChannelDrafts,
   selectedWebSearchProviderId,
   webSearchProviderDrafts,
   providerDialogDraft,
@@ -116,14 +116,14 @@ export function buildInstanceDetailDerivedState({
   const kernelConfig = workbench?.kernelConfig || null;
   const kernelAuthority =
     workbench?.kernelAuthority || buildKernelAuthorityProjection(detail);
-  const managedConfigPath = workbench?.managedConfigPath || null;
-  const managedChannels = workbench?.managedChannels || [];
-  const managedWebSearchConfig = workbench?.managedWebSearchConfig || null;
-  const managedXSearchConfig = workbench?.managedXSearchConfig || null;
-  const managedWebSearchNativeCodexConfig = workbench?.managedWebSearchNativeCodexConfig || null;
-  const managedWebFetchConfig = workbench?.managedWebFetchConfig || null;
-  const managedAuthCooldownsConfig = workbench?.managedAuthCooldownsConfig || null;
-  const managedDreamingConfig = workbench?.managedDreamingConfig || null;
+  const configFilePath = kernelConfig?.configFile || null;
+  const configChannels = workbench?.configChannels || [];
+  const configWebSearch = workbench?.configWebSearch || null;
+  const configXSearch = workbench?.configXSearch || null;
+  const configWebSearchNativeCodex = workbench?.configWebSearchNativeCodex || null;
+  const configWebFetch = workbench?.configWebFetch || null;
+  const configAuthCooldowns = workbench?.configAuthCooldowns || null;
+  const configDreaming = workbench?.configDreaming || null;
   const actionCapabilityInstance = instance
     ? {
         ...instance,
@@ -144,14 +144,14 @@ export function buildInstanceDetailDerivedState({
   return {
     instance,
     detail,
-    managedConfigPath,
-    managedChannels,
-    managedWebSearchConfig,
-    managedXSearchConfig,
-    managedWebSearchNativeCodexConfig,
-    managedWebFetchConfig,
-    managedAuthCooldownsConfig,
-    managedDreamingConfig,
+    configFilePath,
+    configChannels,
+    configWebSearch,
+    configXSearch,
+    configWebSearchNativeCodex,
+    configWebFetch,
+    configAuthCooldowns,
+    configDreaming,
     isOpenClawConfigWritable,
     canControlLifecycle: actionCapabilities.canControlLifecycle,
     canRestartLifecycle: actionCapabilities.canRestart,
@@ -159,19 +159,19 @@ export function buildInstanceDetailDerivedState({
     canStartLifecycle: actionCapabilities.canStart,
     canDelete: actionCapabilities.canDelete,
     canSetActive: actionCapabilities.canSetActive,
-    canEditManagedChannels: Boolean(id && isOpenClawConfigWritable && managedChannels.length),
-    canEditManagedWebSearch: Boolean(
-      id && isOpenClawConfigWritable && managedWebSearchConfig?.providers.length,
+    canEditConfigChannels: Boolean(id && isOpenClawConfigWritable && configChannels.length),
+    canEditConfigWebSearch: Boolean(
+      id && isOpenClawConfigWritable && configWebSearch?.providers.length,
     ),
-    canEditManagedXSearch: Boolean(id && isOpenClawConfigWritable && managedXSearchConfig),
-    canEditManagedWebSearchNativeCodex: Boolean(
-      id && isOpenClawConfigWritable && managedWebSearchNativeCodexConfig,
+    canEditConfigXSearch: Boolean(id && isOpenClawConfigWritable && configXSearch),
+    canEditConfigWebSearchNativeCodex: Boolean(
+      id && isOpenClawConfigWritable && configWebSearchNativeCodex,
     ),
-    canEditManagedWebFetch: Boolean(id && isOpenClawConfigWritable && managedWebFetchConfig),
-    canEditManagedAuthCooldowns: Boolean(
-      id && isOpenClawConfigWritable && managedAuthCooldownsConfig,
+    canEditConfigWebFetch: Boolean(id && isOpenClawConfigWritable && configWebFetch),
+    canEditConfigAuthCooldowns: Boolean(
+      id && isOpenClawConfigWritable && configAuthCooldowns,
     ),
-    canEditManagedDreaming: Boolean(id && isOpenClawConfigWritable && managedDreamingConfig),
+    canEditDreamingConfig: Boolean(id && isOpenClawConfigWritable && configDreaming),
     isProviderConfigReadonly: providerWorkspaceState.isProviderConfigReadonly,
     canManageOpenClawProviders: providerWorkspaceState.canManageProviderCatalog,
     canOpenControlPage: Boolean(
@@ -188,13 +188,13 @@ export function buildInstanceDetailDerivedState({
       providerRequestDrafts,
       t,
     }),
-    managedChannelSelectionState: buildOpenClawManagedChannelSelectionState({
-      managedChannels,
-      selectedManagedChannelId,
-      managedChannelDrafts,
+    configChannelSelectionState: buildOpenClawConfigChannelSelectionState({
+      configChannels,
+      selectedConfigChannelId,
+      configChannelDrafts,
     }),
     webSearchProviderSelectionState: buildOpenClawWebSearchProviderSelectionState({
-      config: managedWebSearchConfig,
+      config: configWebSearch,
       selectedProviderId: selectedWebSearchProviderId,
       providerDrafts: webSearchProviderDrafts,
     }),
@@ -204,10 +204,10 @@ export function buildInstanceDetailDerivedState({
     }),
     availableAgentModelOptions: buildOpenClawAgentModelOptions(workbench?.llmProviders),
     readonlyChannelWorkspaceItems: buildReadonlyChannelWorkspaceItems(workbench?.channels),
-    managedChannelWorkspaceItems: buildOpenClawManagedChannelWorkspaceItems({
-      managedChannels,
+    configChannelWorkspaceItems: buildOpenClawConfigChannelWorkspaceItems({
+      configChannels,
       runtimeChannels: workbench?.channels,
-      managedChannelDrafts,
+      configChannelDrafts,
     }),
   };
 }

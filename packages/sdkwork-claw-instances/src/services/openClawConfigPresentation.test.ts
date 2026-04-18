@@ -13,15 +13,15 @@ function runTest(name: string, fn: () => void | Promise<void>) {
     });
 }
 
-async function loadManagedConfigPresentationModule() {
-  const moduleUrl = new URL('./openClawManagedConfigPresentation.ts', import.meta.url);
+async function loadConfigPresentationModule() {
+  const moduleUrl = new URL('./openClawConfigPresentation.ts', import.meta.url);
 
   assert.ok(
     existsSync(moduleUrl),
-    'expected openClawManagedConfigPresentation.ts to exist',
+    'expected openClawConfigPresentation.ts to exist',
   );
 
-  return import('./openClawManagedConfigPresentation.ts');
+  return import('./openClawConfigPresentation.ts');
 }
 
 function createWebSearchProviderFixture(overrides: Record<string, unknown> = {}) {
@@ -37,10 +37,10 @@ function createWebSearchProviderFixture(overrides: Record<string, unknown> = {})
 }
 
 await runTest(
-  'buildOpenClawManagedConfigDraftChangeHandlers routes web-search shared and provider draft changes through page-owned setters',
+  'buildOpenClawConfigDraftChangeHandlers routes web-search shared and provider draft changes through page-owned setters',
   async () => {
-    const { buildOpenClawManagedConfigDraftChangeHandlers } =
-      await loadManagedConfigPresentationModule();
+    const { buildOpenClawConfigDraftChangeHandlers } =
+      await loadConfigPresentationModule();
     let webSearchError: string | null = 'stale web search error';
     let webSearchSharedDraft = {
       enabled: true,
@@ -58,7 +58,7 @@ await runTest(
       },
     };
 
-    const handlers = buildOpenClawManagedConfigDraftChangeHandlers({
+    const handlers = buildOpenClawConfigDraftChangeHandlers({
       selectedWebSearchProvider: createWebSearchProviderFixture(),
       setWebSearchError: (value) => {
         webSearchError = value;
@@ -106,7 +106,7 @@ await runTest(
       },
     });
 
-    const noProviderHandlers = buildOpenClawManagedConfigDraftChangeHandlers({
+    const noProviderHandlers = buildOpenClawConfigDraftChangeHandlers({
       selectedWebSearchProvider: null,
       setWebSearchError: (value) => {
         webSearchError = value;
@@ -146,10 +146,10 @@ await runTest(
 );
 
 await runTest(
-  'buildOpenClawManagedConfigDraftChangeHandlers clears per-surface errors and patches the remaining managed-config drafts',
+  'buildOpenClawConfigDraftChangeHandlers clears per-surface errors and patches the remaining config drafts',
   async () => {
-    const { buildOpenClawManagedConfigDraftChangeHandlers } =
-      await loadManagedConfigPresentationModule();
+    const { buildOpenClawConfigDraftChangeHandlers } =
+      await loadConfigPresentationModule();
     let xSearchError: string | null = 'stale x-search error';
     let xSearchDraft = {
       enabled: true,
@@ -207,7 +207,7 @@ await runTest(
       advancedConfig: '{}',
     };
 
-    const handlers = buildOpenClawManagedConfigDraftChangeHandlers({
+    const handlers = buildOpenClawConfigDraftChangeHandlers({
       selectedWebSearchProvider: null,
       setWebSearchError: () => undefined,
       setWebSearchSharedDraft: () => undefined,

@@ -357,9 +357,9 @@ mod tests {
         )
         .ends_with("user-home/.openclaw/openclaw.json"));
         assert!(normalize_path_suffix(
-            payload["activeRuntime"]["authority"]["managedConfigPath"]
+            payload["activeRuntime"]["authority"]["configFilePath"]
                 .as_str()
-                .expect("active runtime managed config path"),
+                .expect("active runtime config file path"),
         )
         .ends_with("user-home/.openclaw/openclaw.json"));
         assert_eq!(payload["openClawRuntime"]["runtimeId"], "openclaw");
@@ -387,9 +387,9 @@ mod tests {
         )
         .ends_with("user-home/.openclaw/openclaw.json"));
         assert!(normalize_path_suffix(
-            payload["openClawRuntime"]["authority"]["managedConfigPath"]
+            payload["openClawRuntime"]["authority"]["configFilePath"]
                 .as_str()
-                .expect("authority managed config path"),
+                .expect("authority config file path"),
         )
         .ends_with("user-home/.openclaw/openclaw.json"));
         let owned_runtime_roots = payload["openClawRuntime"]["authority"]["ownedRuntimeRoots"]

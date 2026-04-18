@@ -4,7 +4,7 @@ import {
   applyOpenClawNullableDraftFieldChange,
   applyOpenClawWebSearchProviderDraftChange,
   buildOpenClawWebSearchProviderSelectionState,
-  createOpenClawManagedConfigResetState,
+  createOpenClawConfigResetState,
   buildOpenClawAuthCooldownsSaveInput,
   buildOpenClawWebFetchSaveInput,
   buildOpenClawWebSearchNativeCodexSaveInput,
@@ -19,7 +19,7 @@ import {
   createOpenClawWebSearchProviderDraft,
   createOpenClawWebSearchSharedDraft,
   createOpenClawXSearchDraft,
-} from './openClawManagedConfigDrafts.ts';
+} from './openClawConfigDrafts.ts';
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -238,7 +238,7 @@ await runTest('buildOpenClawAuthCooldownsSaveInput omits blank values and reject
 });
 
 await runTest(
-  'managed config draft factories map snapshot values into editable page drafts',
+  'config draft factories map snapshot values into editable page drafts',
   () => {
     assert.deepEqual(
       createOpenClawWebSearchDraftState({
@@ -533,7 +533,7 @@ await runTest(
   },
 );
 
-await runTest('managed config draft factories preserve null and empty fallback behavior', () => {
+await runTest('config draft factories preserve null and empty fallback behavior', () => {
   assert.deepEqual(
     createOpenClawWebSearchDraftState({
       config: {
@@ -638,8 +638,8 @@ await runTest('managed config draft factories preserve null and empty fallback b
   });
 });
 
-await runTest('managed config reset state centralizes page reset baselines for all managed config surfaces', () => {
-  assert.deepEqual(createOpenClawManagedConfigResetState(), {
+await runTest('config reset state centralizes page reset baselines for all config surfaces', () => {
+  assert.deepEqual(createOpenClawConfigResetState(), {
     webSearch: {
       selectedProviderId: null,
       sharedDraft: null,

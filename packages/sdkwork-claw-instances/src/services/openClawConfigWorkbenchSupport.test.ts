@@ -12,38 +12,38 @@ function runTest(name: string, fn: () => void | Promise<void>) {
     });
 }
 
-let managedConfigWorkbenchSupportModule:
-  | typeof import('./openClawManagedConfigWorkbenchSupport.ts')
+let configWorkbenchSupportModule:
+  | typeof import('./openClawConfigWorkbenchSupport.ts')
   | undefined;
 
 try {
-  managedConfigWorkbenchSupportModule = await import('./openClawManagedConfigWorkbenchSupport.ts');
+  configWorkbenchSupportModule = await import('./openClawConfigWorkbenchSupport.ts');
 } catch {
-  managedConfigWorkbenchSupportModule = undefined;
+  configWorkbenchSupportModule = undefined;
 }
 
 await runTest(
-  'openClawManagedConfigWorkbenchSupport exposes shared managed config workbench helpers',
+  'openClawConfigWorkbenchSupport exposes shared config workbench helpers',
   () => {
     assert.ok(
-      managedConfigWorkbenchSupportModule,
-      'Expected openClawManagedConfigWorkbenchSupport.ts to exist',
+      configWorkbenchSupportModule,
+      'Expected openClawConfigWorkbenchSupport.ts to exist',
     );
     assert.equal(
-      typeof managedConfigWorkbenchSupportModule?.buildManagedConfigWorkbenchState,
+      typeof configWorkbenchSupportModule?.buildConfigWorkbenchState,
       'function',
     );
     assert.equal(
-      typeof managedConfigWorkbenchSupportModule?.createEmptyManagedOpenClawConfigSnapshot,
+      typeof configWorkbenchSupportModule?.createEmptyOpenClawConfigSnapshot,
       'function',
     );
   },
 );
 
 await runTest(
-  'buildManagedConfigWorkbenchState clones managed config surfaces and derives insights',
+  'buildConfigWorkbenchState clones config surfaces and derives kernel insights',
   () => {
-    const managedConfigSnapshot = {
+    const configSnapshot = {
       configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
       providerSnapshots: [],
       agentSnapshots: [
@@ -185,64 +185,64 @@ await runTest(
       },
     } as any;
 
-    const managedConfigWorkbenchState =
-      managedConfigWorkbenchSupportModule?.buildManagedConfigWorkbenchState(
+    const configWorkbenchState =
+      configWorkbenchSupportModule?.buildConfigWorkbenchState(
         'D:/OpenClaw/.openclaw/openclaw.json',
-        managedConfigSnapshot,
+        configSnapshot,
       );
 
-    assert.equal(managedConfigWorkbenchState?.managedConfigPath, 'D:/OpenClaw/.openclaw/openclaw.json');
-    assert.equal(managedConfigWorkbenchState?.configSectionCount, 1);
-    assert.equal(managedConfigWorkbenchState?.managedConfigInsights?.defaultAgentId, 'Ops Lead');
+    assert.equal('managedConfigPath' in (configWorkbenchState || {}), false);
+    assert.equal(configWorkbenchState?.configSectionCount, 1);
+    assert.equal(configWorkbenchState?.kernelConfigInsights?.defaultAgentId, 'Ops Lead');
     assert.equal(
-      managedConfigWorkbenchState?.managedConfigInsights?.defaultModelRef,
+      configWorkbenchState?.kernelConfigInsights?.defaultModelRef,
       'openai/gpt-5.4',
     );
-    assert.equal(managedConfigWorkbenchState?.managedConfigInsights?.sessionsVisibility, 'tree');
-    assert.equal(managedConfigWorkbenchState?.managedConfigInsights?.agentToAgentEnabled, true);
+    assert.equal(configWorkbenchState?.kernelConfigInsights?.sessionsVisibility, 'tree');
+    assert.equal(configWorkbenchState?.kernelConfigInsights?.agentToAgentEnabled, true);
     assert.deepEqual(
-      managedConfigWorkbenchState?.managedConfigInsights?.agentToAgentAllow,
+      configWorkbenchState?.kernelConfigInsights?.agentToAgentAllow,
       ['ops-lead', 'reviewer'],
     );
 
-    managedConfigWorkbenchState?.managedChannels?.[0]?.setupSteps.push('Invite bot');
-    if (managedConfigWorkbenchState?.managedWebSearchConfig) {
-      managedConfigWorkbenchState.managedWebSearchConfig.providers[0]!.name = 'Changed';
+    configWorkbenchState?.configChannels?.[0]?.setupSteps.push('Invite bot');
+    if (configWorkbenchState?.configWebSearch) {
+      configWorkbenchState.configWebSearch.providers[0]!.name = 'Changed';
     }
-    managedConfigWorkbenchState?.managedWebSearchNativeCodexConfig?.allowedDomains.push(
+    configWorkbenchState?.configWebSearchNativeCodex?.allowedDomains.push(
       'sdkwork.dev',
     );
-    if (managedConfigWorkbenchState?.managedWebFetchConfig) {
-      managedConfigWorkbenchState.managedWebFetchConfig.fallbackProvider.name = 'Changed';
+    if (configWorkbenchState?.configWebFetch) {
+      configWorkbenchState.configWebFetch.fallbackProvider.name = 'Changed';
     }
-    if (managedConfigWorkbenchState?.managedAuthCooldownsConfig) {
-      managedConfigWorkbenchState.managedAuthCooldownsConfig.failureWindowHours = 12;
+    if (configWorkbenchState?.configAuthCooldowns) {
+      configWorkbenchState.configAuthCooldowns.failureWindowHours = 12;
     }
-    if (managedConfigWorkbenchState?.managedDreamingConfig) {
-      managedConfigWorkbenchState.managedDreamingConfig.frequency = '0 1 * * *';
+    if (configWorkbenchState?.configDreaming) {
+      configWorkbenchState.configDreaming.frequency = '0 1 * * *';
     }
 
-    assert.deepEqual(managedConfigSnapshot.channelSnapshots[0]?.setupSteps, ['Configure token']);
-    assert.equal(managedConfigSnapshot.webSearchConfig.providers[0]?.name, 'SearXNG');
-    assert.deepEqual(managedConfigSnapshot.webSearchNativeCodexConfig.allowedDomains, [
+    assert.deepEqual(configSnapshot.channelSnapshots[0]?.setupSteps, ['Configure token']);
+    assert.equal(configSnapshot.webSearchConfig.providers[0]?.name, 'SearXNG');
+    assert.deepEqual(configSnapshot.webSearchNativeCodexConfig.allowedDomains, [
       'example.com',
       'openai.com',
     ]);
-    assert.equal(managedConfigSnapshot.webFetchConfig.fallbackProvider.name, 'Firecrawl Fetch');
-    assert.equal(managedConfigSnapshot.authCooldownsConfig.failureWindowHours, 24);
-    assert.equal(managedConfigSnapshot.dreamingConfig.frequency, '0 3 * * *');
+    assert.equal(configSnapshot.webFetchConfig.fallbackProvider.name, 'Firecrawl Fetch');
+    assert.equal(configSnapshot.authCooldownsConfig.failureWindowHours, 24);
+    assert.equal(configSnapshot.dreamingConfig.frequency, '0 3 * * *');
   },
 );
 
 await runTest(
-  'createEmptyManagedOpenClawConfigSnapshot returns isolated defaults for missing managed config state',
+  'createEmptyOpenClawConfigSnapshot returns isolated defaults for missing config state',
   () => {
     const first =
-      managedConfigWorkbenchSupportModule?.createEmptyManagedOpenClawConfigSnapshot(
+      configWorkbenchSupportModule?.createEmptyOpenClawConfigSnapshot(
         'D:/OpenClaw/.openclaw/openclaw.json',
       );
     const second =
-      managedConfigWorkbenchSupportModule?.createEmptyManagedOpenClawConfigSnapshot(
+      configWorkbenchSupportModule?.createEmptyOpenClawConfigSnapshot(
         'D:/OpenClaw/.openclaw/openclaw.json',
       );
 

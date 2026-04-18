@@ -55,9 +55,9 @@ await runTest('kernelModel accepts KernelConfig and KernelAuthority standard sha
   assert.ok(kernelModelModule, 'Expected kernelModel.ts to exist');
 
   const config: import('./kernelModel.ts').KernelConfig = {
-    configFile: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
-    configRoot: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw',
-    userRoot: 'C:/Users/admin/.sdkwork/crawstudio',
+    configFile: 'C:/Users/admin/.openclaw/openclaw.json',
+    configRoot: 'C:/Users/admin/.openclaw',
+    userRoot: 'C:/Users/admin',
     format: 'json',
     access: 'localFs',
     provenance: 'standardUserRoot',
@@ -78,7 +78,7 @@ await runTest('kernelModel accepts KernelConfig and KernelAuthority standard sha
     writable: true,
   };
 
-  assert.equal(config.configFile, 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json');
+  assert.equal(config.configFile, 'C:/Users/admin/.openclaw/openclaw.json');
   assert.equal(authority.owner, 'appManaged');
   assert.equal(authority.controlPlane, 'desktopHost');
 });

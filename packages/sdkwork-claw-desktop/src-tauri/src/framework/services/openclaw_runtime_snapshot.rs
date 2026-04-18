@@ -135,7 +135,7 @@ impl OpenClawRuntimeSnapshotService {
                 .map(|health| health.base_url.clone()),
             local_ai_proxy_snapshot_path: path_string(&paths.local_ai_proxy_snapshot_file),
             authority: DesktopOpenClawRuntimeAuthorityInfo {
-                managed_config_path: path_string(&authority.managed_config_path),
+                config_file_path: path_string(&authority.config_file_path),
                 owned_runtime_roots: authority
                     .owned_runtime_roots
                     .iter()
@@ -227,7 +227,7 @@ fn build_startup_chain(
             local_ai_proxy_status.health.as_ref(),
         ) {
             (LocalAiProxyLifecycle::Running, Some(health)) => format!(
-                "Local AI proxy is serving managed OpenClaw traffic at {}.",
+                "Local AI proxy is serving OpenClaw traffic at {}.",
                 health.base_url
             ),
             (LocalAiProxyLifecycle::Failed, _) => local_ai_proxy_status
@@ -273,7 +273,7 @@ fn build_provider_projection(
     if let Some(error) = config_error {
         return ProviderProjectionEvidence {
             status: "degraded".to_string(),
-            detail: format!("Managed OpenClaw config could not be parsed: {error}"),
+            detail: format!("OpenClaw config file could not be parsed: {error}"),
             base_url: None,
             api: None,
             auth: None,
@@ -493,13 +493,13 @@ fn readable_openclaw_config_path(paths: &AppPaths) -> PathBuf {
 
 fn active_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
-        .active_managed_config_path("openclaw", paths)
+        .active_config_file_path("openclaw", paths)
         .unwrap_or_else(|_| {
-            paths
-                .kernel_paths("openclaw")
-                .map(|kernel| kernel.managed_config_file)
-                .unwrap_or_else(|_| paths.openclaw_config_file.clone())
-        })
+                paths
+                    .kernel_paths("openclaw")
+                    .map(|kernel| kernel.config_file)
+                    .unwrap_or_else(|_| paths.openclaw_config_file.clone())
+            })
 }
 
 fn path_string(path: &Path) -> String {

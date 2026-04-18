@@ -11,7 +11,7 @@ import type {
 } from '@sdkwork/claw-infrastructure';
 import type {
   OpenClawChannelDefinition,
-  OpenClawConfigSnapshot as ManagedOpenClawConfigSnapshot,
+  OpenClawConfigSnapshot,
 } from '@sdkwork/claw-core';
 import type {
   Skill,
@@ -60,8 +60,8 @@ import {
 } from './openClawTaskNormalization.ts';
 import { buildOpenClawRuntimeMemories as buildOpenClawRuntimeMemoryEntries } from './openClawRuntimeMemorySupport.ts';
 import {
-  createEmptyManagedOpenClawConfigSnapshot,
-} from './openClawManagedConfigWorkbenchSupport.ts';
+  createEmptyOpenClawConfigSnapshot,
+} from './openClawConfigWorkbenchSupport.ts';
 import {
   buildOpenClawLlmProviders,
 } from './openClawProviderWorkbenchSupport.ts';
@@ -138,7 +138,7 @@ export interface InstanceWorkbenchServiceDependencies {
     getConfigDocumentPathInfo?(
       configPath: string,
     ): Promise<{ exists: boolean; kind: 'file' | 'directory' | 'missing' }>;
-    readConfigSnapshot(configPath: string): Promise<ManagedOpenClawConfigSnapshot>;
+    readConfigSnapshot(configPath: string): Promise<OpenClawConfigSnapshot>;
     getChannelDefinitions(): OpenClawChannelDefinition[];
   };
   openClawGatewayClient: {
@@ -347,7 +347,7 @@ function createDefaultDependencies(): InstanceWorkbenchServiceDependencies {
     },
     openClawConfigService: {
       resolveInstanceConfigPath: resolveFallbackInstanceConfigPath,
-      readConfigSnapshot: async (configPath) => createEmptyManagedOpenClawConfigSnapshot(configPath),
+      readConfigSnapshot: async (configPath) => createEmptyOpenClawConfigSnapshot(configPath),
       getChannelDefinitions: () => [],
     },
     openClawGatewayClient: {
@@ -552,7 +552,7 @@ class InstanceWorkbenchService {
     this.dependencies = dependencies;
   }
 
-  private async resolveAttachedManagedConfigPath(
+  private async resolveAttachedConfigFilePath(
     detail: StudioInstanceDetailRecord | null | undefined,
   ): Promise<string | null> {
     if (!isOpenClawDetail(detail)) {
@@ -670,10 +670,10 @@ class InstanceWorkbenchService {
       };
     }
 
-    const managedConfigPath = await this.resolveAttachedManagedConfigPath(detail);
-    const managedConfigSnapshot = managedConfigPath
+    const attachedConfigFilePath = await this.resolveAttachedConfigFilePath(detail);
+    const configSnapshot = attachedConfigFilePath
       ? await this.dependencies.openClawConfigService
-          .readConfigSnapshot(managedConfigPath)
+          .readConfigSnapshot(attachedConfigFilePath)
           .catch(() => null)
       : null;
 
@@ -681,8 +681,8 @@ class InstanceWorkbenchService {
       detail,
       backendWorkbench: mapBackendWorkbench(
         detail,
-        managedConfigPath,
-        managedConfigSnapshot,
+        attachedConfigFilePath,
+        configSnapshot,
       ),
     };
   }
@@ -794,11 +794,11 @@ class InstanceWorkbenchService {
   private async getOpenClawWorkbench(
     instanceId: string,
     detail: StudioInstanceDetailRecord,
-    managedConfigSnapshot: ManagedOpenClawConfigSnapshot | null,
+    configSnapshot: OpenClawConfigSnapshot | null,
   ): Promise<InstanceWorkbenchSnapshot> {
-    const managedConfigPath = await this.resolveAttachedManagedConfigPath(detail);
+    const attachedConfigFilePath = await this.resolveAttachedConfigFilePath(detail);
     const backendSnapshot = detail.workbench
-      ? mapBackendWorkbench(detail, managedConfigPath, managedConfigSnapshot)
+      ? mapBackendWorkbench(detail, attachedConfigFilePath, configSnapshot)
       : null;
     if (detail.workbench) {
       this.rememberBackendTaskExecutions(detail);
@@ -825,9 +825,9 @@ class InstanceWorkbenchService {
           memories: [],
           tools: [],
        }),
-      managedConfigPath ?? null,
-      managedConfigSnapshot,
-      buildOpenClawChannelCatalog(this.dependencies.openClawConfigService, managedConfigSnapshot),
+      attachedConfigFilePath ?? null,
+      configSnapshot,
+      buildOpenClawChannelCatalog(this.dependencies.openClawConfigService, configSnapshot),
     );
     const gatewayTaskIds = new Set(
       normalizeWorkbenchTaskCollection(liveSnapshot?.tasks || []).map((task) => task.id),
@@ -845,23 +845,27 @@ class InstanceWorkbenchService {
 
   async getInstanceWorkbench(id: string): Promise<InstanceWorkbenchSnapshot | null> {
     const detail = await this.dependencies.studioApi.getInstanceDetail(id);
-    const managedConfigPath = await this.resolveAttachedManagedConfigPath(detail);
-    const managedConfigSnapshot = managedConfigPath
+    const attachedConfigFilePath = await this.resolveAttachedConfigFilePath(detail);
+    const configSnapshot = attachedConfigFilePath
       ? await this.dependencies.openClawConfigService
-          .readConfigSnapshot(managedConfigPath)
+          .readConfigSnapshot(attachedConfigFilePath)
           .catch(() => null)
       : null;
 
     if (isOpenClawDetail(detail)) {
-      return this.getOpenClawWorkbench(id, detail, managedConfigSnapshot);
+      return this.getOpenClawWorkbench(id, detail, configSnapshot);
     }
 
     if (detail?.workbench) {
-      return mapBackendWorkbench(detail, managedConfigPath, managedConfigSnapshot);
+      return mapBackendWorkbench(detail, attachedConfigFilePath, configSnapshot);
     }
 
     if (detail) {
-      return buildDetailOnlyWorkbenchSnapshot(detail, managedConfigPath, managedConfigSnapshot);
+      return buildDetailOnlyWorkbenchSnapshot(
+        detail,
+        attachedConfigFilePath,
+        configSnapshot,
+      );
     }
 
     const [liveInstance, liveConfig, liveToken, liveLogs] = await Promise.all([

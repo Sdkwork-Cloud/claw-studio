@@ -6,8 +6,8 @@ import {
   createOpenClawAgentWorkspaceResetState,
 } from './openClawAgentPresentation.ts';
 import {
-  createOpenClawManagedConfigResetState,
-} from './openClawManagedConfigDrafts.ts';
+  createOpenClawConfigResetState,
+} from './openClawConfigDrafts.ts';
 import {
   createOpenClawProviderDialogResetDrafts,
   createOpenClawProviderWorkspaceResetState,
@@ -37,7 +37,7 @@ await runTest(
 
     const providerWorkspaceResetState =
       createOpenClawProviderWorkspaceResetState(providerDialogResetDrafts);
-    const managedConfigResetState = createOpenClawManagedConfigResetState();
+    const configResetState = createOpenClawConfigResetState();
     const agentWorkspaceResetState = createOpenClawAgentWorkspaceResetState();
     const workbenchHydrationResetState = createInstanceWorkbenchHydrationResetState();
 
@@ -53,7 +53,7 @@ await runTest(
       providerModelDeleteId: 'stale-model' as string | null,
       providerDeleteId: 'stale-provider' as string | null,
       selectedWebSearchProviderId: 'stale-provider' as string | null,
-      webSearchSharedDraft: { enabled: true } as typeof managedConfigResetState.webSearch.sharedDraft,
+      webSearchSharedDraft: { enabled: true } as typeof configResetState.webSearch.sharedDraft,
       webSearchProviderDrafts: {
         stale: {
           apiKeySource: 'env:STALE',
@@ -64,14 +64,14 @@ await runTest(
       },
       webSearchError: 'stale-error' as string | null,
       isSavingWebSearch: true,
-      xSearchDraft: { enabled: true } as typeof managedConfigResetState.xSearch.draft,
+      xSearchDraft: { enabled: true } as typeof configResetState.xSearch.draft,
       xSearchError: 'stale-error' as string | null,
       isSavingXSearch: true,
       webSearchNativeCodexDraft:
-        { enabled: true } as typeof managedConfigResetState.webSearchNativeCodex.draft,
+        { enabled: true } as typeof configResetState.webSearchNativeCodex.draft,
       webSearchNativeCodexError: 'stale-error' as string | null,
       isSavingWebSearchNativeCodex: true,
-      webFetchSharedDraft: { enabled: true } as typeof managedConfigResetState.webFetch.sharedDraft,
+      webFetchSharedDraft: { enabled: true } as typeof configResetState.webFetch.sharedDraft,
       webFetchFallbackDraft: {
         apiKeySource: 'env:STALE',
         baseUrl: 'https://stale.example',
@@ -80,10 +80,10 @@ await runTest(
       webFetchError: 'stale-error' as string | null,
       isSavingWebFetch: true,
       authCooldownsDraft:
-        { rateLimitedProfileRotations: '10' } as typeof managedConfigResetState.authCooldowns.draft,
+        { rateLimitedProfileRotations: '10' } as typeof configResetState.authCooldowns.draft,
       authCooldownsError: 'stale-error' as string | null,
       isSavingAuthCooldowns: true,
-      dreamingDraft: { goal: 'stale' } as typeof managedConfigResetState.dreaming.draft,
+      dreamingDraft: { goal: 'stale' } as typeof configResetState.dreaming.draft,
       dreamingError: 'stale-error' as string | null,
       isSavingDreaming: true,
       isAgentDialogOpen: true,
@@ -236,27 +236,27 @@ await runTest(
       providerModelDialogDraft: providerWorkspaceResetState.providerModelDialogDraft,
       providerModelDeleteId: providerWorkspaceResetState.providerModelDeleteId,
       providerDeleteId: providerWorkspaceResetState.providerDeleteId,
-      selectedWebSearchProviderId: managedConfigResetState.webSearch.selectedProviderId,
-      webSearchSharedDraft: managedConfigResetState.webSearch.sharedDraft,
-      webSearchProviderDrafts: managedConfigResetState.webSearch.providerDrafts,
-      webSearchError: managedConfigResetState.webSearch.error,
-      isSavingWebSearch: managedConfigResetState.webSearch.isSaving,
-      xSearchDraft: managedConfigResetState.xSearch.draft,
-      xSearchError: managedConfigResetState.xSearch.error,
-      isSavingXSearch: managedConfigResetState.xSearch.isSaving,
-      webSearchNativeCodexDraft: managedConfigResetState.webSearchNativeCodex.draft,
-      webSearchNativeCodexError: managedConfigResetState.webSearchNativeCodex.error,
-      isSavingWebSearchNativeCodex: managedConfigResetState.webSearchNativeCodex.isSaving,
-      webFetchSharedDraft: managedConfigResetState.webFetch.sharedDraft,
-      webFetchFallbackDraft: managedConfigResetState.webFetch.fallbackDraft,
-      webFetchError: managedConfigResetState.webFetch.error,
-      isSavingWebFetch: managedConfigResetState.webFetch.isSaving,
-      authCooldownsDraft: managedConfigResetState.authCooldowns.draft,
-      authCooldownsError: managedConfigResetState.authCooldowns.error,
-      isSavingAuthCooldowns: managedConfigResetState.authCooldowns.isSaving,
-      dreamingDraft: managedConfigResetState.dreaming.draft,
-      dreamingError: managedConfigResetState.dreaming.error,
-      isSavingDreaming: managedConfigResetState.dreaming.isSaving,
+      selectedWebSearchProviderId: configResetState.webSearch.selectedProviderId,
+      webSearchSharedDraft: configResetState.webSearch.sharedDraft,
+      webSearchProviderDrafts: configResetState.webSearch.providerDrafts,
+      webSearchError: configResetState.webSearch.error,
+      isSavingWebSearch: configResetState.webSearch.isSaving,
+      xSearchDraft: configResetState.xSearch.draft,
+      xSearchError: configResetState.xSearch.error,
+      isSavingXSearch: configResetState.xSearch.isSaving,
+      webSearchNativeCodexDraft: configResetState.webSearchNativeCodex.draft,
+      webSearchNativeCodexError: configResetState.webSearchNativeCodex.error,
+      isSavingWebSearchNativeCodex: configResetState.webSearchNativeCodex.isSaving,
+      webFetchSharedDraft: configResetState.webFetch.sharedDraft,
+      webFetchFallbackDraft: configResetState.webFetch.fallbackDraft,
+      webFetchError: configResetState.webFetch.error,
+      isSavingWebFetch: configResetState.webFetch.isSaving,
+      authCooldownsDraft: configResetState.authCooldowns.draft,
+      authCooldownsError: configResetState.authCooldowns.error,
+      isSavingAuthCooldowns: configResetState.authCooldowns.isSaving,
+      dreamingDraft: configResetState.dreaming.draft,
+      dreamingError: configResetState.dreaming.error,
+      isSavingDreaming: configResetState.dreaming.isSaving,
       isAgentDialogOpen: agentWorkspaceResetState.isDialogOpen,
       selectedAgentId: agentWorkspaceResetState.selectedAgentId,
       selectedAgentWorkbench: agentWorkspaceResetState.selectedAgentWorkbench,

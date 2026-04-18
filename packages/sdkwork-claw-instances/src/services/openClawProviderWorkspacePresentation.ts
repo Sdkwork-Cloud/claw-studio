@@ -6,11 +6,11 @@ import {
   hasPendingOpenClawProviderConfigChanges,
 } from './openClawProviderDrafts.ts';
 import { buildKernelAuthorityProjection } from './kernelAuthorityProjection.ts';
-import { hasManagedOpenClawConfigRoute } from './openClawManagementCapabilities.ts';
+import { hasWritableOpenClawConfigRoute } from './openClawManagementCapabilities.ts';
 import { parseOpenClawProviderRequestOverridesDraft } from './openClawProviderRequestDraft.ts';
 
 export interface OpenClawProviderWorkspaceState {
-  providerCenterManaged: boolean;
+  providerCenterControlled: boolean;
   isProviderConfigReadonly: boolean;
   canManageProviderCatalog: boolean;
 }
@@ -93,23 +93,23 @@ export function buildOpenClawProviderWorkspaceState(
 
   if (detail?.instance.runtimeKind !== 'openclaw') {
     return {
-      providerCenterManaged: false,
+      providerCenterControlled: false,
       isProviderConfigReadonly: false,
       canManageProviderCatalog: true,
     };
   }
 
   const authority = kernelAuthority || buildKernelAuthorityProjection(detail);
-  const providerCenterManaged = Boolean(
+  const providerCenterControlled = Boolean(
     authority?.configControl &&
       (authority.controlPlane === 'desktopHost' ||
         kernelConfig?.resolved ||
-        hasManagedOpenClawConfigRoute(detail)),
+        hasWritableOpenClawConfigRoute(detail)),
   );
 
   return {
-    providerCenterManaged,
-    isProviderConfigReadonly: providerCenterManaged,
+    providerCenterControlled,
+    isProviderConfigReadonly: providerCenterControlled,
     canManageProviderCatalog: false,
   };
 }

@@ -784,7 +784,7 @@
         },
         "metrics": {
           "activeProvider": "当前 Provider",
-          "managedProviders": "托管 Provider"
+          "configuredProviders": "已配置 Provider"
         },
         "placeholders": {
           "provider": "选择 Provider",
@@ -1056,7 +1056,7 @@
           "labels": {
             "controlPlane": "管理平面",
             "installMethod": "安装方式",
-            "configAuthority": "配置文件",
+            "kernelConfig": "配置文件",
             "defaultWorkspace": "默认工作区",
             "managementScope": "可管范围"
           },
@@ -1064,8 +1064,8 @@
             "controlPlane": "生命周期归属与部署形态决定了这个实例是内置托管、外部附加，还是远程管理。",
             "installMethod": "这里显示的是当前 OpenClaw 控制面的实际安装通道。",
             "installMethodUnknown": "当前实例还没有上报可识别的安装方式。",
-            "configManagedFile": "Claw Studio 已发现可写的 OpenClaw 配置文件，实例级管理将围绕这个权威来源进行。",
-            "configManagedDirectory": "当前配置是从受控目录中解析出来的，而不是单一的配置文件。",
+            "configManagedFile": "Claw Studio 已发现可写的 OpenClaw 配置文件，并将其作为实例配置的权威来源。",
+            "configManagedDirectory": "当前配置来自内核配置目录绑定，而不是单一的配置文件路径。",
             "configRemoteEndpoint": "配置只能通过运行时端点访问，因此只能提供部分管理能力。",
             "configMetadataOnly": "目前只拿到了配置层的元数据，还没有直接可写的管理入口。",
             "configUnavailable": "这个实例还没有挂上权威配置路径。",
@@ -1184,7 +1184,7 @@
         },
         "panel": {
           "badge": "OpenClaw Providers",
-          "managedConfig": "配置文件",
+          "configFile": "配置文件",
           "description": "提供方和模型的增删改会回写到真实的 config-backed OpenClaw 配置中，并保持默认模型与智能体模型引用同步。",
           "newProvider": "新建提供方",
           "emptyTitle": "还没有配置提供方",
@@ -1252,7 +1252,7 @@
         },
         "panel": {
           "badge": "OpenClaw Agents",
-          "managedConfig": "配置文件",
+          "configFile": "配置文件",
           "descriptionPrefix": "智能体身份、工作区、单智能体模型覆盖和状态目录都会回写到真实的 config-backed OpenClaw 配置里。凭据仍保存在每个智能体自己的",
           "authProfilesFile": "auth-profiles.json",
           "descriptionMiddle": "以及",

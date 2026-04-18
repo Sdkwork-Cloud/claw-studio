@@ -9,7 +9,7 @@ pub struct KernelRuntimeReadinessProbe {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KernelRuntimeContract {
     pub runtime_id: String,
-    pub managed_config_path: PathBuf,
+    pub config_file_path: PathBuf,
     pub owned_runtime_roots: Vec<PathBuf>,
     pub readiness_probe: KernelRuntimeReadinessProbe,
 }

@@ -1,6 +1,6 @@
 import type {
   OpenClawChannelDefinition,
-  OpenClawConfigSnapshot as ManagedOpenClawConfigSnapshot,
+  OpenClawConfigSnapshot,
 } from '@sdkwork/claw-core';
 import type { OpenClawChannelStatusResult } from '@sdkwork/claw-infrastructure';
 import type { InstanceWorkbenchChannel } from '../types/index.ts';
@@ -14,10 +14,10 @@ import {
   titleCaseIdentifier,
 } from './openClawSupport.ts';
 
-type ManagedOpenClawChannelSnapshot = ManagedOpenClawConfigSnapshot['channelSnapshots'][number];
+type OpenClawChannelConfigSnapshot = OpenClawConfigSnapshot['channelSnapshots'][number];
 
-export function mapManagedChannel(
-  channel: ManagedOpenClawChannelSnapshot,
+export function mapConfigChannel(
+  channel: OpenClawChannelConfigSnapshot,
 ): InstanceWorkbenchChannel {
   return {
     id: channel.id,
@@ -32,8 +32,8 @@ export function mapManagedChannel(
   };
 }
 
-export function cloneManagedChannel(
-  channel: ManagedOpenClawChannelSnapshot,
+export function cloneConfigChannel(
+  channel: OpenClawChannelConfigSnapshot,
 ) {
   return {
     ...channel,

@@ -1,8 +1,8 @@
 import { createInstanceWorkbenchHydrationResetState } from './instanceWorkbenchHydration.ts';
 import { createOpenClawAgentWorkspaceResetState } from './openClawAgentPresentation.ts';
 import {
-  createOpenClawManagedConfigResetState,
-} from './openClawManagedConfigDrafts.ts';
+  createOpenClawConfigResetState,
+} from './openClawConfigDrafts.ts';
 import {
   createOpenClawProviderWorkspaceResetState,
   type OpenClawProviderDialogResetDrafts,
@@ -11,7 +11,7 @@ import {
 type Setter<T> = (value: T) => void;
 
 type WorkbenchHydrationResetState = ReturnType<typeof createInstanceWorkbenchHydrationResetState>;
-type ManagedConfigResetState = ReturnType<typeof createOpenClawManagedConfigResetState>;
+type ConfigResetState = ReturnType<typeof createOpenClawConfigResetState>;
 type AgentWorkspaceResetState = ReturnType<typeof createOpenClawAgentWorkspaceResetState>;
 
 export interface ApplyInstanceDetailInstanceSwitchResetStateInput {
@@ -25,27 +25,27 @@ export interface ApplyInstanceDetailInstanceSwitchResetStateInput {
   setProviderModelDialogDraft: Setter<OpenClawProviderDialogResetDrafts['providerModelDialogDraft']>;
   setProviderModelDeleteId: Setter<string | null>;
   setProviderDeleteId: Setter<string | null>;
-  setSelectedWebSearchProviderId: Setter<ManagedConfigResetState['webSearch']['selectedProviderId']>;
-  setWebSearchSharedDraft: Setter<ManagedConfigResetState['webSearch']['sharedDraft']>;
-  setWebSearchProviderDrafts: Setter<ManagedConfigResetState['webSearch']['providerDrafts']>;
-  setWebSearchError: Setter<ManagedConfigResetState['webSearch']['error']>;
-  setIsSavingWebSearch: Setter<ManagedConfigResetState['webSearch']['isSaving']>;
-  setXSearchDraft: Setter<ManagedConfigResetState['xSearch']['draft']>;
-  setXSearchError: Setter<ManagedConfigResetState['xSearch']['error']>;
-  setIsSavingXSearch: Setter<ManagedConfigResetState['xSearch']['isSaving']>;
-  setWebSearchNativeCodexDraft: Setter<ManagedConfigResetState['webSearchNativeCodex']['draft']>;
-  setWebSearchNativeCodexError: Setter<ManagedConfigResetState['webSearchNativeCodex']['error']>;
-  setIsSavingWebSearchNativeCodex: Setter<ManagedConfigResetState['webSearchNativeCodex']['isSaving']>;
-  setWebFetchSharedDraft: Setter<ManagedConfigResetState['webFetch']['sharedDraft']>;
-  setWebFetchFallbackDraft: Setter<ManagedConfigResetState['webFetch']['fallbackDraft']>;
-  setWebFetchError: Setter<ManagedConfigResetState['webFetch']['error']>;
-  setIsSavingWebFetch: Setter<ManagedConfigResetState['webFetch']['isSaving']>;
-  setAuthCooldownsDraft: Setter<ManagedConfigResetState['authCooldowns']['draft']>;
-  setAuthCooldownsError: Setter<ManagedConfigResetState['authCooldowns']['error']>;
-  setIsSavingAuthCooldowns: Setter<ManagedConfigResetState['authCooldowns']['isSaving']>;
-  setDreamingDraft: Setter<ManagedConfigResetState['dreaming']['draft']>;
-  setDreamingError: Setter<ManagedConfigResetState['dreaming']['error']>;
-  setIsSavingDreaming: Setter<ManagedConfigResetState['dreaming']['isSaving']>;
+  setSelectedWebSearchProviderId: Setter<ConfigResetState['webSearch']['selectedProviderId']>;
+  setWebSearchSharedDraft: Setter<ConfigResetState['webSearch']['sharedDraft']>;
+  setWebSearchProviderDrafts: Setter<ConfigResetState['webSearch']['providerDrafts']>;
+  setWebSearchError: Setter<ConfigResetState['webSearch']['error']>;
+  setIsSavingWebSearch: Setter<ConfigResetState['webSearch']['isSaving']>;
+  setXSearchDraft: Setter<ConfigResetState['xSearch']['draft']>;
+  setXSearchError: Setter<ConfigResetState['xSearch']['error']>;
+  setIsSavingXSearch: Setter<ConfigResetState['xSearch']['isSaving']>;
+  setWebSearchNativeCodexDraft: Setter<ConfigResetState['webSearchNativeCodex']['draft']>;
+  setWebSearchNativeCodexError: Setter<ConfigResetState['webSearchNativeCodex']['error']>;
+  setIsSavingWebSearchNativeCodex: Setter<ConfigResetState['webSearchNativeCodex']['isSaving']>;
+  setWebFetchSharedDraft: Setter<ConfigResetState['webFetch']['sharedDraft']>;
+  setWebFetchFallbackDraft: Setter<ConfigResetState['webFetch']['fallbackDraft']>;
+  setWebFetchError: Setter<ConfigResetState['webFetch']['error']>;
+  setIsSavingWebFetch: Setter<ConfigResetState['webFetch']['isSaving']>;
+  setAuthCooldownsDraft: Setter<ConfigResetState['authCooldowns']['draft']>;
+  setAuthCooldownsError: Setter<ConfigResetState['authCooldowns']['error']>;
+  setIsSavingAuthCooldowns: Setter<ConfigResetState['authCooldowns']['isSaving']>;
+  setDreamingDraft: Setter<ConfigResetState['dreaming']['draft']>;
+  setDreamingError: Setter<ConfigResetState['dreaming']['error']>;
+  setIsSavingDreaming: Setter<ConfigResetState['dreaming']['isSaving']>;
   setIsAgentDialogOpen: Setter<AgentWorkspaceResetState['isDialogOpen']>;
   setSelectedAgentId: Setter<AgentWorkspaceResetState['selectedAgentId']>;
   setSelectedAgentWorkbench: Setter<AgentWorkspaceResetState['selectedAgentWorkbench']>;
@@ -65,7 +65,7 @@ export function applyInstanceDetailInstanceSwitchResetState(
   const providerDialogResetDrafts = args.providerDialogResetDrafts;
   const providerWorkspaceResetState =
     createOpenClawProviderWorkspaceResetState(providerDialogResetDrafts);
-  const managedConfigResetState = createOpenClawManagedConfigResetState();
+  const configResetState = createOpenClawConfigResetState();
   const agentWorkspaceResetState = createOpenClawAgentWorkspaceResetState();
   const workbenchHydrationResetState = createInstanceWorkbenchHydrationResetState();
 
@@ -78,27 +78,27 @@ export function applyInstanceDetailInstanceSwitchResetState(
   args.setProviderModelDialogDraft(providerWorkspaceResetState.providerModelDialogDraft);
   args.setProviderModelDeleteId(providerWorkspaceResetState.providerModelDeleteId);
   args.setProviderDeleteId(providerWorkspaceResetState.providerDeleteId);
-  args.setSelectedWebSearchProviderId(managedConfigResetState.webSearch.selectedProviderId);
-  args.setWebSearchSharedDraft(managedConfigResetState.webSearch.sharedDraft);
-  args.setWebSearchProviderDrafts(managedConfigResetState.webSearch.providerDrafts);
-  args.setWebSearchError(managedConfigResetState.webSearch.error);
-  args.setIsSavingWebSearch(managedConfigResetState.webSearch.isSaving);
-  args.setXSearchDraft(managedConfigResetState.xSearch.draft);
-  args.setXSearchError(managedConfigResetState.xSearch.error);
-  args.setIsSavingXSearch(managedConfigResetState.xSearch.isSaving);
-  args.setWebSearchNativeCodexDraft(managedConfigResetState.webSearchNativeCodex.draft);
-  args.setWebSearchNativeCodexError(managedConfigResetState.webSearchNativeCodex.error);
-  args.setIsSavingWebSearchNativeCodex(managedConfigResetState.webSearchNativeCodex.isSaving);
-  args.setWebFetchSharedDraft(managedConfigResetState.webFetch.sharedDraft);
-  args.setWebFetchFallbackDraft(managedConfigResetState.webFetch.fallbackDraft);
-  args.setWebFetchError(managedConfigResetState.webFetch.error);
-  args.setIsSavingWebFetch(managedConfigResetState.webFetch.isSaving);
-  args.setAuthCooldownsDraft(managedConfigResetState.authCooldowns.draft);
-  args.setAuthCooldownsError(managedConfigResetState.authCooldowns.error);
-  args.setIsSavingAuthCooldowns(managedConfigResetState.authCooldowns.isSaving);
-  args.setDreamingDraft(managedConfigResetState.dreaming.draft);
-  args.setDreamingError(managedConfigResetState.dreaming.error);
-  args.setIsSavingDreaming(managedConfigResetState.dreaming.isSaving);
+  args.setSelectedWebSearchProviderId(configResetState.webSearch.selectedProviderId);
+  args.setWebSearchSharedDraft(configResetState.webSearch.sharedDraft);
+  args.setWebSearchProviderDrafts(configResetState.webSearch.providerDrafts);
+  args.setWebSearchError(configResetState.webSearch.error);
+  args.setIsSavingWebSearch(configResetState.webSearch.isSaving);
+  args.setXSearchDraft(configResetState.xSearch.draft);
+  args.setXSearchError(configResetState.xSearch.error);
+  args.setIsSavingXSearch(configResetState.xSearch.isSaving);
+  args.setWebSearchNativeCodexDraft(configResetState.webSearchNativeCodex.draft);
+  args.setWebSearchNativeCodexError(configResetState.webSearchNativeCodex.error);
+  args.setIsSavingWebSearchNativeCodex(configResetState.webSearchNativeCodex.isSaving);
+  args.setWebFetchSharedDraft(configResetState.webFetch.sharedDraft);
+  args.setWebFetchFallbackDraft(configResetState.webFetch.fallbackDraft);
+  args.setWebFetchError(configResetState.webFetch.error);
+  args.setIsSavingWebFetch(configResetState.webFetch.isSaving);
+  args.setAuthCooldownsDraft(configResetState.authCooldowns.draft);
+  args.setAuthCooldownsError(configResetState.authCooldowns.error);
+  args.setIsSavingAuthCooldowns(configResetState.authCooldowns.isSaving);
+  args.setDreamingDraft(configResetState.dreaming.draft);
+  args.setDreamingError(configResetState.dreaming.error);
+  args.setIsSavingDreaming(configResetState.dreaming.isSaving);
   args.setIsAgentDialogOpen(agentWorkspaceResetState.isDialogOpen);
   args.setSelectedAgentId(agentWorkspaceResetState.selectedAgentId);
   args.setSelectedAgentWorkbench(agentWorkspaceResetState.selectedAgentWorkbench);

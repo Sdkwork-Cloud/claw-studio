@@ -214,8 +214,8 @@ fn with_prepared_import_archive<T>(
             load_optional_provider_center_catalog(&staging_root, &manifest)?;
         let source_runtime_snapshot = load_runtime_snapshot(&staging_root)?;
         validate_manifest_runtime_summary(&manifest.runtime, &source_runtime_snapshot)?;
-        let managed_assets_snapshot = load_managed_assets_snapshot(&staging_root)?;
-        validate_managed_assets_payloads(&staging_root, &manifest, &managed_assets_snapshot)?;
+        let managed_assets_snapshot = load_openclaw_assets_snapshot(&staging_root)?;
+        validate_openclaw_assets_payloads(&staging_root, &manifest, &managed_assets_snapshot)?;
         validate_component_payload_digests(&staging_root, &manifest)?;
         validate_component_payload_stats(&staging_root, &manifest)?;
 
@@ -640,7 +640,7 @@ fn load_runtime_snapshot(staging_root: &Path) -> Result<OpenClawMirrorRuntimeSna
     serde_json::from_str::<OpenClawMirrorRuntimeSnapshot>(&content).map_err(Into::into)
 }
 
-fn load_managed_assets_snapshot(
+fn load_openclaw_assets_snapshot(
     staging_root: &Path,
 ) -> Result<OpenClawMirrorManagedAssetsSnapshot> {
     let managed_assets_path = staging_root.join(PRIVATE_MANAGED_ASSETS_FILE_NAME);
@@ -655,21 +655,21 @@ fn load_managed_assets_snapshot(
     serde_json::from_str::<OpenClawMirrorManagedAssetsSnapshot>(&content).map_err(Into::into)
 }
 
-fn validate_managed_assets_payloads(
+fn validate_openclaw_assets_payloads(
     staging_root: &Path,
     manifest: &OpenClawMirrorManifestRecord,
     managed_assets_snapshot: &OpenClawMirrorManagedAssetsSnapshot,
 ) -> Result<()> {
     if managed_assets_snapshot.schema_version != 1 {
         return Err(FrameworkError::ValidationFailed(format!(
-            "unsupported managed asset inventory schema version: {}",
+            "unsupported OpenClaw asset inventory schema version: {}",
             managed_assets_snapshot.schema_version
         )));
     }
 
     for asset in &managed_assets_snapshot.skills {
-        validate_managed_asset_canonical_root("skill", &asset.anchor, &asset.relative_path)?;
-        let path = resolve_staged_managed_asset_path(
+        validate_openclaw_asset_canonical_root("skill", &asset.anchor, &asset.relative_path)?;
+        let path = resolve_staged_openclaw_asset_path(
             staging_root,
             manifest,
             &asset.anchor,
@@ -677,21 +677,21 @@ fn validate_managed_assets_payloads(
         )?;
         if !path.is_dir() {
             return Err(FrameworkError::NotFound(format!(
-                "managed skill asset payload missing from mirror archive: {}",
+                "skill asset payload missing from mirror archive: {}",
                 normalize_path(&path)
             )));
         }
         if !path.join("SKILL.md").is_file() {
             return Err(FrameworkError::ValidationFailed(format!(
-                "managed skill asset payload is invalid in mirror archive: {}",
+                "skill asset payload is invalid in mirror archive: {}",
                 normalize_path(&path)
             )));
         }
     }
 
     for asset in &managed_assets_snapshot.plugins {
-        validate_managed_asset_canonical_root("plugin", &asset.anchor, &asset.relative_path)?;
-        let path = resolve_staged_managed_asset_path(
+        validate_openclaw_asset_canonical_root("plugin", &asset.anchor, &asset.relative_path)?;
+        let path = resolve_staged_openclaw_asset_path(
             staging_root,
             manifest,
             &asset.anchor,
@@ -701,32 +701,32 @@ fn validate_managed_assets_payloads(
             "directory" if plugin_asset_directory_is_valid(&path) => {}
             "directory" if !path.exists() => {
                 return Err(FrameworkError::NotFound(format!(
-                    "managed plugin asset payload missing from mirror archive: {}",
+                    "plugin asset payload missing from mirror archive: {}",
                     normalize_path(&path)
                 )))
             }
             "directory" => {
                 return Err(FrameworkError::ValidationFailed(format!(
-                    "managed plugin asset payload is invalid in mirror archive: {}",
+                    "plugin asset payload is invalid in mirror archive: {}",
                     normalize_path(&path)
                 )))
             }
             "file" if plugin_asset_file_is_valid(&path) => {}
             "file" if !path.exists() => {
                 return Err(FrameworkError::NotFound(format!(
-                    "managed plugin asset payload missing from mirror archive: {}",
+                    "plugin asset payload missing from mirror archive: {}",
                     normalize_path(&path)
                 )))
             }
             "file" => {
                 return Err(FrameworkError::ValidationFailed(format!(
-                    "managed plugin asset payload is invalid in mirror archive: {}",
+                    "plugin asset payload is invalid in mirror archive: {}",
                     normalize_path(&path)
                 )))
             }
             other => {
                 return Err(FrameworkError::ValidationFailed(format!(
-                    "managed plugin asset entry kind is unsupported in mirror archive: {} ({})",
+                    "plugin asset entry kind is unsupported in mirror archive: {} ({})",
                     normalize_path(&path),
                     other
                 )))
@@ -737,7 +737,7 @@ fn validate_managed_assets_payloads(
     Ok(())
 }
 
-fn validate_managed_asset_canonical_root(
+fn validate_openclaw_asset_canonical_root(
     asset_kind: &str,
     anchor: &str,
     relative_path: &str,
@@ -754,7 +754,7 @@ fn validate_managed_asset_canonical_root(
         ("plugin", "workspace") => ".openclaw/extensions",
         _ => {
             return Err(FrameworkError::ValidationFailed(format!(
-                "unsupported managed {asset_kind} asset anchor in mirror archive: {}",
+                "unsupported {asset_kind} asset anchor in mirror archive: {}",
                 anchor.trim()
             )))
         }
@@ -765,7 +765,7 @@ fn validate_managed_asset_canonical_root(
     }
 
     Err(FrameworkError::ValidationFailed(format!(
-        "managed {asset_kind} asset inventory path is outside the canonical root for anchor {}: {} (expected under {})",
+        "{asset_kind} asset inventory path is outside the canonical root for anchor {}: {} (expected under {})",
         anchor.trim(),
         relative_path.trim(),
         canonical_root
@@ -950,15 +950,15 @@ fn build_post_restore_verification(
         .and_then(|content| serde_json::from_str::<Value>(content).ok());
 
     let mut checks = vec![
-        verify_managed_config(paths, config_root.as_ref()),
+        verify_openclaw_config_file(paths, config_root.as_ref()),
         verify_managed_state(paths),
         verify_managed_workspace(paths),
-        verify_managed_skills(
+        verify_openclaw_skill_assets(
             paths,
             config_root.as_ref(),
             Some(managed_assets_snapshot.skills.as_slice()),
         ),
-        verify_managed_plugins(
+        verify_openclaw_plugin_assets(
             paths,
             config_root.as_ref(),
             Some(managed_assets_snapshot.plugins.as_slice()),
@@ -984,24 +984,24 @@ fn build_post_restore_verification(
     }
 }
 
-fn verify_managed_config(
+fn verify_openclaw_config_file(
     paths: &AppPaths,
     config_root: Option<&Value>,
 ) -> OpenClawMirrorImportVerificationCheck {
     let config_path = normalize_path(&active_openclaw_config_path(paths));
     if config_root.is_some() {
         verification_check(
-            "managed-config",
-            "Managed config restored",
+            "openclaw-config-file",
+            "OpenClaw config file restored",
             "passed",
-            format!("Restored managed OpenClaw config is present and readable at {config_path}."),
+            format!("Restored OpenClaw config file is present and readable at {config_path}."),
         )
     } else {
         verification_check(
-            "managed-config",
-            "Managed config restored",
+            "openclaw-config-file",
+            "OpenClaw config file restored",
             "failed",
-            format!("Managed OpenClaw config is missing or invalid after import at {config_path}."),
+            format!("OpenClaw config file is missing or invalid after import at {config_path}."),
         )
     }
 }
@@ -1012,11 +1012,11 @@ fn readable_openclaw_config_path(paths: &AppPaths) -> PathBuf {
 
 fn active_openclaw_config_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
-        .active_managed_config_path("openclaw", paths)
+        .active_config_file_path("openclaw", paths)
         .unwrap_or_else(|_| {
             paths
                 .kernel_paths("openclaw")
-                .map(|kernel| kernel.managed_config_file)
+                .map(|kernel| kernel.config_file)
                 .unwrap_or_else(|_| paths.openclaw_config_file.clone())
         })
 }
@@ -1026,16 +1026,16 @@ fn verify_managed_state(paths: &AppPaths) -> OpenClawMirrorImportVerificationChe
     if paths.openclaw_root_dir.is_dir() {
         verification_check(
             "managed-state",
-            "Managed state restored",
+            "OpenClaw state restored",
             "passed",
-            format!("Restored managed OpenClaw state directory is present at {state_path}."),
+            format!("Restored OpenClaw state directory is present at {state_path}."),
         )
     } else {
         verification_check(
             "managed-state",
-            "Managed state restored",
+            "OpenClaw state restored",
             "failed",
-            format!("Managed OpenClaw state directory is missing after import at {state_path}."),
+            format!("OpenClaw state directory is missing after import at {state_path}."),
         )
     }
 }
@@ -1045,25 +1045,25 @@ fn verify_managed_workspace(paths: &AppPaths) -> OpenClawMirrorImportVerificatio
     if paths.openclaw_workspace_dir.is_dir() {
         verification_check(
             "managed-workspace",
-            "Managed workspace restored",
+            "OpenClaw workspace restored",
             "passed",
             format!(
-                "Restored managed OpenClaw workspace directory is present at {workspace_path}."
+                "Restored OpenClaw workspace directory is present at {workspace_path}."
             ),
         )
     } else {
         verification_check(
             "managed-workspace",
-            "Managed workspace restored",
+            "OpenClaw workspace restored",
             "failed",
             format!(
-                "Managed OpenClaw workspace directory is missing after import at {workspace_path}."
+                "OpenClaw workspace directory is missing after import at {workspace_path}."
             ),
         )
     }
 }
 
-fn verify_managed_skills(
+fn verify_openclaw_skill_assets(
     paths: &AppPaths,
     config_root: Option<&Value>,
     managed_assets: Option<&[OpenClawMirrorManagedSkillAssetRecord]>,
@@ -1071,9 +1071,9 @@ fn verify_managed_skills(
     let Some(root) = config_root else {
         return verification_check(
             "managed-skills",
-            "Managed skills restored",
+            "Skill folders restored",
             "skipped",
-            "Managed OpenClaw config could not be parsed to verify restored skill folders."
+            "OpenClaw config file could not be parsed to verify restored skill folders."
                 .to_string(),
         );
     };
@@ -1084,9 +1084,9 @@ fn verify_managed_skills(
     if managed_dirs.is_empty() && managed_assets.is_empty() {
         return verification_check(
             "managed-skills",
-            "Managed skills restored",
+            "Skill folders restored",
             "skipped",
-            "Restored config does not declare managed skill paths, and the archive did not include managed skill asset inventory."
+            "Restored OpenClaw config file does not declare skill paths, and the archive did not include skill asset inventory."
                 .to_string(),
         );
     }
@@ -1094,21 +1094,18 @@ fn verify_managed_skills(
     let mut failures = managed_dirs
         .iter()
         .filter(|path| !path.is_dir())
-        .map(|path| format!("managed skill dir missing: {}", normalize_path(path)))
+        .map(|path| format!("skill dir missing: {}", normalize_path(path)))
         .collect::<Vec<_>>();
 
     failures.extend(
         managed_assets
             .iter()
             .filter_map(|asset| {
-                let path = resolve_managed_asset_path(paths, &asset.anchor, &asset.relative_path)?;
+                let path = resolve_openclaw_asset_path(paths, &asset.anchor, &asset.relative_path)?;
                 if path.is_dir() && path.join("SKILL.md").is_file() {
                     None
                 } else {
-                    Some(format!(
-                        "managed skill asset missing: {}",
-                        normalize_path(&path)
-                    ))
+                    Some(format!("skill asset missing: {}", normalize_path(&path)))
                 }
             })
             .collect::<Vec<_>>(),
@@ -1117,10 +1114,10 @@ fn verify_managed_skills(
     if failures.is_empty() {
         verification_check(
             "managed-skills",
-            "Managed skills restored",
+            "Skill folders restored",
             "passed",
             format!(
-                "Verified {} managed skill directories and {} inventoried managed skill assets restored from the mirror.",
+                "Verified {} skill directories and {} inventoried skill assets restored from the mirror.",
                 managed_dirs.len(),
                 managed_assets.len()
             ),
@@ -1128,14 +1125,14 @@ fn verify_managed_skills(
     } else {
         verification_check(
             "managed-skills",
-            "Managed skills restored",
+            "Skill folders restored",
             "failed",
             failures.join(", "),
         )
     }
 }
 
-fn verify_managed_plugins(
+fn verify_openclaw_plugin_assets(
     paths: &AppPaths,
     config_root: Option<&Value>,
     managed_assets: Option<&[OpenClawMirrorManagedPluginAssetRecord]>,
@@ -1143,9 +1140,9 @@ fn verify_managed_plugins(
     let Some(root) = config_root else {
         return verification_check(
             "managed-plugins",
-            "Managed plugins restored",
+            "Plugin assets restored",
             "skipped",
-            "Managed OpenClaw config could not be parsed to verify restored plugin assets."
+            "OpenClaw config file could not be parsed to verify restored plugin assets."
                 .to_string(),
         );
     };
@@ -1156,9 +1153,9 @@ fn verify_managed_plugins(
     if targets.is_empty() && managed_assets.is_empty() {
         return verification_check(
             "managed-plugins",
-            "Managed plugins restored",
+            "Plugin assets restored",
             "skipped",
-            "Restored config does not declare managed plugin filesystem paths, and the archive did not include managed plugin asset inventory."
+            "Restored OpenClaw config file does not declare plugin filesystem paths, and the archive did not include plugin asset inventory."
                 .to_string(),
         );
     }
@@ -1195,20 +1192,14 @@ fn verify_managed_plugins(
         managed_assets
             .iter()
             .filter_map(|asset| {
-                let path = resolve_managed_asset_path(paths, &asset.anchor, &asset.relative_path)?;
+                let path = resolve_openclaw_asset_path(paths, &asset.anchor, &asset.relative_path)?;
                 match asset.entry_kind.as_str() {
                     "directory" if plugin_asset_directory_is_valid(&path) => None,
-                    "directory" => Some(format!(
-                        "managed plugin asset missing or invalid: {}",
-                        normalize_path(&path)
-                    )),
+                    "directory" => Some(format!("plugin asset missing or invalid: {}", normalize_path(&path))),
                     "file" if plugin_asset_file_is_valid(&path) => None,
-                    "file" => Some(format!(
-                        "managed plugin asset missing or invalid: {}",
-                        normalize_path(&path)
-                    )),
+                    "file" => Some(format!("plugin asset missing or invalid: {}", normalize_path(&path))),
                     other => Some(format!(
-                        "managed plugin asset entry kind is unsupported: {} ({})",
+                        "plugin asset entry kind is unsupported: {} ({})",
                         normalize_path(&path),
                         other
                     )),
@@ -1220,10 +1211,10 @@ fn verify_managed_plugins(
     if failures.is_empty() {
         verification_check(
             "managed-plugins",
-            "Managed plugins restored",
+            "Plugin assets restored",
             "passed",
             format!(
-                "Verified {} managed plugin filesystem references and {} inventoried managed plugin assets restored from the mirror.",
+                "Verified {} plugin filesystem references and {} inventoried plugin assets restored from the mirror.",
                 targets.len(),
                 managed_assets.len()
             ),
@@ -1231,10 +1222,10 @@ fn verify_managed_plugins(
     } else {
         verification_check(
             "managed-plugins",
-            "Managed plugins restored",
+            "Plugin assets restored",
             "failed",
             format!(
-                "Managed plugin filesystem references are invalid after restore: {}",
+                "Plugin filesystem references are invalid after restore: {}",
                 failures.join(", ")
             ),
         )
@@ -1344,7 +1335,7 @@ fn is_path_within_managed_roots(path: &Path, paths: &AppPaths) -> bool {
     path.starts_with(&paths.openclaw_root_dir) || path.starts_with(&paths.openclaw_workspace_dir)
 }
 
-fn resolve_managed_asset_path(
+fn resolve_openclaw_asset_path(
     paths: &AppPaths,
     anchor: &str,
     relative_path: &str,
@@ -1363,7 +1354,7 @@ fn resolve_managed_asset_path(
     Some(resolved)
 }
 
-fn resolve_staged_managed_asset_path(
+fn resolve_staged_openclaw_asset_path(
     staging_root: &Path,
     manifest: &OpenClawMirrorManifestRecord,
     anchor: &str,
@@ -1374,7 +1365,7 @@ fn resolve_staged_managed_asset_path(
         "workspace" => "workspace",
         other => {
             return Err(FrameworkError::ValidationFailed(format!(
-                "managed asset inventory uses unsupported anchor: {other}"
+                "OpenClaw asset inventory uses unsupported anchor: {other}"
             )))
         }
     };
@@ -1385,21 +1376,21 @@ fn resolve_staged_managed_asset_path(
         .find(|item| item.id == component_id)
         .ok_or_else(|| {
             FrameworkError::ValidationFailed(format!(
-                "managed asset inventory references missing component: {component_id}"
+                "OpenClaw asset inventory references missing component: {component_id}"
             ))
         })?;
     let mut resolved = staging_root.join(&component.relative_path);
     let normalized = relative_path.trim().replace('\\', "/");
     if normalized.is_empty() {
         return Err(FrameworkError::ValidationFailed(format!(
-            "managed asset inventory relative path is empty for anchor {component_id}"
+            "OpenClaw asset inventory relative path is empty for anchor {component_id}"
         )));
     }
 
     for segment in normalized.split('/').filter(|segment| !segment.is_empty()) {
         if matches!(segment, "." | "..") {
             return Err(FrameworkError::ValidationFailed(format!(
-                "managed asset inventory relative path is invalid for anchor {component_id}: {relative_path}"
+                "OpenClaw asset inventory relative path is invalid for anchor {component_id}: {relative_path}"
             )));
         }
         resolved.push(segment);
@@ -1619,9 +1610,9 @@ fn verify_managed_openclaw_provider(
     let Some(root) = config_root else {
         return verification_check(
             "managed-openclaw-provider",
-            "Managed OpenClaw provider projected",
+            "OpenClaw provider projected",
             "failed",
-            "Managed OpenClaw config could not be parsed to verify the projected provider."
+            "OpenClaw config file could not be parsed to verify the projected provider."
                 .to_string(),
         );
     };
@@ -1629,9 +1620,9 @@ fn verify_managed_openclaw_provider(
     let Some(route) = local_proxy_projection.snapshot.default_route() else {
         return verification_check(
             "managed-openclaw-provider",
-            "Managed OpenClaw provider projected",
+            "OpenClaw provider projected",
             "failed",
-            "Restored local proxy snapshot has no default route for managed provider projection."
+            "Restored local proxy snapshot has no default route for OpenClaw provider projection."
                 .to_string(),
         );
     };
@@ -1641,7 +1632,7 @@ fn verify_managed_openclaw_provider(
         None => {
             return verification_check(
                 "managed-openclaw-provider",
-                "Managed OpenClaw provider projected",
+                "OpenClaw provider projected",
                 "failed",
                 "Restored local proxy default route does not expose a default model.".to_string(),
             )
@@ -1664,9 +1655,9 @@ fn verify_managed_openclaw_provider(
     let Some(provider_root) = provider_root else {
         return verification_check(
             "managed-openclaw-provider",
-            "Managed OpenClaw provider projected",
+            "OpenClaw provider projected",
             "failed",
-            "Managed sdkwork-local-proxy provider is missing from openclaw.json.".to_string(),
+            "sdkwork-local-proxy provider is missing from openclaw.json.".to_string(),
         );
     };
 
@@ -1694,20 +1685,20 @@ fn verify_managed_openclaw_provider(
     if base_url_matches && api_key_matches && models_contain_default {
         verification_check(
             "managed-openclaw-provider",
-            "Managed OpenClaw provider projected",
+            "OpenClaw provider projected",
             "passed",
             format!(
-                "Managed sdkwork-local-proxy provider targets {} with default model {}.",
+                "sdkwork-local-proxy provider targets {} with default model {}.",
                 expected_base_url, expected_model_id
             ),
         )
     } else {
         verification_check(
             "managed-openclaw-provider",
-            "Managed OpenClaw provider projected",
+            "OpenClaw provider projected",
             "failed",
             format!(
-                "Managed sdkwork-local-proxy provider did not match the restored projection. baseUrlMatches={} apiKeyMatches={} modelsContainDefault={}",
+                "sdkwork-local-proxy provider did not match the restored projection. baseUrlMatches={} apiKeyMatches={} modelsContainDefault={}",
                 base_url_matches, api_key_matches, models_contain_default
             ),
         )
@@ -2559,7 +2550,7 @@ fn format_now() -> Result<String> {
 mod tests {
     use super::{
         extract_archive_to_staging, import_openclaw_mirror, inspect_openclaw_mirror_import,
-        normalize_native_path, normalize_path, validate_managed_asset_canonical_root,
+        normalize_native_path, normalize_path, validate_openclaw_asset_canonical_root,
         OpenClawMirrorImportRequest, MANAGED_ASSETS_METADATA_ID, PRIVATE_MANAGED_ASSETS_FILE_NAME,
         PRIVATE_RUNTIME_SNAPSHOT_FILE_NAME, RUNTIME_SNAPSHOT_METADATA_ID,
     };
@@ -2593,13 +2584,13 @@ mod tests {
         process::Command,
     };
 
-    fn managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+    fn openclaw_config_file_path(paths: &AppPaths) -> PathBuf {
         crate::framework::services::kernel_runtime_authority::KernelRuntimeAuthorityService::new()
-            .active_managed_config_path("openclaw", paths)
+            .active_config_file_path("openclaw", paths)
             .unwrap_or_else(|_| {
                 paths
                     .kernel_paths("openclaw")
-                    .map(|kernel| kernel.managed_config_file)
+                    .map(|kernel| kernel.config_file)
                     .unwrap_or_else(|_| paths.openclaw_config_file.clone())
             })
     }
@@ -2625,18 +2616,18 @@ mod tests {
             home_dir: paths.openclaw_root_dir.clone(),
             state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
-            config_path: managed_openclaw_config_path(paths),
+            config_path: openclaw_config_file_path(paths),
             gateway_port: 18_789,
             gateway_auth_token: "mirror-import-test-token".to_string(),
         }
     }
 
-    fn seed_managed_openclaw_tree(paths: &AppPaths, label: &str) {
+    fn seed_built_in_openclaw_tree(paths: &AppPaths, label: &str) {
         fs::create_dir_all(paths.openclaw_root_dir.join("agents").join("main"))
             .expect("agents dir");
         fs::create_dir_all(&paths.openclaw_workspace_dir).expect("workspace dir");
         fs::write(
-            &managed_openclaw_config_path(paths),
+            &openclaw_config_file_path(paths),
             format!("{{ \"label\": \"{label}\", \"agents\": {{}} }}"),
         )
         .expect("config");
@@ -2720,7 +2711,7 @@ mod tests {
         let paths = resolve_paths_for_root(&source_root).expect("source paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, label);
+        seed_built_in_openclaw_tree(&paths, label);
         seed_provider_center_route(
             &storage,
             &paths,
@@ -2756,9 +2747,9 @@ mod tests {
         let paths = resolve_paths_for_root(&source_root).expect("source paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, label);
+        seed_built_in_openclaw_tree(&paths, label);
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -2789,10 +2780,10 @@ mod tests {
                         ]
                     }
                 }))
-                .expect("stale managed config json"),
+                .expect("stale config file json"),
             ),
         )
-        .expect("stale managed config");
+        .expect("stale config file");
         seed_provider_center_route(
             &storage,
             &paths,
@@ -2829,7 +2820,7 @@ mod tests {
         let paths = resolve_paths_for_root(&source_root).expect("source paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, label);
+        seed_built_in_openclaw_tree(&paths, label);
         fs::create_dir_all(paths.openclaw_skills_dir.join("shared-calendar"))
             .expect("shared skills dir");
         fs::create_dir_all(&external_skills_dir).expect("external skills dir");
@@ -2847,7 +2838,7 @@ mod tests {
         )
         .expect("external skill file");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -2905,7 +2896,7 @@ mod tests {
         let source_plugin_dir = paths
             .openclaw_workspace_extensions_dir
             .join("workspace-voice-call");
-        seed_managed_openclaw_tree(&paths, label);
+        seed_built_in_openclaw_tree(&paths, label);
         fs::create_dir_all(&state_plugin_dir).expect("state plugin dir");
         fs::create_dir_all(&source_plugin_dir).expect("source plugin dir");
         fs::create_dir_all(&external_plugins_dir).expect("external plugins dir");
@@ -2925,7 +2916,7 @@ mod tests {
         )
         .expect("external plugin file");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -2993,7 +2984,7 @@ mod tests {
         let source_plugin_dir = paths
             .openclaw_workspace_extensions_dir
             .join("workspace-voice-call");
-        seed_managed_openclaw_tree(&paths, label);
+        seed_built_in_openclaw_tree(&paths, label);
         fs::create_dir_all(paths.openclaw_skills_dir.join("shared-calendar"))
             .expect("shared skills dir");
         fs::create_dir_all(&state_plugin_dir).expect("state plugin dir");
@@ -3029,7 +3020,7 @@ mod tests {
         )
         .expect("external plugin file");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -3103,9 +3094,9 @@ mod tests {
         let source_plugin_dir = paths
             .openclaw_workspace_extensions_dir
             .join("workspace-voice-call");
-        seed_managed_openclaw_tree(&paths, label);
+        seed_built_in_openclaw_tree(&paths, label);
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -3134,10 +3125,10 @@ mod tests {
                         }
                     }
                 }))
-                .expect("missing managed asset config json"),
+                .expect("missing OpenClaw asset config json"),
             ),
         )
-        .expect("missing managed asset config");
+        .expect("missing OpenClaw asset config");
         seed_provider_center_route(
             &storage,
             &paths,
@@ -3177,7 +3168,7 @@ mod tests {
             .openclaw_workspace_extensions_dir
             .join("workspace-voice-call");
         let state_plugin_dir = paths.openclaw_extensions_dir.join("voice-call");
-        seed_managed_openclaw_tree(&paths, label);
+        seed_built_in_openclaw_tree(&paths, label);
         fs::create_dir_all(&source_plugin_dir).expect("source plugin dir");
         fs::write(
             source_plugin_dir.join("plugin.json"),
@@ -3185,7 +3176,7 @@ mod tests {
         )
         .expect("source plugin file");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -3254,13 +3245,13 @@ mod tests {
         let managed_workspace_plugin_dir = paths
             .openclaw_workspace_extensions_dir
             .join("workspace-voice-call");
-        seed_managed_openclaw_tree(&paths, label);
-        fs::create_dir_all(&managed_skill_dir).expect("managed skill dir");
+        seed_built_in_openclaw_tree(&paths, label);
+        fs::create_dir_all(&managed_skill_dir).expect("OpenClaw skill dir");
         fs::create_dir_all(&managed_workspace_skill_dir).expect("managed workspace skill dir");
-        fs::create_dir_all(&managed_plugin_dir).expect("managed plugin dir");
+        fs::create_dir_all(&managed_plugin_dir).expect("OpenClaw plugin dir");
         fs::create_dir_all(&managed_workspace_plugin_dir).expect("managed workspace plugin dir");
         fs::write(managed_skill_dir.join("SKILL.md"), "# shared calendar\n")
-            .expect("managed skill file");
+            .expect("OpenClaw skill file");
         fs::write(
             managed_workspace_skill_dir.join("SKILL.md"),
             "# workspace calendar\n",
@@ -3270,14 +3261,14 @@ mod tests {
             managed_plugin_dir.join("plugin.json"),
             "{ \"id\": \"voice-call\" }\n",
         )
-        .expect("managed plugin file");
+        .expect("OpenClaw plugin file");
         fs::write(
             managed_workspace_plugin_dir.join("plugin.json"),
             "{ \"id\": \"workspace-voice-call\" }\n",
         )
         .expect("managed workspace plugin file");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&json!({
@@ -3297,10 +3288,10 @@ mod tests {
                         }
                     }
                 }))
-                .expect("managed asset config json"),
+                .expect("OpenClaw asset config json"),
             ),
         )
-        .expect("managed asset config");
+        .expect("OpenClaw asset config");
         seed_provider_center_route(
             &storage,
             &paths,
@@ -3798,10 +3789,10 @@ mod tests {
         label: &str,
         replacement_content: &str,
     ) -> PathBuf {
-        let staging_dir = tempfile::tempdir().expect("managed assets rewrite staging dir");
+        let staging_dir = tempfile::tempdir().expect("OpenClaw assets rewrite staging dir");
         extract_archive_to_staging(archive_path, staging_dir.path()).expect("extract archive");
-        let managed_assets_path = staging_dir.path().join(PRIVATE_MANAGED_ASSETS_FILE_NAME);
-        fs::write(&managed_assets_path, replacement_content).expect("rewrite managed assets");
+        let openclaw_assets_path = staging_dir.path().join(PRIVATE_MANAGED_ASSETS_FILE_NAME);
+        fs::write(&openclaw_assets_path, replacement_content).expect("rewrite OpenClaw assets");
 
         let manifest_path = staging_dir.path().join("manifest.json");
         let mut manifest = serde_json::from_str::<OpenClawMirrorManifestRecord>(
@@ -3812,11 +3803,11 @@ mod tests {
             .metadata_files
             .iter_mut()
             .find(|metadata_file| metadata_file.id == MANAGED_ASSETS_METADATA_ID)
-            .expect("managed assets metadata file");
-        metadata_file.digest_sha256 = compute_component_digest_sha256(&managed_assets_path)
-            .expect("compute managed assets digest");
-        metadata_file.byte_size = fs::metadata(&managed_assets_path)
-            .expect("managed assets metadata")
+            .expect("OpenClaw assets metadata file");
+        metadata_file.digest_sha256 = compute_component_digest_sha256(&openclaw_assets_path)
+            .expect("compute OpenClaw assets digest");
+        metadata_file.byte_size = fs::metadata(&openclaw_assets_path)
+            .expect("OpenClaw assets metadata")
             .len();
         fs::write(
             &manifest_path,
@@ -3991,7 +3982,7 @@ mod tests {
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(
-            &managed_openclaw_config_path(paths),
+            &openclaw_config_file_path(paths),
             format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
         )
         .expect("config file");
@@ -4006,7 +3997,7 @@ mod tests {
             home_dir: paths.openclaw_root_dir.clone(),
             state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
-            config_path: managed_openclaw_config_path(paths),
+            config_path: openclaw_config_file_path(paths),
             gateway_port,
             gateway_auth_token: "test-token".to_string(),
         }
@@ -4025,7 +4016,7 @@ mod tests {
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(
-            &managed_openclaw_config_path(paths),
+            &openclaw_config_file_path(paths),
             format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
         )
         .expect("config file");
@@ -4040,7 +4031,7 @@ mod tests {
             home_dir: paths.openclaw_root_dir.clone(),
             state_dir: paths.openclaw_root_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
-            config_path: managed_openclaw_config_path(paths),
+            config_path: openclaw_config_file_path(paths),
             gateway_port,
             gateway_auth_token: "test-token".to_string(),
         }
@@ -4576,11 +4567,11 @@ mod tests {
         );
 
         let error = inspect_openclaw_mirror_import(&corrupted_archive_path)
-            .expect_err("managed skill outside canonical root should be rejected");
+            .expect_err("skill asset outside canonical root should be rejected");
 
         let error_text = error.to_string();
         assert!(
-            error_text.contains("managed skill asset inventory path is outside the canonical root"),
+            error_text.contains("skill asset inventory path is outside the canonical root"),
             "unexpected error: {error_text}"
         );
         assert!(
@@ -4610,12 +4601,12 @@ mod tests {
         );
 
         let error = inspect_openclaw_mirror_import(&corrupted_archive_path)
-            .expect_err("managed plugin outside canonical root should be rejected");
+            .expect_err("plugin asset outside canonical root should be rejected");
 
         let error_text = error.to_string();
         assert!(
             error_text
-                .contains("managed plugin asset inventory path is outside the canonical root"),
+                .contains("plugin asset inventory path is outside the canonical root"),
             "unexpected error: {error_text}"
         );
         assert!(
@@ -4626,9 +4617,9 @@ mod tests {
 
     #[test]
     fn openclaw_mirror_import_accepts_workspace_managed_asset_canonical_roots() {
-        validate_managed_asset_canonical_root("skill", "workspace", "skills/workspace-calendar")
+        validate_openclaw_asset_canonical_root("skill", "workspace", "skills/workspace-calendar")
             .expect("workspace skills root should be accepted");
-        validate_managed_asset_canonical_root(
+        validate_openclaw_asset_canonical_root(
             "plugin",
             "workspace",
             ".openclaw/extensions/workspace-voice-call",
@@ -4650,7 +4641,7 @@ mod tests {
         );
 
         let error = inspect_openclaw_mirror_import(&corrupted_archive_path)
-            .expect_err("managed assets snapshot digest mismatch should be rejected");
+            .expect_err("OpenClaw assets snapshot digest mismatch should be rejected");
 
         let error_text = error.to_string();
         assert!(
@@ -4671,7 +4662,7 @@ mod tests {
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, "restore-target-before");
+        seed_built_in_openclaw_tree(&paths, "restore-target-before");
         seed_provider_center_route(
             &storage,
             &paths,
@@ -4703,7 +4694,7 @@ mod tests {
         )
         .expect("import mirror");
 
-        let config_text = fs::read_to_string(&managed_openclaw_config_path(&paths))
+        let config_text = fs::read_to_string(&openclaw_config_file_path(&paths))
             .expect("restored config text");
         let state_text = fs::read_to_string(
             paths
@@ -4756,7 +4747,7 @@ mod tests {
             .verification
             .checks
             .iter()
-            .any(|check| check.id == "managed-config" && check.status == "passed"));
+            .any(|check| check.id == "openclaw-config-file" && check.status == "passed"));
         assert!(result
             .verification
             .checks
@@ -4834,7 +4825,7 @@ mod tests {
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, "doctor-automation-target-before");
+        seed_built_in_openclaw_tree(&paths, "doctor-automation-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let supervisor = SupervisorService::new();
         let local_ai_proxy = LocalAiProxyService::new();
@@ -4878,7 +4869,7 @@ mod tests {
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, "missing-managed-assets-target-before");
+        seed_built_in_openclaw_tree(&paths, "missing-managed-assets-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let supervisor = SupervisorService::new();
         let local_ai_proxy = LocalAiProxyService::new();
@@ -4922,7 +4913,7 @@ mod tests {
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, "repair-local-plugin-target-before");
+        seed_built_in_openclaw_tree(&paths, "repair-local-plugin-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let supervisor = SupervisorService::new();
         let local_ai_proxy = LocalAiProxyService::new();
@@ -4982,10 +4973,10 @@ mod tests {
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, "managed-asset-entries-target-before");
+        seed_built_in_openclaw_tree(&paths, "managed-asset-entries-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let original_config =
-            fs::read_to_string(&managed_openclaw_config_path(&paths)).expect("original config");
+            fs::read_to_string(&openclaw_config_file_path(&paths)).expect("original config");
         let original_workspace = fs::read_to_string(paths.openclaw_workspace_dir.join("AGENTS.md"))
             .expect("original workspace");
         let original_profile = fs::read_to_string(
@@ -5015,16 +5006,16 @@ mod tests {
                 restart_gateway: false,
             },
         )
-        .expect_err("managed asset validation should fail before restore");
+        .expect_err("OpenClaw asset validation should fail before restore");
 
         let error_text = error.to_string();
         assert!(
-            error_text.contains("managed skill asset payload missing")
-                || error_text.contains("managed plugin asset payload missing"),
+            error_text.contains("skill asset payload missing")
+                || error_text.contains("plugin asset payload missing"),
             "unexpected error: {error_text}"
         );
         assert_eq!(
-            fs::read_to_string(&managed_openclaw_config_path(&paths))
+            fs::read_to_string(&openclaw_config_file_path(&paths))
                 .expect("config after failure"),
             original_config
         );
@@ -5063,10 +5054,10 @@ mod tests {
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, "component-digest-target-before");
+        seed_built_in_openclaw_tree(&paths, "component-digest-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let original_config =
-            fs::read_to_string(&managed_openclaw_config_path(&paths)).expect("original config");
+            fs::read_to_string(&openclaw_config_file_path(&paths)).expect("original config");
         let original_workspace = fs::read_to_string(paths.openclaw_workspace_dir.join("AGENTS.md"))
             .expect("original workspace");
         let original_profile = fs::read_to_string(
@@ -5104,7 +5095,7 @@ mod tests {
             "unexpected error: {error_text}"
         );
         assert_eq!(
-            fs::read_to_string(&managed_openclaw_config_path(&paths))
+            fs::read_to_string(&openclaw_config_file_path(&paths))
                 .expect("config after failure"),
             original_config
         );
@@ -5136,7 +5127,7 @@ mod tests {
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, "rebase-target-before");
+        seed_built_in_openclaw_tree(&paths, "rebase-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let supervisor = SupervisorService::new();
         let local_ai_proxy = LocalAiProxyService::new();
@@ -5160,7 +5151,7 @@ mod tests {
         .expect("import mirror");
 
         let restored_openclaw_config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&managed_openclaw_config_path(&paths))
+            &fs::read_to_string(&openclaw_config_file_path(&paths))
                 .expect("restored config text"),
         )
         .expect("restored config json");
@@ -5227,7 +5218,7 @@ mod tests {
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, "rebase-skills-target-before");
+        seed_built_in_openclaw_tree(&paths, "rebase-skills-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let supervisor = SupervisorService::new();
         let local_ai_proxy = LocalAiProxyService::new();
@@ -5251,7 +5242,7 @@ mod tests {
         .expect("import mirror");
 
         let restored_openclaw_config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&managed_openclaw_config_path(&paths))
+            &fs::read_to_string(&openclaw_config_file_path(&paths))
                 .expect("restored config text"),
         )
         .expect("restored config json");
@@ -5276,7 +5267,7 @@ mod tests {
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, "rebase-plugins-target-before");
+        seed_built_in_openclaw_tree(&paths, "rebase-plugins-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let supervisor = SupervisorService::new();
         let local_ai_proxy = LocalAiProxyService::new();
@@ -5300,7 +5291,7 @@ mod tests {
         .expect("import mirror");
 
         let restored_openclaw_config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&managed_openclaw_config_path(&paths))
+            &fs::read_to_string(&openclaw_config_file_path(&paths))
                 .expect("restored config text"),
         )
         .expect("restored config json");
@@ -5340,7 +5331,7 @@ mod tests {
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
         let config = create_storage_config();
         let storage = StorageService::new();
-        seed_managed_openclaw_tree(&paths, "legacy-rebase-target-before");
+        seed_built_in_openclaw_tree(&paths, "legacy-rebase-target-before");
         let runtime = create_gateway_runtime(&paths, reserve_test_loopback_port());
         let supervisor = SupervisorService::new();
         let local_ai_proxy = LocalAiProxyService::new();
@@ -5382,7 +5373,7 @@ mod tests {
         let archive_path = export_fixture_archive(root.path(), "restart-source");
         let target_root = root.path().join("restart-target");
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
-        seed_managed_openclaw_tree(&paths, "restart-target-before");
+        seed_built_in_openclaw_tree(&paths, "restart-target-before");
         let config = create_storage_config();
         let storage = StorageService::new();
         let gateway_port = reserve_test_loopback_port();
@@ -5430,7 +5421,7 @@ mod tests {
         let archive_path = export_fixture_archive(root.path(), "stopped-source");
         let target_root = root.path().join("stopped-target");
         let paths = resolve_paths_for_root(&target_root).expect("target paths");
-        seed_managed_openclaw_tree(&paths, "stopped-target-before");
+        seed_built_in_openclaw_tree(&paths, "stopped-target-before");
         let config = create_storage_config();
         let storage = StorageService::new();
         let gateway_port = reserve_test_loopback_port();

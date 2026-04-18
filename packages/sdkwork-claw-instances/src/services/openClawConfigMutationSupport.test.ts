@@ -13,27 +13,27 @@ function runTest(name: string, fn: () => void | Promise<void>) {
     });
 }
 
-async function loadManagedConfigMutationSupportModule() {
-  const moduleUrl = new URL('./openClawManagedConfigMutationSupport.ts', import.meta.url);
+async function loadConfigMutationSupportModule() {
+  const moduleUrl = new URL('./openClawConfigMutationSupport.ts', import.meta.url);
 
   assert.ok(
     existsSync(moduleUrl),
-    'expected openClawManagedConfigMutationSupport.ts to exist',
+    'expected openClawConfigMutationSupport.ts to exist',
   );
 
-  return import('./openClawManagedConfigMutationSupport.ts');
+  return import('./openClawConfigMutationSupport.ts');
 }
 
 await runTest(
-  'createOpenClawManagedConfigSaveRunner executes the injected save action, reloads the workbench, and preserves page-owned saving hooks',
+  'createOpenClawConfigSaveRunner executes the injected save action, reloads the workbench, and preserves page-owned saving hooks',
   async () => {
-    const { createOpenClawManagedConfigSaveRunner } =
-      await loadManagedConfigMutationSupportModule();
+    const { createOpenClawConfigSaveRunner } =
+      await loadConfigMutationSupportModule();
     const savingStates: boolean[] = [];
     const clearedErrors: Array<string | null> = [];
     const callLog: string[] = [];
 
-    const runManagedConfigSave = createOpenClawManagedConfigSaveRunner({
+    const runConfigSave = createOpenClawConfigSaveRunner({
       reloadWorkbench: async (instanceId, options) => {
         callLog.push(`reload:${instanceId}:${options.withSpinner}`);
       },
@@ -43,7 +43,7 @@ await runTest(
       t: (key: string) => `translated:${key}`,
     });
 
-    await runManagedConfigSave({
+    await runConfigSave({
       instanceId: 'instance-01',
       setSaving: (value: boolean) => {
         savingStates.push(value);
@@ -69,19 +69,19 @@ await runTest(
 );
 
 await runTest(
-  'createOpenClawManagedConfigSaveRunner writes fallback errors through the page error setter',
+  'createOpenClawConfigSaveRunner writes fallback errors through the page error setter',
   async () => {
-    const { createOpenClawManagedConfigSaveRunner } =
-      await loadManagedConfigMutationSupportModule();
+    const { createOpenClawConfigSaveRunner } =
+      await loadConfigMutationSupportModule();
     const reportedErrors: Array<string | null> = [];
 
-    const runManagedConfigSave = createOpenClawManagedConfigSaveRunner({
+    const runConfigSave = createOpenClawConfigSaveRunner({
       reloadWorkbench: async () => undefined,
       reportSuccess: () => undefined,
       t: (key: string) => `translated:${key}`,
     });
 
-    await runManagedConfigSave({
+    await runConfigSave({
       instanceId: 'instance-01',
       setSaving: () => undefined,
       setError: (value: string | null) => {
@@ -102,12 +102,12 @@ await runTest(
 );
 
 await runTest(
-  'buildOpenClawManagedConfigMutationHandlers exposes shared save handlers for each managed config surface',
+  'buildOpenClawConfigMutationHandlers exposes shared save handlers for each config surface',
   async () => {
-    const { buildOpenClawManagedConfigMutationHandlers } =
-      await loadManagedConfigMutationSupportModule();
+    const { buildOpenClawConfigMutationHandlers } =
+      await loadConfigMutationSupportModule();
 
-    const handlers = buildOpenClawManagedConfigMutationHandlers({
+    const handlers = buildOpenClawConfigMutationHandlers({
       instanceId: 'instance-01',
       executeSaveRequest: async () => undefined,
       t: (key: string) => `translated:${key}`,
@@ -166,14 +166,14 @@ await runTest(
 );
 
 await runTest(
-  'buildOpenClawManagedConfigMutationHandlers validates managed webSearch input before invoking the shared save runner',
+  'buildOpenClawConfigMutationHandlers validates webSearch input before invoking the shared save runner',
   async () => {
-    const { buildOpenClawManagedConfigMutationHandlers } =
-      await loadManagedConfigMutationSupportModule();
+    const { buildOpenClawConfigMutationHandlers } =
+      await loadConfigMutationSupportModule();
     const reportedErrors: Array<string | null> = [];
     const executedRequests: unknown[] = [];
 
-    const handlers = buildOpenClawManagedConfigMutationHandlers({
+    const handlers = buildOpenClawConfigMutationHandlers({
       instanceId: 'instance-01',
       executeSaveRequest: async (request) => {
         executedRequests.push(request);
@@ -249,16 +249,16 @@ await runTest(
 );
 
 await runTest(
-  'buildOpenClawManagedConfigMutationHandlers packages dreaming saves through the shared save runner while preserving page-owned callbacks',
+  'buildOpenClawConfigMutationHandlers packages dreaming saves through the shared save runner while preserving page-owned callbacks',
   async () => {
-    const { buildOpenClawManagedConfigMutationHandlers } =
-      await loadManagedConfigMutationSupportModule();
+    const { buildOpenClawConfigMutationHandlers } =
+      await loadConfigMutationSupportModule();
     const executedRequests: any[] = [];
     const capturedSaveInputs: any[] = [];
     const setSaving = (value: boolean) => value;
     const setError = (value: string | null) => value;
 
-    const handlers = buildOpenClawManagedConfigMutationHandlers({
+    const handlers = buildOpenClawConfigMutationHandlers({
       instanceId: 'instance-01',
       executeSaveRequest: async (request) => {
         executedRequests.push(request);

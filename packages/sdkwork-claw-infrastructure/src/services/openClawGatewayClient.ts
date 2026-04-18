@@ -1914,7 +1914,7 @@ function exposesOpenClawGatewayTransport(
   return transports.some((transport) => transport?.trim() === 'openclawGatewayWs');
 }
 
-function isBuiltInManagedOpenClawAccess(access: OpenClawGatewayAccessDescriptor) {
+function isBuiltInOpenClawAccess(access: OpenClawGatewayAccessDescriptor) {
   return (
     exposesOpenClawGatewayTransport(access.detail) &&
     access.detail?.instance.isBuiltIn === true &&
@@ -1979,7 +1979,7 @@ export function createOpenClawGatewayClient(
       );
     }
     const invokeGateway = resolveGatewayInvoker();
-    if (invokeGateway && isBuiltInManagedOpenClawAccess(access)) {
+    if (invokeGateway && isBuiltInOpenClawAccess(access)) {
       return (await invokeGateway(access.instanceId, request, options)) as TResult;
     }
 

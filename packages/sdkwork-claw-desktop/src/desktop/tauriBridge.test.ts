@@ -311,7 +311,7 @@ test('tauriBridge exposes desktop filesystem opener commands through the shared 
   assert.match(bootstrapSource, /commands::reveal_path::reveal_path/);
 });
 
-test('tauriBridge exposes managed OpenClaw mirror export through the shared kernel platform bridge', () => {
+test('tauriBridge exposes OpenClaw mirror export through the shared kernel platform bridge', () => {
   const desktopRoot = path.resolve(import.meta.dirname, '../../');
   const tauriBridgeSource = fs.readFileSync(
     path.join(import.meta.dirname, 'tauriBridge.ts'),
@@ -391,7 +391,7 @@ test('tauriBridge exposes managed OpenClaw mirror export through the shared kern
   assert.match(bootstrapSource, /commands::openclaw_mirror::export_openclaw_mirror/);
 });
 
-test('tauriBridge exposes managed OpenClaw mirror import through the shared kernel platform bridge', () => {
+test('tauriBridge exposes OpenClaw mirror import through the shared kernel platform bridge', () => {
   const desktopRoot = path.resolve(import.meta.dirname, '../../');
   const tauriBridgeSource = fs.readFileSync(
     path.join(import.meta.dirname, 'tauriBridge.ts'),
@@ -867,7 +867,7 @@ test('tauriBridge routes canonical host-manage OpenClaw surfaces through concret
   assert.match(studioServiceSource, /pub fn invoke_managed_openclaw_gateway\(/);
   assert.match(studioServiceSource, /project_openclaw_runtime/);
   assert.match(studioServiceSource, /project_openclaw_gateway/);
-  assert.match(studioServiceSource, /managed_openclaw_lifecycle\(supervisor\)\?/);
+  assert.match(studioServiceSource, /built_in_openclaw_lifecycle\(supervisor\)\?/);
 });
 
 test('tauriBridge exposes built-in OpenClaw status change events through the shared runtime bridge', () => {

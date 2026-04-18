@@ -1,8 +1,8 @@
 import type { OpenClawChannelSnapshot } from '@sdkwork/claw-core';
 
-export type OpenClawManagedChannelDrafts = Record<string, Record<string, string>>;
+export type OpenClawConfigChannelDrafts = Record<string, Record<string, string>>;
 
-export type OpenClawManagedChannelMutationPlan =
+export type OpenClawConfigChannelMutationPlan =
   | {
       kind: 'toggleEnabled';
       instanceId: string;
@@ -22,8 +22,8 @@ export type OpenClawManagedChannelMutationPlan =
       emptyValues: Record<string, string>;
     };
 
-export interface OpenClawManagedChannelMutationRequest {
-  mutationPlan: OpenClawManagedChannelMutationPlan;
+export interface OpenClawConfigChannelMutationRequest {
+  mutationPlan: OpenClawConfigChannelMutationPlan;
   successMessage: string;
   failureMessage: string;
   setSaving?: (value: boolean) => void;
@@ -31,7 +31,7 @@ export interface OpenClawManagedChannelMutationRequest {
   afterSuccess?: () => void;
 }
 
-export type OpenClawManagedChannelMutationBuildResult =
+export type OpenClawConfigChannelMutationBuildResult =
   | {
       kind: 'skip';
     }
@@ -41,11 +41,11 @@ export type OpenClawManagedChannelMutationBuildResult =
     }
   | {
       kind: 'mutation';
-      request: OpenClawManagedChannelMutationRequest;
+      request: OpenClawConfigChannelMutationRequest;
     };
 
-export interface RunOpenClawManagedChannelMutationArgs {
-  request: OpenClawManagedChannelMutationRequest;
+export interface RunOpenClawConfigChannelMutationArgs {
+  request: OpenClawConfigChannelMutationRequest;
   executeSaveConfig: (
     instanceId: string,
     channelId: string,
@@ -61,7 +61,7 @@ export interface RunOpenClawManagedChannelMutationArgs {
   reportError: (message: string) => void;
 }
 
-export interface CreateOpenClawManagedChannelMutationRunnerArgs {
+export interface CreateOpenClawConfigChannelMutationRunnerArgs {
   executeSaveConfig: (
     instanceId: string,
     channelId: string,
@@ -82,26 +82,26 @@ export interface CreateOpenClawManagedChannelMutationRunnerArgs {
   reportError: (message: string) => void;
 }
 
-export interface BuildOpenClawManagedChannelMutationHandlersArgs {
+export interface BuildOpenClawConfigChannelMutationHandlersArgs {
   instanceId: string | undefined;
-  managedChannels:
+  configChannels:
     | Array<Pick<OpenClawChannelSnapshot, 'id' | 'name'>>
     | null
     | undefined;
-  selectedManagedChannel:
+  selectedConfigChannel:
     | Pick<OpenClawChannelSnapshot, 'id' | 'name' | 'fields' | 'values'>
     | null;
-  selectedManagedChannelDraft: Record<string, string> | null;
-  setSavingManagedChannel: (value: boolean) => void;
-  setManagedChannelError: (value: string | null) => void;
-  setSelectedManagedChannelId: (value: string | null) => void;
-  setManagedChannelDrafts: (
-    updater: (current: OpenClawManagedChannelDrafts) => OpenClawManagedChannelDrafts,
+  selectedConfigChannelDraft: Record<string, string> | null;
+  setSavingConfigChannel: (value: boolean) => void;
+  setConfigChannelError: (value: string | null) => void;
+  setSelectedConfigChannelId: (value: string | null) => void;
+  setConfigChannelDrafts: (
+    updater: (current: OpenClawConfigChannelDrafts) => OpenClawConfigChannelDrafts,
   ) => void;
-  executeMutation: (request: OpenClawManagedChannelMutationRequest) => Promise<void>;
+  executeMutation: (request: OpenClawConfigChannelMutationRequest) => Promise<void>;
 }
 
-function buildOpenClawManagedChannelEmptyValues(
+function buildOpenClawConfigChannelEmptyValues(
   channel: Pick<OpenClawChannelSnapshot, 'fields'>,
 ): Record<string, string> {
   return channel.fields.reduce<Record<string, string>>((accumulator, field) => {
@@ -110,12 +110,12 @@ function buildOpenClawManagedChannelEmptyValues(
   }, {});
 }
 
-export function applyOpenClawManagedChannelDraftChange(args: {
-  drafts: OpenClawManagedChannelDrafts;
+export function applyOpenClawConfigChannelDraftChange(args: {
+  drafts: OpenClawConfigChannelDrafts;
   channel: Pick<OpenClawChannelSnapshot, 'id' | 'values'>;
   fieldKey: string;
   value: string;
-}): OpenClawManagedChannelDrafts {
+}): OpenClawConfigChannelDrafts {
   return {
     ...args.drafts,
     [args.channel.id]: {
@@ -125,11 +125,11 @@ export function applyOpenClawManagedChannelDraftChange(args: {
   };
 }
 
-export function buildOpenClawManagedChannelToggleMutationRequest(args: {
+export function buildOpenClawConfigChannelToggleMutationRequest(args: {
   instanceId: string | undefined;
   channel: Pick<OpenClawChannelSnapshot, 'id' | 'name'>;
   nextEnabled: boolean;
-}): OpenClawManagedChannelMutationBuildResult {
+}): OpenClawConfigChannelMutationBuildResult {
   if (!args.instanceId) {
     return {
       kind: 'skip',
@@ -151,14 +151,14 @@ export function buildOpenClawManagedChannelToggleMutationRequest(args: {
   };
 }
 
-export function buildOpenClawManagedChannelSaveMutationRequest(args: {
+export function buildOpenClawConfigChannelSaveMutationRequest(args: {
   instanceId: string | undefined;
   channel: Pick<OpenClawChannelSnapshot, 'id' | 'name' | 'fields'> | null;
   draft: Record<string, string> | null;
   setSaving: (value: boolean) => void;
   setError: (value: string | null) => void;
   afterSuccess?: () => void;
-}): OpenClawManagedChannelMutationBuildResult {
+}): OpenClawConfigChannelMutationBuildResult {
   if (!args.instanceId || !args.channel || !args.draft) {
     return {
       kind: 'skip',
@@ -192,13 +192,13 @@ export function buildOpenClawManagedChannelSaveMutationRequest(args: {
   };
 }
 
-export function buildOpenClawManagedChannelDeleteMutationRequest(args: {
+export function buildOpenClawConfigChannelDeleteMutationRequest(args: {
   instanceId: string | undefined;
   channel: Pick<OpenClawChannelSnapshot, 'id' | 'name' | 'fields'> | null;
   setSaving: (value: boolean) => void;
   setError: (value: string | null) => void;
   afterSuccess?: () => void;
-}): OpenClawManagedChannelMutationBuildResult {
+}): OpenClawConfigChannelMutationBuildResult {
   if (!args.instanceId || !args.channel) {
     return {
       kind: 'skip',
@@ -212,7 +212,7 @@ export function buildOpenClawManagedChannelDeleteMutationRequest(args: {
         kind: 'deleteConfig',
         instanceId: args.instanceId,
         channelId: args.channel.id,
-        emptyValues: buildOpenClawManagedChannelEmptyValues(args.channel),
+        emptyValues: buildOpenClawConfigChannelEmptyValues(args.channel),
       },
       successMessage: `${args.channel.name} configuration removed.`,
       failureMessage: `Failed to delete ${args.channel.name} configuration.`,
@@ -223,11 +223,11 @@ export function buildOpenClawManagedChannelDeleteMutationRequest(args: {
   };
 }
 
-export function createOpenClawManagedChannelMutationRunner(
-  args: CreateOpenClawManagedChannelMutationRunnerArgs,
+export function createOpenClawConfigChannelMutationRunner(
+  args: CreateOpenClawConfigChannelMutationRunnerArgs,
 ) {
-  return async (request: OpenClawManagedChannelMutationRequest) => {
-    await runOpenClawManagedChannelMutation({
+  return async (request: OpenClawConfigChannelMutationRequest) => {
+    await runOpenClawConfigChannelMutation({
       request,
       executeSaveConfig: args.executeSaveConfig,
       executeToggleEnabled: args.executeToggleEnabled,
@@ -238,32 +238,32 @@ export function createOpenClawManagedChannelMutationRunner(
   };
 }
 
-function findManagedChannelById(
-  managedChannels:
+function findConfigChannelById(
+  configChannels:
     | Array<Pick<OpenClawChannelSnapshot, 'id' | 'name'>>
     | null
     | undefined,
   channelId: string,
 ) {
-  return (managedChannels || []).find((channel) => channel.id === channelId) || null;
+  return (configChannels || []).find((channel) => channel.id === channelId) || null;
 }
 
-export function buildOpenClawManagedChannelMutationHandlers(
-  args: BuildOpenClawManagedChannelMutationHandlersArgs,
+export function buildOpenClawConfigChannelMutationHandlers(
+  args: BuildOpenClawConfigChannelMutationHandlersArgs,
 ) {
-  const clearSelectedManagedChannelId = () => args.setSelectedManagedChannelId(null);
+  const clearSelectedConfigChannelId = () => args.setSelectedConfigChannelId(null);
 
   return {
-    clearSelectedManagedChannelId,
-    onToggleManagedChannel: async (channelId: string, nextEnabled: boolean) => {
-      const managedChannel = findManagedChannelById(args.managedChannels, channelId);
-      if (!managedChannel) {
+    clearSelectedConfigChannelId,
+    onToggleConfigChannel: async (channelId: string, nextEnabled: boolean) => {
+      const configChannel = findConfigChannelById(args.configChannels, channelId);
+      if (!configChannel) {
         return;
       }
 
-      const mutationRequest = buildOpenClawManagedChannelToggleMutationRequest({
+      const mutationRequest = buildOpenClawConfigChannelToggleMutationRequest({
         instanceId: args.instanceId,
-        channel: managedChannel,
+        channel: configChannel,
         nextEnabled,
       });
       if (mutationRequest.kind !== 'mutation') {
@@ -272,49 +272,49 @@ export function buildOpenClawManagedChannelMutationHandlers(
 
       await args.executeMutation(mutationRequest.request);
     },
-    onSaveManagedChannel: async () => {
-      const mutationRequest = buildOpenClawManagedChannelSaveMutationRequest({
+    onSaveConfigChannel: async () => {
+      const mutationRequest = buildOpenClawConfigChannelSaveMutationRequest({
         instanceId: args.instanceId,
-        channel: args.selectedManagedChannel,
-        draft: args.selectedManagedChannelDraft,
-        setSaving: args.setSavingManagedChannel,
-        setError: args.setManagedChannelError,
-        afterSuccess: clearSelectedManagedChannelId,
+        channel: args.selectedConfigChannel,
+        draft: args.selectedConfigChannelDraft,
+        setSaving: args.setSavingConfigChannel,
+        setError: args.setConfigChannelError,
+        afterSuccess: clearSelectedConfigChannelId,
       });
       if (mutationRequest.kind === 'skip') {
         return;
       }
 
       if (mutationRequest.kind === 'error') {
-        args.setManagedChannelError(mutationRequest.errorMessage);
+        args.setConfigChannelError(mutationRequest.errorMessage);
         return;
       }
 
       await args.executeMutation(mutationRequest.request);
     },
-    onDeleteManagedChannelConfiguration: async () => {
-      const mutationRequest = buildOpenClawManagedChannelDeleteMutationRequest({
+    onDeleteConfigChannelConfiguration: async () => {
+      const mutationRequest = buildOpenClawConfigChannelDeleteMutationRequest({
         instanceId: args.instanceId,
-        channel: args.selectedManagedChannel,
-        setSaving: args.setSavingManagedChannel,
-        setError: args.setManagedChannelError,
-        afterSuccess: clearSelectedManagedChannelId,
+        channel: args.selectedConfigChannel,
+        setSaving: args.setSavingConfigChannel,
+        setError: args.setConfigChannelError,
+        afterSuccess: clearSelectedConfigChannelId,
       });
       if (mutationRequest.kind !== 'mutation') {
         return;
       }
 
       const baseRequest = mutationRequest.request;
-      if (baseRequest.mutationPlan.kind === 'deleteConfig' && args.selectedManagedChannel) {
+      if (baseRequest.mutationPlan.kind === 'deleteConfig' && args.selectedConfigChannel) {
         const { emptyValues } = baseRequest.mutationPlan;
-        const selectedManagedChannelId = args.selectedManagedChannel.id;
+        const selectedConfigChannelId = args.selectedConfigChannel.id;
 
         await args.executeMutation({
           ...baseRequest,
           afterSuccess: () => {
-            args.setManagedChannelDrafts((current) => ({
+            args.setConfigChannelDrafts((current) => ({
               ...current,
-              [selectedManagedChannelId]: emptyValues,
+              [selectedConfigChannelId]: emptyValues,
             }));
             baseRequest.afterSuccess?.();
           },
@@ -327,14 +327,14 @@ export function buildOpenClawManagedChannelMutationHandlers(
   };
 }
 
-export async function runOpenClawManagedChannelMutation({
+export async function runOpenClawConfigChannelMutation({
   request,
   executeSaveConfig,
   executeToggleEnabled,
   reloadWorkbench,
   reportSuccess,
   reportError,
-}: RunOpenClawManagedChannelMutationArgs) {
+}: RunOpenClawConfigChannelMutationArgs) {
   request.setSaving?.(true);
   request.setError?.(null);
   try {

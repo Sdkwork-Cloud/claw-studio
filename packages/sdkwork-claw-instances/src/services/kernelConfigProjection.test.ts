@@ -27,15 +27,15 @@ await runTest('buildKernelConfigProjection canonicalizes OpenClaw config under u
 
   const projected = kernelConfigProjectionModule?.buildKernelConfigProjection({
     runtimeKind: 'openclaw',
-    configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+    configPath: 'C:/Users/admin/.openclaw/openclaw.json',
     configWritable: true,
     schemaVersion: null,
   });
 
   assert.deepEqual(projected, {
-    configFile: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
-    configRoot: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw',
-    userRoot: 'C:/Users/admin/.sdkwork/crawstudio',
+    configFile: 'C:/Users/admin/.openclaw/openclaw.json',
+    configRoot: 'C:/Users/admin/.openclaw',
+    userRoot: 'C:/Users/admin',
     format: 'json',
     access: 'localFs',
     provenance: 'standardUserRoot',

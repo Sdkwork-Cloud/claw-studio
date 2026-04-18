@@ -1299,7 +1299,7 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let context = FrameworkContext::from_parts(paths.clone(), AppConfig::default(), logger);
         let resource_root = create_bundled_gateway_fixture(root.path());
-        seed_managed_openclaw_gateway_port(&paths, reserve_available_loopback_port());
+        seed_built_in_openclaw_gateway_port(&paths, reserve_available_loopback_port());
 
         activate_bundled_openclaw_from_resource_root(&context, &resource_root)
             .expect("activate bundled openclaw");
@@ -1313,7 +1313,7 @@ mod tests {
         )
         .expect("active json");
         let openclaw_config = serde_json::from_str::<Value>(
-            &fs::read_to_string(&managed_openclaw_config_path(&paths))
+            &fs::read_to_string(&openclaw_config_file_path(&paths))
                 .expect("openclaw config file"),
         )
         .expect("openclaw config json");
@@ -1392,7 +1392,7 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let context = FrameworkContext::from_parts(paths.clone(), AppConfig::default(), logger);
         let resource_root = create_failing_bundled_gateway_fixture(root.path());
-        seed_managed_openclaw_gateway_port(&paths, reserve_available_loopback_port());
+        seed_built_in_openclaw_gateway_port(&paths, reserve_available_loopback_port());
 
         let error = activate_bundled_openclaw_from_resource_root(&context, &resource_root)
             .expect_err("activate bundled openclaw should fail");
@@ -1425,7 +1425,7 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let context = FrameworkContext::from_parts(paths.clone(), AppConfig::default(), logger);
         let resource_root = create_bundled_gateway_fixture(root.path());
-        seed_managed_openclaw_gateway_port(&paths, reserve_available_loopback_port());
+        seed_built_in_openclaw_gateway_port(&paths, reserve_available_loopback_port());
         fs::remove_file(resource_root.join("manifest.json")).expect("remove bundled manifest");
 
         let error = activate_bundled_openclaw_from_resource_root(&context, &resource_root)
@@ -1462,7 +1462,7 @@ mod tests {
         };
         let context = FrameworkContext::from_parts(paths.clone(), config, logger);
         let resource_root = create_bundled_gateway_fixture(root.path());
-        seed_managed_openclaw_gateway_port(&paths, reserve_available_loopback_port());
+        seed_built_in_openclaw_gateway_port(&paths, reserve_available_loopback_port());
 
         activate_bundled_openclaw_from_resource_root(&context, &resource_root)
             .expect("activate bundled openclaw");
@@ -1496,7 +1496,7 @@ mod tests {
         let logger = init_logger(&paths).expect("logger");
         let context = FrameworkContext::from_parts(paths.clone(), AppConfig::default(), logger);
         let resource_root = create_bundled_gateway_fixture(root.path());
-        seed_managed_openclaw_gateway_port(&paths, reserve_available_loopback_port());
+        seed_built_in_openclaw_gateway_port(&paths, reserve_available_loopback_port());
 
         let mut stale_gateway = spawn_stale_gateway_process_locking_config(
             root.path(),
@@ -1509,7 +1509,7 @@ mod tests {
         let _ = terminate_child(&mut stale_gateway);
 
         activation_result.expect(
-            "activation should succeed after reaping the stale gateway before rewriting the managed config",
+            "activation should succeed after reaping the stale gateway before rewriting the OpenClaw config file",
         );
 
         context
@@ -1537,20 +1537,20 @@ mod tests {
             .port()
     }
 
-    fn managed_openclaw_config_path(
+    fn openclaw_config_file_path(
         paths: &crate::framework::paths::AppPaths,
     ) -> std::path::PathBuf {
         crate::framework::services::kernel_runtime_authority::KernelRuntimeAuthorityService::new()
-            .active_managed_config_path("openclaw", paths)
+            .active_config_file_path("openclaw", paths)
             .unwrap_or_else(|_| {
                 paths
                     .kernel_paths("openclaw")
-                    .map(|kernel| kernel.managed_config_file)
+                    .map(|kernel| kernel.config_file)
                     .unwrap_or_else(|_| paths.openclaw_config_file.clone())
             })
     }
 
-    fn seed_managed_openclaw_gateway_port(paths: &crate::framework::paths::AppPaths, port: u16) {
+    fn seed_built_in_openclaw_gateway_port(paths: &crate::framework::paths::AppPaths, port: u16) {
         if let Some(parent) = paths.openclaw_config_file.parent() {
             fs::create_dir_all(parent).expect("openclaw config dir");
         }

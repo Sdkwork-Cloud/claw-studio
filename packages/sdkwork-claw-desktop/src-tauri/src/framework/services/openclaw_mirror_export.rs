@@ -449,7 +449,7 @@ mod tests {
         }
     }
 
-    fn seed_managed_openclaw_tree(paths: &AppPaths) {
+    fn seed_built_in_openclaw_tree(paths: &AppPaths) {
         fs::create_dir_all(paths.openclaw_root_dir.join("agents").join("main"))
             .expect("agents dir");
         fs::create_dir_all(&paths.openclaw_workspace_dir).expect("workspace dir");
@@ -560,7 +560,7 @@ mod tests {
     fn openclaw_mirror_export_builds_phase1_preview() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        seed_managed_openclaw_tree(&paths);
+        seed_built_in_openclaw_tree(&paths);
         let config = create_storage_config();
         seed_provider_center_route(&paths, &config);
         let storage = StorageService::new();
@@ -598,7 +598,7 @@ mod tests {
     fn openclaw_mirror_export_writes_ocmirror_zip_with_manifest_and_payloads() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        seed_managed_openclaw_tree(&paths);
+        seed_built_in_openclaw_tree(&paths);
         let config = create_storage_config();
         seed_provider_center_route(&paths, &config);
         let storage = StorageService::new();

@@ -13,25 +13,25 @@ function runTest(name: string, fn: () => void | Promise<void>) {
     });
 }
 
-async function loadInstanceDetailManagedConfigMutationSupportModule() {
-  const moduleUrl = new URL('./instanceDetailManagedConfigMutationSupport.ts', import.meta.url);
+async function loadInstanceDetailConfigMutationSupportModule() {
+  const moduleUrl = new URL('./instanceDetailConfigMutationSupport.ts', import.meta.url);
 
   assert.ok(
     existsSync(moduleUrl),
-    'expected instanceDetailManagedConfigMutationSupport.ts to exist',
+    'expected instanceDetailConfigMutationSupport.ts to exist',
   );
 
-  return import('./instanceDetailManagedConfigMutationSupport.ts');
+  return import('./instanceDetailConfigMutationSupport.ts');
 }
 
 await runTest(
-  'createInstanceDetailManagedConfigMutationExecutors routes all managed-config save executors through the injected instance service surface',
+  'createInstanceDetailConfigMutationExecutors routes all config save executors through the injected instance service surface',
   async () => {
-    const { createInstanceDetailManagedConfigMutationExecutors } =
-      await loadInstanceDetailManagedConfigMutationSupportModule();
+    const { createInstanceDetailConfigMutationExecutors } =
+      await loadInstanceDetailConfigMutationSupportModule();
     const calls: string[] = [];
 
-    const executors = createInstanceDetailManagedConfigMutationExecutors({
+    const executors = createInstanceDetailConfigMutationExecutors({
       instanceService: {
         saveOpenClawWebSearchConfig: async (instanceId, input) => {
           calls.push(`webSearch:${instanceId}:${input.provider}`);

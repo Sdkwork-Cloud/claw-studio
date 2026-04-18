@@ -186,7 +186,7 @@ function createSnapshot(root: OpenClawConfigSnapshot['root']): OpenClawConfigSna
 }
 
 await runTest(
-  'openclaw gateway history config service reads gateway.webchat.chatHistoryMaxChars from the managed config root',
+  'openclaw gateway history config service reads gateway.webchat.chatHistoryMaxChars from the OpenClaw config document',
   async () => {
     const service = createOpenClawGatewayHistoryConfigService({
       getInstanceDetail: async () => createDetail(),
@@ -234,7 +234,7 @@ await runTest(
 );
 
 await runTest(
-  'openclaw gateway history config service returns undefined when the instance has no managed config path',
+  'openclaw gateway history config service returns undefined when the instance has no OpenClaw config file path',
   async () => {
     const service = createOpenClawGatewayHistoryConfigService({
       getInstanceDetail: async () => createDetail(),

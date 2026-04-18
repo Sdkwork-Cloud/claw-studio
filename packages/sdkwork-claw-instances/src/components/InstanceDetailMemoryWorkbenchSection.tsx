@@ -7,7 +7,7 @@ import {
   type InstanceDetailMemorySectionProps,
 } from './InstanceDetailMemorySection.tsx';
 
-interface ManagedMemoryWorkbenchState {
+interface MemoryWorkbenchState {
   isEmpty: boolean;
   hasMemoryEntries: boolean;
   dreamDiaryEntries: Array<{
@@ -15,17 +15,17 @@ interface ManagedMemoryWorkbenchState {
   }>;
 }
 
-export interface InstanceDetailManagedMemorySectionProps {
+export interface InstanceDetailMemoryWorkbenchSectionProps {
   isLoading: boolean;
   emptyState: React.ReactNode;
   loadingLabel: string;
   workbench: Pick<InstanceWorkbenchSnapshot, 'memories'> | null;
-  memoryWorkbenchState: ManagedMemoryWorkbenchState;
-  managedDreamingConfig: InstanceWorkbenchSnapshot['managedDreamingConfig'] | null | undefined;
+  memoryWorkbenchState: MemoryWorkbenchState;
+  configDreaming: InstanceWorkbenchSnapshot['configDreaming'] | null | undefined;
   dreamingDraft: OpenClawDreamingFormState | null;
   dreamingError: string | null;
   isSavingDreaming: boolean;
-  canEditManagedDreaming: boolean;
+  canEditDreamingConfig: boolean;
   formatWorkbenchLabel: (value: string) => string;
   getDangerBadge: (status: string) => string;
   getStatusBadge: (status: string) => string;
@@ -37,33 +37,33 @@ export interface InstanceDetailManagedMemorySectionProps {
   onSaveDreamingConfig: () => Promise<void> | void;
 }
 
-export function InstanceDetailManagedMemorySection({
+export function InstanceDetailMemoryWorkbenchSection({
   isLoading,
   emptyState,
   loadingLabel,
   workbench,
   memoryWorkbenchState,
-  managedDreamingConfig,
+  configDreaming,
   dreamingDraft,
   dreamingError,
   isSavingDreaming,
-  canEditManagedDreaming,
+  canEditDreamingConfig,
   formatWorkbenchLabel,
   getDangerBadge,
   getStatusBadge,
   t,
   onDreamingDraftChange,
   onSaveDreamingConfig,
-}: InstanceDetailManagedMemorySectionProps) {
+}: InstanceDetailMemoryWorkbenchSectionProps) {
   const isEmpty = memoryWorkbenchState.isEmpty || !workbench;
   const sectionProps: InstanceDetailMemorySectionProps | null = workbench
     ? {
         memories: workbench.memories,
         hasMemoryEntries: memoryWorkbenchState.hasMemoryEntries,
-        dreamingDraft: managedDreamingConfig ? dreamingDraft : null,
+        dreamingDraft: configDreaming ? dreamingDraft : null,
         dreamingError,
         isSavingDreaming,
-        canEditManagedDreaming,
+        canEditDreamingConfig,
         latestDreamDiaryUpdatedAt: memoryWorkbenchState.dreamDiaryEntries[0]?.updatedAt || null,
         formatWorkbenchLabel,
         getDangerBadge,

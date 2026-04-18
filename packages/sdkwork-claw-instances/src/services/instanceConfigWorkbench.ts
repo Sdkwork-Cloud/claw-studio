@@ -1,8 +1,9 @@
 import { analyzeOpenClawConfigDocument, parseOpenClawConfigDocument } from '@sdkwork/claw-core';
-import type { InstanceManagedOpenClawConfigInsights } from '../types/index.ts';
+import type { InstanceKernelConfigInsights } from '../types/index.ts';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
 import { buildKernelAuthorityProjection } from './kernelAuthorityProjection.ts';
 import { buildKernelConfigProjection } from './kernelConfigProjection.ts';
+import { resolveFallbackInstanceConfigPath } from './openClawConfigPathFallback.ts';
 
 export type InstanceConfigWorkbenchModeId = 'config' | 'raw';
 
@@ -56,7 +57,7 @@ export interface InstanceConfigWorkbenchModel {
     isWritable: boolean;
     defaultAgentId: string | null;
     defaultModelRef: string | null;
-    sessionsVisibility: InstanceManagedOpenClawConfigInsights['sessionsVisibility'];
+    sessionsVisibility: InstanceKernelConfigInsights['sessionsVisibility'];
     providerCount: number;
     agentCount: number;
     channelCount: number;
@@ -759,14 +760,14 @@ export function buildInstanceConfigWorkbenchModel(input: {
     workbench.kernelConfig ||
     buildKernelConfigProjection({
       runtimeKind: workbench.detail.instance.runtimeKind,
-      configPath: workbench.managedConfigPath,
+      configPath: resolveFallbackInstanceConfigPath(workbench.detail),
       configWritable: workbench.detail.lifecycle.configWritable,
       schemaVersion: null,
     });
   const kernelAuthority =
     workbench.kernelAuthority || buildKernelAuthorityProjection(workbench.detail);
-  const managedChannels = workbench.managedChannels || [];
-  const managedConfigInsights = workbench.managedConfigInsights || null;
+  const configChannels = workbench.configChannels || [];
+  const kernelConfigInsights = workbench.kernelConfigInsights || null;
   const rawAnalysis = analyzeOpenClawConfigDocument(rawDocument);
   const descriptors = buildInstanceConfigWorkbenchSectionDescriptors(
     rawAnalysis.sections.map((section) => section.key),
@@ -781,14 +782,14 @@ export function buildInstanceConfigWorkbenchModel(input: {
 
   return {
     document: {
-      configPath: kernelConfig?.configFile || workbench.managedConfigPath || null,
+      configPath: kernelConfig?.configFile || null,
       isWritable: Boolean(kernelConfig?.writable && kernelAuthority?.configControl),
-      defaultAgentId: managedConfigInsights?.defaultAgentId || null,
-      defaultModelRef: managedConfigInsights?.defaultModelRef || null,
-      sessionsVisibility: managedConfigInsights?.sessionsVisibility || null,
+      defaultAgentId: kernelConfigInsights?.defaultAgentId || null,
+      defaultModelRef: kernelConfigInsights?.defaultModelRef || null,
+      sessionsVisibility: kernelConfigInsights?.sessionsVisibility || null,
       providerCount: workbench.llmProviders.length,
       agentCount: workbench.agents.length,
-      channelCount: managedChannels.length,
+      channelCount: configChannels.length,
       sectionCount: sections.length,
       customSectionCount: sections.filter((section) => section.category === 'other').length,
       rawLineCount: countDocumentLines(rawDocument),

@@ -11,7 +11,7 @@ function isOpenClawDetail(
   return detail?.instance.runtimeKind === 'openclaw';
 }
 
-function isBuiltInManagedOpenClawProbeCandidate(
+function isBuiltInOpenClawProbeCandidate(
   detail: StudioInstanceDetailRecord | null | undefined,
 ) {
   const authority = buildKernelAuthorityProjection(detail);
@@ -25,7 +25,7 @@ function isBuiltInManagedOpenClawProbeCandidate(
   );
 }
 
-export function hasManagedOpenClawConfigRoute(
+export function hasWritableOpenClawConfigRoute(
   detail: StudioInstanceDetailRecord | null | undefined,
 ) {
   if (!isOpenClawDetail(detail)) {
@@ -41,7 +41,7 @@ export function hasManagedOpenClawConfigRoute(
   );
 }
 
-export function isProviderCenterManagedOpenClawDetail(
+export function isProviderCenterControlledOpenClawDetail(
   detail: StudioInstanceDetailRecord | null | undefined,
 ) {
   if (!isOpenClawDetail(detail)) {
@@ -53,7 +53,7 @@ export function isProviderCenterManagedOpenClawDetail(
     return false;
   }
 
-  return authority.controlPlane === 'desktopHost' || hasManagedOpenClawConfigRoute(detail);
+  return authority.controlPlane === 'desktopHost' || hasWritableOpenClawConfigRoute(detail);
 }
 
 export function hasReadyOpenClawGateway(
@@ -73,5 +73,5 @@ export function hasReadyOpenClawGateway(
 export function shouldProbeOpenClawGateway(
   detail: StudioInstanceDetailRecord | null | undefined,
 ) {
-  return hasReadyOpenClawGateway(detail) || isBuiltInManagedOpenClawProbeCandidate(detail);
+  return hasReadyOpenClawGateway(detail) || isBuiltInOpenClawProbeCandidate(detail);
 }

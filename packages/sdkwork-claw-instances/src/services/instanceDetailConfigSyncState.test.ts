@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict';
 import {
-  applyInstanceDetailManagedAuthCooldownsSyncState,
-  applyInstanceDetailManagedDreamingSyncState,
-  applyInstanceDetailManagedWebFetchSyncState,
-  applyInstanceDetailManagedWebSearchNativeCodexSyncState,
-  applyInstanceDetailManagedWebSearchSyncState,
-  applyInstanceDetailManagedXSearchSyncState,
-} from './instanceDetailManagedConfigSyncState.ts';
+  applyInstanceDetailConfigAuthCooldownsSyncState,
+  applyInstanceDetailConfigDreamingSyncState,
+  applyInstanceDetailConfigWebFetchSyncState,
+  applyInstanceDetailConfigWebSearchNativeCodexSyncState,
+  applyInstanceDetailConfigWebSearchSyncState,
+  applyInstanceDetailConfigXSearchSyncState,
+} from './instanceDetailConfigSyncState.ts';
 import {
   createOpenClawAuthCooldownsDraft as createAuthCooldownsFormState,
   createOpenClawWebFetchDraftState,
   createOpenClawWebSearchDraftState,
   createOpenClawWebSearchNativeCodexDraft as createWebSearchNativeCodexFormState,
   createOpenClawXSearchDraft as createXSearchFormState,
-} from './openClawManagedConfigDrafts.ts';
+} from './openClawConfigDrafts.ts';
 import { createOpenClawDreamingFormState } from './instanceMemoryWorkbenchPresentation.ts';
 
 function runTest(name: string, fn: () => void | Promise<void>) {
@@ -29,7 +29,7 @@ function runTest(name: string, fn: () => void | Promise<void>) {
 }
 
 await runTest(
-  'applyInstanceDetailManagedWebSearchSyncState routes derived draft state and clears the page error',
+  'applyInstanceDetailConfigWebSearchSyncState routes derived draft state and clears the page error',
   () => {
     const config = {
       enabled: true,
@@ -59,7 +59,7 @@ await runTest(
       error: 'stale-error' as string | null,
     };
 
-    applyInstanceDetailManagedWebSearchSyncState({
+    applyInstanceDetailConfigWebSearchSyncState({
       config,
       currentProviderId: 'tavily',
       setSelectedWebSearchProviderId: (value) => {
@@ -86,7 +86,7 @@ await runTest(
 );
 
 await runTest(
-  'applyInstanceDetailManagedAuthCooldownsSyncState routes the derived auth-cooldowns draft and clears the page error',
+  'applyInstanceDetailConfigAuthCooldownsSyncState routes the derived auth-cooldowns draft and clears the page error',
   () => {
     const config = {
       rateLimitedProfileRotations: 5,
@@ -102,7 +102,7 @@ await runTest(
       error: 'stale-error' as string | null,
     };
 
-    applyInstanceDetailManagedAuthCooldownsSyncState({
+    applyInstanceDetailConfigAuthCooldownsSyncState({
       config,
       setAuthCooldownsDraft: (value) => {
         captured.draft = value;
@@ -120,7 +120,7 @@ await runTest(
 );
 
 await runTest(
-  'applyInstanceDetailManagedDreamingSyncState routes the derived dreaming draft and clears the page error',
+  'applyInstanceDetailConfigDreamingSyncState routes the derived dreaming draft and clears the page error',
   () => {
     const config = {
       enabled: true,
@@ -132,7 +132,7 @@ await runTest(
       error: 'stale-error' as string | null,
     };
 
-    applyInstanceDetailManagedDreamingSyncState({
+    applyInstanceDetailConfigDreamingSyncState({
       config,
       setDreamingDraft: (value) => {
         captured.draft = value;
@@ -150,7 +150,7 @@ await runTest(
 );
 
 await runTest(
-  'applyInstanceDetailManagedXSearchSyncState routes the derived x-search draft and clears the page error',
+  'applyInstanceDetailConfigXSearchSyncState routes the derived x-search draft and clears the page error',
   () => {
     const config = {
       enabled: true,
@@ -168,7 +168,7 @@ await runTest(
       error: 'stale-error' as string | null,
     };
 
-    applyInstanceDetailManagedXSearchSyncState({
+    applyInstanceDetailConfigXSearchSyncState({
       config,
       setXSearchDraft: (value) => {
         captured.draft = value;
@@ -186,7 +186,7 @@ await runTest(
 );
 
 await runTest(
-  'applyInstanceDetailManagedWebSearchNativeCodexSyncState routes the derived native-codex draft and clears the page error',
+  'applyInstanceDetailConfigWebSearchNativeCodexSyncState routes the derived native-codex draft and clears the page error',
   () => {
     const config = {
       enabled: true,
@@ -206,7 +206,7 @@ await runTest(
       error: 'stale-error' as string | null,
     };
 
-    applyInstanceDetailManagedWebSearchNativeCodexSyncState({
+    applyInstanceDetailConfigWebSearchNativeCodexSyncState({
       config,
       setWebSearchNativeCodexDraft: (value) => {
         captured.draft = value;
@@ -224,7 +224,7 @@ await runTest(
 );
 
 await runTest(
-  'applyInstanceDetailManagedWebFetchSyncState routes the derived web-fetch draft state and clears the page error',
+  'applyInstanceDetailConfigWebFetchSyncState routes the derived web-fetch draft state and clears the page error',
   () => {
     const config = {
       enabled: true,
@@ -253,7 +253,7 @@ await runTest(
       error: 'stale-error' as string | null,
     };
 
-    applyInstanceDetailManagedWebFetchSyncState({
+    applyInstanceDetailConfigWebFetchSyncState({
       config,
       setWebFetchSharedDraft: (value) => {
         captured.sharedDraft = value;

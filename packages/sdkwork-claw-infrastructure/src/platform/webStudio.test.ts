@@ -449,13 +449,13 @@ await runTest('web studio preserves an explicitly configured OpenClaw responses 
 });
 
 await runTest(
-  'web studio treats custom local-managed OpenClaw entries as external metadata-only runtimes',
+  'web studio treats custom local OpenClaw entries carrying local-managed labels as external metadata-only runtimes',
   async () => {
     await withMockedWindowStorage(async () => {
       const platform = new WebStudioPlatform();
       const created = await platform.createInstance({
         name: 'Custom Local Managed',
-        description: 'OpenClaw metadata with local-managed labels but no built-in controller.',
+        description: 'OpenClaw metadata with local-managed deployment labels but no built-in controller.',
         runtimeKind: 'openclaw',
         deploymentMode: 'local-managed',
         transportKind: 'openclawGatewayWs',
@@ -707,7 +707,7 @@ await runTest(
           instances: [
             {
               id: 'managed-openclaw-primary',
-              name: 'Managed OpenClaw Primary',
+              name: 'Built-In OpenClaw Primary',
               description: 'Stable built-in OpenClaw identity.',
               runtimeKind: 'openclaw',
               deploymentMode: 'local-managed',
@@ -761,13 +761,13 @@ await runTest(
 
       assert.equal(instances.length, 1);
       assert.equal(instances[0]?.id, 'managed-openclaw-primary');
-      assert.equal(instances[0]?.name, 'Managed OpenClaw Primary');
+      assert.equal(instances[0]?.name, 'Built-In OpenClaw Primary');
       assert.equal(instances[0]?.version, DEFAULT_BUNDLED_OPENCLAW_VERSION);
       assert.equal(instances[0]?.port, 18871);
       assert.equal(instances.some((instance) => instance.id === 'local-built-in'), false);
       assert.equal(persistedDocument?.instances?.length, 1);
       assert.equal(persistedDocument?.instances?.[0]?.id, 'managed-openclaw-primary');
-      assert.equal(persistedDocument?.instances?.[0]?.name, 'Managed OpenClaw Primary');
+      assert.equal(persistedDocument?.instances?.[0]?.name, 'Built-In OpenClaw Primary');
       assert.equal(
         persistedDocument?.instances?.[0]?.version,
         DEFAULT_BUNDLED_OPENCLAW_VERSION,

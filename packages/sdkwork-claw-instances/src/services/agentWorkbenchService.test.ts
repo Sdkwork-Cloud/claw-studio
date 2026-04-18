@@ -146,9 +146,19 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
       officialRuntimeNotes: [],
       workbench: null,
     } as any,
-    managedConfigPath: 'C:/OpenClaw/.openclaw/openclaw.json',
-    managedChannels: [],
-    managedConfigInsights: null,
+    kernelConfig: {
+      configFile: 'C:/OpenClaw/.openclaw/openclaw.json',
+      configRoot: 'C:/OpenClaw/.openclaw',
+      userRoot: 'C:/OpenClaw',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    },
+    configChannels: [],
+    kernelConfigInsights: null,
     healthScore: 92,
     runtimeStatus: 'healthy',
     connectedChannelCount: 2,
@@ -848,7 +858,7 @@ await runTest(
   async () => {
     const service = createAgentWorkbenchService({
       readOpenClawConfigSnapshot: async () => {
-        throw new Error('managed config unavailable');
+        throw new Error('OpenClaw config unavailable');
       },
       openClawGatewayClient: {
         getSkillsStatus: async () => {
@@ -942,5 +952,49 @@ await runTest(
       snapshot.skills[0]?.baseDir,
       'C:/OpenClaw/.openclaw/workspace-research/skills/research-skill',
     );
+  },
+);
+
+await runTest(
+  'agentWorkbenchService reads config snapshot from kernelConfig.configFile without legacy path fields',
+  async () => {
+    const readConfigSnapshotCalls: string[] = [];
+    const service = createAgentWorkbenchService({
+      readOpenClawConfigSnapshot: async (configPath) => {
+        readConfigSnapshotCalls.push(configPath);
+        return {
+          root: {},
+          agentSnapshots: [],
+          providerSnapshots: [],
+          channelSnapshots: [],
+        } as any;
+      },
+      openClawGatewayClient: {
+        getSkillsStatus: async () => ({ skills: [] }),
+        getToolsCatalog: async () => ({ profiles: [], groups: [] }),
+      } as any,
+    });
+
+    const workbench = createWorkbench() as any;
+    workbench.kernelConfig = {
+      configFile: 'C:/Users/admin/.openclaw/openclaw.json',
+      configRoot: 'C:/Users/admin/.openclaw',
+      userRoot: 'C:/Users/admin',
+      format: 'json',
+      access: 'localFs',
+      provenance: 'standardUserRoot',
+      writable: true,
+      resolved: true,
+      schemaVersion: null,
+    };
+    await service.getAgentWorkbench({
+      instanceId: 'instance-openclaw',
+      workbench,
+      agentId: 'research',
+    });
+
+    assert.deepEqual(readConfigSnapshotCalls, [
+      'C:/Users/admin/.openclaw/openclaw.json',
+    ]);
   },
 );

@@ -210,7 +210,7 @@
       "configPath": "配置文件路径",
       "runtimeHome": "运行时主目录",
       "runtimeInstallDir": "运行时安装目录",
-      "managedConfigPath": "\u53d7\u63a7\u914d\u7f6e\u8def\u5f84",
+      "configFilePath": "\u914d\u7f6e\u6587\u4ef6\u8def\u5f84",
       "ownedRuntimeRoot": "\u53d7\u63a7\u8fd0\u884c\u65f6\u6839\u76ee\u5f55 {{index}}",
       "supportsLoopbackHealthProbe": "\u652f\u6301\u56de\u73af\u5065\u5eb7\u63a2\u6d4b",
       "healthProbeTimeoutMs": "\u5065\u5eb7\u63a2\u6d4b\u8d85\u65f6",

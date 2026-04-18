@@ -19,13 +19,20 @@ function createLoaderRegisterImport(loaderUrl) {
   return `data:text/javascript,${encodeURIComponent(source)}`;
 }
 
+function createTypeScriptEntryEvalSource(scriptPath) {
+  const scriptUrl = pathToFileURL(path.resolve(workspaceRoot, scriptPath)).href;
+  return `await import(${JSON.stringify(scriptUrl)});`;
+}
+
 function createNodeTypeScriptArgs(scriptPath) {
   return [
     '--disable-warning=ExperimentalWarning',
     '--experimental-transform-types',
     '--import',
     createLoaderRegisterImport(tsExtensionLoaderUrl),
-    scriptPath,
+    '--input-type=module',
+    '--eval',
+    createTypeScriptEntryEvalSource(scriptPath),
   ];
 }
 

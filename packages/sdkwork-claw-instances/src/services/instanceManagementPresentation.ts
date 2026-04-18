@@ -14,7 +14,7 @@ export interface InstanceManagementEntry {
   id:
     | 'controlPlane'
     | 'installMethod'
-    | 'configAuthority'
+    | 'kernelConfig'
     | 'defaultWorkspace'
     | 'managementScope';
   labelKey: string;
@@ -72,7 +72,7 @@ function formatValue(value?: string | null) {
     .replace(/\b\w/g, (segment) => segment.toUpperCase());
 }
 
-function resolveConfigAuthorityRoute(workbench: InstanceWorkbenchSnapshot) {
+function resolveKernelConfigRoute(workbench: InstanceWorkbenchSnapshot) {
   return (
     workbench.detail.dataAccess.routes.find(
       (route) => route.scope === 'config' && Boolean(route.target),
@@ -80,30 +80,30 @@ function resolveConfigAuthorityRoute(workbench: InstanceWorkbenchSnapshot) {
   );
 }
 
-function buildConfigAuthorityEntry(
+function buildKernelConfigEntry(
   workbench: InstanceWorkbenchSnapshot,
 ): InstanceManagementEntry {
-  if (workbench.managedConfigPath) {
+  if (workbench.kernelConfig?.configFile) {
     return {
-      id: 'configAuthority',
-      labelKey: 'instances.detail.instanceWorkbench.overview.management.labels.configAuthority',
-      value: workbench.managedConfigPath,
+      id: 'kernelConfig',
+      labelKey: 'instances.detail.instanceWorkbench.overview.management.labels.kernelConfig',
+      value: workbench.kernelConfig.configFile,
       detailKey: 'instances.detail.instanceWorkbench.overview.management.details.configManagedFile',
       tone: 'success',
       mono: true,
     };
   }
 
-  const configRoute = resolveConfigAuthorityRoute(workbench);
+  const configRoute = resolveKernelConfigRoute(workbench);
   if (configRoute?.target) {
-    const configAuthorityPath =
+    const kernelConfigPath =
       resolveFallbackInstanceConfigPath(workbench.detail) || configRoute.target;
 
     return {
-      id: 'configAuthority',
-      labelKey: 'instances.detail.instanceWorkbench.overview.management.labels.configAuthority',
-      value: configAuthorityPath,
-      detailKey: getConfigAuthorityDetailKey(configRoute),
+      id: 'kernelConfig',
+      labelKey: 'instances.detail.instanceWorkbench.overview.management.labels.kernelConfig',
+      value: kernelConfigPath,
+      detailKey: getKernelConfigDetailKey(configRoute),
       tone:
         configRoute.mode === 'remoteEndpoint' || configRoute.mode === 'metadataOnly'
           ? 'warning'
@@ -113,15 +113,15 @@ function buildConfigAuthorityEntry(
   }
 
   return {
-    id: 'configAuthority',
-    labelKey: 'instances.detail.instanceWorkbench.overview.management.labels.configAuthority',
+    id: 'kernelConfig',
+    labelKey: 'instances.detail.instanceWorkbench.overview.management.labels.kernelConfig',
     value: '--',
     detailKey: 'instances.detail.instanceWorkbench.overview.management.details.configUnavailable',
     tone: 'warning',
   };
 }
 
-function getConfigAuthorityDetailKey(route: StudioInstanceDataAccessEntry) {
+function getKernelConfigDetailKey(route: StudioInstanceDataAccessEntry) {
   if (route.mode === 'managedDirectory') {
     return 'instances.detail.instanceWorkbench.overview.management.details.configManagedDirectory';
   }
@@ -179,13 +179,13 @@ function buildManagementScopeEntry(
     workbench.detail.lifecycle.lifecycleControllable ??
     workbench.detail.lifecycle.startStopSupported;
   const workbenchManaged = workbench.detail.lifecycle.workbenchManaged === true;
-  const configRoute = resolveConfigAuthorityRoute(workbench);
+  const configRoute = resolveKernelConfigRoute(workbench);
   const hasRemoteManagementSurface = Boolean(
     (configRoute && configRoute.mode !== 'metadataOnly' && configRoute.readonly === false) ||
       workbench.detail.consoleAccess?.available,
   );
 
-  if (workbench.managedConfigPath && workbench.detail.lifecycle.configWritable) {
+  if (workbench.kernelConfig?.configFile && workbench.detail.lifecycle.configWritable) {
     return {
       id: 'managementScope',
       labelKey: 'instances.detail.instanceWorkbench.overview.management.labels.managementScope',
@@ -261,7 +261,7 @@ export function buildInstanceManagementSummary(
           : 'instances.detail.instanceWorkbench.overview.management.details.installMethodUnknown',
         tone: installMethod ? 'neutral' : 'warning',
       },
-      buildConfigAuthorityEntry(workbench),
+      buildKernelConfigEntry(workbench),
       buildDefaultWorkspaceEntry(workbench),
       buildManagementScopeEntry(workbench),
     ],

@@ -14,10 +14,10 @@ import {
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
 import { RowMetric } from './InstanceWorkbenchPrimitives.tsx';
 
-type ManagedWebSearchConfig = NonNullable<InstanceWorkbenchSnapshot['managedWebSearchConfig']>;
-type ManagedWebSearchProvider = ManagedWebSearchConfig['providers'][number];
+type ConfigWebSearchConfig = NonNullable<InstanceWorkbenchSnapshot['configWebSearch']>;
+type ConfigWebSearchProvider = ConfigWebSearchConfig['providers'][number];
 
-interface ManagedWebSearchSharedDraft {
+interface ConfigWebSearchSharedDraft {
   enabled: boolean;
   provider: string;
   maxResults: string;
@@ -25,53 +25,53 @@ interface ManagedWebSearchSharedDraft {
   cacheTtlMinutes: string;
 }
 
-interface ManagedWebSearchProviderDraft {
+interface ConfigWebSearchProviderDraft {
   apiKeySource: string;
   baseUrl: string;
   model: string;
   advancedConfig: string;
 }
 
-interface InstanceDetailManagedWebSearchPanelProps {
-  managedWebSearchConfig: ManagedWebSearchConfig;
-  webSearchSharedDraft: ManagedWebSearchSharedDraft;
-  selectedWebSearchProvider: ManagedWebSearchProvider;
-  selectedWebSearchProviderDraft: ManagedWebSearchProviderDraft;
+interface InstanceDetailConfigWebSearchPanelProps {
+  configWebSearch: ConfigWebSearchConfig;
+  webSearchSharedDraft: ConfigWebSearchSharedDraft;
+  selectedWebSearchProvider: ConfigWebSearchProvider;
+  selectedWebSearchProviderDraft: ConfigWebSearchProviderDraft;
   webSearchError: string | null;
   isSavingWebSearch: boolean;
-  canEditManagedWebSearch: boolean;
+  canEditConfigWebSearch: boolean;
   formatWorkbenchLabel: (value: string) => string;
   t: (key: string) => string;
   onSave: () => Promise<void> | void;
   onWebSearchSharedDraftChange: (
-    key: keyof ManagedWebSearchSharedDraft,
+    key: keyof ConfigWebSearchSharedDraft,
     value: string | boolean,
   ) => void;
   onWebSearchProviderDraftChange: (
-    key: keyof ManagedWebSearchProviderDraft,
+    key: keyof ConfigWebSearchProviderDraft,
     value: string,
   ) => void;
   onSelectedWebSearchProviderIdChange: (providerId: string) => void;
 }
 
-export function InstanceDetailManagedWebSearchPanel({
-  managedWebSearchConfig,
+export function InstanceDetailConfigWebSearchPanel({
+  configWebSearch,
   webSearchSharedDraft,
   selectedWebSearchProvider,
   selectedWebSearchProviderDraft,
   webSearchError,
   isSavingWebSearch,
-  canEditManagedWebSearch,
+  canEditConfigWebSearch,
   formatWorkbenchLabel,
   t,
   onSave,
   onWebSearchSharedDraftChange,
   onWebSearchProviderDraftChange,
   onSelectedWebSearchProviderIdChange,
-}: InstanceDetailManagedWebSearchPanelProps) {
+}: InstanceDetailConfigWebSearchPanelProps) {
   return (
     <div
-      data-slot="instance-detail-managed-web-search"
+      data-slot="instance-detail-config-web-search"
       className="rounded-[1.8rem] border border-zinc-200/70 bg-white/80 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-950/35"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -95,7 +95,7 @@ export function InstanceDetailManagedWebSearchPanel({
           <Button
             type="button"
             onClick={() => void onSave()}
-            disabled={!canEditManagedWebSearch || isSavingWebSearch}
+            disabled={!canEditConfigWebSearch || isSavingWebSearch}
           >
             {isSavingWebSearch ? t('common.loading') : t('common.save')}
           </Button>
@@ -118,7 +118,7 @@ export function InstanceDetailManagedWebSearchPanel({
                 <Switch
                   checked={webSearchSharedDraft.enabled}
                   onCheckedChange={(checked) => onWebSearchSharedDraftChange('enabled', checked)}
-                  disabled={!canEditManagedWebSearch}
+                  disabled={!canEditConfigWebSearch}
                 />
               </div>
             </div>
@@ -128,7 +128,7 @@ export function InstanceDetailManagedWebSearchPanel({
               <Select
                 value={webSearchSharedDraft.provider || ''}
                 onValueChange={(value) => onWebSearchSharedDraftChange('provider', value)}
-                disabled={!canEditManagedWebSearch}
+                disabled={!canEditConfigWebSearch}
               >
                 <SelectTrigger>
                   <SelectValue
@@ -136,7 +136,7 @@ export function InstanceDetailManagedWebSearchPanel({
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {managedWebSearchConfig.providers.map((provider) => (
+                  {configWebSearch.providers.map((provider) => (
                     <SelectItem key={provider.id} value={provider.id}>
                       {provider.name}
                     </SelectItem>
@@ -150,7 +150,7 @@ export function InstanceDetailManagedWebSearchPanel({
               <Input
                 value={webSearchSharedDraft.maxResults}
                 onChange={(event) => onWebSearchSharedDraftChange('maxResults', event.target.value)}
-                disabled={!canEditManagedWebSearch}
+                disabled={!canEditConfigWebSearch}
                 inputMode="numeric"
               />
             </div>
@@ -162,7 +162,7 @@ export function InstanceDetailManagedWebSearchPanel({
                 onChange={(event) =>
                   onWebSearchSharedDraftChange('timeoutSeconds', event.target.value)
                 }
-                disabled={!canEditManagedWebSearch}
+                disabled={!canEditConfigWebSearch}
                 inputMode="numeric"
               />
             </div>
@@ -174,7 +174,7 @@ export function InstanceDetailManagedWebSearchPanel({
                 onChange={(event) =>
                   onWebSearchSharedDraftChange('cacheTtlMinutes', event.target.value)
                 }
-                disabled={!canEditManagedWebSearch}
+                disabled={!canEditConfigWebSearch}
                 inputMode="numeric"
               />
             </div>
@@ -186,8 +186,8 @@ export function InstanceDetailManagedWebSearchPanel({
               value={webSearchSharedDraft.provider || '--'}
             />
             <RowMetric
-              label={t('instances.detail.instanceWorkbench.webSearch.metrics.managedProviders')}
-              value={String(managedWebSearchConfig.providers.length)}
+              label={t('instances.detail.instanceWorkbench.webSearch.metrics.configuredProviders')}
+              value={String(configWebSearch.providers.length)}
             />
           </div>
         </div>
@@ -210,13 +210,13 @@ export function InstanceDetailManagedWebSearchPanel({
               <Select
                 value={selectedWebSearchProvider.id}
                 onValueChange={onSelectedWebSearchProviderIdChange}
-                disabled={!canEditManagedWebSearch}
+                disabled={!canEditConfigWebSearch}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {managedWebSearchConfig.providers.map((provider) => (
+                  {configWebSearch.providers.map((provider) => (
                     <SelectItem key={provider.id} value={provider.id}>
                       {provider.name}
                     </SelectItem>
@@ -235,7 +235,7 @@ export function InstanceDetailManagedWebSearchPanel({
                   onChange={(event) =>
                     onWebSearchProviderDraftChange('apiKeySource', event.target.value)
                   }
-                  disabled={!canEditManagedWebSearch}
+                  disabled={!canEditConfigWebSearch}
                   placeholder={t('instances.detail.instanceWorkbench.webSearch.placeholders.apiKeySource')}
                 />
               </div>
@@ -247,7 +247,7 @@ export function InstanceDetailManagedWebSearchPanel({
                 <Input
                   value={selectedWebSearchProviderDraft.baseUrl}
                   onChange={(event) => onWebSearchProviderDraftChange('baseUrl', event.target.value)}
-                  disabled={!canEditManagedWebSearch}
+                  disabled={!canEditConfigWebSearch}
                   placeholder={t('instances.detail.instanceWorkbench.webSearch.placeholders.baseUrl')}
                 />
               </div>
@@ -259,7 +259,7 @@ export function InstanceDetailManagedWebSearchPanel({
                 <Input
                   value={selectedWebSearchProviderDraft.model}
                   onChange={(event) => onWebSearchProviderDraftChange('model', event.target.value)}
-                  disabled={!canEditManagedWebSearch}
+                  disabled={!canEditConfigWebSearch}
                   placeholder={t('instances.detail.instanceWorkbench.webSearch.placeholders.model')}
                 />
               </div>
@@ -272,7 +272,7 @@ export function InstanceDetailManagedWebSearchPanel({
                 onChange={(event) =>
                   onWebSearchProviderDraftChange('advancedConfig', event.target.value)
                 }
-                disabled={!canEditManagedWebSearch}
+                disabled={!canEditConfigWebSearch}
                 rows={8}
                 placeholder={t('instances.detail.instanceWorkbench.webSearch.placeholders.advancedConfig')}
               />

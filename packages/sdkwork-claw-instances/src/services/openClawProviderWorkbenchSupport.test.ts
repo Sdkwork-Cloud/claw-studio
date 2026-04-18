@@ -29,7 +29,7 @@ await runTest(
       providerWorkbenchSupportModule,
       'Expected openClawProviderWorkbenchSupport.ts to exist',
     );
-    assert.equal(typeof providerWorkbenchSupportModule?.mapManagedProvider, 'function');
+    assert.equal(typeof providerWorkbenchSupportModule?.mapConfigBackedProvider, 'function');
     assert.equal(typeof providerWorkbenchSupportModule?.mapLlmProvider, 'function');
     assert.equal(typeof providerWorkbenchSupportModule?.providerMatchesId, 'function');
     assert.equal(typeof providerWorkbenchSupportModule?.buildOpenClawLlmProviders, 'function');
@@ -37,9 +37,9 @@ await runTest(
 );
 
 await runTest(
-  'mapManagedProvider deep-clones managed provider snapshots',
+  'mapConfigBackedProvider deep-clones config-backed provider snapshots',
   () => {
-    const mapped = providerWorkbenchSupportModule?.mapManagedProvider({
+    const mapped = providerWorkbenchSupportModule?.mapConfigBackedProvider({
       id: 'sdkwork-local-proxy',
       providerKey: 'sdkwork-local-proxy',
       name: 'SDKWork Local Proxy',
@@ -50,7 +50,7 @@ await runTest(
       defaultModelId: 'gpt-5.4',
       reasoningModelId: 'gpt-5.4',
       embeddingModelId: 'text-embedding-3-large',
-      description: 'Managed local proxy projection.',
+      description: 'Config-backed local proxy projection.',
       icon: 'S',
       lastCheckedAt: '2026-04-02T00:00:00.000Z',
       capabilities: ['chat', 'embedding', 'reasoning'],

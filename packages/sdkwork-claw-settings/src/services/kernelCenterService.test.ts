@@ -69,8 +69,8 @@ function createSnapshot(overrides: Record<string, unknown> = {}) {
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
-      configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
-      runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio',
+      configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+      runtimeHomeDir: 'C:/Users/admin',
       runtimeInstallDir:
         `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-windows-x64`,
     },
@@ -350,8 +350,8 @@ if (kernelCenterServiceModule) {
           arch: 'x64',
           installDir:
             `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-windows-x64`,
-          homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
-          configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          homeDir: 'C:/Users/admin',
+          configPath: 'C:/Users/admin/.openclaw/openclaw.json',
           startupChain: [{ id: 'configureOpenClawGateway', status: 'ready', detail: 'configured' }],
         },
       });
@@ -386,8 +386,8 @@ if (kernelCenterServiceModule) {
       assert.equal(dashboard.provenance.runtimeVersion, DEFAULT_RUNTIME_VERSION);
       assert.equal(dashboard.provenance.nodeVersion, DEFAULT_NODE_VERSION);
       assert.equal(dashboard.provenance.platformLabel, 'windows/x64');
-      assert.equal(dashboard.provenance.configPath, 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json');
-      assert.equal(dashboard.provenance.runtimeHomeDir, 'C:/Users/admin/.sdkwork/crawstudio');
+      assert.equal(dashboard.provenance.configPath, 'C:/Users/admin/.openclaw/openclaw.json');
+      assert.equal(dashboard.provenance.runtimeHomeDir, 'C:/Users/admin');
     },
   );
 
@@ -420,8 +420,8 @@ if (kernelCenterServiceModule) {
           arch: 'x64',
           installDir:
             `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-windows-x64`,
-          homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
-          configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          homeDir: 'C:/Users/admin',
+          configPath: 'C:/Users/admin/.openclaw/openclaw.json',
           startupChain: [{ id: 'configureOpenClawGateway', status: 'ready', detail: 'configured' }],
         },
       });
@@ -487,7 +487,7 @@ if (kernelCenterServiceModule) {
         runtimeAuthorities: [
           {
             runtimeId: 'hermes',
-            managedConfigPath: '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+            configFilePath: '/var/lib/claw/kernels/hermes/config/hermes.json',
             ownedRuntimeRoots: ['/opt/hermes', '/srv/hermes/runtime'],
             readinessProbe: {
               supportsLoopbackHealthProbe: false,
@@ -511,11 +511,11 @@ if (kernelCenterServiceModule) {
           arch: 'x64',
           installDir:
             `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_RUNTIME_VERSION}-windows-x64`,
-          homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
-          configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          homeDir: 'C:/Users/admin',
+          configPath: 'C:/Users/admin/.openclaw/openclaw.json',
           authority: {
-            managedConfigPath:
-              'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+            configFilePath:
+              'C:/Users/admin/.openclaw/openclaw.json',
             ownedRuntimeRoots: [
               'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
             ],
@@ -556,8 +556,8 @@ if (kernelCenterServiceModule) {
       const dashboard = await service.getDashboard();
 
       assert.equal(
-        dashboard.runtimeAuthority.managedConfigPath,
-        '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+        dashboard.runtimeAuthority.configFilePath,
+        '/var/lib/claw/kernels/hermes/config/hermes.json',
       );
       assert.deepEqual(dashboard.runtimeAuthority.ownedRuntimeRoots, ['/opt/hermes', '/srv/hermes/runtime']);
       assert.equal(dashboard.runtimeAuthority.supportsLoopbackHealthProbe, false);
@@ -611,7 +611,7 @@ if (kernelCenterServiceModule) {
           runtimeInstallDir: '/opt/hermes',
           authority: {
             runtimeId: 'hermes',
-            managedConfigPath: '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+            configFilePath: '/var/lib/claw/kernels/hermes/config/hermes.json',
             ownedRuntimeRoots: ['/opt/hermes', '/srv/hermes/runtime'],
             readinessProbe: {
               supportsLoopbackHealthProbe: false,
@@ -657,8 +657,8 @@ if (kernelCenterServiceModule) {
       const dashboard = await service.getDashboard();
 
       assert.equal(
-        dashboard.runtimeAuthority.managedConfigPath,
-        '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+        dashboard.runtimeAuthority.configFilePath,
+        '/var/lib/claw/kernels/hermes/config/hermes.json',
       );
       assert.deepEqual(dashboard.runtimeAuthority.ownedRuntimeRoots, ['/opt/hermes', '/srv/hermes/runtime']);
       assert.equal(dashboard.runtimeAuthority.supportsLoopbackHealthProbe, false);
@@ -898,17 +898,17 @@ if (kernelCenterServiceModule) {
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
         runtimeDir:
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64/runtime`,
-        homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
-        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
-        configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+        homeDir: 'C:/Users/admin',
+        workspaceDir: 'C:/Users/admin/.openclaw/workspace',
+        configPath: 'C:/Users/admin/.openclaw/openclaw.json',
         gatewayPort: 18789,
         gatewayBaseUrl: 'http://127.0.0.1:18789',
         localAiProxyBaseUrl: LOCAL_AI_PROXY_BASE_URL,
         localAiProxySnapshotPath:
           'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
         authority: {
-          managedConfigPath:
-            'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          configFilePath:
+              'C:/Users/admin/.openclaw/openclaw.json',
           ownedRuntimeRoots: [
             'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
             'C:/ProgramData/SdkWork/ClawStudio/runtime/runtimes/openclaw',
@@ -972,11 +972,11 @@ if (kernelCenterServiceModule) {
       assert.equal(dashboard.provenance.platformLabel, 'windows/x64');
       assert.equal(
         dashboard.provenance.configPath,
-        'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+        'C:/Users/admin/.openclaw/openclaw.json',
       );
       assert.equal(
         dashboard.provenance.runtimeHomeDir,
-        'C:/Users/admin/.sdkwork/crawstudio',
+        'C:/Users/admin',
       );
       assert.equal(
         dashboard.provenance.runtimeInstallDir,
@@ -1007,17 +1007,17 @@ if (kernelCenterServiceModule) {
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
         runtimeDir:
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64/runtime`,
-        homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
-        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
-        configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+        homeDir: 'C:/Users/admin',
+        workspaceDir: 'C:/Users/admin/.openclaw/workspace',
+        configPath: 'C:/Users/admin/.openclaw/openclaw.json',
         gatewayPort: 18789,
         gatewayBaseUrl: 'http://127.0.0.1:18789',
         localAiProxyBaseUrl: LOCAL_AI_PROXY_BASE_URL,
         localAiProxySnapshotPath:
           'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
         authority: {
-          managedConfigPath:
-            'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          configFilePath:
+            'C:/Users/admin/.openclaw/openclaw.json',
           ownedRuntimeRoots: [
             'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
             'C:/ProgramData/SdkWork/ClawStudio/runtime/runtimes/openclaw',
@@ -1077,8 +1077,8 @@ if (kernelCenterServiceModule) {
       const dashboard = await service.getDashboard();
 
       assert.equal(
-        dashboard.runtimeAuthority.managedConfigPath,
-        'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+        dashboard.runtimeAuthority.configFilePath,
+        'C:/Users/admin/.openclaw/openclaw.json',
       );
       assert.deepEqual(dashboard.runtimeAuthority.ownedRuntimeRoots, [
         'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
@@ -1608,17 +1608,17 @@ if (kernelCenterServiceModule) {
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
         runtimeDir:
           `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64/runtime`,
-        homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
-        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
-        configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+        homeDir: 'C:/Users/admin',
+        workspaceDir: 'C:/Users/admin/.openclaw/workspace',
+        configPath: 'C:/Users/admin/.openclaw/openclaw.json',
         gatewayPort: 18789,
         gatewayBaseUrl: 'http://127.0.0.1:18789',
         localAiProxyBaseUrl: LOCAL_AI_PROXY_BASE_URL,
         localAiProxySnapshotPath:
           'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
         authority: {
-          managedConfigPath:
-            'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          configFilePath:
+            'C:/Users/admin/.openclaw/openclaw.json',
           ownedRuntimeRoots: [
             'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
           ],
@@ -1640,7 +1640,7 @@ if (kernelCenterServiceModule) {
           {
             id: 'ensureLocalAiProxyReady',
             status: 'ready',
-            detail: 'Local AI proxy is serving managed OpenClaw traffic.',
+            detail: 'Local AI proxy is serving OpenClaw traffic.',
           },
         ],
       };
@@ -1699,14 +1699,14 @@ if (kernelCenterServiceModule) {
         configured: false,
         platform: 'windows',
         arch: 'x64',
-        homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
-        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
-        configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+        homeDir: 'C:/Users/admin',
+        workspaceDir: 'C:/Users/admin/.openclaw/workspace',
+        configPath: 'C:/Users/admin/.openclaw/openclaw.json',
         localAiProxySnapshotPath:
           'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
         authority: {
-          managedConfigPath:
-            'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          configFilePath:
+            'C:/Users/admin/.openclaw/openclaw.json',
           ownedRuntimeRoots: [
             'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
           ],
@@ -1794,7 +1794,7 @@ if (kernelCenterServiceModule) {
       kernelInfo.runtimeAuthorities = [
         {
           runtimeId: 'hermes',
-          managedConfigPath: '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+          configFilePath: '/var/lib/claw/kernels/hermes/config/hermes.json',
           ownedRuntimeRoots: ['/opt/hermes', '/srv/hermes/runtime'],
           readinessProbe: {
             supportsLoopbackHealthProbe: false,
@@ -1818,14 +1818,14 @@ if (kernelCenterServiceModule) {
         configured: true,
         platform: 'windows',
         arch: 'x64',
-        homeDir: 'C:/Users/admin/.sdkwork/crawstudio',
-        workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace',
-        configPath: 'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+        homeDir: 'C:/Users/admin',
+        workspaceDir: 'C:/Users/admin/.openclaw/workspace',
+        configPath: 'C:/Users/admin/.openclaw/openclaw.json',
         localAiProxySnapshotPath:
           'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
         authority: {
-          managedConfigPath:
-            'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json',
+          configFilePath:
+            'C:/Users/admin/.openclaw/openclaw.json',
           ownedRuntimeRoots: [
             'C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw',
           ],
@@ -1890,8 +1890,8 @@ if (kernelCenterServiceModule) {
       assert.equal(dashboard.provenance.runtimeHomeDir, '/srv/hermes');
       assert.equal(dashboard.provenance.runtimeInstallDir, '/opt/hermes');
       assert.equal(
-        dashboard.runtimeAuthority.managedConfigPath,
-        '/var/lib/claw/kernels/hermes/managed-config/hermes.json',
+        dashboard.runtimeAuthority.configFilePath,
+        '/var/lib/claw/kernels/hermes/config/hermes.json',
       );
     },
   );

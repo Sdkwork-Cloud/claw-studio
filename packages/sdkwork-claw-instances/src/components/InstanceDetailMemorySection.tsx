@@ -10,7 +10,7 @@ export interface InstanceDetailMemorySectionProps {
   dreamingDraft: OpenClawDreamingFormState | null;
   dreamingError: string | null;
   isSavingDreaming: boolean;
-  canEditManagedDreaming: boolean;
+  canEditDreamingConfig: boolean;
   latestDreamDiaryUpdatedAt: string | null;
   formatWorkbenchLabel: (value: string) => string;
   getDangerBadge: (status: string) => string;
@@ -29,7 +29,7 @@ export function InstanceDetailMemorySection({
   dreamingDraft,
   dreamingError,
   isSavingDreaming,
-  canEditManagedDreaming,
+  canEditDreamingConfig,
   latestDreamDiaryUpdatedAt,
   formatWorkbenchLabel,
   getDangerBadge,
@@ -63,7 +63,7 @@ export function InstanceDetailMemorySection({
               <Button
                 type="button"
                 onClick={() => void onSaveDreamingConfig()}
-                disabled={!canEditManagedDreaming || isSavingDreaming}
+                disabled={!canEditDreamingConfig || isSavingDreaming}
               >
                 {isSavingDreaming ? t('common.loading') : t('common.save')}
               </Button>
@@ -86,7 +86,7 @@ export function InstanceDetailMemorySection({
                     <Switch
                       checked={dreamingDraft.enabled}
                       onCheckedChange={(checked) => onDreamingDraftChange('enabled', checked)}
-                      disabled={!canEditManagedDreaming}
+                      disabled={!canEditDreamingConfig}
                     />
                   </div>
                 </div>
@@ -96,7 +96,7 @@ export function InstanceDetailMemorySection({
                   <Input
                     value={dreamingDraft.frequency}
                     onChange={(event) => onDreamingDraftChange('frequency', event.target.value)}
-                    disabled={!canEditManagedDreaming}
+                    disabled={!canEditDreamingConfig}
                     placeholder={t('instances.detail.instanceWorkbench.dreaming.placeholders.frequency')}
                   />
                 </div>

@@ -83,16 +83,16 @@ await runTest('buildOpenClawDreamingSaveInput trims frequency and omits a blank 
   );
 });
 
-await runTest('buildInstanceMemoryWorkbenchState keeps the memory section non-empty when managed dreaming config exists without runtime memory entries', () => {
+await runTest('buildInstanceMemoryWorkbenchState keeps the memory section non-empty when dreaming config exists without runtime memory entries', () => {
   const state = buildInstanceMemoryWorkbenchState({
-    managedDreamingConfig: createDreamingConfig({
+    configDreaming: createDreamingConfig({
       enabled: true,
       frequency: '0 3 * * *',
     }),
     memories: [],
   });
 
-  assert.equal(state.hasManagedDreamingPanel, true);
+  assert.equal(state.hasDreamingConfigPanel, true);
   assert.equal(state.hasMemoryEntries, false);
   assert.equal(state.isEmpty, false);
 });
@@ -108,7 +108,7 @@ await runTest('buildInstanceMemoryWorkbenchState exposes Dream Diary entries tha
   });
 
   const state = buildInstanceMemoryWorkbenchState({
-    managedDreamingConfig: createDreamingConfig(),
+    configDreaming: createDreamingConfig(),
     memories: [
       createMemoryEntry(),
       dreamDiary,

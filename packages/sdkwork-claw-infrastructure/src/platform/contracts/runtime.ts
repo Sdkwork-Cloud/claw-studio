@@ -399,7 +399,7 @@ export interface RuntimeDesktopOpenClawRuntimeAuthorityProbeInfo {
 }
 
 export interface RuntimeDesktopOpenClawRuntimeAuthorityInfo {
-  managedConfigPath: string;
+  configFilePath: string;
   ownedRuntimeRoots: string[];
   readinessProbe: RuntimeDesktopOpenClawRuntimeAuthorityProbeInfo;
 }
@@ -411,7 +411,7 @@ export interface RuntimeDesktopKernelRuntimeAuthorityProbeInfo {
 
 export interface RuntimeDesktopKernelRuntimeAuthorityInfo {
   runtimeId: string;
-  managedConfigPath: string;
+  configFilePath: string;
   ownedRuntimeRoots: string[];
   readinessProbe: RuntimeDesktopKernelRuntimeAuthorityProbeInfo;
   runtimeVersion?: string | null;

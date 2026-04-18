@@ -106,8 +106,7 @@ function createWorkbench() {
       observable: true,
       writable: true,
     },
-    managedConfigPath: 'D:/OpenClaw/.openclaw/openclaw.json',
-    managedChannels: [
+    configChannels: [
       {
         id: 'slack',
         name: 'Slack',
@@ -123,7 +122,7 @@ function createWorkbench() {
         },
       },
     ],
-    managedWebSearchConfig: {
+    configWebSearch: {
       enabled: true,
       provider: 'serpapi',
       maxResults: 5,
@@ -140,19 +139,19 @@ function createWorkbench() {
         },
       ],
     },
-    managedXSearchConfig: {
+    configXSearch: {
       enabled: true,
     },
-    managedWebSearchNativeCodexConfig: {
+    configWebSearchNativeCodex: {
       enabled: true,
     },
-    managedWebFetchConfig: {
+    configWebFetch: {
       enabled: true,
     },
-    managedAuthCooldownsConfig: {
+    configAuthCooldowns: {
       rateLimitedProfileRotations: 1,
     },
-    managedDreamingConfig: {
+    configDreaming: {
       enabled: true,
     },
     sectionAvailability: {},
@@ -256,8 +255,8 @@ await runTest(
       providerModelDeleteId: 'model-gpt-5-4',
       providerDrafts: {},
       providerRequestDrafts: {},
-      selectedManagedChannelId: 'slack',
-      managedChannelDrafts: {
+      selectedConfigChannelId: 'slack',
+      configChannelDrafts: {
         slack: {
           token: 'draft-token',
         },
@@ -283,10 +282,10 @@ await runTest(
     assert.equal(derivedState.isOpenClawConfigWritable, true);
     assert.equal(derivedState.canControlLifecycle, true);
     assert.equal(derivedState.canRestartLifecycle, true);
-    assert.equal(derivedState.canEditManagedChannels, true);
-    assert.equal(derivedState.canEditManagedWebSearch, true);
-    assert.equal(derivedState.canEditManagedWebFetch, true);
-    assert.equal(derivedState.canEditManagedDreaming, true);
+    assert.equal(derivedState.canEditConfigChannels, true);
+    assert.equal(derivedState.canEditConfigWebSearch, true);
+    assert.equal(derivedState.canEditConfigWebFetch, true);
+    assert.equal(derivedState.canEditDreamingConfig, true);
     assert.equal(derivedState.isProviderConfigReadonly, true);
     assert.equal(derivedState.canManageOpenClawProviders, false);
     assert.equal(derivedState.canOpenControlPage, true);
@@ -294,9 +293,9 @@ await runTest(
     assert.equal(derivedState.providerSelectionState.selectedProvider?.id, 'openai');
     assert.equal(derivedState.providerSelectionState.deletingProvider?.id, 'openai');
     assert.equal(derivedState.providerSelectionState.deletingProviderModel?.id, 'model-gpt-5-4');
-    assert.equal(derivedState.managedChannelSelectionState.selectedManagedChannel?.id, 'slack');
+    assert.equal(derivedState.configChannelSelectionState.selectedConfigChannel?.id, 'slack');
     assert.equal(
-      derivedState.managedChannelSelectionState.selectedManagedChannelDraft?.token,
+      derivedState.configChannelSelectionState.selectedConfigChannelDraft?.token,
       'draft-token',
     );
     assert.equal(
@@ -310,14 +309,52 @@ await runTest(
     assert.equal(derivedState.providerDialogPresentation.requestParseError, null);
     assert.equal(derivedState.availableAgentModelOptions.length, 2);
     assert.equal(derivedState.readonlyChannelWorkspaceItems.length, 2);
-    assert.equal(derivedState.managedChannelWorkspaceItems.length, 1);
-    assert.equal(derivedState.managedChannelWorkspaceItems[0]?.description, 'Runtime Slack channel');
-    assert.equal(derivedState.managedChannelWorkspaceItems[0]?.values.token, 'draft-token');
+    assert.equal(derivedState.configChannelWorkspaceItems.length, 1);
+    assert.equal(derivedState.configChannelWorkspaceItems[0]?.description, 'Runtime Slack channel');
+    assert.equal(derivedState.configChannelWorkspaceItems[0]?.values.token, 'draft-token');
   },
 );
 
 await runTest(
-  'buildInstanceDetailDerivedState gates editing from kernel config and authority instead of legacy managed config path heuristics',
+  'buildInstanceDetailDerivedState exposes canonical configFilePath and drops the legacy config alias field',
+  () => {
+    const workbench = createWorkbench();
+    const derivedState = buildInstanceDetailDerivedState({
+      id: 'instance-1',
+      workbench,
+      selectedProviderId: null,
+      providerDeleteId: null,
+      providerModelDeleteId: null,
+      providerDrafts: {},
+      providerRequestDrafts: {},
+      selectedConfigChannelId: null,
+      configChannelDrafts: {},
+      selectedWebSearchProviderId: null,
+      webSearchProviderDrafts: {},
+      providerDialogDraft: {
+        id: '',
+        name: '',
+        endpoint: '',
+        apiKeySource: '',
+        defaultModelId: '',
+        reasoningModelId: '',
+        embeddingModelId: '',
+        modelsText: '',
+        requestOverridesText: '',
+      },
+      t: (key: string) => key,
+    });
+
+    assert.equal(
+      (derivedState as any).configFilePath,
+      'D:/OpenClaw/.openclaw/openclaw.json',
+    );
+    assert.equal('managedConfigPath' in derivedState, false);
+  },
+);
+
+await runTest(
+  'buildInstanceDetailDerivedState gates editing from kernel config and authority instead of legacy configFilePath heuristics',
   () => {
     const workbench = createWorkbench();
     workbench.kernelConfig = {
@@ -351,8 +388,8 @@ await runTest(
       providerModelDeleteId: null,
       providerDrafts: {},
       providerRequestDrafts: {},
-      selectedManagedChannelId: null,
-      managedChannelDrafts: {},
+      selectedConfigChannelId: null,
+      configChannelDrafts: {},
       selectedWebSearchProviderId: null,
       webSearchProviderDrafts: {},
       providerDialogDraft: {
@@ -370,8 +407,8 @@ await runTest(
     });
 
     assert.equal(derivedState.isOpenClawConfigWritable, false);
-    assert.equal(derivedState.canEditManagedChannels, false);
-    assert.equal(derivedState.canEditManagedWebSearch, false);
+    assert.equal(derivedState.canEditConfigChannels, false);
+    assert.equal(derivedState.canEditConfigWebSearch, false);
     assert.equal(derivedState.isProviderConfigReadonly, false);
   },
 );
@@ -390,8 +427,8 @@ await runTest(
       providerModelDeleteId: null,
       providerDrafts: {},
       providerRequestDrafts: {},
-      selectedManagedChannelId: null,
-      managedChannelDrafts: {},
+      selectedConfigChannelId: null,
+      configChannelDrafts: {},
       selectedWebSearchProviderId: null,
       webSearchProviderDrafts: {},
       providerDialogDraft: {

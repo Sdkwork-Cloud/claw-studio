@@ -13,18 +13,18 @@ function runTest(name: string, fn: () => void | Promise<void>) {
     });
 }
 
-async function loadManagedChannelMutationSupportModule() {
-  const moduleUrl = new URL('./openClawManagedChannelMutationSupport.ts', import.meta.url);
+async function loadConfigChannelMutationSupportModule() {
+  const moduleUrl = new URL('./openClawConfigChannelMutationSupport.ts', import.meta.url);
 
   assert.ok(
     existsSync(moduleUrl),
-    'expected openClawManagedChannelMutationSupport.ts to exist',
+    'expected openClawConfigChannelMutationSupport.ts to exist',
   );
 
-  return import('./openClawManagedChannelMutationSupport.ts');
+  return import('./openClawConfigChannelMutationSupport.ts');
 }
 
-function createManagedChannelFixture() {
+function createConfigChannelFixture() {
   return {
     id: 'qq',
     name: 'QQ',
@@ -57,13 +57,13 @@ function createManagedChannelFixture() {
 }
 
 await runTest(
-  'applyOpenClawManagedChannelDraftChange patches the selected channel draft while preserving sibling values',
+  'applyOpenClawConfigChannelDraftChange patches the selected channel draft while preserving sibling values',
   async () => {
-    const { applyOpenClawManagedChannelDraftChange } =
-      await loadManagedChannelMutationSupportModule();
-    const channel = createManagedChannelFixture();
+    const { applyOpenClawConfigChannelDraftChange } =
+      await loadConfigChannelMutationSupportModule();
+    const channel = createConfigChannelFixture();
 
-    const nextDrafts = applyOpenClawManagedChannelDraftChange({
+    const nextDrafts = applyOpenClawConfigChannelDraftChange({
       drafts: {
         qq: {
           appId: 'current-app',
@@ -85,16 +85,16 @@ await runTest(
 );
 
 await runTest(
-  'buildOpenClawManagedChannelSaveMutationRequest returns required-field validation errors before the page runner executes',
+  'buildOpenClawConfigChannelSaveMutationRequest returns required-field validation errors before the page runner executes',
   async () => {
-    const { buildOpenClawManagedChannelSaveMutationRequest } =
-      await loadManagedChannelMutationSupportModule();
+    const { buildOpenClawConfigChannelSaveMutationRequest } =
+      await loadConfigChannelMutationSupportModule();
     const setSaving = (value: boolean) => value;
     const setError = (value: string | null) => value;
 
-    const result = buildOpenClawManagedChannelSaveMutationRequest({
+    const result = buildOpenClawConfigChannelSaveMutationRequest({
       instanceId: 'instance-01',
-      channel: createManagedChannelFixture(),
+      channel: createConfigChannelFixture(),
       draft: {
         appId: 'configured-app',
         appSecret: '   ',
@@ -112,16 +112,16 @@ await runTest(
 );
 
 await runTest(
-  'buildOpenClawManagedChannelSaveMutationRequest packages save-config request metadata for the page shell',
+  'buildOpenClawConfigChannelSaveMutationRequest packages save-config request metadata for the page shell',
   async () => {
-    const { buildOpenClawManagedChannelSaveMutationRequest } =
-      await loadManagedChannelMutationSupportModule();
-    const channel = createManagedChannelFixture();
+    const { buildOpenClawConfigChannelSaveMutationRequest } =
+      await loadConfigChannelMutationSupportModule();
+    const channel = createConfigChannelFixture();
     const setSaving = (value: boolean) => value;
     const setError = (value: string | null) => value;
     const afterSuccess = () => undefined;
 
-    const result = buildOpenClawManagedChannelSaveMutationRequest({
+    const result = buildOpenClawConfigChannelSaveMutationRequest({
       instanceId: 'instance-01',
       channel,
       draft: {
@@ -152,16 +152,16 @@ await runTest(
 );
 
 await runTest(
-  'managed channel toggle and delete requests preserve page-owned lifecycle metadata and empty-value shaping',
+  'config channel toggle and delete requests preserve page-owned lifecycle metadata and empty-value shaping',
   async () => {
     const {
-      buildOpenClawManagedChannelDeleteMutationRequest,
-      buildOpenClawManagedChannelToggleMutationRequest,
-    } = await loadManagedChannelMutationSupportModule();
-    const channel = createManagedChannelFixture();
+      buildOpenClawConfigChannelDeleteMutationRequest,
+      buildOpenClawConfigChannelToggleMutationRequest,
+    } = await loadConfigChannelMutationSupportModule();
+    const channel = createConfigChannelFixture();
     const clearSelection = () => undefined;
 
-    const toggleResult = buildOpenClawManagedChannelToggleMutationRequest({
+    const toggleResult = buildOpenClawConfigChannelToggleMutationRequest({
       instanceId: 'instance-01',
       channel,
       nextEnabled: false,
@@ -177,7 +177,7 @@ await runTest(
       nextEnabled: false,
     });
 
-    const deleteResult = buildOpenClawManagedChannelDeleteMutationRequest({
+    const deleteResult = buildOpenClawConfigChannelDeleteMutationRequest({
       instanceId: 'instance-01',
       channel,
       setSaving: (value: boolean) => value,
@@ -202,15 +202,15 @@ await runTest(
 );
 
 await runTest(
-  'createOpenClawManagedChannelMutationRunner composes page-owned transport bindings and spinnerless reload behavior',
+  'createOpenClawConfigChannelMutationRunner composes page-owned transport bindings and spinnerless reload behavior',
   async () => {
-    const { createOpenClawManagedChannelMutationRunner } =
-      await loadManagedChannelMutationSupportModule();
+    const { createOpenClawConfigChannelMutationRunner } =
+      await loadConfigChannelMutationSupportModule();
     const savingStates: boolean[] = [];
     const clearedErrors: Array<string | null> = [];
     const callLog: string[] = [];
 
-    const runManagedChannelMutation = createOpenClawManagedChannelMutationRunner({
+    const runConfigChannelMutation = createOpenClawConfigChannelMutationRunner({
       executeSaveConfig: async (instanceId: string, channelId: string, values: Record<string, string>) => {
         callLog.push(`save:${instanceId}:${channelId}:${values.appId}:${values.appSecret}`);
       },
@@ -233,7 +233,7 @@ await runTest(
       },
     });
 
-    await runManagedChannelMutation({
+    await runConfigChannelMutation({
       mutationPlan: {
         kind: 'saveConfig',
         instanceId: 'instance-01',
@@ -264,15 +264,15 @@ await runTest(
 );
 
 await runTest(
-  'runOpenClawManagedChannelMutation executes injected save/toggle actions, reloads the workbench, and preserves page-owned saving hooks',
+  'runOpenClawConfigChannelMutation executes injected save/toggle actions, reloads the workbench, and preserves page-owned saving hooks',
   async () => {
-    const { runOpenClawManagedChannelMutation } =
-      await loadManagedChannelMutationSupportModule();
+    const { runOpenClawConfigChannelMutation } =
+      await loadConfigChannelMutationSupportModule();
     const savingStates: boolean[] = [];
     const clearedErrors: Array<string | null> = [];
     const callLog: string[] = [];
 
-    await runOpenClawManagedChannelMutation({
+    await runOpenClawConfigChannelMutation({
       request: {
         mutationPlan: {
           kind: 'deleteConfig',
@@ -325,14 +325,14 @@ await runTest(
 );
 
 await runTest(
-  'runOpenClawManagedChannelMutation surfaces fallback failures through page error state or toast reporter based on request wiring',
+  'runOpenClawConfigChannelMutation surfaces fallback failures through page error state or toast reporter based on request wiring',
   async () => {
-    const { runOpenClawManagedChannelMutation } =
-      await loadManagedChannelMutationSupportModule();
+    const { runOpenClawConfigChannelMutation } =
+      await loadConfigChannelMutationSupportModule();
     const managedErrors: Array<string | null> = [];
     const toastErrors: string[] = [];
 
-    await runOpenClawManagedChannelMutation({
+    await runOpenClawConfigChannelMutation({
       request: {
         mutationPlan: {
           kind: 'saveConfig',
@@ -360,7 +360,7 @@ await runTest(
       },
     });
 
-    await runOpenClawManagedChannelMutation({
+    await runOpenClawConfigChannelMutation({
       request: {
         mutationPlan: {
           kind: 'toggleEnabled',
@@ -388,14 +388,14 @@ await runTest(
 );
 
 await runTest(
-  'buildOpenClawManagedChannelMutationHandlers routes toggle, save, and delete through injected page-owned mutation execution and draft resets',
+  'buildOpenClawConfigChannelMutationHandlers routes toggle, save, and delete through injected page-owned mutation execution and draft resets',
   async () => {
-    const { buildOpenClawManagedChannelMutationHandlers } =
-      await loadManagedChannelMutationSupportModule();
-    const channel = createManagedChannelFixture();
+    const { buildOpenClawConfigChannelMutationHandlers } =
+      await loadConfigChannelMutationSupportModule();
+    const channel = createConfigChannelFixture();
     const executedRequests: any[] = [];
-    let selectedManagedChannelId: string | null = 'qq';
-    let managedChannelDrafts = {
+    let selectedConfigChannelId: string | null = 'qq';
+    let configChannelDrafts = {
       qq: {
         appId: 'configured-app',
         appSecret: 'secret-1',
@@ -403,40 +403,40 @@ await runTest(
     };
     const reportedErrors: Array<string | null> = [];
 
-    const handlers = buildOpenClawManagedChannelMutationHandlers({
+    const handlers = buildOpenClawConfigChannelMutationHandlers({
       instanceId: 'instance-01',
-      managedChannels: [channel],
-      selectedManagedChannel: channel,
-      selectedManagedChannelDraft: managedChannelDrafts.qq,
-      setSavingManagedChannel: () => undefined,
-      setManagedChannelError: (value) => {
+      configChannels: [channel],
+      selectedConfigChannel: channel,
+      selectedConfigChannelDraft: configChannelDrafts.qq,
+      setSavingConfigChannel: () => undefined,
+      setConfigChannelError: (value) => {
         reportedErrors.push(value);
       },
-      setSelectedManagedChannelId: (value) => {
-        selectedManagedChannelId = value;
+      setSelectedConfigChannelId: (value) => {
+        selectedConfigChannelId = value;
       },
-      setManagedChannelDrafts: (updater) => {
-        managedChannelDrafts = updater(managedChannelDrafts);
+      setConfigChannelDrafts: (updater) => {
+        configChannelDrafts = updater(configChannelDrafts);
       },
       executeMutation: async (request) => {
         executedRequests.push(request);
       },
     });
 
-    await handlers.onToggleManagedChannel('qq', false);
-    await handlers.onSaveManagedChannel();
-    await handlers.onDeleteManagedChannelConfiguration();
+    await handlers.onToggleConfigChannel('qq', false);
+    await handlers.onSaveConfigChannel();
+    await handlers.onDeleteConfigChannelConfiguration();
 
     assert.equal(executedRequests.length, 3);
     assert.equal(executedRequests[0].mutationPlan.kind, 'toggleEnabled');
     assert.equal(executedRequests[1].mutationPlan.kind, 'saveConfig');
-    assert.equal(executedRequests[1].afterSuccess, handlers.clearSelectedManagedChannelId);
+    assert.equal(executedRequests[1].afterSuccess, handlers.clearSelectedConfigChannelId);
     assert.equal(executedRequests[2].mutationPlan.kind, 'deleteConfig');
 
     executedRequests[2].afterSuccess?.();
 
-    assert.equal(selectedManagedChannelId, null);
-    assert.deepEqual(managedChannelDrafts, {
+    assert.equal(selectedConfigChannelId, null);
+    assert.deepEqual(configChannelDrafts, {
       qq: {
         appId: '',
         appSecret: '',
@@ -447,35 +447,35 @@ await runTest(
 );
 
 await runTest(
-  'buildOpenClawManagedChannelMutationHandlers keeps validation errors in the page and skips unresolved toggle targets',
+  'buildOpenClawConfigChannelMutationHandlers keeps validation errors in the page and skips unresolved toggle targets',
   async () => {
-    const { buildOpenClawManagedChannelMutationHandlers } =
-      await loadManagedChannelMutationSupportModule();
-    const channel = createManagedChannelFixture();
+    const { buildOpenClawConfigChannelMutationHandlers } =
+      await loadConfigChannelMutationSupportModule();
+    const channel = createConfigChannelFixture();
     const executedRequests: any[] = [];
     const reportedErrors: Array<string | null> = [];
 
-    const handlers = buildOpenClawManagedChannelMutationHandlers({
+    const handlers = buildOpenClawConfigChannelMutationHandlers({
       instanceId: 'instance-01',
-      managedChannels: [channel],
-      selectedManagedChannel: channel,
-      selectedManagedChannelDraft: {
+      configChannels: [channel],
+      selectedConfigChannel: channel,
+      selectedConfigChannelDraft: {
         appId: 'configured-app',
         appSecret: '   ',
       },
-      setSavingManagedChannel: () => undefined,
-      setManagedChannelError: (value) => {
+      setSavingConfigChannel: () => undefined,
+      setConfigChannelError: (value) => {
         reportedErrors.push(value);
       },
-      setSelectedManagedChannelId: () => undefined,
-      setManagedChannelDrafts: () => undefined,
+      setSelectedConfigChannelId: () => undefined,
+      setConfigChannelDrafts: () => undefined,
       executeMutation: async (request) => {
         executedRequests.push(request);
       },
     });
 
-    await handlers.onToggleManagedChannel('missing-channel', true);
-    await handlers.onSaveManagedChannel();
+    await handlers.onToggleConfigChannel('missing-channel', true);
+    await handlers.onSaveConfigChannel();
 
     assert.deepEqual(executedRequests, []);
     assert.deepEqual(reportedErrors, ['App Secret is required.']);

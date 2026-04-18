@@ -39,7 +39,7 @@ export async function retryBackgroundRuntimeReadinessRecovery({
 
   if (recoveryMode === 'managed-openclaw') {
     if (!instanceId) {
-      throw new Error('The managed OpenClaw instance could not be resolved for retry.');
+      throw new Error('The built-in OpenClaw instance could not be resolved for retry.');
     }
 
     const restartedInstance = await restartInstance(instanceId);

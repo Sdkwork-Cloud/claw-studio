@@ -11,8 +11,8 @@ import {
 } from './instanceMemoryWorkbenchPresentation.ts';
 import type { InstanceWorkbenchSnapshot } from '../types';
 
-type OpenClawManagedWebSearchProvider =
-  NonNullable<InstanceWorkbenchSnapshot['managedWebSearchConfig']>['providers'][number];
+type OpenClawWebSearchProviderRecord =
+  NonNullable<InstanceWorkbenchSnapshot['configWebSearch']>['providers'][number];
 
 export interface OpenClawWebSearchSharedDraftValue {
   enabled: boolean;
@@ -36,7 +36,7 @@ export interface OpenClawWebSearchDraftState {
 }
 
 export interface OpenClawWebSearchProviderSelectionState {
-  selectedProvider: OpenClawManagedWebSearchProvider | null;
+  selectedProvider: OpenClawWebSearchProviderRecord | null;
   selectedProviderDraft: OpenClawWebSearchProviderDraftValue | null;
 }
 
@@ -94,7 +94,7 @@ export interface OpenClawAuthCooldownsDraftValue {
   failureWindowHours: string;
 }
 
-export interface OpenClawManagedConfigResetState {
+export interface OpenClawConfigResetState {
   webSearch: {
     selectedProviderId: string | null;
     sharedDraft: OpenClawWebSearchSharedDraftValue | null;
@@ -168,7 +168,7 @@ export function applyOpenClawDraftFieldChange<
   };
 }
 
-export function createOpenClawManagedConfigResetState(): OpenClawManagedConfigResetState {
+export function createOpenClawConfigResetState(): OpenClawConfigResetState {
   const webSearchDraftState = createOpenClawWebSearchDraftState({
     config: null,
   });
@@ -212,7 +212,7 @@ export function createOpenClawManagedConfigResetState(): OpenClawManagedConfigRe
 }
 
 export function createOpenClawWebSearchSharedDraft(
-  config: InstanceWorkbenchSnapshot['managedWebSearchConfig'] | null | undefined,
+  config: InstanceWorkbenchSnapshot['configWebSearch'] | null | undefined,
 ): OpenClawWebSearchSharedDraftValue | null {
   if (!config) {
     return null;
@@ -228,7 +228,7 @@ export function createOpenClawWebSearchSharedDraft(
 }
 
 export function createOpenClawWebSearchProviderDraft(
-  provider?: OpenClawManagedWebSearchProvider | null,
+  provider?: OpenClawWebSearchProviderRecord | null,
 ): OpenClawWebSearchProviderDraftValue {
   return {
     apiKeySource: provider?.apiKeySource || '',
@@ -239,7 +239,7 @@ export function createOpenClawWebSearchProviderDraft(
 }
 
 export function createOpenClawWebSearchDraftState(args: {
-  config: InstanceWorkbenchSnapshot['managedWebSearchConfig'] | null | undefined;
+  config: InstanceWorkbenchSnapshot['configWebSearch'] | null | undefined;
   currentProviderId?: string | null;
 }): OpenClawWebSearchDraftState {
   const config = args.config;
@@ -271,7 +271,7 @@ export function createOpenClawWebSearchDraftState(args: {
 }
 
 export function buildOpenClawWebSearchProviderSelectionState(args: {
-  config: InstanceWorkbenchSnapshot['managedWebSearchConfig'] | null | undefined;
+  config: InstanceWorkbenchSnapshot['configWebSearch'] | null | undefined;
   selectedProviderId: string | null;
   providerDrafts: Record<string, OpenClawWebSearchProviderDraftValue>;
 }): OpenClawWebSearchProviderSelectionState {
@@ -294,7 +294,7 @@ export function buildOpenClawWebSearchProviderSelectionState(args: {
 
 export function applyOpenClawWebSearchProviderDraftChange(args: {
   currentDrafts: Record<string, OpenClawWebSearchProviderDraftValue>;
-  selectedProvider: OpenClawManagedWebSearchProvider | null;
+  selectedProvider: OpenClawWebSearchProviderRecord | null;
   key: keyof OpenClawWebSearchProviderDraftValue;
   value: string;
 }): Record<string, OpenClawWebSearchProviderDraftValue> {
@@ -313,7 +313,7 @@ export function applyOpenClawWebSearchProviderDraftChange(args: {
 }
 
 export function createOpenClawXSearchDraft(
-  config: InstanceWorkbenchSnapshot['managedXSearchConfig'] | null | undefined,
+  config: InstanceWorkbenchSnapshot['configXSearch'] | null | undefined,
 ): OpenClawXSearchDraftValue | null {
   if (!config) {
     return null;
@@ -332,7 +332,7 @@ export function createOpenClawXSearchDraft(
 }
 
 export function createOpenClawWebSearchNativeCodexDraft(
-  config: InstanceWorkbenchSnapshot['managedWebSearchNativeCodexConfig'] | null | undefined,
+  config: InstanceWorkbenchSnapshot['configWebSearchNativeCodex'] | null | undefined,
 ): OpenClawWebSearchNativeCodexDraftValue | null {
   if (!config) {
     return null;
@@ -351,7 +351,7 @@ export function createOpenClawWebSearchNativeCodexDraft(
 }
 
 export function createOpenClawWebFetchSharedDraft(
-  config: InstanceWorkbenchSnapshot['managedWebFetchConfig'] | null | undefined,
+  config: InstanceWorkbenchSnapshot['configWebFetch'] | null | undefined,
 ): OpenClawWebFetchSharedDraftValue | null {
   if (!config) {
     return null;
@@ -371,7 +371,7 @@ export function createOpenClawWebFetchSharedDraft(
 }
 
 export function createOpenClawWebFetchFallbackDraft(
-  config: InstanceWorkbenchSnapshot['managedWebFetchConfig'] | null | undefined,
+  config: InstanceWorkbenchSnapshot['configWebFetch'] | null | undefined,
 ): OpenClawWebFetchFallbackDraftValue {
   return {
     apiKeySource: config?.fallbackProvider.apiKeySource || '',
@@ -381,7 +381,7 @@ export function createOpenClawWebFetchFallbackDraft(
 }
 
 export function createOpenClawWebFetchDraftState(
-  config: InstanceWorkbenchSnapshot['managedWebFetchConfig'] | null | undefined,
+  config: InstanceWorkbenchSnapshot['configWebFetch'] | null | undefined,
 ): OpenClawWebFetchDraftState {
   return {
     sharedDraft: createOpenClawWebFetchSharedDraft(config),
@@ -390,7 +390,7 @@ export function createOpenClawWebFetchDraftState(
 }
 
 export function createOpenClawAuthCooldownsDraft(
-  config: InstanceWorkbenchSnapshot['managedAuthCooldownsConfig'] | null | undefined,
+  config: InstanceWorkbenchSnapshot['configAuthCooldowns'] | null | undefined,
 ): OpenClawAuthCooldownsDraftValue | null {
   if (!config) {
     return null;

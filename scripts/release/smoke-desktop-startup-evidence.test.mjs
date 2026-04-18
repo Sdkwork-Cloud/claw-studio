@@ -392,12 +392,12 @@ test('desktop startup smoke accepts hermes-only desktop packages without managed
         {
           id: 'built-in-instance',
           status: 'passed',
-          detail: 'desktop startup evidence skipped managed OpenClaw instance checks because package profile excludes openclaw',
+          detail: 'desktop startup evidence skipped built-in OpenClaw instance checks because package profile excludes openclaw',
         },
         {
           id: 'gateway-websocket',
           status: 'passed',
-          detail: 'desktop startup evidence skipped managed OpenClaw gateway websocket checks because package profile excludes openclaw',
+          detail: 'desktop startup evidence skipped OpenClaw gateway websocket checks because package profile excludes openclaw',
         },
       ],
     );

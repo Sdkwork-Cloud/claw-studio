@@ -292,11 +292,11 @@ runTest('shared kernel-platform types keep runtime, transport, console, and acti
   );
   assert.match(
     desktopBridgeSource,
-    /requiresManagedOpenClawEvidence\?: boolean;/,
+    /requiresBuiltInOpenClawEvidence\?: boolean;/,
   );
   assert.match(
     desktopBridgeSource,
-    /requiresManagedOpenClawEvidence = true/,
+    /requiresBuiltInOpenClawEvidence = true/,
   );
   assert.match(
     desktopBootstrapAppSource,
@@ -304,7 +304,7 @@ runTest('shared kernel-platform types keep runtime, transport, console, and acti
   );
   assert.match(
     desktopBootstrapAppSource,
-    /const recoveryMode = resolveBackgroundRuntimeReadinessRecoveryMode\([\s\S]*kernelInfo\?\.bundledComponents\.includedKernelIds[\s\S]*requiresManagedOpenClawEvidence:\s*recoveryMode === 'managed-openclaw'/,
+    /const recoveryMode = resolveBackgroundRuntimeReadinessRecoveryMode\([\s\S]*kernelInfo\?\.bundledComponents\.includedKernelIds[\s\S]*requiresBuiltInOpenClawEvidence:\s*recoveryMode === 'managed-openclaw'/,
   );
   assert.match(
     desktopStudioSource,
@@ -541,7 +541,7 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     connectDesktopRuntimeBody,
-    /const kernelInfo = await captureDesktopKernelInfo\(runId\);[\s\S]*const recoveryMode = resolveBackgroundRuntimeReadinessRecoveryMode\([\s\S]*kernelInfo\?\.bundledComponents\.includedKernelIds[\s\S]*requiresManagedOpenClawEvidence:\s*recoveryMode === 'managed-openclaw'/,
+    /const kernelInfo = await captureDesktopKernelInfo\(runId\);[\s\S]*const recoveryMode = resolveBackgroundRuntimeReadinessRecoveryMode\([\s\S]*kernelInfo\?\.bundledComponents\.includedKernelIds[\s\S]*requiresBuiltInOpenClawEvidence:\s*recoveryMode === 'managed-openclaw'/,
   );
   assert.match(
     desktopBootstrapAppSource,
@@ -717,7 +717,7 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     desktopBackgroundRuntimeReadinessRecoverySource,
-    /if \(recoveryMode === 'managed-openclaw'\) \{[\s\S]*if \(!instanceId\) \{[\s\S]*'The managed OpenClaw instance could not be resolved for retry\.'/,
+    /if \(recoveryMode === 'managed-openclaw'\) \{[\s\S]*if \(!instanceId\) \{[\s\S]*'The built-in OpenClaw instance could not be resolved for retry\.'/,
   );
   assert.match(
     desktopBootstrapAppSource,
@@ -792,7 +792,7 @@ runTest('desktop hosted readiness probe validates live OpenClaw authority instea
   );
   assert.match(
     desktopHostedBridgeSource,
-    /Desktop hosted runtime did not accept a WebSocket connection on the managed OpenClaw gateway yet\./,
+    /Desktop hosted runtime did not accept a WebSocket connection on the OpenClaw gateway yet\./,
   );
   assert.match(desktopBootstrapAppSource, /openClawRuntimeLifecycle:/);
   assert.match(desktopBootstrapAppSource, /openClawGatewayLifecycle:/);
@@ -803,7 +803,7 @@ runTest('desktop hosted readiness probe validates live OpenClaw authority instea
   );
 });
 
-runTest('managed OpenClaw config workbench uses gateway authority when the runtime is online while keeping file fallback for offline desktop flows', () => {
+runTest('OpenClaw config workbench uses gateway authority when the runtime is online while keeping file fallback for offline desktop flows', () => {
   const instanceServiceCoreSource = read(
     'packages/sdkwork-claw-instances/src/services/instanceServiceCore.ts',
   );
@@ -813,31 +813,652 @@ runTest('managed OpenClaw config workbench uses gateway authority when the runti
 
   assert.match(
     instanceServiceCoreSource,
-    /private async withManagedOpenClawGatewayProbe<TResult>\([\s\S]*shouldProbeOpenClawGateway\(detail\)[\s\S]*const optimisticProbe = !hasReadyOpenClawGateway\(detail\);/,
+    /private async withOpenClawGatewayProbe<TResult>\([\s\S]*shouldProbeOpenClawGateway\(detail\)[\s\S]*const optimisticProbe = !hasReadyOpenClawGateway\(detail\);/,
   );
   assert.match(
     instanceServiceCoreSource,
-    /async getManagedOpenClawConfigDocument\(id: string\): Promise<string> \{[\s\S]*withManagedOpenClawGatewayProbe\([\s\S]*openClawGatewayClient\.getConfig\(id\)[\s\S]*serializeOpenClawConfigDocument\(/,
+    /async getOpenClawConfigDocument\(id: string\): Promise<string> \{[\s\S]*withOpenClawGatewayProbe\([\s\S]*openClawGatewayClient\.getConfig\(id\)[\s\S]*serializeOpenClawConfigDocument\(/,
   );
   assert.match(
     instanceServiceCoreSource,
-    /async updateManagedOpenClawConfigDocument\(id: string, raw: string\): Promise<void> \{[\s\S]*withManagedOpenClawGatewayProbe\([\s\S]*openClawGatewayClient\.getConfig\(id\)[\s\S]*openClawGatewayClient\.setConfig\(id,\s*\{[\s\S]*baseHash: snapshot\.baseHash[\s\S]*\}\)/,
+    /async updateOpenClawConfigDocument\(id: string, raw: string\): Promise<void> \{[\s\S]*withOpenClawGatewayProbe\([\s\S]*openClawGatewayClient\.getConfig\(id\)[\s\S]*openClawGatewayClient\.setConfig\(id,\s*\{[\s\S]*baseHash: snapshot\.baseHash[\s\S]*\}\)/,
   );
   assert.match(
     instanceServiceCoreSource,
-    /openClawConfigService\.readConfigDocument\(\s*managedConfig\.configPath/,
+    /openClawConfigService\.readConfigDocument\(\s*configBinding\.configPath/,
   );
   assert.match(
     instanceServiceCoreSource,
-    /openClawConfigService\.writeConfigDocument\(\s*managedConfig\.configPath,\s*raw/,
+    /openClawConfigService\.writeConfigDocument\(\s*configBinding\.configPath,\s*raw/,
   );
   assert.match(
     instanceServiceSource,
     /setConfig:\s*\(instanceId,\s*args\)\s*=> openClawGatewayClient\.setConfig\(instanceId,\s*args\)/,
   );
+  assert.match(instanceServiceCoreSource, /function isBuiltInOpenClawDetail\(/);
+  assert.match(
+    instanceServiceCoreSource,
+    /function createProviderCenterControlledOpenClawProviderError\(\)/,
+  );
+  assert.doesNotMatch(instanceServiceCoreSource, /function isBuiltInManagedOpenClawDetail\(/);
+  assert.doesNotMatch(
+    instanceServiceCoreSource,
+    /function createManagedOpenClawProviderControlPlaneError\(\)/,
+  );
+  assert.doesNotMatch(instanceServiceCoreSource, /withManagedOpenClawGatewayProbe/);
 });
 
-runTest('hosted conversation snapshots do not override managed OpenClaw runtime authority when the built-in runtime is unavailable', () => {
+runTest('desktop hosted runtime evidence uses built-in OpenClaw wording for readiness options and shape fields', () => {
+  const desktopHostedBridgeSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/desktopHostedBridge.ts',
+  );
+  const tauriBridgeSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  );
+  const smokeDesktopStartupEvidenceSource = read(
+    'scripts/release/smoke-desktop-startup-evidence.mjs',
+  );
+  const desktopBootstrapAppSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopBootstrapApp.tsx',
+  );
+
+  assert.match(desktopHostedBridgeSource, /requiresBuiltInOpenClawEvidence\?: boolean;/);
+  assert.match(desktopHostedBridgeSource, /requiresBuiltInOpenClawEvidence = true/);
+  assert.match(
+    desktopHostedBridgeSource,
+    /builtInInstanceRuntimeKindMatchesOpenClaw:\s*boolean;/,
+  );
+  assert.match(
+    desktopHostedBridgeSource,
+    /builtInInstanceDeploymentModeMatchesLocalManaged:\s*boolean;/,
+  );
+  assert.match(
+    desktopHostedBridgeSource,
+    /builtInInstanceTransportKindMatchesOpenClawGateway:\s*boolean;/,
+  );
+  assert.doesNotMatch(desktopHostedBridgeSource, /requiresManagedOpenClawEvidence/);
+  assert.doesNotMatch(
+    desktopHostedBridgeSource,
+    /builtInInstanceRuntimeKindMatchesManagedOpenClaw/,
+  );
+  assert.doesNotMatch(
+    desktopHostedBridgeSource,
+    /builtInInstanceDeploymentModeMatchesManagedOpenClaw/,
+  );
+  assert.doesNotMatch(
+    desktopHostedBridgeSource,
+    /builtInInstanceTransportKindMatchesManagedOpenClaw/,
+  );
+
+  assert.match(tauriBridgeSource, /requiresBuiltInOpenClawEvidence\?: boolean;/);
+  assert.doesNotMatch(tauriBridgeSource, /requiresManagedOpenClawEvidence/);
+
+  assert.match(smokeDesktopStartupEvidenceSource, /requiresBuiltInOpenClawEvidence = true/);
+  assert.match(
+    desktopBootstrapAppSource,
+    /requiresBuiltInOpenClawEvidence:\s*recoveryMode === 'managed-openclaw'/,
+  );
+  assert.doesNotMatch(smokeDesktopStartupEvidenceSource, /requiresManagedOpenClawEvidence/);
+});
+
+runTest('internal built-in OpenClaw helpers use built-in naming instead of managed naming', () => {
+  const builtInSelectionSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/builtInOpenClawInstanceSelection.ts',
+  );
+  const gatewayClientSource = read(
+    'packages/sdkwork-claw-infrastructure/src/services/openClawGatewayClient.ts',
+  );
+  const configServiceSource = read(
+    'packages/sdkwork-claw-core/src/services/openClawConfigService.ts',
+  );
+
+  assert.match(builtInSelectionSource, /function isBuiltInOpenClawInstance\(/);
+  assert.match(builtInSelectionSource, /builtInOpenClawPriority:\s*isBuiltInOpenClawInstance\(instance\)\s*\?\s*1\s*:\s*0/);
+  assert.match(builtInSelectionSource, /const builtInOpenClawInstance = instances\.find\(isBuiltInOpenClawInstance\)/);
+  assert.doesNotMatch(builtInSelectionSource, /function isManagedOpenClawInstance\(/);
+  assert.doesNotMatch(builtInSelectionSource, /managedOpenClawPriority/);
+  assert.doesNotMatch(builtInSelectionSource, /const managedOpenClawInstance = instances\.find\(isManagedOpenClawInstance\)/);
+
+  assert.match(gatewayClientSource, /function isBuiltInOpenClawAccess\(/);
+  assert.match(gatewayClientSource, /if \(invokeGateway && isBuiltInOpenClawAccess\(access\)\)/);
+  assert.doesNotMatch(gatewayClientSource, /function isBuiltInManagedOpenClawAccess\(/);
+  assert.doesNotMatch(gatewayClientSource, /isBuiltInManagedOpenClawAccess\(access\)/);
+
+  assert.match(configServiceSource, /function isBuiltInOpenClawDetail\(/);
+  assert.match(configServiceSource, /function resolveBuiltInOpenClawWorkspacePath\(/);
+  assert.match(configServiceSource, /function canonicalizeBuiltInOpenClawConfigPath\(/);
+  assert.doesNotMatch(configServiceSource, /function isBuiltInManagedOpenClawDetail\(/);
+  assert.doesNotMatch(configServiceSource, /function resolveBuiltInManagedOpenClawWorkspacePath\(/);
+  assert.doesNotMatch(configServiceSource, /function canonicalizeBuiltInManagedOpenClawConfigPath\(/);
+});
+
+runTest('OpenClaw console auth source contract uses configFile terminology across shared and host surfaces', () => {
+  const sharedTypesSource = read('packages/sdkwork-claw-types/src/index.ts');
+  const desktopStudioSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio.rs',
+  );
+  const hostedStudioSource = read(
+    'packages/sdkwork-claw-host-studio/src-host/src/lib.rs',
+  );
+
+  assert.match(
+    sharedTypesSource,
+    /export type StudioInstanceConsoleAuthSource =[\s\S]*\| 'configFile'/,
+  );
+  assert.doesNotMatch(sharedTypesSource, /\| 'managedConfig'/);
+  assert.match(hostedStudioSource, /Some\("configFile"\)/);
+  assert.doesNotMatch(hostedStudioSource, /Some\("managedConfig"\)/);
+  assert.match(desktopStudioSource, /Some\("configFile"\)/);
+});
+
+runTest('desktop runtime authority internals use config_file_path terminology instead of managed_config_path', () => {
+  const kernelRuntimeTypesSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/kernel_runtime/types.rs',
+  );
+  const authorityServiceSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/kernel_runtime_authority.rs',
+  );
+  const compatSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_config_compat.rs',
+  );
+  const openClawRuntimeSnapshotSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime_snapshot.rs',
+  );
+  const layoutSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/layout.rs',
+  );
+
+  assert.match(kernelRuntimeTypesSource, /pub config_file_path: PathBuf,/);
+  assert.doesNotMatch(kernelRuntimeTypesSource, /pub managed_config_path: PathBuf,/);
+  assert.match(authorityServiceSource, /pub fn active_config_file_path\(/);
+  assert.doesNotMatch(authorityServiceSource, /pub fn active_managed_config_path\(/);
+  assert.match(
+    compatSource,
+    /pub fn legacy_openclaw_config_file_path\(paths: &AppPaths\) -> PathBuf/,
+  );
+  assert.doesNotMatch(authorityServiceSource, /fn legacy_openclaw_config_file_path\(/);
+  assert.doesNotMatch(compatSource, /fn legacy_openclaw_managed_config_path\(/);
+  assert.match(
+    authorityServiceSource,
+    /fn reconcile_openclaw_authority_config_file_path\(/,
+  );
+  assert.doesNotMatch(
+    authorityServiceSource,
+    /fn reconcile_openclaw_authority_managed_config_path\(/,
+  );
+  assert.match(compatSource, /fn read_openclaw_authority_state_file\(/);
+  assert.match(compatSource, /fn normalize_legacy_openclaw_authority_json\(/);
+  assert.match(openClawRuntimeSnapshotSource, /authority\.config_file_path/);
+  assert.doesNotMatch(openClawRuntimeSnapshotSource, /authority\.managed_config_path/);
+  assert.doesNotMatch(layoutSource, /managedConfigPath/);
+  assert.doesNotMatch(layoutSource, /KernelAuthorityStateCompat/);
+  assert.doesNotMatch(layoutSource, /impl<'de> Deserialize<'de> for KernelAuthorityState/);
+});
+
+runTest('desktop kernel path models use config_dir and config_file terminology instead of managed_config fields', () => {
+  const pathsSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/paths.rs',
+  );
+  const bootstrapSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  );
+  const internalCliSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/internal_cli.rs',
+  );
+  const kernelHostSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/kernel_host/mod.rs',
+  );
+
+  assert.match(pathsSource, /pub config_dir: PathBuf,/);
+  assert.match(pathsSource, /pub config_file: PathBuf,/);
+  assert.doesNotMatch(pathsSource, /pub managed_config_dir: PathBuf,/);
+  assert.doesNotMatch(pathsSource, /pub managed_config_file: PathBuf,/);
+  assert.doesNotMatch(pathsSource, /let \(managed_config_dir, managed_config_file\) =/);
+  assert.doesNotMatch(pathsSource, /managed_config_dir\.clone\(\)/);
+  assert.doesNotMatch(pathsSource, /managed_config_dir\.join/);
+  assert.doesNotMatch(pathsSource, /kernel\.managed_config_dir/);
+  assert.doesNotMatch(pathsSource, /kernel\.managed_config_file/);
+
+  assert.match(bootstrapSource, /\.map\(\|kernel\| kernel\.config_file\)/);
+  assert.doesNotMatch(bootstrapSource, /\.map\(\|kernel\| kernel\.managed_config_file\)/);
+  assert.match(internalCliSource, /\.map\(\|kernel\| kernel\.config_file\)/);
+  assert.doesNotMatch(internalCliSource, /\.map\(\|kernel\| kernel\.managed_config_file\)/);
+  assert.match(kernelHostSource, /\.map\(\|kernel\| kernel\.config_file\.clone\(\)\)/);
+  assert.doesNotMatch(kernelHostSource, /\.map\(\|kernel\| kernel\.managed_config_file\.clone\(\)\)/);
+});
+
+runTest('desktop mirror import verification exposes OpenClaw config file terminology instead of managed-config checks', () => {
+  const mirrorImportSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_mirror_import.rs',
+  );
+
+  assert.match(mirrorImportSource, /"openclaw-config-file"/);
+  assert.match(mirrorImportSource, /"OpenClaw config file restored"/);
+  assert.match(mirrorImportSource, /Restored OpenClaw config file is present and readable at/);
+  assert.match(mirrorImportSource, /OpenClaw config file is missing or invalid after import at/);
+  assert.match(mirrorImportSource, /"OpenClaw state restored"/);
+  assert.match(mirrorImportSource, /Restored OpenClaw state directory is present at/);
+  assert.match(mirrorImportSource, /OpenClaw state directory is missing after import at/);
+  assert.match(mirrorImportSource, /"OpenClaw workspace restored"/);
+  assert.match(mirrorImportSource, /Restored OpenClaw workspace directory is present at/);
+  assert.match(mirrorImportSource, /OpenClaw workspace directory is missing after import at/);
+  assert.match(mirrorImportSource, /"OpenClaw provider projected"/);
+  assert.match(
+    mirrorImportSource,
+    /OpenClaw config file could not be parsed to verify the projected provider\./,
+  );
+  assert.match(
+    mirrorImportSource,
+    /unsupported OpenClaw asset inventory schema version:/,
+  );
+  assert.match(
+    mirrorImportSource,
+    /skill asset payload missing from mirror archive:/,
+  );
+  assert.match(
+    mirrorImportSource,
+    /plugin asset payload missing from mirror archive:/,
+  );
+  assert.match(
+    mirrorImportSource,
+    /skill asset inventory path is outside the canonical root/,
+  );
+  assert.match(
+    mirrorImportSource,
+    /plugin asset inventory path is outside the canonical root/,
+  );
+  assert.match(mirrorImportSource, /fn load_openclaw_assets_snapshot\(/);
+  assert.match(mirrorImportSource, /fn validate_openclaw_assets_payloads\(/);
+  assert.match(mirrorImportSource, /fn validate_openclaw_asset_canonical_root\(/);
+  assert.match(mirrorImportSource, /fn resolve_openclaw_asset_path\(/);
+  assert.match(mirrorImportSource, /fn resolve_staged_openclaw_asset_path\(/);
+  assert.match(mirrorImportSource, /sdkwork-local-proxy provider targets/);
+  assert.doesNotMatch(mirrorImportSource, /"managed-config"/);
+  assert.doesNotMatch(mirrorImportSource, /"Managed config restored"/);
+  assert.doesNotMatch(mirrorImportSource, /Restored managed OpenClaw config/);
+  assert.doesNotMatch(mirrorImportSource, /Managed OpenClaw config is missing or invalid after import/);
+  assert.doesNotMatch(mirrorImportSource, /Restored managed OpenClaw state directory/);
+  assert.doesNotMatch(mirrorImportSource, /Managed OpenClaw state directory is missing after import/);
+  assert.doesNotMatch(mirrorImportSource, /Restored managed OpenClaw workspace directory/);
+  assert.doesNotMatch(mirrorImportSource, /Managed OpenClaw workspace directory is missing after import/);
+  assert.doesNotMatch(mirrorImportSource, /Managed OpenClaw provider projected/);
+  assert.doesNotMatch(mirrorImportSource, /Managed OpenClaw config could not be parsed to verify/);
+  assert.doesNotMatch(mirrorImportSource, /Managed sdkwork-local-proxy provider/);
+  assert.doesNotMatch(mirrorImportSource, /unsupported managed asset inventory schema version:/);
+  assert.doesNotMatch(mirrorImportSource, /managed skill asset payload missing from mirror archive:/);
+  assert.doesNotMatch(mirrorImportSource, /managed plugin asset payload missing from mirror archive:/);
+  assert.doesNotMatch(mirrorImportSource, /managed skill asset inventory path is outside the canonical root/);
+  assert.doesNotMatch(mirrorImportSource, /managed plugin asset inventory path is outside the canonical root/);
+  assert.doesNotMatch(mirrorImportSource, /fn load_managed_assets_snapshot\(/);
+  assert.doesNotMatch(mirrorImportSource, /fn validate_managed_assets_payloads\(/);
+  assert.doesNotMatch(mirrorImportSource, /fn validate_managed_asset_canonical_root\(/);
+  assert.doesNotMatch(mirrorImportSource, /fn resolve_managed_asset_path\(/);
+  assert.doesNotMatch(mirrorImportSource, /fn resolve_staged_managed_asset_path\(/);
+});
+
+runTest('desktop OpenClaw runtime helpers use built-in naming outside legacy compat boundaries', () => {
+  const openClawRuntimeSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime.rs',
+  );
+  const mirrorManifestSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_mirror_manifest.rs',
+  );
+
+  assert.match(openClawRuntimeSource, /struct BuiltInOpenClawState/);
+  assert.doesNotMatch(openClawRuntimeSource, /struct ManagedOpenClawState/);
+  assert.match(openClawRuntimeSource, /fn ensure_built_in_openclaw_state\(/);
+  assert.doesNotMatch(openClawRuntimeSource, /fn ensure_managed_openclaw_state\(/);
+
+  assert.match(mirrorManifestSource, /"OpenClaw workspace path"/);
+  assert.doesNotMatch(mirrorManifestSource, /"managed openclaw workspace path"/);
+  assert.match(mirrorManifestSource, /fn seed_built_in_openclaw_tree\(paths: &AppPaths\)/);
+  assert.doesNotMatch(mirrorManifestSource, /fn seed_managed_openclaw_tree\(/);
+});
+
+runTest('desktop openclaw helpers use config file terminology in supervisor and studio services', () => {
+  const supervisorSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/supervisor.rs',
+  );
+  const studioSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio.rs',
+  );
+  const openclawWorkbenchSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio/openclaw_workbench.rs',
+  );
+
+  assert.match(supervisorSource, /fn configured_openclaw_gateway_port\(paths: &AppPaths\)/);
+  assert.match(supervisorSource, /fn built_in_openclaw_runtime_dir\(paths: &AppPaths\) -> PathBuf/);
+  assert.match(supervisorSource, /fn command_matches_built_in_openclaw_gateway<S>\(/);
+  assert.match(supervisorSource, /fn readable_openclaw_config_file_path\(paths: &AppPaths\)/);
+  assert.match(supervisorSource, /fn default_openclaw_config_file_path\(paths: &AppPaths\)/);
+  assert.doesNotMatch(supervisorSource, /fn configured_managed_openclaw_gateway_port\(/);
+  assert.doesNotMatch(supervisorSource, /fn managed_openclaw_runtime_dir\(/);
+  assert.doesNotMatch(supervisorSource, /fn command_matches_managed_openclaw_gateway\(/);
+  assert.doesNotMatch(supervisorSource, /fn readable_managed_openclaw_config_path\(/);
+  assert.doesNotMatch(supervisorSource, /fn default_managed_openclaw_config_path\(/);
+
+  assert.match(studioSource, /fn read_openclaw_config\(paths: &AppPaths\) -> Result<Value>/);
+  assert.match(studioSource, /fn openclaw_config_target\(paths: &AppPaths\) -> String/);
+  assert.match(studioSource, /fn uses_built_in_openclaw_config\(instance: &StudioInstanceRecord\) -> bool/);
+  assert.match(studioSource, /fn is_built_in_openclaw_instance\(instance: &StudioInstanceRecord\) -> bool/);
+  assert.match(studioSource, /fn find_built_in_openclaw_index\(instances: &\[StudioInstanceRecord\]\) -> Option<usize>/);
+  assert.match(studioSource, /fn built_in_openclaw_lifecycle\(supervisor: &SupervisorService\) -> Result<OpenClawLifecycle>/);
+  assert.match(studioSource, /fn built_in_openclaw_last_error\(supervisor: &SupervisorService\) -> Result<Option<String>>/);
+  assert.match(studioSource, /fn built_in_openclaw_gateway_endpoint\(/);
+  assert.match(studioSource, /fn built_in_openclaw_runtime_dir\(paths: &AppPaths\) -> PathBuf/);
+  assert.match(studioSource, /fn readable_openclaw_config_file_path\(paths: &AppPaths\)/);
+  assert.match(studioSource, /fn authority_openclaw_config_file_path\(paths: &AppPaths\)/);
+  assert.doesNotMatch(studioSource, /fn uses_built_in_managed_openclaw_config\(/);
+  assert.doesNotMatch(studioSource, /fn is_built_in_managed_openclaw_instance\(/);
+  assert.doesNotMatch(studioSource, /fn find_built_in_managed_openclaw_index\(/);
+  assert.doesNotMatch(studioSource, /fn resolve_built_in_managed_openclaw_instance\(/);
+  assert.doesNotMatch(studioSource, /fn require_built_in_managed_openclaw_instance\(/);
+  assert.doesNotMatch(studioSource, /fn require_managed_openclaw_task_instance\(/);
+  assert.doesNotMatch(studioSource, /fn managed_openclaw_lifecycle\(/);
+  assert.doesNotMatch(studioSource, /fn managed_openclaw_last_error\(/);
+  assert.doesNotMatch(studioSource, /fn managed_openclaw_gateway_endpoint\(/);
+  assert.doesNotMatch(studioSource, /fn managed_openclaw_runtime_dir\(/);
+  assert.doesNotMatch(studioSource, /fn read_managed_openclaw_config\(/);
+  assert.doesNotMatch(studioSource, /fn managed_openclaw_config_target\(/);
+  assert.doesNotMatch(studioSource, /fn readable_managed_openclaw_config_path\(/);
+  assert.doesNotMatch(studioSource, /fn authority_managed_openclaw_config_path\(/);
+
+  assert.match(
+    openclawWorkbenchSource,
+    /fn readable_openclaw_config_file_path\(paths: &AppPaths\) -> PathBuf/,
+  );
+  assert.match(
+    openclawWorkbenchSource,
+    /fn authority_openclaw_config_file_path\(paths: &AppPaths\) -> PathBuf/,
+  );
+  assert.doesNotMatch(openclawWorkbenchSource, /fn readable_managed_openclaw_config_path\(/);
+  assert.doesNotMatch(openclawWorkbenchSource, /fn authority_managed_openclaw_config_path\(/);
+});
+
+runTest('desktop OpenClaw legacy config path compatibility is isolated in a dedicated compat helper', () => {
+  const authorityServiceSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/kernel_runtime_authority.rs',
+  );
+  const compatSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_config_compat.rs',
+  );
+
+  assert.match(compatSource, /managed-config/);
+  assert.match(
+    compatSource,
+    /pub fn legacy_openclaw_config_file_path\(paths: &AppPaths\) -> PathBuf/,
+  );
+  assert.match(
+    compatSource,
+    /pub fn resolve_legacy_openclaw_config_source_path\(/,
+  );
+  assert.doesNotMatch(authorityServiceSource, /managed-config/);
+  assert.doesNotMatch(authorityServiceSource, /fn legacy_openclaw_config_file_path\(/);
+  assert.doesNotMatch(authorityServiceSource, /fn resolve_legacy_openclaw_config_source_path\(/);
+});
+
+runTest('desktop rust test helpers use config file terminology for openclaw config paths', () => {
+  const internalCliSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/internal_cli.rs',
+  );
+  const bootstrapSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  );
+  const localAiProxySource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/local_ai_proxy.rs',
+  );
+  const openclawMirrorImportSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_mirror_import.rs',
+  );
+  const openclawMirrorExportSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_mirror_export.rs',
+  );
+
+  assert.match(internalCliSource, /fn openclaw_config_file_path\(/);
+  assert.doesNotMatch(internalCliSource, /fn managed_openclaw_config_path\(/);
+
+  assert.match(bootstrapSource, /fn openclaw_config_file_path\(/);
+  assert.match(
+    bootstrapSource,
+    /fn seed_built_in_openclaw_gateway_port\(paths: &crate::framework::paths::AppPaths, port: u16\)/,
+  );
+  assert.doesNotMatch(bootstrapSource, /fn managed_openclaw_config_path\(/);
+  assert.doesNotMatch(bootstrapSource, /fn seed_managed_openclaw_gateway_port\(/);
+
+  assert.match(localAiProxySource, /fn openclaw_config_file_path\(/);
+  assert.doesNotMatch(localAiProxySource, /fn managed_openclaw_config_path\(/);
+
+  assert.match(openclawMirrorImportSource, /fn openclaw_config_file_path\(paths: &AppPaths\) -> PathBuf/);
+  assert.match(openclawMirrorImportSource, /fn seed_built_in_openclaw_tree\(paths: &AppPaths, label: &str\)/);
+  assert.doesNotMatch(openclawMirrorImportSource, /fn managed_openclaw_config_path\(/);
+  assert.doesNotMatch(openclawMirrorImportSource, /fn seed_managed_openclaw_tree\(/);
+
+  assert.match(openclawMirrorExportSource, /fn seed_built_in_openclaw_tree\(paths: &AppPaths\)/);
+  assert.doesNotMatch(openclawMirrorExportSource, /fn seed_managed_openclaw_tree\(/);
+});
+
+runTest('desktop studio diagnostics use OpenClaw instance and config-file wording instead of legacy managed wording', () => {
+  const studioSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio.rs',
+  );
+  const openclawRuntimeSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime.rs',
+  );
+  const openclawWorkbenchSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio/openclaw_workbench.rs',
+  );
+  const runtimeSnapshotSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime_snapshot.rs',
+  );
+
+  assert.match(studioSource, /built-in OpenClaw instance/);
+  assert.match(
+    studioSource,
+    /runtime-backed OpenClaw workspace operations are only available for the built-in OpenClaw instance/,
+  );
+  assert.match(
+    studioSource,
+    /runtime-backed task operations are only available for the built-in OpenClaw instance/,
+  );
+  assert.match(studioSource, /OpenClaw runtime configuration file\./);
+  assert.match(studioSource, /Host OpenClaw runtime/);
+  assert.match(studioSource, /Ansible OpenClaw runtime/);
+  assert.doesNotMatch(studioSource, /built-in managed OpenClaw instance/);
+  assert.doesNotMatch(studioSource, /Host-managed OpenClaw runtime/);
+  assert.doesNotMatch(studioSource, /Ansible managed OpenClaw runtime/);
+  assert.doesNotMatch(studioSource, /Managed OpenClaw runtime configuration file\./);
+
+  assert.match(
+    openclawRuntimeSource,
+    /unsupported OpenClaw runtime id \{\} for install key \{\}/,
+  );
+  assert.match(
+    openclawRuntimeSource,
+    /OpenClaw runtime install key \{\} does not match manifest key \{\}/,
+  );
+  assert.match(openclawRuntimeSource, /built-in OpenClaw runtime install/);
+  assert.doesNotMatch(
+    openclawRuntimeSource,
+    /unsupported managed OpenClaw runtime id \{\} for install key \{\}/,
+  );
+  assert.doesNotMatch(
+    openclawRuntimeSource,
+    /managed OpenClaw runtime install key \{\} does not match manifest key \{\}/,
+  );
+  assert.doesNotMatch(openclawRuntimeSource, /managed OpenClaw runtime install/);
+
+  assert.match(
+    openclawWorkbenchSource,
+    /provider configured through the built-in OpenClaw runtime\./,
+  );
+  assert.match(openclawWorkbenchSource, /"Built-in OpenClaw"\.to_string\(\)/);
+  assert.match(openclawWorkbenchSource, /"OpenClaw configuration file\."/);
+  assert.match(openclawWorkbenchSource, /Cron run log for an OpenClaw task\./);
+  assert.doesNotMatch(openclawWorkbenchSource, /managed OpenClaw runtime/);
+  assert.doesNotMatch(openclawWorkbenchSource, /Managed OpenClaw/);
+
+  assert.match(runtimeSnapshotSource, /OpenClaw config file could not be parsed:/);
+  assert.match(runtimeSnapshotSource, /Local AI proxy is serving OpenClaw traffic at/);
+  assert.doesNotMatch(runtimeSnapshotSource, /Managed OpenClaw config could not be parsed:/);
+  assert.doesNotMatch(runtimeSnapshotSource, /managed OpenClaw traffic/);
+});
+
+runTest('public workbench diagnostics use OpenClaw wording across browser, host, and startup surfaces', () => {
+  const webStudioSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/webStudio.ts',
+  );
+  const hostedStudioSource = read(
+    'packages/sdkwork-claw-host-studio/src-host/src/lib.rs',
+  );
+  const openclawWorkbenchSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio/openclaw_workbench.rs',
+  );
+  const startupEvidenceSource = read(
+    'scripts/release/smoke-desktop-startup-evidence.mjs',
+  );
+  const supervisorSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/supervisor.rs',
+  );
+  const internalCliSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/internal_cli.rs',
+  );
+
+  assert.match(webStudioSource, /OpenClaw workspace memory for the browser-backed workbench\./);
+  assert.match(webStudioSource, /Pinned workspace memory for the OpenClaw browser workbench\./);
+  assert.match(webStudioSource, /Primary OpenClaw workspace agent\./);
+  assert.match(webStudioSource, /Coordinate OpenClaw workbench activity\./);
+  assert.match(webStudioSource, /Edit OpenClaw workspace files from the browser\./);
+  assert.match(
+    webStudioSource,
+    /Browser fallback projects an OpenClaw workbench snapshot, but lifecycle control stays unavailable until a native host exposes a real controller\./,
+  );
+  assert.match(
+    webStudioSource,
+    /OpenClaw browser workbench persists this capability locally when native adapters are unavailable\./,
+  );
+  assert.match(
+    webStudioSource,
+    /OpenClaw workspace files are persisted through the browser workbench state\./,
+  );
+  assert.match(
+    webStudioSource,
+    /OpenClaw memory entries are derived from browser-persisted workspace notes\./,
+  );
+  assert.match(
+    webStudioSource,
+    /OpenClaw task definitions and execution history are persisted through the browser workbench state\./,
+  );
+  assert.match(
+    webStudioSource,
+    /OpenClaw tool metadata is projected from the browser workbench state\./,
+  );
+  assert.match(
+    webStudioSource,
+    /OpenClaw provider and model selections are persisted through the browser workbench state\./,
+  );
+  assert.match(webStudioSource, /Browser-backed OpenClaw channel\./);
+  assert.match(webStudioSource, /function isBuiltInOpenClawWorkbenchInstance/);
+  assert.match(webStudioSource, /function readBuiltInOpenClawWorkbench/);
+  assert.match(webStudioSource, /function updateBuiltInOpenClawWorkbench/);
+  assert.match(webStudioSource, /function removeBuiltInOpenClawWorkbench/);
+  assert.match(webStudioSource, /function synchronizeBuiltInOpenClawWorkbench/);
+  assert.doesNotMatch(webStudioSource, /Managed OpenClaw/);
+  assert.doesNotMatch(webStudioSource, /managed OpenClaw/);
+  assert.doesNotMatch(webStudioSource, /Managed browser-backed OpenClaw channel\./);
+  assert.doesNotMatch(webStudioSource, /function isManagedOpenClawWorkbenchInstance/);
+  assert.doesNotMatch(webStudioSource, /function readManagedOpenClawWorkbench/);
+  assert.doesNotMatch(webStudioSource, /function updateManagedOpenClawWorkbench/);
+  assert.doesNotMatch(webStudioSource, /function removeManagedOpenClawWorkbench/);
+  assert.doesNotMatch(webStudioSource, /function synchronizeManagedOpenClawWorkbench/);
+
+  assert.match(hostedStudioSource, /Primary OpenClaw workspace agent\./);
+  assert.match(hostedStudioSource, /Coordinate OpenClaw workbench activity\./);
+  assert.match(hostedStudioSource, /Create and run OpenClaw scheduled tasks\./);
+  assert.match(hostedStudioSource, /Edit OpenClaw workspace files from the canonical host API\./);
+  assert.match(hostedStudioSource, /Primary agent instructions for the OpenClaw workspace\./);
+  assert.match(hostedStudioSource, /Pinned workspace memory for the OpenClaw workbench\./);
+  assert.match(hostedStudioSource, /OpenClaw runtime configuration snapshot\./);
+  assert.match(hostedStudioSource, /fn is_built_in_local_openclaw_instance\(instance: &Value\) -> bool/);
+  assert.match(hostedStudioSource, /fn is_openclaw_workbench_instance\(instance: &Value\) -> bool/);
+  assert.match(
+    hostedStudioSource,
+    /OpenClaw workspace memory for the canonical host workbench\./,
+  );
+  assert.match(
+    openclawWorkbenchSource,
+    /integration configured through the built-in OpenClaw config file\./,
+  );
+  assert.doesNotMatch(hostedStudioSource, /Primary managed OpenClaw workspace agent\./);
+  assert.doesNotMatch(hostedStudioSource, /Coordinate managed OpenClaw workbench activity\./);
+  assert.doesNotMatch(hostedStudioSource, /Create and run managed OpenClaw scheduled tasks\./);
+  assert.doesNotMatch(
+    hostedStudioSource,
+    /Edit managed OpenClaw workspace files from the canonical host API\./,
+  );
+  assert.doesNotMatch(
+    hostedStudioSource,
+    /Primary agent instructions for the managed OpenClaw workspace\./,
+  );
+  assert.doesNotMatch(
+    hostedStudioSource,
+    /Pinned workspace memory for the managed OpenClaw workbench\./,
+  );
+  assert.doesNotMatch(hostedStudioSource, /Managed OpenClaw runtime configuration snapshot\./);
+  assert.doesNotMatch(hostedStudioSource, /fn is_built_in_local_managed_openclaw_instance\(/);
+  assert.doesNotMatch(hostedStudioSource, /fn is_managed_openclaw_workbench_instance\(/);
+  assert.doesNotMatch(
+    hostedStudioSource,
+    /Managed OpenClaw workspace memory for the canonical host workbench\./,
+  );
+  assert.doesNotMatch(
+    openclawWorkbenchSource,
+    /integration managed by the built-in OpenClaw configuration\./,
+  );
+
+  assert.match(
+    startupEvidenceSource,
+    /desktop startup evidence preserved the built-in OpenClaw instance projection/,
+  );
+  assert.match(
+    startupEvidenceSource,
+    /desktop startup evidence skipped built-in OpenClaw instance checks because package profile excludes openclaw/,
+  );
+  assert.doesNotMatch(
+    startupEvidenceSource,
+    /desktop startup evidence preserved the managed built-in instance projection/,
+  );
+  assert.doesNotMatch(
+    startupEvidenceSource,
+    /desktop startup evidence skipped managed OpenClaw instance checks because package profile excludes openclaw/,
+  );
+
+  assert.match(supervisorSource, /OpenClaw gateway on 127\.0\.0\.1:\{\} is not ready \(\{\}\)/);
+  assert.doesNotMatch(supervisorSource, /managed OpenClaw gateway on 127\.0\.0\.1:\{\} is not ready \(\{\}\)/);
+
+  assert.match(internalCliSource, /kernel host lost the OpenClaw gateway on 127\.0\.0\.1:\{\}/);
+  assert.doesNotMatch(internalCliSource, /kernel host lost the managed OpenClaw gateway on 127\.0\.0\.1:\{\}/);
+});
+
+runTest('built-in OpenClaw test fixtures use built-in naming instead of managed-primary labels', () => {
+  const source = [
+    'packages/sdkwork-claw-infrastructure/src/platform/webStudio.test.ts',
+    'packages/sdkwork-claw-desktop/src/desktop/desktopHostedBridge.test.ts',
+    'packages/sdkwork-claw-desktop/src/desktop/builtInOpenClawInstanceSelection.test.ts',
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/desktopStartupEvidence.test.ts',
+    'packages/sdkwork-claw-desktop/src-tauri/src/commands/studio_commands.rs',
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio.rs',
+    'packages/sdkwork-claw-host-studio/src-host/src/lib.rs',
+  ].map((relPath) => read(relPath)).join('\n');
+
+  assert.match(source, /Built-In OpenClaw Primary/);
+  assert.match(source, /Built-In OpenClaw Primary Renamed/);
+  assert.match(source, /Custom Local OpenClaw/);
+  assert.doesNotMatch(source, /Managed OpenClaw Primary/);
+  assert.doesNotMatch(source, /Managed OpenClaw Primary Renamed/);
+  assert.doesNotMatch(source, /Custom Local Managed OpenClaw/);
+});
+
+runTest('hosted conversation snapshots do not override built-in OpenClaw runtime authority when the built-in runtime is unavailable', () => {
   const serverStudioSource = read(
     'packages/sdkwork-claw-host-studio/src-host/src/lib.rs',
   );
@@ -881,6 +1502,18 @@ runTest('server readiness and public workbench routes stay bound to live runtime
   const apiPublicSource = read(
     'packages/sdkwork-claw-server/src-host/src/http/routes/api_public.rs',
   );
+  const manageOpenClawRouteSource = read(
+    'packages/sdkwork-claw-server/src-host/src/http/routes/manage_openclaw.rs',
+  );
+  const openapiSource = read(
+    'packages/sdkwork-claw-server/src-host/src/http/routes/openapi.rs',
+  );
+  const controlPlaneSource = read(
+    'packages/sdkwork-claw-host-core/src-host/src/openclaw_control_plane.rs',
+  );
+  const hostStudioSource = read(
+    'packages/sdkwork-claw-host-studio/src-host/src/lib.rs',
+  );
   const serverMainSource = read(
     'packages/sdkwork-claw-server/src-host/src/main.rs',
   );
@@ -904,6 +1537,78 @@ runTest('server readiness and public workbench routes stay bound to live runtime
   assert.match(
     apiPublicSource,
     /does not expose a managed workbench/,
+  );
+  assert.match(
+    apiPublicSource,
+    /could not reach the OpenClaw gateway for studio instance/,
+  );
+  assert.match(
+    apiPublicSource,
+    /does not expose an openclaw gateway/,
+  );
+  assert.doesNotMatch(
+    apiPublicSource,
+    /could not reach the managed OpenClaw gateway for studio instance/,
+  );
+  assert.doesNotMatch(
+    apiPublicSource,
+    /does not expose a managed openclaw gateway/,
+  );
+  assert.match(
+    manageOpenClawRouteSource,
+    /The OpenClaw runtime projection is not available for this host shell\./,
+  );
+  assert.match(
+    manageOpenClawRouteSource,
+    /The OpenClaw gateway projection is not available for this host shell\./,
+  );
+  assert.match(
+    manageOpenClawRouteSource,
+    /The OpenClaw gateway is not available for this host shell\./,
+  );
+  assert.doesNotMatch(
+    manageOpenClawRouteSource,
+    /The managed OpenClaw runtime projection is not available for this host shell\./,
+  );
+  assert.doesNotMatch(
+    manageOpenClawRouteSource,
+    /The managed OpenClaw gateway projection is not available for this host shell\./,
+  );
+  assert.doesNotMatch(
+    manageOpenClawRouteSource,
+    /The managed OpenClaw gateway is not available for this host shell\./,
+  );
+  assert.match(
+    openapiSource,
+    /Invoke one OpenClaw gateway through the active host shell/,
+  );
+  assert.match(
+    openapiSource,
+    /The OpenClaw gateway is not available for the requested studio instance\./,
+  );
+  assert.doesNotMatch(
+    openapiSource,
+    /Invoke one managed OpenClaw gateway through the active host shell/,
+  );
+  assert.doesNotMatch(
+    openapiSource,
+    /The managed OpenClaw gateway is not available for the requested studio instance\./,
+  );
+  assert.match(
+    controlPlaneSource,
+    /openclaw gateway is not ready/,
+  );
+  assert.doesNotMatch(
+    controlPlaneSource,
+    /managed OpenClaw gateway is not ready/,
+  );
+  assert.match(
+    hostStudioSource,
+    /does not expose an OpenClaw gateway/,
+  );
+  assert.doesNotMatch(
+    hostStudioSource,
+    /does not expose a managed OpenClaw gateway/,
   );
   assert.match(
     serverMainSource,

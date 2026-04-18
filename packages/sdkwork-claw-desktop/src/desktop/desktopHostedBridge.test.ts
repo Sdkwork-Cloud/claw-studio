@@ -345,7 +345,7 @@ await runTest('desktop hosted bridge readiness probe validates hosted internal, 
   );
 });
 
-await runTest('desktop hosted bridge readiness probe rejects when the managed OpenClaw gateway websocket is not dialable yet', async () => {
+await runTest('desktop hosted bridge readiness probe rejects when the OpenClaw gateway websocket is not dialable yet', async () => {
   const webSocketProbe = createMockWebSocketFactory('error');
   const fetchImpl = async (input: string) => {
     if (input === 'http://127.0.0.1:18797/claw/internal/v1/host-platform') {
@@ -441,7 +441,7 @@ await runTest('desktop hosted bridge readiness probe rejects when the managed Op
       assert.ok(error instanceof DesktopHostedRuntimeReadinessError);
       assert.match(
         error.message,
-        /WebSocket connection on the managed OpenClaw gateway/i,
+        /WebSocket connection on the OpenClaw gateway/i,
       );
       assert.equal(error.snapshot.evidence.gatewayWebsocketProbeSupported, true);
       assert.equal(error.snapshot.evidence.gatewayWebsocketDialable, false);
@@ -452,7 +452,7 @@ await runTest('desktop hosted bridge readiness probe rejects when the managed Op
   assert.deepEqual(webSocketProbe.urls, ['ws://127.0.0.1:18871']);
 });
 
-await runTest('desktop hosted bridge readiness evidence resolves the managed OpenClaw instance even when it does not use the legacy local-built-in id', () => {
+await runTest('desktop hosted bridge readiness evidence resolves the built-in OpenClaw instance even when it does not use the legacy local-built-in id', () => {
   const evidence = buildDesktopHostedRuntimeReadinessEvidence(
     desktopHostedRuntime,
     {
@@ -497,7 +497,7 @@ await runTest('desktop hosted bridge readiness evidence resolves the managed Ope
     [
       {
         id: 'managed-openclaw-primary',
-        name: 'Managed OpenClaw Primary',
+        name: 'Built-In OpenClaw Primary',
         runtimeKind: 'openclaw',
         deploymentMode: 'local-managed',
         transportKind: 'openclawGatewayWs',
@@ -514,7 +514,7 @@ await runTest('desktop hosted bridge readiness evidence resolves the managed Ope
   assert.equal(evidence.builtInInstanceReady, true);
 });
 
-await runTest('desktop hosted bridge readiness probe requires gateway invoke capability before declaring managed OpenClaw ready', async () => {
+await runTest('desktop hosted bridge readiness probe requires gateway invoke capability before declaring built-in OpenClaw ready', async () => {
   const fetchImpl = async (input: string) => {
     if (input === 'http://127.0.0.1:18797/claw/internal/v1/host-platform') {
       return createJsonResponse({
@@ -821,7 +821,7 @@ await runTest('desktop hosted bridge readiness probe rejects a hosted runtime th
   );
 });
 
-await runTest('desktop hosted bridge readiness probe accepts non-openclaw package profiles when the hosted shell is ready without managed OpenClaw surfaces', async () => {
+await runTest('desktop hosted bridge readiness probe accepts non-openclaw package profiles when the hosted shell is ready without OpenClaw surfaces', async () => {
   const requests: string[] = [];
   const fetchImpl = async (input: string) => {
     requests.push(input);
@@ -887,7 +887,7 @@ await runTest('desktop hosted bridge readiness probe accepts non-openclaw packag
     desktopHostedRuntime,
     fetchImpl,
     {
-      requiresManagedOpenClawEvidence: false,
+      requiresBuiltInOpenClawEvidence: false,
     } as any,
   );
 
@@ -1356,7 +1356,7 @@ await runTest('desktop hosted bridge readiness probe preserves a structured read
   assert.equal(thrownError.snapshot.evidence.ready, false);
 });
 
-await runTest('desktop hosted bridge readiness probe rejects when built-in OpenClaw urls drift from the managed gateway projection', async () => {
+await runTest('desktop hosted bridge readiness probe rejects when built-in OpenClaw urls drift from the OpenClaw gateway projection', async () => {
   const fetchImpl = async (input: string) => {
     if (input === 'http://127.0.0.1:18797/claw/internal/v1/host-platform') {
       return createJsonResponse({
@@ -1444,11 +1444,11 @@ await runTest('desktop hosted bridge readiness probe rejects when built-in OpenC
 
   await assert.rejects(
     () => probeDesktopHostedRuntimeReadiness(desktopHostedRuntime, fetchImpl),
-    /built-in openclaw instance urls .* managed gateway projection/i,
+    /built-in openclaw instance urls .* OpenClaw gateway projection/i,
   );
 });
 
-await runTest('desktop hosted bridge readiness probe rejects when managed OpenClaw runtime and gateway endpoint ids drift', async () => {
+await runTest('desktop hosted bridge readiness probe rejects when OpenClaw runtime and gateway endpoint ids drift', async () => {
   const fetchImpl = async (input: string) => {
     if (input === 'http://127.0.0.1:18797/claw/internal/v1/host-platform') {
       return createJsonResponse({
@@ -1536,11 +1536,11 @@ await runTest('desktop hosted bridge readiness probe rejects when managed OpenCl
 
   await assert.rejects(
     () => probeDesktopHostedRuntimeReadiness(desktopHostedRuntime, fetchImpl),
-    /managed openclaw runtime and gateway endpoints/i,
+    /openclaw runtime and gateway endpoints/i,
   );
 });
 
-await runTest('desktop hosted bridge readiness probe rejects when managed OpenClaw runtime and gateway active ports drift', async () => {
+await runTest('desktop hosted bridge readiness probe rejects when OpenClaw runtime and gateway active ports drift', async () => {
   const fetchImpl = async (input: string) => {
     if (input === 'http://127.0.0.1:18797/claw/internal/v1/host-platform') {
       return createJsonResponse({
@@ -1628,7 +1628,7 @@ await runTest('desktop hosted bridge readiness probe rejects when managed OpenCl
 
   await assert.rejects(
     () => probeDesktopHostedRuntimeReadiness(desktopHostedRuntime, fetchImpl),
-    /managed openclaw runtime and gateway endpoints with mismatched active ports/i,
+    /openclaw runtime and gateway endpoints with mismatched active ports/i,
   );
 });
 
@@ -1908,7 +1908,7 @@ await runTest('desktop hosted bridge readiness probe rejects when the built-in i
   );
 });
 
-await runTest('desktop hosted bridge readiness probe rejects when the built-in instance transport kind drifts away from the managed OpenClaw gateway transport', async () => {
+await runTest('desktop hosted bridge readiness probe rejects when the built-in instance transport kind drifts away from the OpenClaw gateway transport', async () => {
   const fetchImpl = async (input: string) => {
     if (input === 'http://127.0.0.1:18797/claw/internal/v1/host-platform') {
       return createJsonResponse({

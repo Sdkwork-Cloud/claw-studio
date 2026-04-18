@@ -18,7 +18,7 @@ export interface InstanceDetailLlmProvidersSectionProps {
   isProviderConfigReadonly: boolean;
   isOpenClawConfigWritable: boolean;
   canManageOpenClawProviders: boolean;
-  managedConfigPath: string | null;
+  configFilePath: string | null;
   availabilityNotice: React.ReactNode;
   formatWorkbenchLabel: (value: string) => string;
   getDangerBadge: (status: string) => string;
@@ -55,7 +55,7 @@ export function InstanceDetailLlmProvidersSection({
   isProviderConfigReadonly,
   isOpenClawConfigWritable,
   canManageOpenClawProviders,
-  managedConfigPath,
+  configFilePath,
   availabilityNotice,
   formatWorkbenchLabel,
   getDangerBadge,
@@ -87,21 +87,21 @@ export function InstanceDetailLlmProvidersSection({
               <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
                 {t('instances.detail.instanceWorkbench.llmProviders.panel.badge')}
               </span>
-              {managedConfigPath ? (
+              {configFilePath ? (
                 <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
-                  {t('instances.detail.instanceWorkbench.llmProviders.panel.managedConfig')}
+                  {t('instances.detail.instanceWorkbench.llmProviders.panel.configFile')}
                 </span>
               ) : null}
             </div>
             <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
               {providerWorkspaceDescription}
             </p>
-            {managedConfigPath ? (
+            {configFilePath ? (
               <div className="mt-4 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-xs text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em]">
-                  {formatWorkbenchLabel('managedFile')}
+                  {formatWorkbenchLabel('configFile')}
                 </div>
-                <div className="mt-1 break-all font-mono">{managedConfigPath}</div>
+                <div className="mt-1 break-all font-mono">{configFilePath}</div>
               </div>
             ) : null}
           </div>

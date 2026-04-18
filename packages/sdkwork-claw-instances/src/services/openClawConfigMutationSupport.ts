@@ -19,7 +19,7 @@ import {
   type OpenClawWebSearchProviderDraftValue,
   type OpenClawWebSearchSharedDraftValue,
   type OpenClawXSearchDraftValue,
-} from './openClawManagedConfigDrafts.ts';
+} from './openClawConfigDrafts.ts';
 import {
   buildOpenClawDreamingSaveInput,
   type OpenClawDreamingFormState,
@@ -39,7 +39,7 @@ type DraftBuildResult<T> =
       errorKey: string;
     };
 
-export interface OpenClawManagedConfigSaveRequest {
+export interface OpenClawConfigSaveRequest {
   instanceId: string;
   setSaving: (value: boolean) => void;
   setError: (value: string | null) => void;
@@ -48,7 +48,7 @@ export interface OpenClawManagedConfigSaveRequest {
   failureKey: string;
 }
 
-export interface CreateOpenClawManagedConfigSaveRunnerArgs {
+export interface CreateOpenClawConfigSaveRunnerArgs {
   reloadWorkbench: (
     instanceId: string,
     options: {
@@ -59,9 +59,9 @@ export interface CreateOpenClawManagedConfigSaveRunnerArgs {
   t: TranslateFunction;
 }
 
-export interface BuildOpenClawManagedConfigMutationHandlersArgs {
+export interface BuildOpenClawConfigMutationHandlersArgs {
   instanceId: string | undefined;
-  executeSaveRequest: (request: OpenClawManagedConfigSaveRequest) => Promise<void>;
+  executeSaveRequest: (request: OpenClawConfigSaveRequest) => Promise<void>;
   t: TranslateFunction;
   webSearch: {
     sharedDraft: OpenClawWebSearchSharedDraftValue | null;
@@ -124,14 +124,14 @@ export interface BuildOpenClawManagedConfigMutationHandlersArgs {
   };
 }
 
-function createManagedConfigSaveRequest(args: {
+function createConfigSaveRequest(args: {
   instanceId: string;
   setSaving: SavingSetter;
   setError: ErrorSetter;
   save: () => Promise<void>;
   successKey: string;
   failureKey: string;
-}): OpenClawManagedConfigSaveRequest {
+}): OpenClawConfigSaveRequest {
   return {
     instanceId: args.instanceId,
     setSaving: args.setSaving,
@@ -142,7 +142,7 @@ function createManagedConfigSaveRequest(args: {
   };
 }
 
-function resolveManagedConfigDraftBuildResult<T>(args: {
+function resolveConfigDraftBuildResult<T>(args: {
   result: DraftBuildResult<T>;
   setError: ErrorSetter;
   t: TranslateFunction;
@@ -155,10 +155,10 @@ function resolveManagedConfigDraftBuildResult<T>(args: {
   return args.result.value;
 }
 
-export function createOpenClawManagedConfigSaveRunner(
-  args: CreateOpenClawManagedConfigSaveRunnerArgs,
+export function createOpenClawConfigSaveRunner(
+  args: CreateOpenClawConfigSaveRunnerArgs,
 ) {
-  return async (request: OpenClawManagedConfigSaveRequest) => {
+  return async (request: OpenClawConfigSaveRequest) => {
     request.setSaving(true);
     request.setError(null);
     try {
@@ -173,8 +173,8 @@ export function createOpenClawManagedConfigSaveRunner(
   };
 }
 
-export function buildOpenClawManagedConfigMutationHandlers(
-  args: BuildOpenClawManagedConfigMutationHandlersArgs,
+export function buildOpenClawConfigMutationHandlers(
+  args: BuildOpenClawConfigMutationHandlersArgs,
 ) {
   return {
     onSaveWebSearchConfig: async () => {
@@ -186,7 +186,7 @@ export function buildOpenClawManagedConfigMutationHandlers(
         return;
       }
 
-      const saveInput = resolveManagedConfigDraftBuildResult({
+      const saveInput = resolveConfigDraftBuildResult({
         result: buildOpenClawWebSearchSaveInput({
           sharedDraft,
           providerId: selectedProvider.id,
@@ -200,7 +200,7 @@ export function buildOpenClawManagedConfigMutationHandlers(
       }
 
       await args.executeSaveRequest(
-        createManagedConfigSaveRequest({
+        createConfigSaveRequest({
           instanceId,
           setSaving: args.webSearch.setSaving,
           setError: args.webSearch.setError,
@@ -217,7 +217,7 @@ export function buildOpenClawManagedConfigMutationHandlers(
         return;
       }
 
-      const saveInput = resolveManagedConfigDraftBuildResult({
+      const saveInput = resolveConfigDraftBuildResult({
         result: buildOpenClawXSearchSaveInput(draft),
         setError: args.xSearch.setError,
         t: args.t,
@@ -227,7 +227,7 @@ export function buildOpenClawManagedConfigMutationHandlers(
       }
 
       await args.executeSaveRequest(
-        createManagedConfigSaveRequest({
+        createConfigSaveRequest({
           instanceId,
           setSaving: args.xSearch.setSaving,
           setError: args.xSearch.setError,
@@ -245,7 +245,7 @@ export function buildOpenClawManagedConfigMutationHandlers(
       }
 
       await args.executeSaveRequest(
-        createManagedConfigSaveRequest({
+        createConfigSaveRequest({
           instanceId,
           setSaving: args.webSearchNativeCodex.setSaving,
           setError: args.webSearchNativeCodex.setError,
@@ -266,7 +266,7 @@ export function buildOpenClawManagedConfigMutationHandlers(
         return;
       }
 
-      const saveInput = resolveManagedConfigDraftBuildResult({
+      const saveInput = resolveConfigDraftBuildResult({
         result: buildOpenClawWebFetchSaveInput({
           sharedDraft,
           fallbackDraft: args.webFetch.fallbackDraft,
@@ -279,7 +279,7 @@ export function buildOpenClawManagedConfigMutationHandlers(
       }
 
       await args.executeSaveRequest(
-        createManagedConfigSaveRequest({
+        createConfigSaveRequest({
           instanceId,
           setSaving: args.webFetch.setSaving,
           setError: args.webFetch.setError,
@@ -296,7 +296,7 @@ export function buildOpenClawManagedConfigMutationHandlers(
         return;
       }
 
-      const saveInput = resolveManagedConfigDraftBuildResult({
+      const saveInput = resolveConfigDraftBuildResult({
         result: buildOpenClawAuthCooldownsSaveInput(draft),
         setError: args.authCooldowns.setError,
         t: args.t,
@@ -306,7 +306,7 @@ export function buildOpenClawManagedConfigMutationHandlers(
       }
 
       await args.executeSaveRequest(
-        createManagedConfigSaveRequest({
+        createConfigSaveRequest({
           instanceId,
           setSaving: args.authCooldowns.setSaving,
           setError: args.authCooldowns.setError,
@@ -324,7 +324,7 @@ export function buildOpenClawManagedConfigMutationHandlers(
       }
 
       await args.executeSaveRequest(
-        createManagedConfigSaveRequest({
+        createConfigSaveRequest({
           instanceId,
           setSaving: args.dreaming.setSaving,
           setError: args.dreaming.setError,

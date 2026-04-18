@@ -349,7 +349,7 @@ test('resolveBackgroundRuntimeReadinessToastPlan returns localized toast copy fo
   assert.match(plan.description, /gateway timed out/);
 });
 
-test('resolveBackgroundRuntimeReadinessToastPlan returns generic runtime copy when managed OpenClaw recovery is unavailable', () => {
+test('resolveBackgroundRuntimeReadinessToastPlan returns generic runtime copy when built-in OpenClaw recovery is unavailable', () => {
   const plan = resolveBackgroundRuntimeReadinessToastPlan({
     language: 'en',
     status: 'launching',

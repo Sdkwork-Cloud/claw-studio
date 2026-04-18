@@ -111,7 +111,7 @@ function readErrorMessage(error: unknown) {
   return String(error ?? '');
 }
 
-function isMissingManagedConfigError(error: unknown) {
+function isMissingConfigFileError(error: unknown) {
   const message = readErrorMessage(error).toLowerCase();
   return (
     message.includes('enoent') ||
@@ -165,7 +165,7 @@ function mapField(
   };
 }
 
-function mapManagedChannel(
+function mapConfigBackedChannel(
   channel: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>['channelSnapshots'][number],
 ): Channel {
   return {
@@ -257,7 +257,7 @@ class ChannelService implements IChannelService {
     return this.getStudioApi().getInstanceDetail(instanceId);
   }
 
-  private resolveManagedConfigPath(detail: StudioInstanceDetailRecord | null | undefined) {
+  private resolveConfigFilePath(detail: StudioInstanceDetailRecord | null | undefined) {
     return openClawConfigService.resolveInstanceConfigPath(detail);
   }
 
@@ -265,7 +265,7 @@ class ChannelService implements IChannelService {
     detail: StudioInstanceDetailRecord | null | undefined,
     error: unknown,
   ) {
-    return Boolean(detail?.workbench && isMissingManagedConfigError(error));
+    return Boolean(detail?.workbench && isMissingConfigFileError(error));
   }
 
   private mapWorkbenchChannels(detail: StudioInstanceDetailRecord): Channel[] {
@@ -373,11 +373,11 @@ class ChannelService implements IChannelService {
 
   async getChannels(instanceId: string): Promise<Channel[]> {
     const detail = await this.getInstanceDetail(instanceId);
-    const configPath = this.resolveManagedConfigPath(detail);
-    if (configPath) {
+    const configFilePath = this.resolveConfigFilePath(detail);
+    if (configFilePath) {
       try {
-        const snapshot = await openClawConfigService.readConfigSnapshot(configPath);
-        return snapshot.channelSnapshots.map((channel) => mapManagedChannel(channel));
+        const snapshot = await openClawConfigService.readConfigSnapshot(configFilePath);
+        return snapshot.channelSnapshots.map((channel) => mapConfigBackedChannel(channel));
       } catch (error) {
         if (detail?.workbench && this.canFallbackToWorkbench(detail, error)) {
           return this.mapWorkbenchChannels(detail);
@@ -400,11 +400,11 @@ class ChannelService implements IChannelService {
     enabled: boolean,
   ): Promise<Channel[]> {
     const detail = await this.getInstanceDetail(instanceId);
-    const configPath = this.resolveManagedConfigPath(detail);
-    if (configPath) {
+    const configFilePath = this.resolveConfigFilePath(detail);
+    if (configFilePath) {
       try {
         await openClawConfigService.setChannelEnabled({
-          configPath,
+          configPath: configFilePath,
           channelId,
           enabled,
         });
@@ -434,11 +434,11 @@ class ChannelService implements IChannelService {
     configData: Record<string, string>,
   ): Promise<Channel[]> {
     const detail = await this.getInstanceDetail(instanceId);
-    const configPath = this.resolveManagedConfigPath(detail);
-    if (configPath) {
+    const configFilePath = this.resolveConfigFilePath(detail);
+    if (configFilePath) {
       try {
         await openClawConfigService.saveChannelConfiguration({
-          configPath,
+          configPath: configFilePath,
           channelId,
           values: configData,
           enabled: true,
@@ -465,11 +465,11 @@ class ChannelService implements IChannelService {
 
   async deleteChannelConfig(instanceId: string, channelId: string): Promise<Channel[]> {
     const detail = await this.getInstanceDetail(instanceId);
-    const configPath = this.resolveManagedConfigPath(detail);
-    if (configPath) {
+    const configFilePath = this.resolveConfigFilePath(detail);
+    if (configFilePath) {
       try {
         await openClawConfigService.saveChannelConfiguration({
-          configPath,
+          configPath: configFilePath,
           channelId,
           values: {},
           enabled: false,

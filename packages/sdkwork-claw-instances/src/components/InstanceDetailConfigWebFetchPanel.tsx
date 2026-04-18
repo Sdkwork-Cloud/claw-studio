@@ -4,9 +4,9 @@ import { Button, Input, Label, Switch, Textarea } from '@sdkwork/claw-ui';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
 import { RowMetric } from './InstanceWorkbenchPrimitives.tsx';
 
-type ManagedWebFetchConfig = NonNullable<InstanceWorkbenchSnapshot['managedWebFetchConfig']>;
+type ConfigWebFetchConfig = NonNullable<InstanceWorkbenchSnapshot['configWebFetch']>;
 
-interface ManagedWebFetchSharedDraft {
+interface ConfigWebFetchSharedDraft {
   enabled: boolean;
   maxChars: string;
   maxCharsCap: string;
@@ -18,46 +18,46 @@ interface ManagedWebFetchSharedDraft {
   userAgent: string;
 }
 
-interface ManagedWebFetchFallbackDraft {
+interface ConfigWebFetchFallbackDraft {
   apiKeySource: string;
   baseUrl: string;
   advancedConfig: string;
 }
 
-interface InstanceDetailManagedWebFetchPanelProps {
-  managedWebFetchConfig: ManagedWebFetchConfig;
-  webFetchSharedDraft: ManagedWebFetchSharedDraft;
-  webFetchFallbackDraft: ManagedWebFetchFallbackDraft;
+interface InstanceDetailConfigWebFetchPanelProps {
+  configWebFetch: ConfigWebFetchConfig;
+  webFetchSharedDraft: ConfigWebFetchSharedDraft;
+  webFetchFallbackDraft: ConfigWebFetchFallbackDraft;
   webFetchError: string | null;
   isSavingWebFetch: boolean;
-  canEditManagedWebFetch: boolean;
+  canEditConfigWebFetch: boolean;
   t: (key: string) => string;
   onSave: () => Promise<void> | void;
   onWebFetchSharedDraftChange: (
-    key: keyof ManagedWebFetchSharedDraft,
+    key: keyof ConfigWebFetchSharedDraft,
     value: string | boolean,
   ) => void;
   onWebFetchFallbackDraftChange: (
-    key: keyof ManagedWebFetchFallbackDraft,
+    key: keyof ConfigWebFetchFallbackDraft,
     value: string,
   ) => void;
 }
 
-export function InstanceDetailManagedWebFetchPanel({
-  managedWebFetchConfig,
+export function InstanceDetailConfigWebFetchPanel({
+  configWebFetch,
   webFetchSharedDraft,
   webFetchFallbackDraft,
   webFetchError,
   isSavingWebFetch,
-  canEditManagedWebFetch,
+  canEditConfigWebFetch,
   t,
   onSave,
   onWebFetchSharedDraftChange,
   onWebFetchFallbackDraftChange,
-}: InstanceDetailManagedWebFetchPanelProps) {
+}: InstanceDetailConfigWebFetchPanelProps) {
   return (
     <div
-      data-slot="instance-detail-managed-web-fetch"
+      data-slot="instance-detail-config-web-fetch"
       className="overflow-hidden rounded-[1.75rem] border border-zinc-200/70 bg-white/95 shadow-[0_20px_70px_-55px_rgba(15,23,42,0.45)] dark:border-zinc-800 dark:bg-zinc-950/55"
     >
       <div className="border-b border-zinc-200/70 bg-zinc-950/[0.03] px-6 py-5 dark:border-zinc-800 dark:bg-white/[0.02]">
@@ -75,7 +75,7 @@ export function InstanceDetailManagedWebFetchPanel({
           </div>
           <Button
             onClick={() => void onSave()}
-            disabled={!canEditManagedWebFetch || isSavingWebFetch}
+            disabled={!canEditConfigWebFetch || isSavingWebFetch}
             className="rounded-full px-5"
           >
             {isSavingWebFetch ? (
@@ -105,7 +105,7 @@ export function InstanceDetailManagedWebFetchPanel({
               <Switch
                 checked={webFetchSharedDraft.enabled}
                 onCheckedChange={(checked) => onWebFetchSharedDraftChange('enabled', checked)}
-                disabled={!canEditManagedWebFetch}
+                disabled={!canEditConfigWebFetch}
               />
             </div>
           </div>
@@ -123,14 +123,14 @@ export function InstanceDetailManagedWebFetchPanel({
               <Switch
                 checked={webFetchSharedDraft.readability}
                 onCheckedChange={(checked) => onWebFetchSharedDraftChange('readability', checked)}
-                disabled={!canEditManagedWebFetch}
+                disabled={!canEditConfigWebFetch}
               />
             </div>
           </div>
 
           <RowMetric
             label={t('instances.detail.instanceWorkbench.webFetch.metrics.fallbackProvider')}
-            value={managedWebFetchConfig.fallbackProvider.name}
+            value={configWebFetch.fallbackProvider.name}
           />
         </div>
 
@@ -140,7 +140,7 @@ export function InstanceDetailManagedWebFetchPanel({
             <Input
               value={webFetchSharedDraft.maxChars}
               onChange={(event) => onWebFetchSharedDraftChange('maxChars', event.target.value)}
-              disabled={!canEditManagedWebFetch}
+              disabled={!canEditConfigWebFetch}
             />
           </div>
           <div className="space-y-2">
@@ -148,7 +148,7 @@ export function InstanceDetailManagedWebFetchPanel({
             <Input
               value={webFetchSharedDraft.maxCharsCap}
               onChange={(event) => onWebFetchSharedDraftChange('maxCharsCap', event.target.value)}
-              disabled={!canEditManagedWebFetch}
+              disabled={!canEditConfigWebFetch}
             />
           </div>
           <div className="space-y-2">
@@ -158,7 +158,7 @@ export function InstanceDetailManagedWebFetchPanel({
               onChange={(event) =>
                 onWebFetchSharedDraftChange('maxResponseBytes', event.target.value)
               }
-              disabled={!canEditManagedWebFetch}
+              disabled={!canEditConfigWebFetch}
             />
           </div>
           <div className="space-y-2">
@@ -168,7 +168,7 @@ export function InstanceDetailManagedWebFetchPanel({
               onChange={(event) =>
                 onWebFetchSharedDraftChange('timeoutSeconds', event.target.value)
               }
-              disabled={!canEditManagedWebFetch}
+              disabled={!canEditConfigWebFetch}
             />
           </div>
           <div className="space-y-2">
@@ -178,7 +178,7 @@ export function InstanceDetailManagedWebFetchPanel({
               onChange={(event) =>
                 onWebFetchSharedDraftChange('cacheTtlMinutes', event.target.value)
               }
-              disabled={!canEditManagedWebFetch}
+              disabled={!canEditConfigWebFetch}
             />
           </div>
           <div className="space-y-2">
@@ -188,7 +188,7 @@ export function InstanceDetailManagedWebFetchPanel({
               onChange={(event) =>
                 onWebFetchSharedDraftChange('maxRedirects', event.target.value)
               }
-              disabled={!canEditManagedWebFetch}
+              disabled={!canEditConfigWebFetch}
             />
           </div>
           <div className="space-y-2 md:col-span-2 xl:col-span-3">
@@ -196,7 +196,7 @@ export function InstanceDetailManagedWebFetchPanel({
             <Input
               value={webFetchSharedDraft.userAgent}
               onChange={(event) => onWebFetchSharedDraftChange('userAgent', event.target.value)}
-              disabled={!canEditManagedWebFetch}
+              disabled={!canEditConfigWebFetch}
               placeholder={t('instances.detail.instanceWorkbench.webFetch.placeholders.userAgent')}
             />
           </div>
@@ -209,10 +209,10 @@ export function InstanceDetailManagedWebFetchPanel({
                 {t('instances.detail.instanceWorkbench.webFetch.providerPanel')}
               </div>
               <h4 className="mt-2 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                {managedWebFetchConfig.fallbackProvider.name}
+                {configWebFetch.fallbackProvider.name}
               </h4>
               <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                {managedWebFetchConfig.fallbackProvider.description}
+                {configWebFetch.fallbackProvider.description}
               </p>
             </div>
           </div>
@@ -225,7 +225,7 @@ export function InstanceDetailManagedWebFetchPanel({
                 onChange={(event) =>
                   onWebFetchFallbackDraftChange('apiKeySource', event.target.value)
                 }
-                disabled={!canEditManagedWebFetch}
+                disabled={!canEditConfigWebFetch}
                 placeholder={t('instances.detail.instanceWorkbench.webFetch.placeholders.apiKeySource')}
               />
             </div>
@@ -235,7 +235,7 @@ export function InstanceDetailManagedWebFetchPanel({
               <Input
                 value={webFetchFallbackDraft.baseUrl}
                 onChange={(event) => onWebFetchFallbackDraftChange('baseUrl', event.target.value)}
-                disabled={!canEditManagedWebFetch}
+                disabled={!canEditConfigWebFetch}
                 placeholder={t('instances.detail.instanceWorkbench.webFetch.placeholders.baseUrl')}
               />
             </div>
@@ -247,7 +247,7 @@ export function InstanceDetailManagedWebFetchPanel({
                 onChange={(event) =>
                   onWebFetchFallbackDraftChange('advancedConfig', event.target.value)
                 }
-                disabled={!canEditManagedWebFetch}
+                disabled={!canEditConfigWebFetch}
                 rows={8}
                 placeholder={t('instances.detail.instanceWorkbench.webFetch.placeholders.advancedConfig')}
               />

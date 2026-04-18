@@ -14,6 +14,7 @@ use crate::framework::{
     paths::AppPaths,
     services::{
         kernel_runtime_authority::KernelRuntimeAuthorityService,
+        openclaw_config_compat::read_openclaw_authority_state_file,
         openclaw_runtime::load_manifest,
         supervisor::{ManagedServiceLifecycle, SERVICE_ID_OPENCLAW_GATEWAY},
     },
@@ -708,7 +709,7 @@ pub enum StudioInstanceConsoleAuthMode {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum StudioInstanceConsoleAuthSource {
-    ManagedConfig,
+    ConfigFile,
     InstallRecord,
     WorkspaceConfig,
     SecretRef,
@@ -1484,7 +1485,7 @@ impl StudioService {
             endpoints.push(snapshot.endpoint.clone());
         }
 
-        if let Some(gateway_endpoint) = managed_openclaw_gateway_endpoint(paths, supervisor)? {
+        if let Some(gateway_endpoint) = built_in_openclaw_gateway_endpoint(paths, supervisor)? {
             endpoints.push(gateway_endpoint);
         }
 
@@ -1499,11 +1500,11 @@ impl StudioService {
         supervisor: &SupervisorService,
     ) -> Result<OpenClawRuntimeProjection> {
         let updated_at = unix_timestamp_ms()?;
-        let endpoint = managed_openclaw_gateway_endpoint(paths, supervisor)?;
+        let endpoint = built_in_openclaw_gateway_endpoint(paths, supervisor)?;
 
         Ok(project_openclaw_runtime(
             endpoint.as_ref(),
-            managed_openclaw_lifecycle(supervisor)?,
+            built_in_openclaw_lifecycle(supervisor)?,
             "desktopCombined",
             updated_at,
         ))
@@ -1517,11 +1518,11 @@ impl StudioService {
         supervisor: &SupervisorService,
     ) -> Result<OpenClawGatewayProjection> {
         let updated_at = unix_timestamp_ms()?;
-        let endpoint = managed_openclaw_gateway_endpoint(paths, supervisor)?;
+        let endpoint = built_in_openclaw_gateway_endpoint(paths, supervisor)?;
 
         Ok(project_openclaw_gateway(
             endpoint.as_ref(),
-            managed_openclaw_lifecycle(supervisor)?,
+            built_in_openclaw_lifecycle(supervisor)?,
             "desktopCombined",
             updated_at,
         ))
@@ -1554,7 +1555,7 @@ impl StudioService {
             storage,
             supervisor,
             &self
-                .resolve_built_in_managed_openclaw_instance(paths, config, storage)?
+                .resolve_built_in_openclaw_instance(paths, config, storage)?
                 .id,
             &hosted_request,
             &options,
@@ -1589,7 +1590,7 @@ impl StudioService {
         input: PreviewRolloutInput,
     ) -> Result<ManageRolloutPreview> {
         let instance = self
-            .resolve_built_in_managed_openclaw_instance(paths, config, storage)
+            .resolve_built_in_openclaw_instance(paths, config, storage)
             .map_err(|_| FrameworkError::NotFound("built-in combined node".to_string()))?;
         let compiler = ProjectionCompiler::new();
         let projection = compiler.compile(&DesiredStateInput {
@@ -1702,7 +1703,7 @@ impl StudioService {
         )?;
         let target = preview.targets.into_iter().next();
         let node_id = self
-            .resolve_built_in_managed_openclaw_instance(paths, config, storage)?
+            .resolve_built_in_openclaw_instance(paths, config, storage)?
             .id;
 
         Ok(vec![InternalNodeSessionRecord {
@@ -1831,7 +1832,7 @@ impl StudioService {
             ..current
         };
 
-        if is_built_in_managed_openclaw_instance(&registry.instances[index]) {
+        if is_built_in_openclaw_instance(&registry.instances[index]) {
             self.sync_built_in_runtime_config(paths, &registry.instances[index].config)?;
         }
 
@@ -1857,7 +1858,7 @@ impl StudioService {
         id: &str,
     ) -> Result<bool> {
         if let Some(instance) = self.get_instance(paths, config, storage, id)? {
-            if is_built_in_managed_openclaw_instance(&instance) {
+            if is_built_in_openclaw_instance(&instance) {
                 return Err(FrameworkError::Conflict(
                     "the built-in instance cannot be deleted".to_string(),
                 ));
@@ -1944,7 +1945,7 @@ impl StudioService {
             return Ok(None);
         };
 
-        if is_built_in_managed_openclaw_instance(&instance) {
+        if is_built_in_openclaw_instance(&instance) {
             self.set_built_in_openclaw_status(
                 paths,
                 config,
@@ -1994,7 +1995,7 @@ impl StudioService {
             return Ok(None);
         };
 
-        if is_built_in_managed_openclaw_instance(&instance) {
+        if is_built_in_openclaw_instance(&instance) {
             if let Err(error) = supervisor.stop_openclaw_gateway() {
                 let _ = self.set_built_in_openclaw_status(
                     paths,
@@ -2034,7 +2035,7 @@ impl StudioService {
             return Ok(None);
         };
 
-        if is_built_in_managed_openclaw_instance(&instance) {
+        if is_built_in_openclaw_instance(&instance) {
             self.set_built_in_openclaw_status(
                 paths,
                 config,
@@ -2104,8 +2105,8 @@ impl StudioService {
         status: StudioInstanceStatus,
     ) -> Result<StudioInstanceRecord> {
         let mut registry = self.load_instance_registry(paths, config, storage)?;
-        let index = find_built_in_managed_openclaw_index(&registry.instances).ok_or_else(|| {
-            FrameworkError::NotFound("built-in managed OpenClaw instance".to_string())
+        let index = find_built_in_openclaw_index(&registry.instances).ok_or_else(|| {
+            FrameworkError::NotFound("built-in OpenClaw instance".to_string())
         })?;
         let now = unix_timestamp_ms()?;
         registry.instances[index].status = status;
@@ -2172,7 +2173,7 @@ impl StudioService {
         id: &str,
     ) -> Result<String> {
         if let Some(instance) = self.get_instance(paths, config, storage, id)? {
-            if is_built_in_managed_openclaw_instance(&instance) {
+            if is_built_in_openclaw_instance(&instance) {
                 let log_file = paths.logs_dir.join("openclaw-gateway.log");
                 if log_file.exists() {
                     return Ok(fs::read_to_string(log_file)?);
@@ -2197,7 +2198,7 @@ impl StudioService {
         file_id: &str,
         content: &str,
     ) -> Result<bool> {
-        self.require_built_in_managed_openclaw_instance(paths, config, storage, instance_id)?;
+        self.require_built_in_openclaw_instance(paths, config, storage, instance_id)?;
         let file_path = Path::new(file_id);
         let instance = self
             .get_instance(paths, config, storage, instance_id)?
@@ -2232,9 +2233,9 @@ impl StudioService {
         provider_id: &str,
         update: StudioUpdateInstanceLlmProviderConfigInput,
     ) -> Result<bool> {
-        self.require_built_in_managed_openclaw_instance(paths, config, storage, instance_id)?;
+        self.require_built_in_openclaw_instance(paths, config, storage, instance_id)?;
 
-        let mut root = read_managed_openclaw_config(paths)?;
+        let mut root = read_openclaw_config(paths)?;
         let provider_path = ["models", "providers", provider_id];
 
         if !update.endpoint.trim().is_empty() {
@@ -2326,7 +2327,7 @@ impl StudioService {
         task_id: &str,
         name: Option<&str>,
     ) -> Result<()> {
-        self.require_managed_openclaw_task_instance(paths, config, storage, instance_id)?;
+        self.require_built_in_openclaw_task_instance(paths, config, storage, instance_id)?;
         let runtime = require_running_openclaw_runtime(supervisor)?;
         clone_openclaw_task(paths, &runtime, task_id, name)
     }
@@ -2340,7 +2341,7 @@ impl StudioService {
         instance_id: &str,
         payload: &Value,
     ) -> Result<()> {
-        self.require_managed_openclaw_task_instance(paths, config, storage, instance_id)?;
+        self.require_built_in_openclaw_task_instance(paths, config, storage, instance_id)?;
         let runtime = require_running_openclaw_runtime(supervisor)?;
         create_openclaw_task(paths, &runtime, payload)
     }
@@ -2355,7 +2356,7 @@ impl StudioService {
         request: &StudioOpenClawGatewayInvokeRequest,
         options: &StudioOpenClawGatewayInvokeOptions,
     ) -> Result<Value> {
-        self.require_built_in_managed_openclaw_instance(paths, config, storage, instance_id)?;
+        self.require_built_in_openclaw_instance(paths, config, storage, instance_id)?;
         let runtime = require_running_openclaw_runtime(supervisor)?;
         invoke_openclaw_gateway(&runtime, request, options)
     }
@@ -2370,7 +2371,7 @@ impl StudioService {
         task_id: &str,
         payload: &Value,
     ) -> Result<()> {
-        self.require_managed_openclaw_task_instance(paths, config, storage, instance_id)?;
+        self.require_built_in_openclaw_task_instance(paths, config, storage, instance_id)?;
         let runtime = require_running_openclaw_runtime(supervisor)?;
         update_openclaw_task(paths, &runtime, task_id, payload)
     }
@@ -2384,7 +2385,7 @@ impl StudioService {
         instance_id: &str,
         task_id: &str,
     ) -> Result<StudioWorkbenchTaskExecutionRecord> {
-        self.require_managed_openclaw_task_instance(paths, config, storage, instance_id)?;
+        self.require_built_in_openclaw_task_instance(paths, config, storage, instance_id)?;
         let runtime = require_running_openclaw_runtime(supervisor)?;
         run_openclaw_task_now(paths, &runtime, task_id)
     }
@@ -2397,7 +2398,7 @@ impl StudioService {
         instance_id: &str,
         task_id: &str,
     ) -> Result<Vec<StudioWorkbenchTaskExecutionRecord>> {
-        self.require_managed_openclaw_task_instance(paths, config, storage, instance_id)?;
+        self.require_built_in_openclaw_task_instance(paths, config, storage, instance_id)?;
         list_openclaw_task_executions(paths, task_id)
     }
 
@@ -2411,7 +2412,7 @@ impl StudioService {
         task_id: &str,
         status: &str,
     ) -> Result<()> {
-        self.require_managed_openclaw_task_instance(paths, config, storage, instance_id)?;
+        self.require_built_in_openclaw_task_instance(paths, config, storage, instance_id)?;
         let runtime = require_running_openclaw_runtime(supervisor)?;
         update_openclaw_task_status(paths, &runtime, task_id, status)
     }
@@ -2425,7 +2426,7 @@ impl StudioService {
         instance_id: &str,
         task_id: &str,
     ) -> Result<bool> {
-        self.require_managed_openclaw_task_instance(paths, config, storage, instance_id)?;
+        self.require_built_in_openclaw_task_instance(paths, config, storage, instance_id)?;
         let runtime = require_running_openclaw_runtime(supervisor)?;
         delete_openclaw_task(paths, &runtime, task_id)
     }
@@ -2494,12 +2495,12 @@ impl StudioService {
         let logs = self.get_instance_logs(paths, config, storage, id)?;
         let config = instance.config.clone();
         let storage_snapshot = build_storage_snapshot_for_instance(&instance);
-        let managed_openclaw_root = if uses_built_in_managed_openclaw_config(&instance) {
-            Some(read_managed_openclaw_config(paths)?)
+        let built_in_openclaw_root = if uses_built_in_openclaw_config(&instance) {
+            Some(read_openclaw_config(paths)?)
         } else {
             None
         };
-        let connectivity = build_connectivity_snapshot(&instance, managed_openclaw_root.as_ref());
+        let connectivity = build_connectivity_snapshot(&instance, built_in_openclaw_root.as_ref());
         let observability = build_observability_snapshot(paths, &instance, &logs);
         let data_access = build_data_access_snapshot(
             paths,
@@ -2521,7 +2522,7 @@ impl StudioService {
         let capabilities = build_capability_snapshots(&instance, &storage_snapshot);
         let official_runtime_notes = build_official_runtime_notes(&instance);
         let console_access = build_console_access(paths, &instance)?;
-        let workbench = if uses_built_in_managed_openclaw_config(&instance) {
+        let workbench = if uses_built_in_openclaw_config(&instance) {
             build_openclaw_workbench_snapshot(paths, &instance)?
         } else {
             None
@@ -2760,7 +2761,7 @@ impl StudioService {
             .map_err(Into::into)
     }
 
-    fn resolve_built_in_managed_openclaw_instance(
+    fn resolve_built_in_openclaw_instance(
         &self,
         paths: &AppPaths,
         config: &AppConfig,
@@ -2769,9 +2770,9 @@ impl StudioService {
         self.load_instance_registry(paths, config, storage)?
             .instances
             .into_iter()
-            .find(is_built_in_managed_openclaw_instance)
+            .find(is_built_in_openclaw_instance)
             .ok_or_else(|| {
-                FrameworkError::NotFound("built-in managed OpenClaw instance".to_string())
+                FrameworkError::NotFound("built-in OpenClaw instance".to_string())
             })
     }
 
@@ -2780,7 +2781,7 @@ impl StudioService {
         paths: &AppPaths,
         config: &StudioInstanceConfig,
     ) -> Result<()> {
-        let mut root = read_managed_openclaw_config(paths)?;
+        let mut root = read_openclaw_config(paths)?;
         set_nested_u16(
             &mut root,
             &["gateway", "port"],
@@ -2814,7 +2815,7 @@ impl StudioService {
         Ok(())
     }
 
-    fn require_built_in_managed_openclaw_instance(
+    fn require_built_in_openclaw_instance(
         &self,
         paths: &AppPaths,
         config: &AppConfig,
@@ -2825,9 +2826,9 @@ impl StudioService {
             .get_instance(paths, config, storage, instance_id)?
             .ok_or_else(|| FrameworkError::NotFound(format!("instance \"{instance_id}\"")))?;
 
-        if !is_built_in_managed_openclaw_instance(&instance) {
+        if !is_built_in_openclaw_instance(&instance) {
             return Err(FrameworkError::Conflict(
-                "runtime-backed OpenClaw workspace operations are only available for the built-in managed OpenClaw instance"
+                "runtime-backed OpenClaw workspace operations are only available for the built-in OpenClaw instance"
                     .to_string(),
             ));
         }
@@ -2835,17 +2836,17 @@ impl StudioService {
         Ok(instance)
     }
 
-    fn require_managed_openclaw_task_instance(
+    fn require_built_in_openclaw_task_instance(
         &self,
         paths: &AppPaths,
         config: &AppConfig,
         storage: &StorageService,
         instance_id: &str,
     ) -> Result<StudioInstanceRecord> {
-        self.require_built_in_managed_openclaw_instance(paths, config, storage, instance_id)
+        self.require_built_in_openclaw_instance(paths, config, storage, instance_id)
             .map_err(|error| match error {
                 FrameworkError::Conflict(_) => FrameworkError::Conflict(
-                    "runtime-backed task operations are only available for the built-in managed OpenClaw instance"
+                    "runtime-backed task operations are only available for the built-in OpenClaw instance"
                         .to_string(),
                 ),
                 other => other,
@@ -2970,8 +2971,8 @@ fn build_lifecycle_snapshot(
     instance: &StudioInstanceRecord,
     supervisor: Option<&SupervisorService>,
 ) -> Result<StudioInstanceLifecycleSnapshot> {
-    let built_in_managed_openclaw = uses_built_in_managed_openclaw_config(instance);
-    let mut snapshot = if built_in_managed_openclaw {
+    let built_in_openclaw = uses_built_in_openclaw_config(instance);
+    let mut snapshot = if built_in_openclaw {
         StudioInstanceLifecycleSnapshot {
             owner: StudioInstanceLifecycleOwner::AppManaged,
             start_stop_supported: true,
@@ -3024,14 +3025,14 @@ fn build_lifecycle_snapshot(
         }
     };
 
-    if built_in_managed_openclaw {
+    if built_in_openclaw {
         let last_bundled_openclaw_activation =
             read_last_bundled_openclaw_activation_stage(paths.main_log_file.as_path());
         if let Some((stage, _)) = last_bundled_openclaw_activation.as_ref() {
             snapshot.last_activation_stage = Some(stage.clone());
         }
         if let Some(supervisor) = supervisor {
-            if let Some(last_error) = managed_openclaw_last_error(supervisor)? {
+            if let Some(last_error) = built_in_openclaw_last_error(supervisor)? {
                 snapshot.last_error = Some(last_error.clone());
                 snapshot
                     .notes
@@ -3313,12 +3314,12 @@ fn build_console_access(
         return Ok(None);
     }
 
-    if uses_built_in_managed_openclaw_config(instance) {
-        let root = read_managed_openclaw_config(paths)?;
+    if uses_built_in_openclaw_config(instance) {
+        let root = read_openclaw_config(paths)?;
         return Ok(Some(build_openclaw_console_access(
             instance,
             Some(&root),
-            Some(StudioInstanceConsoleAuthSource::ManagedConfig),
+            Some(StudioInstanceConsoleAuthSource::ConfigFile),
             Some(StudioInstanceConsoleInstallMethod::Bundled),
             None,
         )));
@@ -3417,7 +3418,7 @@ fn build_openclaw_console_access(
     let reason = if !runtime_available {
         Some(match instance.deployment_mode {
             StudioInstanceDeploymentMode::LocalManaged
-                if uses_built_in_managed_openclaw_config(instance) =>
+                if uses_built_in_openclaw_config(instance) =>
             {
                 "Built-in OpenClaw gateway is not running yet.".to_string()
             }
@@ -4025,7 +4026,7 @@ fn build_observability_snapshot(
         .into_iter()
         .rev()
         .collect::<Vec<_>>();
-    let log_file_path = if uses_built_in_managed_openclaw_config(instance) {
+    let log_file_path = if uses_built_in_openclaw_config(instance) {
         Some(
             paths
                 .logs_dir
@@ -4040,7 +4041,7 @@ fn build_observability_snapshot(
     StudioInstanceObservabilitySnapshot {
         status: if !log_preview.is_empty() {
             StudioInstanceObservabilityStatus::Ready
-        } else if uses_built_in_managed_openclaw_config(instance) {
+        } else if uses_built_in_openclaw_config(instance) {
             StudioInstanceObservabilityStatus::Limited
         } else {
             StudioInstanceObservabilityStatus::Unavailable
@@ -4066,7 +4067,7 @@ fn build_data_access_snapshot(
     let local_external_openclaw_config_target =
         discover_local_external_openclaw_config_path(paths, instance)
             .map(|path| path.to_string_lossy().into_owned());
-    let built_in_managed_openclaw = uses_built_in_managed_openclaw_config(instance);
+    let built_in_openclaw = uses_built_in_openclaw_config(instance);
     let primary_endpoint = primary_connectivity_target(connectivity);
     let openai_endpoint = connectivity
         .endpoints
@@ -4080,25 +4081,25 @@ fn build_data_access_snapshot(
                 "config",
                 "Configuration",
                 StudioInstanceDataAccessScope::Config,
-                if built_in_managed_openclaw {
+                if built_in_openclaw {
                     StudioInstanceDataAccessMode::ManagedFile
                 } else {
                     StudioInstanceDataAccessMode::MetadataOnly
                 },
                 StudioInstanceDataAccessStatus::Ready,
-                if built_in_managed_openclaw {
-                    Some(managed_openclaw_config_target(paths))
+                if built_in_openclaw {
+                    Some(openclaw_config_target(paths))
                 } else {
                     registry_target.clone()
                 },
                 false,
-                built_in_managed_openclaw,
-                if built_in_managed_openclaw {
-                    "Claw Studio reads and writes the built-in managed runtime configuration file directly."
+                built_in_openclaw,
+                if built_in_openclaw {
+                    "Claw Studio reads and writes the built-in OpenClaw config file directly."
                 } else {
                     "Claw Studio stores registry metadata for this local-managed runtime, but does not assume the built-in OpenClaw config file belongs to it."
                 },
-                if built_in_managed_openclaw {
+                if built_in_openclaw {
                     StudioInstanceDetailSource::Config
                 } else {
                     StudioInstanceDetailSource::Integration
@@ -4358,15 +4359,15 @@ fn build_artifacts(
     let local_external_openclaw_config_path =
         discover_local_external_openclaw_config_path(paths, instance);
 
-    if uses_built_in_managed_openclaw_config(instance) {
+    if uses_built_in_openclaw_config(instance) {
         artifacts.push(artifact_record(
             "config-file",
             "Config File",
             StudioInstanceArtifactKind::ConfigFile,
             StudioInstanceArtifactStatus::Available,
-            Some(managed_openclaw_config_target(paths)),
+            Some(openclaw_config_target(paths)),
             false,
-            "Managed OpenClaw runtime configuration file.",
+            "OpenClaw runtime configuration file.",
             StudioInstanceDetailSource::Config,
         ));
         artifacts.push(artifact_record(
@@ -4375,7 +4376,7 @@ fn build_artifacts(
             StudioInstanceArtifactKind::RuntimeDirectory,
             StudioInstanceArtifactStatus::Available,
             Some(
-                managed_openclaw_runtime_dir(paths)
+                built_in_openclaw_runtime_dir(paths)
                     .to_string_lossy()
                     .into_owned(),
             ),
@@ -4580,34 +4581,34 @@ fn storage_target(storage: &StudioInstanceStorageSnapshot) -> Option<String> {
 }
 
 fn local_workspace_target(paths: &AppPaths, instance: &StudioInstanceRecord) -> Option<String> {
-    if uses_built_in_managed_openclaw_config(instance) {
+    if uses_built_in_openclaw_config(instance) {
         return Some(paths.openclaw_workspace_dir.to_string_lossy().into_owned());
     }
 
     instance.config.workspace_path.clone()
 }
 
-fn uses_built_in_managed_openclaw_config(instance: &StudioInstanceRecord) -> bool {
-    is_built_in_managed_openclaw_instance(instance)
+fn uses_built_in_openclaw_config(instance: &StudioInstanceRecord) -> bool {
+    is_built_in_openclaw_instance(instance)
 }
 
-fn is_built_in_managed_openclaw_instance(instance: &StudioInstanceRecord) -> bool {
+fn is_built_in_openclaw_instance(instance: &StudioInstanceRecord) -> bool {
     instance.is_built_in
         && instance.runtime_kind == StudioRuntimeKind::Openclaw
         && instance.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
         && instance.transport_kind == StudioInstanceTransportKind::OpenclawGatewayWs
 }
 
-fn find_built_in_managed_openclaw_index(instances: &[StudioInstanceRecord]) -> Option<usize> {
+fn find_built_in_openclaw_index(instances: &[StudioInstanceRecord]) -> Option<usize> {
     instances
         .iter()
         .position(|instance| {
-            is_built_in_managed_openclaw_instance(instance) && instance.id != DEFAULT_INSTANCE_ID
+            is_built_in_openclaw_instance(instance) && instance.id != DEFAULT_INSTANCE_ID
         })
         .or_else(|| {
             instances
                 .iter()
-                .position(is_built_in_managed_openclaw_instance)
+                .position(is_built_in_openclaw_instance)
         })
 }
 
@@ -4779,9 +4780,7 @@ fn read_active_state(paths: &AppPaths) -> Option<ActiveState> {
 
 fn read_openclaw_authority_state(paths: &AppPaths) -> Option<KernelAuthorityState> {
     let authority_file = paths.kernel_paths("openclaw").ok()?.authority_file;
-    fs::read_to_string(authority_file)
-        .ok()
-        .and_then(|content| serde_json::from_str::<KernelAuthorityState>(&content).ok())
+    read_openclaw_authority_state_file(&authority_file).ok()
 }
 
 fn normalize_legacy_active_version_label(value: &str) -> Option<String> {
@@ -4920,7 +4919,7 @@ fn resolve_built_in_openclaw_display_version(paths: &AppPaths) -> String {
 
 fn build_built_in_instance(paths: &AppPaths, config: &AppConfig) -> Result<StudioInstanceRecord> {
     let active_version = resolve_built_in_openclaw_display_version(paths);
-    let root = read_managed_openclaw_config(paths)?;
+    let root = read_openclaw_config(paths)?;
     let port = get_nested_u16(&root, &["gateway", "port"]).unwrap_or(18_789);
     let workspace_path = get_nested_string(&root, &["agents", "defaults", "workspace"]);
     let log_level =
@@ -4984,7 +4983,7 @@ fn upsert_built_in_instance(
     instances: &mut Vec<StudioInstanceRecord>,
     built_in: StudioInstanceRecord,
 ) -> bool {
-    let Some(index) = find_built_in_managed_openclaw_index(instances) else {
+    let Some(index) = find_built_in_openclaw_index(instances) else {
         instances.insert(0, built_in);
         return true;
     };
@@ -5006,7 +5005,7 @@ fn upsert_built_in_instance(
 
     let initial_len = instances.len();
     instances.retain(|instance| {
-        !is_built_in_managed_openclaw_instance(instance) || instance.id == preferred_id
+        !is_built_in_openclaw_instance(instance) || instance.id == preferred_id
     });
     let mut changed = instances.len() != initial_len;
 
@@ -5028,12 +5027,12 @@ fn project_built_in_instance_live_state(
     instances: &mut [StudioInstanceRecord],
     supervisor: &SupervisorService,
 ) -> Result<()> {
-    let Some(index) = find_built_in_managed_openclaw_index(instances) else {
+    let Some(index) = find_built_in_openclaw_index(instances) else {
         return Ok(());
     };
     let instance = &mut instances[index];
 
-    let lifecycle = managed_openclaw_lifecycle(supervisor)?;
+    let lifecycle = built_in_openclaw_lifecycle(supervisor)?;
     let gateway_running = matches!(lifecycle, OpenClawLifecycle::Ready);
 
     if let Some(runtime) = supervisor.configured_openclaw_runtime()? {
@@ -5043,7 +5042,7 @@ fn project_built_in_instance_live_state(
 
         if gateway_running {
             let base_url = format!("http://127.0.0.1:{}", runtime.gateway_port);
-            let managed_root = read_managed_openclaw_config(paths)?;
+            let config_root = read_openclaw_config(paths)?;
             let mut gateway_projection = instance.clone();
             gateway_projection.port = Some(runtime.gateway_port);
             gateway_projection.config.port = runtime.gateway_port.to_string();
@@ -5052,7 +5051,7 @@ fn project_built_in_instance_live_state(
             gateway_projection.config.base_url = Some(base_url.clone());
             gateway_projection.config.websocket_url = None;
             let websocket_url =
-                build_openclaw_gateway_ws_url(&gateway_projection, Some(&managed_root))
+                build_openclaw_gateway_ws_url(&gateway_projection, Some(&config_root))
                     .unwrap_or_else(|| format!("ws://127.0.0.1:{}", runtime.gateway_port));
             instance.base_url = Some(base_url.clone());
             instance.websocket_url = Some(websocket_url.clone());
@@ -5098,7 +5097,7 @@ fn normalize_default_instance(instances: &mut Vec<StudioInstanceRecord>) -> bool
         .find(|instance| instance.is_default)
         .map(|instance| instance.id.clone())
         .unwrap_or_else(|| {
-            find_built_in_managed_openclaw_index(instances)
+            find_built_in_openclaw_index(instances)
                 .map(|index| instances[index].id.clone())
                 .unwrap_or_else(|| instances[0].id.clone())
         });
@@ -5259,7 +5258,7 @@ fn blocked_reason_for_outcome(outcome: PreflightOutcome) -> Option<String> {
     }
 }
 
-fn managed_openclaw_lifecycle(supervisor: &SupervisorService) -> Result<OpenClawLifecycle> {
+fn built_in_openclaw_lifecycle(supervisor: &SupervisorService) -> Result<OpenClawLifecycle> {
     if supervisor.is_openclaw_gateway_running()? {
         Ok(OpenClawLifecycle::Ready)
     } else if supervisor.snapshot()?.services.iter().any(|service| {
@@ -5274,7 +5273,7 @@ fn managed_openclaw_lifecycle(supervisor: &SupervisorService) -> Result<OpenClaw
     }
 }
 
-fn managed_openclaw_last_error(supervisor: &SupervisorService) -> Result<Option<String>> {
+fn built_in_openclaw_last_error(supervisor: &SupervisorService) -> Result<Option<String>> {
     Ok(supervisor
         .snapshot()?
         .services
@@ -5296,7 +5295,7 @@ fn project_desktop_host_available_capability_keys(
         .map(|status| status.lifecycle.as_str() == "ready")
         .unwrap_or(false);
     let gateway_ready = matches!(
-        managed_openclaw_lifecycle(supervisor)?,
+        built_in_openclaw_lifecycle(supervisor)?,
         OpenClawLifecycle::Ready
     );
 
@@ -5307,7 +5306,7 @@ fn project_desktop_host_available_capability_keys(
     Ok(capability_keys)
 }
 
-fn managed_openclaw_gateway_endpoint(
+fn built_in_openclaw_gateway_endpoint(
     paths: &AppPaths,
     supervisor: &SupervisorService,
 ) -> Result<Option<HostEndpointRecord>> {
@@ -5318,7 +5317,7 @@ fn managed_openclaw_gateway_endpoint(
     let gateway_running = supervisor.is_openclaw_gateway_running()?;
     let active_port = gateway_running.then_some(runtime.gateway_port);
     let gateway_path = if active_port.is_some() {
-        let root = read_managed_openclaw_config(paths)?;
+        let root = read_openclaw_config(paths)?;
         resolved_openclaw_control_ui_gateway_path(Some(&root), None, None)
     } else {
         String::new()
@@ -5638,7 +5637,7 @@ pub(super) fn read_openclaw_provider_runtime_config(
 }
 
 fn write_openclaw_config_file(paths: &AppPaths, root: &Value) -> Result<()> {
-    let config_path = authority_managed_openclaw_config_path(paths);
+    let config_path = authority_openclaw_config_file_path(paths);
     if let Some(parent) = config_path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -5649,34 +5648,34 @@ fn write_openclaw_config_file(paths: &AppPaths, root: &Value) -> Result<()> {
     Ok(())
 }
 
-fn read_managed_openclaw_config(paths: &AppPaths) -> Result<Value> {
-    read_json5_object(&readable_managed_openclaw_config_path(paths))
+fn read_openclaw_config(paths: &AppPaths) -> Result<Value> {
+    read_json5_object(&readable_openclaw_config_file_path(paths))
 }
 
-fn managed_openclaw_config_target(paths: &AppPaths) -> String {
-    authority_managed_openclaw_config_path(paths)
+fn openclaw_config_target(paths: &AppPaths) -> String {
+    authority_openclaw_config_file_path(paths)
         .to_string_lossy()
         .into_owned()
 }
 
-fn managed_openclaw_runtime_dir(paths: &AppPaths) -> PathBuf {
+fn built_in_openclaw_runtime_dir(paths: &AppPaths) -> PathBuf {
     paths
         .kernel_paths("openclaw")
         .map(|kernel| kernel.runtime_dir)
         .unwrap_or_else(|_| paths.openclaw_runtime_dir.clone())
 }
 
-fn readable_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
-    authority_managed_openclaw_config_path(paths)
+fn readable_openclaw_config_file_path(paths: &AppPaths) -> PathBuf {
+    authority_openclaw_config_file_path(paths)
 }
 
-fn authority_managed_openclaw_config_path(paths: &AppPaths) -> PathBuf {
+fn authority_openclaw_config_file_path(paths: &AppPaths) -> PathBuf {
     KernelRuntimeAuthorityService::new()
-        .active_managed_config_path("openclaw", paths)
+        .active_config_file_path("openclaw", paths)
         .unwrap_or_else(|_| {
             paths
                 .kernel_paths("openclaw")
-                .map(|kernel| kernel.managed_config_file)
+                .map(|kernel| kernel.config_file)
                 .unwrap_or_else(|_| paths.openclaw_config_file.clone())
         })
 }
@@ -5856,6 +5855,7 @@ mod tests {
         },
         paths::resolve_paths_for_root,
         services::{
+            openclaw_config_compat::legacy_openclaw_config_file_path,
             kernel_runtime_authority::KernelRuntimeAuthorityService,
             openclaw_runtime::ActivatedOpenClawRuntime,
             storage::StorageService,
@@ -5951,15 +5951,15 @@ mod tests {
         .expect("write manifest");
     }
 
-    fn managed_openclaw_config_path(
+    fn openclaw_config_file_path(
         paths: &crate::framework::paths::AppPaths,
     ) -> std::path::PathBuf {
         KernelRuntimeAuthorityService::new()
-            .active_managed_config_path("openclaw", paths)
+            .active_config_file_path("openclaw", paths)
             .unwrap_or_else(|_| {
                 paths
                     .kernel_paths("openclaw")
-                    .map(|kernel| kernel.managed_config_file)
+                    .map(|kernel| kernel.config_file)
                     .unwrap_or_else(|_| paths.openclaw_config_file.clone())
             })
     }
@@ -6247,7 +6247,7 @@ mod tests {
   "fallbackInstallKey": null,
   "activeVersionLabel": "2026.4.11-beta.1",
   "fallbackVersionLabel": null,
-  "managedConfigPath": null,
+  "configFilePath": null,
   "ownedRuntimeRoots": [],
   "legacyRuntimeRoots": [],
   "quarantinedPaths": [],
@@ -6302,7 +6302,7 @@ mod tests {
   "fallbackInstallKey": null,
   "activeVersionLabel": "{version}",
   "fallbackVersionLabel": null,
-  "managedConfigPath": null,
+  "configFilePath": null,
   "ownedRuntimeRoots": [],
   "legacyRuntimeRoots": [],
   "quarantinedPaths": [],
@@ -6405,7 +6405,7 @@ mod tests {
   "fallbackInstallKey": null,
   "activeVersionLabel": "2026.3.28",
   "fallbackVersionLabel": null,
-  "managedConfigPath": null,
+  "configFilePath": null,
   "ownedRuntimeRoots": [],
   "legacyRuntimeRoots": [],
   "quarantinedPaths": [],
@@ -6525,7 +6525,7 @@ mod tests {
                 home_dir: paths.openclaw_root_dir.clone(),
                 state_dir: paths.openclaw_root_dir.clone(),
                 workspace_dir: paths.openclaw_workspace_dir.clone(),
-                config_path: managed_openclaw_config_path(paths),
+                config_path: openclaw_config_file_path(paths),
                 gateway_port,
                 gateway_auth_token: "test-token".to_string(),
             },
@@ -6789,7 +6789,7 @@ mod tests {
             version: 1,
             instances: vec![StudioInstanceRecord {
                 id: "managed-openclaw-primary".to_string(),
-                name: "Managed OpenClaw Primary".to_string(),
+                name: "Built-In OpenClaw Primary".to_string(),
                 description: Some("Stable built-in OpenClaw identity.".to_string()),
                 runtime_kind: StudioRuntimeKind::Openclaw,
                 deployment_mode: StudioInstanceDeploymentMode::LocalManaged,
@@ -6844,7 +6844,7 @@ mod tests {
 
         assert_eq!(instances.len(), 1);
         assert_eq!(instances[0].id, "managed-openclaw-primary");
-        assert_eq!(instances[0].name, "Managed OpenClaw Primary");
+        assert_eq!(instances[0].name, "Built-In OpenClaw Primary");
         assert_eq!(instances[0].version, bundled_openclaw_version());
         assert!(!instances
             .iter()
@@ -6878,7 +6878,7 @@ mod tests {
             version: 1,
             instances: vec![StudioInstanceRecord {
                 id: stable_id.to_string(),
-                name: "Managed OpenClaw Primary".to_string(),
+                name: "Built-In OpenClaw Primary".to_string(),
                 description: Some("Stable built-in OpenClaw identity.".to_string()),
                 runtime_kind: StudioRuntimeKind::Openclaw,
                 deployment_mode: StudioInstanceDeploymentMode::LocalManaged,
@@ -6949,7 +6949,7 @@ mod tests {
             version: 1,
             instances: vec![StudioInstanceRecord {
                 id: stable_id.to_string(),
-                name: "Managed OpenClaw Primary".to_string(),
+                name: "Built-In OpenClaw Primary".to_string(),
                 description: Some("Stable built-in OpenClaw identity.".to_string()),
                 runtime_kind: StudioRuntimeKind::Openclaw,
                 deployment_mode: StudioInstanceDeploymentMode::LocalManaged,
@@ -7017,10 +7017,10 @@ mod tests {
     }
 
     #[test]
-    fn built_in_instance_reads_http_auth_from_managed_openclaw_config() {
+    fn built_in_instance_reads_http_auth_from_openclaw_config_file() {
         let (_root, paths, config, storage, service) = studio_context();
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -7032,7 +7032,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let instances = service
             .list_instances(&paths, &config, &storage)
@@ -7050,21 +7050,18 @@ mod tests {
     }
 
     #[test]
-    fn built_in_instance_ignores_legacy_authority_managed_config_path_when_reading_http_auth() {
+    fn built_in_instance_ignores_legacy_authority_config_file_path_when_reading_http_auth() {
         let (_root, paths, config, storage, service) = studio_context();
-        let legacy_managed_config_path = paths
-            .openclaw_kernel_dir
-            .join("managed-config")
-            .join("openclaw.json");
-        let canonical_managed_config_path = paths.openclaw_config_file.clone();
+        let legacy_authority_config_file_path = legacy_openclaw_config_file_path(&paths);
+        let canonical_config_file_path = paths.openclaw_config_file.clone();
         fs::create_dir_all(
-            legacy_managed_config_path
+            legacy_authority_config_file_path
                 .parent()
-                .expect("legacy managed config parent"),
+                .expect("legacy config file parent"),
         )
-        .expect("legacy managed config dir");
+        .expect("legacy config file dir");
         fs::write(
-            &legacy_managed_config_path,
+            &legacy_authority_config_file_path,
             r#"{
   gateway: {
     port: 19877,
@@ -7076,9 +7073,9 @@ mod tests {
 }
 "#,
         )
-        .expect("seed legacy managed config");
+        .expect("seed legacy config file");
         fs::write(
-            &canonical_managed_config_path,
+            &canonical_config_file_path,
             r#"{
   gateway: {
     port: 19876,
@@ -7090,14 +7087,14 @@ mod tests {
 }
 "#,
         )
-        .expect("seed canonical managed config");
+        .expect("seed canonical config file");
 
         let mut authority = serde_json::from_str::<Value>(
             &fs::read_to_string(&paths.openclaw_authority_file).expect("authority state"),
         )
         .expect("authority state json");
-        authority["managedConfigPath"] =
-            Value::String(legacy_managed_config_path.to_string_lossy().into_owned());
+        authority["configFilePath"] =
+            Value::String(legacy_authority_config_file_path.to_string_lossy().into_owned());
         fs::write(
             &paths.openclaw_authority_file,
             format!(
@@ -7132,7 +7129,7 @@ mod tests {
         let (_root, paths, config, storage, service) = studio_context();
 
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -7144,7 +7141,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         service
             .update_instance(
@@ -7166,9 +7163,9 @@ mod tests {
             .expect("update built-in instance");
 
         let root = serde_json::from_str::<Value>(
-            &fs::read_to_string(&managed_openclaw_config_path(&paths)).expect("managed config"),
+            &fs::read_to_string(&openclaw_config_file_path(&paths)).expect("config file"),
         )
-        .expect("managed config json");
+        .expect("config file json");
 
         assert_eq!(
             root.pointer("/studio/logLevel").and_then(Value::as_str),
@@ -7428,7 +7425,7 @@ mod tests {
             .record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(42))
             .expect("record running");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -7452,7 +7449,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
         fs::write(
             paths.logs_dir.join("openclaw-gateway.log"),
             "gateway booted\nchat completions ready\n",
@@ -7511,7 +7508,7 @@ mod tests {
             && route.authoritative
             && route.target.as_deref()
                 == Some(
-                    managed_openclaw_config_path(&paths)
+                    openclaw_config_file_path(&paths)
                         .to_string_lossy()
                         .as_ref()
                 )));
@@ -7534,15 +7531,15 @@ mod tests {
     }
 
     #[test]
-    fn built_in_instance_detail_reads_authority_managed_config_target() {
+    fn built_in_instance_detail_reads_authority_config_file_target() {
         let (_root, paths, config, storage, service) = studio_context();
         let (supervisor, _server) = configured_openclaw_supervisor(&paths);
-        let managed_config_path = KernelRuntimeAuthorityService::new()
-            .active_managed_config_path("openclaw", &paths)
-            .expect("authority managed config path");
+        let config_file_path = KernelRuntimeAuthorityService::new()
+            .active_config_file_path("openclaw", &paths)
+            .expect("authority config file path");
 
         fs::write(
-            &managed_config_path,
+            &config_file_path,
             r#"{
   gateway: {
     port: 19876,
@@ -7554,7 +7551,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed authority managed config");
+        .expect("seed authority config file");
 
         let detail = service
             .get_instance_detail_with_supervisor(
@@ -7571,7 +7568,7 @@ mod tests {
             == StudioInstanceDataAccessScope::Config
             && route.mode == StudioInstanceDataAccessMode::ManagedFile
             && route.authoritative
-            && route.target.as_deref() == Some(managed_config_path.to_string_lossy().as_ref())));
+            && route.target.as_deref() == Some(config_file_path.to_string_lossy().as_ref())));
     }
 
     #[test]
@@ -7629,7 +7626,7 @@ mod tests {
             .record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(42))
             .expect("record running");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -7649,7 +7646,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let detail = service
             .get_instance_detail_with_supervisor(
@@ -7707,7 +7704,7 @@ mod tests {
             .record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(42))
             .expect("record running");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -7722,7 +7719,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let host_endpoints = service
             .get_host_endpoints(&paths, &config, &storage, &supervisor, None)
@@ -7769,7 +7766,7 @@ mod tests {
     fn built_in_instance_detail_hides_live_gateway_endpoints_when_the_gateway_is_not_running() {
         let (_root, paths, config, storage, service) = studio_context();
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -7781,7 +7778,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let detail = service
             .get_instance_detail(&paths, &config, &storage, DEFAULT_INSTANCE_ID)
@@ -7882,7 +7879,7 @@ mod tests {
     fn custom_local_managed_openclaw_detail_does_not_read_built_in_managed_config() {
         let (_root, paths, config, storage, service) = studio_context();
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -7899,7 +7896,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let instance = service
             .create_instance(
@@ -7907,7 +7904,7 @@ mod tests {
                 &config,
                 &storage,
                 StudioCreateInstanceInput {
-                    name: "Custom Local Managed OpenClaw".to_string(),
+                    name: "Custom Local OpenClaw".to_string(),
                     description: Some("Instance-owned local-managed runtime".to_string()),
                     runtime_kind: StudioRuntimeKind::Openclaw,
                     deployment_mode: StudioInstanceDeploymentMode::LocalManaged,
@@ -7963,7 +7960,7 @@ mod tests {
         assert_ne!(
             config_route.target.as_deref(),
             Some(
-                managed_openclaw_config_path(&paths)
+                openclaw_config_file_path(&paths)
                     .to_string_lossy()
                     .as_ref()
             )
@@ -8037,7 +8034,7 @@ mod tests {
             .record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(42))
             .expect("record running");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -8052,7 +8049,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let detail = service
             .get_instance_detail_with_supervisor(
@@ -8096,7 +8093,7 @@ mod tests {
         );
         assert_eq!(
             console_access.get("authSource").and_then(Value::as_str),
-            Some("managedConfig")
+            Some("configFile")
         );
         assert_eq!(
             console_access.get("installMethod").and_then(Value::as_str),
@@ -8108,7 +8105,7 @@ mod tests {
     fn built_in_instance_detail_hides_console_launch_when_the_gateway_is_not_running() {
         let (_root, paths, config, storage, service) = studio_context();
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -8120,7 +8117,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let detail = service
             .get_instance_detail(&paths, &config, &storage, DEFAULT_INSTANCE_ID)
@@ -8157,7 +8154,7 @@ mod tests {
             .record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(42))
             .expect("record running");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -8169,7 +8166,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let detail = service
             .get_instance_detail_with_supervisor(
@@ -8255,7 +8252,7 @@ mod tests {
                 &storage,
                 StudioCreateInstanceInput {
                     name: "External OpenClaw".to_string(),
-                    description: Some("Host-managed OpenClaw runtime".to_string()),
+                    description: Some("Host OpenClaw runtime".to_string()),
                     runtime_kind: StudioRuntimeKind::Openclaw,
                     deployment_mode: StudioInstanceDeploymentMode::LocalExternal,
                     transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
@@ -8396,7 +8393,7 @@ mod tests {
                 &storage,
                 StudioCreateInstanceInput {
                     name: "External OpenClaw".to_string(),
-                    description: Some("Host-managed OpenClaw runtime".to_string()),
+                    description: Some("Host OpenClaw runtime".to_string()),
                     runtime_kind: StudioRuntimeKind::Openclaw,
                     deployment_mode: StudioInstanceDeploymentMode::LocalExternal,
                     transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
@@ -8710,7 +8707,7 @@ mod tests {
                 &storage,
                 StudioCreateInstanceInput {
                     name: "Ansible OpenClaw".to_string(),
-                    description: Some("Ansible managed OpenClaw runtime".to_string()),
+                    description: Some("Ansible OpenClaw runtime".to_string()),
                     runtime_kind: StudioRuntimeKind::Openclaw,
                     deployment_mode: StudioInstanceDeploymentMode::LocalExternal,
                     transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
@@ -9025,7 +9022,7 @@ mod tests {
     fn built_in_instance_detail_includes_openclaw_workbench_sections() {
         let (_root, paths, config, storage, service) = studio_context();
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -9048,7 +9045,7 @@ mod tests {
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let detail = service
             .get_instance_detail(&paths, &config, &storage, DEFAULT_INSTANCE_ID)
@@ -9081,7 +9078,7 @@ mod tests {
     fn updating_built_in_openclaw_provider_writes_canonical_defaults_model_params() {
         let (_root, paths, config, storage, service) = studio_context();
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   models: {
     providers: {
@@ -9121,7 +9118,7 @@ mod tests {
   },
 }"#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         service
             .update_instance_llm_provider_config(
@@ -9148,7 +9145,7 @@ mod tests {
             .expect("update managed provider");
 
         let root =
-            read_json5_object(&managed_openclaw_config_path(&paths)).expect("read managed config");
+            read_json5_object(&openclaw_config_file_path(&paths)).expect("read config file");
         let provider = get_nested_value(&root, &["models", "providers", "openai"])
             .and_then(Value::as_object)
             .expect("provider config");
@@ -9202,7 +9199,7 @@ mod tests {
     fn update_instance_llm_provider_config_preserves_provider_qualified_openrouter_model_refs() {
         let (_root, paths, config, storage, service) = studio_context();
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -9213,7 +9210,7 @@ mod tests {
   },
 }"#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         service
             .update_instance_llm_provider_config(
@@ -9240,7 +9237,7 @@ mod tests {
             .expect("update openrouter provider");
 
         let root =
-            read_json5_object(&managed_openclaw_config_path(&paths)).expect("read managed config");
+            read_json5_object(&openclaw_config_file_path(&paths)).expect("read config file");
         assert_eq!(
             get_nested_string(&root, &["agents", "defaults", "model", "primary"]).as_deref(),
             Some("openrouter/meta-llama/llama-3.1-8b-instruct")
@@ -9317,7 +9314,7 @@ Reads runtime diagnostics and summarizes them.
 
         let extra_skills_path = extra_skills_dir.to_string_lossy().replace('\\', "\\\\");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             format!(
                 r#"{{
   gateway: {{
@@ -9342,7 +9339,7 @@ Reads runtime diagnostics and summarizes them.
                 extra_skills_path
             ),
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let detail = service
             .get_instance_detail(&paths, &config, &storage, DEFAULT_INSTANCE_ID)
@@ -9367,7 +9364,7 @@ Reads runtime diagnostics and summarizes them.
 
         let reviewer_workspace_path = reviewer_workspace.to_string_lossy().replace('\\', "\\\\");
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             format!(
                 r#"{{
   gateway: {{
@@ -9395,7 +9392,7 @@ Reads runtime diagnostics and summarizes them.
                 reviewer_workspace_path
             ),
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let detail = service
             .get_instance_detail(&paths, &config, &storage, DEFAULT_INSTANCE_ID)
@@ -9749,14 +9746,14 @@ Reads runtime diagnostics and summarizes them.
 
         assert!(error
             .to_string()
-            .contains("built-in managed OpenClaw instance"));
+            .contains("built-in OpenClaw instance"));
     }
 
     #[test]
     fn remote_openclaw_instance_detail_does_not_reuse_built_in_local_workbench() {
         let (_root, paths, config, storage, service) = studio_context();
         fs::write(
-            &managed_openclaw_config_path(&paths),
+            &openclaw_config_file_path(&paths),
             r#"{
   gateway: {
     port: 19876,
@@ -9768,7 +9765,7 @@ Reads runtime diagnostics and summarizes them.
 }
 "#,
         )
-        .expect("seed managed config");
+        .expect("seed config file");
 
         let remote = service
             .create_instance(
