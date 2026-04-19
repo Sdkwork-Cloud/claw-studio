@@ -1981,7 +1981,7 @@ fn build_schemas() -> Value {
                 "serviceName": {"type": "string"},
                 "serviceConfigPath": {"type": "string"},
                 "executablePath": {"type": "string"},
-                "configPath": {"type": "string"},
+                "configFile": {"type": "string"},
                 "commands": {
                     "type": "array",
                     "items": schema_ref("#/components/schemas/ManageServiceShellCommand")

@@ -1,4 +1,7 @@
-import { buildOpenClawCronTaskPayload, openClawConfigService } from '@sdkwork/claw-core';
+import {
+  buildOpenClawCronTaskPayload,
+  openClawConfigService,
+} from '@sdkwork/claw-core';
 import { openClawGatewayClient, studio } from '@sdkwork/claw-infrastructure';
 import { instanceService } from './instanceService.ts';
 import {
@@ -33,8 +36,10 @@ function createRuntimeDependencyOverrides(): InstanceWorkbenchServiceDependencyO
       getInstanceToken: (id) => instanceService.getInstanceToken(id),
       getInstanceLogs: (id) => instanceService.getInstanceLogs(id),
     },
-    openClawConfigService: {
+    kernelConfigAttachmentApi: {
       resolveInstanceConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
+    },
+    openClawConfigDocumentApi: {
       getConfigDocumentPathInfo: (configPath) =>
         openClawConfigService.getConfigDocumentPathInfo(configPath),
       readConfigSnapshot: (configPath) => openClawConfigService.readConfigSnapshot(configPath),
@@ -81,9 +86,13 @@ export function createInstanceWorkbenchService(
       ...runtimeOverrides.instanceService,
       ...(overrides.instanceService || {}),
     },
-    openClawConfigService: {
-      ...runtimeOverrides.openClawConfigService,
-      ...(overrides.openClawConfigService || {}),
+    kernelConfigAttachmentApi: {
+      ...runtimeOverrides.kernelConfigAttachmentApi,
+      ...(overrides.kernelConfigAttachmentApi || {}),
+    },
+    openClawConfigDocumentApi: {
+      ...runtimeOverrides.openClawConfigDocumentApi,
+      ...(overrides.openClawConfigDocumentApi || {}),
     },
     openClawGatewayClient: {
       ...runtimeOverrides.openClawGatewayClient,

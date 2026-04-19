@@ -34,7 +34,7 @@ import {
   createProviderConfigFormState,
   listProviderConfigKnownProviderOptions,
   providerConfigCenterService,
-  providerConfigImportService,
+  providerConfigCenterWorkspaceService,
   type ProviderConfigCenterActionSupport,
   type ProviderConfigCenterActionSupportItem,
   type ProviderConfigImportSource,
@@ -144,9 +144,13 @@ export function ProviderConfigCenter() {
   const [applyTarget, setApplyTarget] = useState<ProviderConfigRecord | null>(null);
   const [actionSupport, setActionSupport] =
     useState<ProviderConfigCenterActionSupport>(DEFAULT_ACTION_SUPPORT);
-  const [applyInstances, setApplyInstances] = useState<Awaited<ReturnType<typeof providerConfigCenterService.listApplyInstances>>>([]);
+  const [applyInstances, setApplyInstances] = useState<
+    Awaited<ReturnType<typeof providerConfigCenterWorkspaceService.loadApplyInstances>>['instances']
+  >([]);
   const [selectedInstanceId, setSelectedInstanceId] = useState('');
-  const [instanceTarget, setInstanceTarget] = useState<Awaited<ReturnType<typeof providerConfigCenterService.getInstanceApplyTarget>> | null>(null);
+  const [instanceTarget, setInstanceTarget] = useState<
+    Awaited<ReturnType<typeof providerConfigCenterWorkspaceService.loadApplyInstanceTarget>>['instanceTarget']
+  >(null);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [isApplying, setIsApplying] = useState(false);
   const [isLoadingApplyTargets, setIsLoadingApplyTargets] = useState(false);
@@ -200,12 +204,9 @@ export function ProviderConfigCenter() {
       setIsLoading(true);
     }
     try {
-      const [nextRecords, nextActionSupport] = await Promise.all([
-        providerConfigCenterService.listProviderConfigs(),
-        providerConfigCenterService.getActionSupport(),
-      ]);
-      setRecords(nextRecords);
-      setActionSupport(nextActionSupport);
+      const overview = await providerConfigCenterWorkspaceService.loadOverview();
+      setRecords(overview.records);
+      setActionSupport(overview.actionSupport);
     } catch (error: any) {
       setActionSupport(DEFAULT_ACTION_SUPPORT);
       toast.error(error?.message || t('providerCenter.toasts.loadFailed'));
@@ -255,14 +256,12 @@ export function ProviderConfigCenter() {
     const loadApplyInstances = async () => {
       setIsLoadingApplyTargets(true);
       try {
-        const instances = await providerConfigCenterService.listApplyInstances();
+        const nextState = await providerConfigCenterWorkspaceService.loadApplyInstances();
         if (cancelled) {
           return;
         }
-        setApplyInstances(instances);
-        setSelectedInstanceId(
-          instances.find((instance) => instance.isDefault)?.id || instances[0]?.id || '',
-        );
+        setApplyInstances(nextState.instances);
+        setSelectedInstanceId(nextState.selectedInstanceId);
       } catch (error: any) {
         if (!cancelled) {
           toast.error(error?.message || t('providerCenter.toasts.loadInstancesFailed'));
@@ -291,14 +290,13 @@ export function ProviderConfigCenter() {
     const loadInstanceTarget = async () => {
       setIsLoadingApplyTargets(true);
       try {
-        const nextTarget = await providerConfigCenterService.getInstanceApplyTarget(selectedInstanceId);
+        const nextState =
+          await providerConfigCenterWorkspaceService.loadApplyInstanceTarget(selectedInstanceId);
         if (cancelled) {
           return;
         }
-        setInstanceTarget(nextTarget);
-        setSelectedAgentIds(
-          nextTarget.agents.filter((agent) => agent.isDefault).map((agent) => agent.id),
-        );
+        setInstanceTarget(nextState.instanceTarget);
+        setSelectedAgentIds(nextState.selectedAgentIds);
       } catch (error: any) {
         if (!cancelled) {
           setInstanceTarget(null);
@@ -433,7 +431,11 @@ export function ProviderConfigCenter() {
     setIsImportMenuOpen(false);
     setImportingSource(source);
     try {
-      const result = await providerConfigImportService.importProviderConfigs(source);
+      const execution = await providerConfigCenterWorkspaceService.importProviderConfigs({
+        source,
+        existingRecords: records,
+      });
+      const result = execution.result;
       if (result.drafts.length === 0) {
         toast.error(
           result.warnings[0] ||
@@ -444,22 +446,9 @@ export function ProviderConfigCenter() {
         return;
       }
 
-      for (const imported of result.drafts) {
-        const existingRecord = records.find(
-          (record) =>
-            record.managedBy === 'user' &&
-            record.name === imported.draft.name,
-        );
-
-        await providerConfigCenterService.saveProviderConfig({
-          ...imported.draft,
-          id: existingRecord?.id,
-        });
-      }
-
       const description = result.warnings.length > 0
         ? result.warnings.join(' ')
-        : result.drafts.map((entry) => entry.draft.name).join(' · ');
+        : execution.savedNames.join(' · ');
 
       toast.success(
         result.drafts.length === 1
@@ -988,7 +977,7 @@ export function ProviderConfigCenter() {
                         {instanceTarget.instance.deploymentMode}
                       </div>
                       <div className="mt-2 break-all text-xs text-zinc-500 dark:text-zinc-400">
-                        {t('providerCenter.dialogs.apply.configPath')}: {instanceTarget.instance.configPath}
+                        {t('providerCenter.dialogs.apply.configFile')}: {instanceTarget.instance.configFile}
                       </div>
                     </div>
                   ) : (

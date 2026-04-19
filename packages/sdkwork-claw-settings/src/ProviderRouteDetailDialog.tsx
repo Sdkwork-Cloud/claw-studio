@@ -22,7 +22,9 @@ import {
   appendProviderConfigModelRow,
   createProviderConfigDraftFromForm,
   createProviderConfigFormState,
+  listProviderConfigModelRoles,
   listProviderConfigModelRows,
+  listProviderConfigModelSelectionOptions,
   moveProviderConfigModelRow,
   removeProviderConfigModelRow,
   updateProviderConfigModelRow,
@@ -39,37 +41,6 @@ interface ProviderRouteDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   onEditRequest?: (record: ProviderConfigRecord) => void;
   onSaveRequest?: (draft: ProviderConfigDraft & { id?: string }) => Promise<ProviderConfigRecord>;
-}
-
-function buildModelSelectionOptions(form: ProviderConfigFormState) {
-  return Array.from(
-    new Map(
-      listProviderConfigModelRows(form)
-        .map((model) => {
-          const id = model.id.trim();
-          const name = model.name.trim();
-          return id ? { id, label: name || id } : null;
-        })
-        .filter((model): model is { id: string; label: string } => Boolean(model))
-        .map((model) => [model.id, model] as const),
-    ).values(),
-  );
-}
-
-function listModelRoles(form: ProviderConfigFormState, modelId: string, t: (key: string) => string) {
-  const roles: string[] = [];
-
-  if (form.defaultModelId === modelId) {
-    roles.push(t('providerCenter.table.llmDefault'));
-  }
-  if (form.reasoningModelId === modelId) {
-    roles.push(t('providerCenter.table.reasoning'));
-  }
-  if (form.embeddingModelId === modelId) {
-    roles.push(t('providerCenter.table.embedding'));
-  }
-
-  return roles;
 }
 
 export function ProviderRouteDetailDialog({
@@ -95,7 +66,10 @@ export function ProviderRouteDetailDialog({
 
   const isEditable = record?.managedBy === 'user' && typeof onSaveRequest === 'function';
   const modelRows = useMemo(() => listProviderConfigModelRows(draft), [draft]);
-  const modelSelectionOptions = useMemo(() => buildModelSelectionOptions(draft), [draft]);
+  const modelSelectionOptions = useMemo(
+    () => listProviderConfigModelSelectionOptions(draft),
+    [draft],
+  );
   const selectableModelIds = useMemo(
     () => new Set(modelSelectionOptions.map((model) => model.id)),
     [modelSelectionOptions],
@@ -193,7 +167,11 @@ export function ProviderRouteDetailDialog({
                       </thead>
                       <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                         {modelRows.map((model, index) => {
-                          const roles = listModelRoles(draft, model.id.trim(), t);
+                          const roles = listProviderConfigModelRoles(draft, model.id.trim(), {
+                            defaultModel: t('providerCenter.table.llmDefault'),
+                            reasoningModel: t('providerCenter.table.reasoning'),
+                            embeddingModel: t('providerCenter.table.embedding'),
+                          });
 
                           return (
                             <tr

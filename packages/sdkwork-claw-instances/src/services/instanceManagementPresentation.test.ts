@@ -5,7 +5,6 @@ import {
 } from '@sdkwork/claw-types';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
 import { buildInstanceManagementSummary } from './instanceManagementPresentation.ts';
-import { OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS } from './openClawBuiltInCompatTestFixture.ts';
 
 function runTest(name: string, callback: () => void | Promise<void>) {
   return Promise.resolve()
@@ -387,21 +386,23 @@ await runTest(
 );
 
 await runTest(
-  'buildInstanceManagementSummary canonicalizes built-in OpenClaw config authority when only a legacy route target remains',
+  'buildInstanceManagementSummary surfaces the attached built-in OpenClaw config route when the workbench projection is not precomputed',
   () => {
+    const standardWorkspacePath = 'C:/Users/admin/.openclaw/workspace';
+    const standardConfigFilePath = 'C:/Users/admin/.openclaw/openclaw.json';
     const detail = createDetail({
       dataAccess: {
         routes: [
           {
             scope: 'config',
             mode: 'managedFile',
-            target: OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.legacyConfigPath,
+            target: standardConfigFilePath,
             readonly: false,
           },
           {
             scope: 'files',
             mode: 'managedDirectory',
-            target: OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.canonicalWorkspacePath,
+            target: standardWorkspacePath,
             readonly: false,
           },
         ],
@@ -417,7 +418,7 @@ await runTest(
 
     assert.equal(
       summary.entries.find((entry) => entry.id === 'kernelConfig')?.value,
-      OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.canonicalConfigPath,
+      standardConfigFilePath,
     );
     assert.equal(
       summary.entries.find((entry) => entry.id === 'kernelConfig')?.detailKey,

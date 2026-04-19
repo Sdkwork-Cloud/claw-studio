@@ -137,8 +137,12 @@ function categoryLabel(id: InstanceConfigWorkbenchSectionCategoryId, tr: Transla
 }
 
 function overviewMetricLabel(id: InstanceConfigOverviewMetricId, tr: Translate) {
-  if (id === 'configPath') {
-    return tr('instances.detail.instanceWorkbench.config.workbench.metrics.configPath', 'Config path', 'Config path');
+  if (id === 'configFile') {
+    return tr(
+      'instances.detail.instanceWorkbench.config.workbench.metrics.configFile',
+      'OpenClaw config file',
+      'OpenClaw config file',
+    );
   }
   if (id === 'defaultAgent') {
     return tr('instances.detail.instanceWorkbench.config.workbench.metrics.defaultAgent', 'Default agent', 'Default agent');
@@ -670,7 +674,7 @@ export function InstanceConfigWorkbenchPanel(props: InstanceConfigWorkbenchPanel
           tr={tr}
           activeMode={activeMode}
           onModeChange={setActiveMode}
-          configPath={model.document.configPath}
+          configFile={model.document.configFile}
           isWritable={model.document.isWritable}
           hasPendingChanges={hasPendingChanges}
           schemaVersion={schemaSnapshot?.version}

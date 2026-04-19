@@ -450,7 +450,7 @@ await runTest(
 `,
     });
 
-    assert.equal(model.document.configPath, 'D:/OpenClaw/.openclaw/openclaw.json');
+    assert.equal(model.document.configFile, 'D:/OpenClaw/.openclaw/openclaw.json');
     assert.equal(model.document.defaultAgentId, 'main');
     assert.equal(model.document.defaultModelRef, 'openai/gpt-5.4');
     assert.equal(model.document.sessionsVisibility, 'tree');
@@ -535,7 +535,7 @@ await runTest(
     });
 
     assert.equal(
-      model.document.configPath,
+      model.document.configFile,
       'C:/Users/admin/.openclaw/openclaw.json',
     );
     assert.equal(model.document.isWritable, false);

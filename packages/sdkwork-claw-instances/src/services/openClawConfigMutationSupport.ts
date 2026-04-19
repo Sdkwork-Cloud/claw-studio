@@ -73,7 +73,7 @@ export interface BuildOpenClawConfigMutationHandlersArgs {
     setError: ErrorSetter;
     executeSave: (
       instanceId: string,
-      input: Omit<SaveOpenClawWebSearchConfigurationInput, 'configPath'>,
+      input: Omit<SaveOpenClawWebSearchConfigurationInput, 'configFile'>,
     ) => Promise<void>;
   };
   xSearch: {
@@ -82,7 +82,7 @@ export interface BuildOpenClawConfigMutationHandlersArgs {
     setError: ErrorSetter;
     executeSave: (
       instanceId: string,
-      input: Omit<SaveOpenClawXSearchConfigurationInput, 'configPath'>,
+      input: Omit<SaveOpenClawXSearchConfigurationInput, 'configFile'>,
     ) => Promise<void>;
   };
   webSearchNativeCodex: {
@@ -91,7 +91,7 @@ export interface BuildOpenClawConfigMutationHandlersArgs {
     setError: ErrorSetter;
     executeSave: (
       instanceId: string,
-      input: Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configPath'>,
+      input: Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configFile'>,
     ) => Promise<void>;
   };
   webFetch: {
@@ -101,7 +101,7 @@ export interface BuildOpenClawConfigMutationHandlersArgs {
     setError: ErrorSetter;
     executeSave: (
       instanceId: string,
-      input: Omit<SaveOpenClawWebFetchConfigurationInput, 'configPath'>,
+      input: Omit<SaveOpenClawWebFetchConfigurationInput, 'configFile'>,
     ) => Promise<void>;
   };
   authCooldowns: {
@@ -110,7 +110,7 @@ export interface BuildOpenClawConfigMutationHandlersArgs {
     setError: ErrorSetter;
     executeSave: (
       instanceId: string,
-      input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configPath'>,
+      input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configFile'>,
     ) => Promise<void>;
   };
   dreaming: {
@@ -119,7 +119,7 @@ export interface BuildOpenClawConfigMutationHandlersArgs {
     setError: ErrorSetter;
     executeSave: (
       instanceId: string,
-      input: Omit<SaveOpenClawDreamingConfigurationInput, 'configPath'>,
+      input: Omit<SaveOpenClawDreamingConfigurationInput, 'configFile'>,
     ) => Promise<void>;
   };
 }

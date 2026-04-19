@@ -302,13 +302,17 @@ runTest('sdkwork-claw-settings prioritizes Provider Center summary cards above a
 runTest('sdkwork-claw-settings exposes a Provider Center import dropdown that delegates tool config imports through the dedicated import service', () => {
   const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
   const servicesIndexSource = read('packages/sdkwork-claw-settings/src/services/index.ts');
+  const workspaceServiceSource = read(
+    'packages/sdkwork-claw-settings/src/services/providerConfigCenterWorkspaceService.ts',
+  );
 
   assert.match(providerCenterSource, /data-slot="provider-center-import-menu"/);
   assert.match(providerCenterSource, /providerCenter\.actions\.import/);
   assert.match(providerCenterSource, /providerCenter\.import\.sources\.codex\.label/);
   assert.match(providerCenterSource, /providerCenter\.import\.sources\.claudeCode\.label/);
   assert.match(providerCenterSource, /providerCenter\.import\.sources\.openCode\.label/);
-  assert.match(providerCenterSource, /providerConfigImportService\.importProviderConfigs/);
+  assert.match(providerCenterSource, /providerConfigCenterWorkspaceService\.importProviderConfigs/);
+  assert.match(workspaceServiceSource, /importApi:\s*providerConfigImportService/);
   assert.match(providerCenterSource, /toast\.success\(/);
   assert.match(providerCenterSource, /await loadRecords\(/);
   assert.match(servicesIndexSource, /providerConfigImportService/);

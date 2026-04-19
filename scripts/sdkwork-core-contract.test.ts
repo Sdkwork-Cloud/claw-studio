@@ -57,7 +57,6 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-business']);
   assert.ok(!pkg.dependencies?.['@google/genai']);
   assert.equal(pkg.dependencies?.['@sdkwork/app-sdk'], 'workspace:^');
-  assert.ok(pkg.dependencies?.json5);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-business/);
   assert.match(indexSource, /\.\/platform/);
   assert.match(indexSource, /\.\/platform-impl/);

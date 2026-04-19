@@ -208,7 +208,7 @@
       "profileCount": "Profile Count",
       "installSource": "Install Source",
       "platform": "Platform",
-      "configPath": "Config Path",
+      "configFile": "Config file",
       "runtimeHome": "Runtime Home",
       "runtimeInstallDir": "Runtime Install Dir",
       "configFilePath": "Config File Path",

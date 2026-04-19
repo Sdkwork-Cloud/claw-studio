@@ -432,7 +432,7 @@ pub fn build_desktop_kernel_host_info(
                 .map(|item| item.arch.clone())
                 .unwrap_or_else(|| crate::platform::current_arch().to_string()),
             install_source: "bundled".to_string(),
-            config_path: if runtime_id.trim() == OPENCLAW_RUNTIME_ID {
+            config_file: if runtime_id.trim() == OPENCLAW_RUNTIME_ID {
                 runtime
                     .map(|configured| configured.config_path.to_string_lossy().into_owned())
                     .unwrap_or_else(|| {

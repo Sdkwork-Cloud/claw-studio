@@ -651,7 +651,7 @@
       "config": {
         "loading": "正在加载配置工作区...",
         "instance": "目标实例",
-        "configPath": "配置文件",
+        "configFile": "配置文件",
         "provider": "模型提供方",
         "defaultModel": "默认模型",
         "reasoningModel": "推理模型",

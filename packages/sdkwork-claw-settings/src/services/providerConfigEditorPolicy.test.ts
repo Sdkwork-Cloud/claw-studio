@@ -150,6 +150,60 @@ await runTest(
 );
 
 await runTest(
+  'provider config editor policy normalizes dirty form drafts through the shared provider routing standard',
+  () => {
+    const draft = createProviderConfigDraftFromForm({
+      ...createProviderConfigFormState(),
+      id: ' provider-config-openai ',
+      presetId: ' openai ',
+      name: ' OpenAI Alias ',
+      providerId: ' api-router-openai ',
+      clientProtocol: 'sdkwork',
+      upstreamProtocol: 'invalid',
+      baseUrl: ' https://api.openai.com/v1/ ',
+      apiKey: ' sk-openai ',
+      defaultModelId: ' gpt-5.4 ',
+      reasoningModelId: ' o4-mini ',
+      embeddingModelId: ' atlas-index ',
+      modelsText: ` gpt-5.4 = GPT-5.4
+ o4-mini
+ atlas-index = Atlas Index
+ gpt-5.4 = Duplicate GPT-5.4 `,
+      notes: ' shared form ',
+      temperature: '0.35',
+      streaming: false,
+    });
+
+    assert.equal(draft.id, 'provider-config-openai');
+    assert.equal(draft.presetId, 'openai');
+    assert.equal(draft.name, 'OpenAI Alias');
+    assert.equal(draft.providerId, 'openai');
+    assert.equal(draft.clientProtocol, 'openai-compatible');
+    assert.equal(draft.upstreamProtocol, 'openai-compatible');
+    assert.equal(draft.upstreamBaseUrl, 'https://api.openai.com/v1');
+    assert.equal(draft.baseUrl, 'https://api.openai.com/v1');
+    assert.equal(draft.apiKey, 'sk-openai');
+    assert.equal(draft.defaultModelId, 'gpt-5.4');
+    assert.equal(draft.reasoningModelId, 'o4-mini');
+    assert.equal(draft.embeddingModelId, 'atlas-index');
+    assert.deepEqual(draft.models, [
+      { id: 'gpt-5.4', name: 'Duplicate GPT-5.4' },
+      { id: 'o4-mini', name: 'o4-mini' },
+      { id: 'atlas-index', name: 'Atlas Index' },
+    ]);
+    assert.equal(draft.notes, 'shared form');
+    assert.deepEqual(draft.exposeTo, ['openclaw']);
+    assert.deepEqual(draft.config, {
+      temperature: 0.35,
+      topP: 1,
+      maxTokens: 8192,
+      timeoutMs: 60000,
+      streaming: false,
+    });
+  },
+);
+
+await runTest(
   'provider config editor policy exposes known provider catalog options with unified metadata for editor selection',
   () => {
     const service = createProviderConfigCenterService();
@@ -267,7 +321,7 @@ await runTest(
     assert.ok(kiloOption);
     assert.equal(kiloOption?.providerId, 'kilocode');
     assert.equal(kiloOption?.vendor, 'Kilo Code');
-    assert.equal(kiloOption?.baseUrl, 'https://api.kilo.ai/api/gateway/');
+    assert.equal(kiloOption?.baseUrl, 'https://api.kilo.ai/api/gateway');
 
     assert.ok(vllmOption);
     assert.equal(vllmOption?.providerId, 'vllm');

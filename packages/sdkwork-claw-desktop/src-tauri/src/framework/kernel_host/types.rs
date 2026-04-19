@@ -123,7 +123,7 @@ pub struct DesktopKernelProvenanceInfo {
     pub platform: String,
     pub arch: String,
     pub install_source: String,
-    pub config_path: String,
+    pub config_file: String,
     pub runtime_home_dir: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime_install_dir: Option<String>,

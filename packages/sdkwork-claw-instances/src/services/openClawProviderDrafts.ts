@@ -1,4 +1,15 @@
-import type { OpenClawProviderInput } from '@sdkwork/claw-core';
+import {
+  normalizeOpenClawProviderApiKeySource,
+  normalizeOpenClawProviderEndpoint,
+  normalizeOpenClawProviderRuntimeConfig,
+  resolveOpenClawProjectionModelCatalogState,
+  serializeOpenClawProviderApiKeySource,
+  type OpenClawProviderInput,
+} from '@sdkwork/claw-core';
+import {
+  normalizeLocalApiProxyLegacyProviderId as normalizeLegacyProviderId,
+  normalizeLocalApiProxyLegacyProviderModelRef as normalizeLegacyProviderModelRef,
+} from '@sdkwork/local-api-proxy';
 import type { InstanceLLMProviderUpdate, InstanceWorkbenchLLMProvider } from '../types';
 import {
   formatOpenClawProviderRequestOverridesDraft,
@@ -159,6 +170,34 @@ function buildDefaultOpenClawProviderRuntimeConfig(): OpenClawProviderInput['con
     timeoutMs: 60000,
     streaming: true,
   };
+}
+
+function normalizeOpenClawProviderId(value: string | undefined | null) {
+  return normalizeLegacyProviderId(value);
+}
+
+function normalizeOpenClawProviderModelId(value: string | undefined | null) {
+  return normalizeLegacyProviderModelRef(value);
+}
+
+function normalizeOpenClawProviderDialogModels(
+  models: readonly OpenClawProviderDialogModelValue[],
+): OpenClawProviderInput['models'] {
+  const normalizedModels = new Map<string, OpenClawProviderInput['models'][number]>();
+
+  for (const model of models) {
+    const id = normalizeOpenClawProviderModelId(model.id);
+    if (!id || normalizedModels.has(id)) {
+      continue;
+    }
+
+    normalizedModels.set(id, {
+      id,
+      name: model.name.trim() || id,
+    });
+  }
+
+  return [...normalizedModels.values()];
 }
 
 export function createEmptyOpenClawProviderForm(): OpenClawProviderFormState {
@@ -323,7 +362,7 @@ export function buildOpenClawProviderDialogSaveInput(args: {
   draft: OpenClawProviderDialogDraftValue;
   models: OpenClawProviderDialogModelValue[];
 }): DraftBuildResult<OpenClawProviderDialogSaveValue> {
-  const providerId = args.draft.id.trim();
+  const providerId = normalizeOpenClawProviderId(args.draft.id);
   if (!providerId) {
     return {
       ok: false,
@@ -331,17 +370,19 @@ export function buildOpenClawProviderDialogSaveInput(args: {
     };
   }
 
-  if (args.models.length === 0) {
+  const normalizedModels = normalizeOpenClawProviderDialogModels(args.models);
+  if (normalizedModels.length === 0) {
     return {
       ok: false,
       errorKey: 'instances.detail.instanceWorkbench.llmProviders.toasts.modelsRequired',
     };
   }
 
-  const defaultModelId = args.draft.defaultModelId.trim() || args.models[0]?.id || '';
-  const reasoningModelId = args.draft.reasoningModelId.trim() || undefined;
-  const embeddingModelId = args.draft.embeddingModelId.trim() || undefined;
-  const validModelIds = new Set(args.models.map((model) => model.id));
+  const defaultModelId =
+    normalizeOpenClawProviderModelId(args.draft.defaultModelId) || normalizedModels[0]?.id || '';
+  const reasoningModelId = normalizeOpenClawProviderModelId(args.draft.reasoningModelId) || undefined;
+  const embeddingModelId = normalizeOpenClawProviderModelId(args.draft.embeddingModelId) || undefined;
+  const validModelIds = new Set(normalizedModels.map((model) => model.id));
 
   if (!validModelIds.has(defaultModelId)) {
     return {
@@ -368,6 +409,14 @@ export function buildOpenClawProviderDialogSaveInput(args: {
     const requestOverrides = parseOpenClawProviderRequestOverridesDraft(
       args.draft.requestOverridesText,
     );
+    const normalizedModelCatalogState = resolveOpenClawProjectionModelCatalogState({
+      models: normalizedModels,
+      selection: {
+        defaultModelId,
+        reasoningModelId,
+        embeddingModelId,
+      },
+    });
 
     return {
       ok: true,
@@ -377,19 +426,15 @@ export function buildOpenClawProviderDialogSaveInput(args: {
           id: providerId,
           channelId: providerId,
           name: args.draft.name.trim() || providerId,
-          apiKey: args.draft.apiKeySource.trim(),
-          baseUrl: args.draft.endpoint.trim(),
-          models: args.models,
-          config: {
+          apiKey: serializeOpenClawProviderApiKeySource(args.draft.apiKeySource),
+          baseUrl: normalizeOpenClawProviderEndpoint(args.draft.endpoint),
+          models: normalizedModelCatalogState.models,
+          config: normalizeOpenClawProviderRuntimeConfig({
             ...buildDefaultOpenClawProviderRuntimeConfig(),
             request: requestOverrides,
-          },
+          }),
         },
-        selection: {
-          defaultModelId,
-          reasoningModelId,
-          embeddingModelId,
-        },
+        selection: normalizedModelCatalogState.selection,
       },
     };
   } catch (error: any) {
@@ -449,17 +494,18 @@ export function buildOpenClawProviderConfigSaveInput(args: {
     return {
       ok: true,
       value: {
-        providerId: args.providerId,
+        providerId: normalizeOpenClawProviderId(args.providerId),
         providerUpdate: {
           ...args.draft,
-          endpoint: args.draft.endpoint.trim(),
-          apiKeySource: args.draft.apiKeySource.trim(),
-          reasoningModelId: args.draft.reasoningModelId?.trim() || undefined,
-          embeddingModelId: args.draft.embeddingModelId?.trim() || undefined,
-          config: {
+          endpoint: normalizeOpenClawProviderEndpoint(args.draft.endpoint),
+          apiKeySource: normalizeOpenClawProviderApiKeySource(args.draft.apiKeySource),
+          defaultModelId: normalizeOpenClawProviderModelId(args.draft.defaultModelId),
+          reasoningModelId: normalizeOpenClawProviderModelId(args.draft.reasoningModelId) || undefined,
+          embeddingModelId: normalizeOpenClawProviderModelId(args.draft.embeddingModelId) || undefined,
+          config: normalizeOpenClawProviderRuntimeConfig({
             ...args.draft.config,
             request: requestOverrides,
-          },
+          }),
         },
       },
     };

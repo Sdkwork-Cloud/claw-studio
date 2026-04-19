@@ -1,6 +1,6 @@
 use super::{
-    observability, openai_compatible,
-    support::{proxy_error, trim_optional_text},
+    openai_compatible,
+    support::proxy_error,
     types::{LocalAiProxyTokenUsage, ProxyHttpResult},
 };
 use axum::{
@@ -10,6 +10,10 @@ use axum::{
     Json,
 };
 use serde_json::Value;
+pub(super) use sdkwork_local_api_proxy_native::response::resolve_error_message;
+use sdkwork_local_api_proxy_native::response::{
+    format_json_response_body, normalize_response_text, resolve_response_preview,
+};
 
 pub(super) struct ProxyRouteOutcome {
     pub(super) response: Response,
@@ -25,8 +29,8 @@ pub(super) fn build_json_outcome(
     body: Value,
     usage: LocalAiProxyTokenUsage,
 ) -> ProxyHttpResult<ProxyRouteOutcome> {
-    let response_preview = observability::extract_response_preview_from_value(&body);
-    let response_body = serde_json::to_string_pretty(&body).ok();
+    let response_preview = resolve_response_preview(Some(&body), "");
+    let response_body = format_json_response_body(&body);
     Ok(ProxyRouteOutcome {
         response: build_json_response(status, body)?,
         status,
@@ -59,10 +63,7 @@ pub(super) async fn build_buffered_upstream_response(
         .map(openai_compatible::extract_token_usage)
         .unwrap_or_default();
     let error = (!status.is_success()).then(|| resolve_error_message(json.as_ref(), &text, status));
-    let response_preview = json
-        .as_ref()
-        .and_then(observability::extract_response_preview_from_value)
-        .or_else(|| trim_optional_text(&text));
+    let response_preview = resolve_response_preview(json.as_ref(), &text);
     let response = Response::builder()
         .status(status)
         .header(CONTENT_TYPE, content_type)
@@ -80,34 +81,8 @@ pub(super) async fn build_buffered_upstream_response(
         usage,
         error,
         response_preview,
-        response_body: trim_optional_text(&text),
+        response_body: normalize_response_text(&text),
     })
-}
-
-pub(super) fn resolve_error_message(
-    payload: Option<&Value>,
-    text: &str,
-    status: StatusCode,
-) -> String {
-    extract_error_message_from_payload(payload)
-        .or_else(|| (!text.is_empty()).then(|| text.to_string()))
-        .unwrap_or_else(|| format!("upstream returned status {status}"))
-}
-
-fn extract_error_message_from_payload(payload: Option<&Value>) -> Option<String> {
-    let Some(payload) = payload else {
-        return None;
-    };
-
-    payload
-        .pointer("/error/message")
-        .and_then(Value::as_str)
-        .or_else(|| payload.pointer("/error").and_then(Value::as_str))
-        .or_else(|| payload.pointer("/message").and_then(Value::as_str))
-        .or_else(|| payload.pointer("/detail").and_then(Value::as_str))
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
 }
 
 pub(super) fn extract_proxy_error_message(error: &(StatusCode, Json<Value>)) -> String {

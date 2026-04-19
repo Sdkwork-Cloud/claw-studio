@@ -44,7 +44,7 @@ await runTest(
   'buildConfigWorkbenchState clones config surfaces and derives kernel insights',
   () => {
     const configSnapshot = {
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       providerSnapshots: [],
       agentSnapshots: [
         {
@@ -246,7 +246,7 @@ await runTest(
         'D:/OpenClaw/.openclaw/openclaw.json',
       );
 
-    assert.equal(first?.configPath, 'D:/OpenClaw/.openclaw/openclaw.json');
+    assert.equal(first?.configFile, 'D:/OpenClaw/.openclaw/openclaw.json');
     assert.deepEqual(first?.providerSnapshots, []);
     assert.deepEqual(first?.agentSnapshots, []);
     assert.deepEqual(first?.channelSnapshots, []);

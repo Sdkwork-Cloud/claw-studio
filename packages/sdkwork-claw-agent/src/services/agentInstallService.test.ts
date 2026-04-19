@@ -156,7 +156,7 @@ function createInstanceRecord(overrides: Partial<StudioInstanceRecord> = {}): St
 function createInstanceDetail(
   instance: StudioInstanceRecord,
   input: {
-    configPath?: string | null;
+    configFile?: string | null;
     configRouteMode?: 'managedFile' | 'metadataOnly';
     includeConfigArtifact?: boolean;
     configWritable?: boolean;
@@ -209,7 +209,7 @@ function createInstanceDetail(
       metricsSource: 'derived',
     },
     dataAccess: {
-      routes: input.configPath
+      routes: input.configFile
         ? [
             {
               id: 'config-file',
@@ -217,7 +217,7 @@ function createInstanceDetail(
               scope: 'config',
               mode: input.configRouteMode ?? 'managedFile',
               status: 'ready',
-              target: input.configPath,
+              target: input.configFile,
               readonly: false,
               authoritative: (input.configRouteMode ?? 'managedFile') === 'managedFile',
               detail: 'OpenClaw config file',
@@ -227,14 +227,14 @@ function createInstanceDetail(
         : [],
     },
     artifacts:
-      input.configPath && input.includeConfigArtifact !== false
+      input.configFile && input.includeConfigArtifact !== false
         ? [
             {
               id: 'config-file',
               label: 'Config file',
               kind: 'configFile',
               status: 'available',
-              location: input.configPath,
+              location: input.configFile,
               readonly: false,
               detail: 'OpenClaw config file',
               source: 'config',
@@ -375,14 +375,14 @@ await runTest(
         [externalInstance, metadataOnlyBuiltIn, builtInInstance],
         {
           [builtInInstance.id]: createInstanceDetail(builtInInstance, {
-            configPath: builtInConfigPath,
+            configFile: builtInConfigPath,
           }),
           [externalInstance.id]: createInstanceDetail(externalInstance, {
-            configPath: externalConfigPath,
+            configFile: externalConfigPath,
             owner: 'externalProcess',
           }),
           [metadataOnlyBuiltIn.id]: createInstanceDetail(metadataOnlyBuiltIn, {
-            configPath: 'studio.instances registry metadata',
+            configFile: 'studio.instances registry metadata',
             configRouteMode: 'metadataOnly',
             includeConfigArtifact: false,
           }),
@@ -401,14 +401,13 @@ await runTest(
         ],
       );
       assert.equal(targets[0]?.typeLabel, 'Built-In OpenClaw');
-      assert.equal(targets[0]?.configPath, builtInConfigPath);
-      assert.equal(targets[1]?.configPath, externalConfigPath);
+      assert.equal(targets[0]?.configFile, builtInConfigPath);
+      assert.equal(targets[1]?.configFile, externalConfigPath);
     } finally {
       configurePlatformBridge(originalBridge);
     }
   },
 );
-
 await runTest(
   'agentInstallService skips metadata-only OpenClaw targets even when a config artifact path is present',
   async () => {
@@ -461,10 +460,10 @@ await runTest(
         [metadataOnlyInstance, builtInInstance],
         {
           [builtInInstance.id]: createInstanceDetail(builtInInstance, {
-            configPath: builtInConfigPath,
+            configFile: builtInConfigPath,
           }),
           [metadataOnlyInstance.id]: createInstanceDetail(metadataOnlyInstance, {
-            configPath: metadataArtifactPath,
+            configFile: metadataArtifactPath,
             configRouteMode: 'metadataOnly',
           }),
         },
@@ -483,7 +482,6 @@ await runTest(
     }
   },
 );
-
 await runTest(
   'agentInstallService lists only writable OpenClaw targets and tracks installed curated templates',
   async () => {
@@ -491,10 +489,10 @@ await runTest(
     const { agentInstallService } = await import('./agentInstallService.ts');
 
     const originalBridge = getPlatformBridge();
-    const configPath = 'D:/OpenClaw/.openclaw/openclaw.json';
+    const configFile = 'D:/OpenClaw/.openclaw/openclaw.json';
     const readOnlyConfigPath = 'D:/ReadOnly/.openclaw/openclaw.json';
     const fileSystem: Record<string, string> = {
-      [normalizePath(configPath)]: `{
+      [normalizePath(configFile)]: `{
   models: { providers: {} },
   agents: {
     defaults: {
@@ -539,10 +537,10 @@ await runTest(
     });
     const detailsById = {
       [managedInstance.id]: createInstanceDetail(managedInstance, {
-        configPath,
+        configFile,
       }),
       [readOnlyInstance.id]: createInstanceDetail(readOnlyInstance, {
-        configPath: readOnlyConfigPath,
+        configFile: readOnlyConfigPath,
         configWritable: false,
       }),
     };
@@ -573,9 +571,9 @@ await runTest(
     const { agentInstallService } = await import('./agentInstallService.ts');
 
     const originalBridge = getPlatformBridge();
-    const configPath = 'D:/OpenClaw/.openclaw/openclaw.json';
+    const configFile = 'D:/OpenClaw/.openclaw/openclaw.json';
     const fileSystem: Record<string, string> = {
-      [normalizePath(configPath)]: `{
+      [normalizePath(configFile)]: `{
   models: { providers: {} },
   agents: {
     defaults: {
@@ -611,7 +609,7 @@ await runTest(
       platform: createPlatformStub(fileSystem, directories),
       studio: createStudioStub(originalBridge.studio, [managedInstance, brokenInstance], {
         [managedInstance.id]: createInstanceDetail(managedInstance, {
-          configPath,
+          configFile,
         }),
         [brokenInstance.id]: new Error('Broken instance detail'),
       }),
@@ -636,9 +634,9 @@ await runTest(
     const { agentInstallService } = await import('./agentInstallService.ts');
 
     const originalBridge = getPlatformBridge();
-    const configPath = 'D:/OpenClaw/.openclaw/openclaw.json';
+    const configFile = 'D:/OpenClaw/.openclaw/openclaw.json';
     const fileSystem: Record<string, string> = {
-      [normalizePath(configPath)]: `{
+      [normalizePath(configFile)]: `{
   models: { providers: {} },
   agents: {
     defaults: {
@@ -675,7 +673,7 @@ await runTest(
     const managedInstance = createInstanceRecord();
     const detailsById = {
       [managedInstance.id]: createInstanceDetail(managedInstance, {
-        configPath,
+        configFile,
       }),
     };
 
@@ -744,7 +742,7 @@ await runTest(
       assert.equal(directories.has('D:/OpenClaw/.openclaw/agents/ops-responder/agent'), true);
       assert.equal(directories.has('D:/OpenClaw/.openclaw/agents/ops-responder/sessions'), true);
 
-      const updatedSnapshot = await openClawConfigService.readConfigSnapshot(configPath);
+      const updatedSnapshot = await openClawConfigService.readConfigSnapshot(configFile);
       assert.deepEqual(
         updatedSnapshot.agentSnapshots.map((agent) => agent.id),
         ['main', 'coding-engineer', 'ops-responder'],

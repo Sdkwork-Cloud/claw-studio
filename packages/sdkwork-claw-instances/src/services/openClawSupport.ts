@@ -139,34 +139,6 @@ export function inferLanguageFromPath(path: string) {
   return 'plaintext';
 }
 
-export function describeSecretSource(value: unknown) {
-  if (value === undefined || value === null) {
-    return 'not-configured';
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return 'not-configured';
-    }
-    if (trimmed.startsWith('${') && trimmed.endsWith('}')) {
-      return `env:${trimmed.slice(2, -1)}`;
-    }
-    return 'inline-secret';
-  }
-
-  if (isRecord(value)) {
-    const source = typeof value.source === 'string' ? value.source.trim() : '';
-    const provider = typeof value.provider === 'string' ? value.provider.trim() : '';
-    const id = typeof value.id === 'string' ? value.id.trim() : '';
-    if (source && provider && id) {
-      return `${source}:${provider}:${id}`;
-    }
-  }
-
-  return 'configured';
-}
-
 function buildProviderModelValue(
   id: string,
   role: string,

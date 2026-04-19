@@ -1,124 +1,151 @@
 import assert from 'node:assert/strict';
-import { OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS } from './openClawBuiltInCompatTestFixture.ts';
+import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
+import { resolveOpenClawConfigPathWithFallback } from './openClawConfigPathFallback.ts';
 
-function runTest(name: string, fn: () => void | Promise<void>) {
-  return Promise.resolve()
-    .then(fn)
-    .then(() => {
-      console.log(`ok - ${name}`);
-    })
-    .catch((error) => {
-      console.error(`not ok - ${name}`);
-      throw error;
-    });
+async function runTest(name: string, callback: () => Promise<void> | void) {
+  try {
+    await callback();
+    console.log(`ok - ${name}`);
+  } catch (error) {
+    console.error(`not ok - ${name}`);
+    throw error;
+  }
 }
 
-let configPathFallbackModule:
-  | typeof import('./openClawConfigPathFallback.ts')
-  | undefined;
-
-try {
-  configPathFallbackModule = await import('./openClawConfigPathFallback.ts');
-} catch {
-  configPathFallbackModule = undefined;
-}
-
-await runTest('openClawConfigPathFallback exposes a shared fallback path resolver', () => {
-  assert.ok(configPathFallbackModule, 'Expected openClawConfigPathFallback.ts to exist');
-  assert.equal(
-    typeof configPathFallbackModule?.resolveFallbackInstanceConfigPath,
-    'function',
-  );
-});
-
-await runTest('resolveFallbackInstanceConfigPath prefers config routes over artifacts', () => {
-  assert.equal(
-    configPathFallbackModule?.resolveFallbackInstanceConfigPath({
-      dataAccess: {
-        routes: [
-          {
-            scope: 'config',
-            mode: 'managedFile',
-            target: '/workspace/main/openclaw.json',
-          },
-        ],
+function createDetail(): StudioInstanceDetailRecord {
+  return {
+    instance: {
+      id: 'openclaw-managed',
+      name: 'OpenClaw',
+      description: 'OpenClaw runtime',
+      runtimeKind: 'openclaw',
+      deploymentMode: 'local-managed',
+      transportKind: 'openclawGatewayWs',
+      status: 'online',
+      isBuiltIn: true,
+      isDefault: true,
+      iconType: 'server',
+      version: '1.0.0',
+      typeLabel: 'OpenClaw',
+      host: '127.0.0.1',
+      port: 21280,
+      baseUrl: 'http://127.0.0.1:21280',
+      websocketUrl: 'ws://127.0.0.1:21280',
+      cpu: 0,
+      memory: 0,
+      totalMemory: '32 GB',
+      uptime: '1h',
+      capabilities: [],
+      storage: {
+        profileId: 'default',
+        provider: 'localFile',
+        namespace: 'openclaw-managed',
+        database: null,
+        connectionHint: null,
+        endpoint: null,
       },
-      artifacts: [
-        {
-          kind: 'configFile',
-          location: '/tmp/stale-openclaw.json',
-        },
-      ],
-    } as any),
-    '/workspace/main/openclaw.json',
-  );
-});
+      config: {
+        port: '21280',
+        sandbox: true,
+        autoUpdate: false,
+        logLevel: 'info',
+        corsOrigins: '*',
+        workspacePath: 'C:/Users/admin/.openclaw/workspace',
+        baseUrl: 'http://127.0.0.1:21280',
+        websocketUrl: 'ws://127.0.0.1:21280',
+        authToken: null,
+      },
+      createdAt: 1,
+      updatedAt: 1,
+      lastSeenAt: 1,
+    },
+    config: {
+      port: '21280',
+      sandbox: true,
+      autoUpdate: false,
+      logLevel: 'info',
+      corsOrigins: '*',
+      workspacePath: 'C:/Users/admin/.openclaw/workspace',
+      baseUrl: 'http://127.0.0.1:21280',
+      websocketUrl: 'ws://127.0.0.1:21280',
+      authToken: null,
+    },
+    logs: '',
+    health: {
+      score: 100,
+      status: 'healthy',
+      checks: [],
+      evaluatedAt: 1,
+    },
+    lifecycle: {
+      owner: 'appManaged',
+      startStopSupported: true,
+      configWritable: true,
+      notes: [],
+    },
+    storage: {
+      status: 'ready',
+      profileId: 'default',
+      provider: 'localFile',
+      namespace: 'openclaw-managed',
+      database: null,
+      connectionHint: null,
+      endpoint: null,
+      durable: true,
+      queryable: true,
+      transactional: false,
+      remote: false,
+    },
+    connectivity: {
+      primaryTransport: 'openclawGatewayWs',
+      endpoints: [],
+    },
+    observability: {
+      status: 'ready',
+      logAvailable: false,
+      logFilePath: null,
+      logPreview: [],
+      lastSeenAt: 1,
+      metricsSource: 'derived',
+    },
+    dataAccess: {
+      routes: [],
+    },
+    artifacts: [],
+    capabilities: [],
+    officialRuntimeNotes: [],
+    consoleAccess: null,
+    workbench: null,
+  };
+}
 
 await runTest(
-  'resolveFallbackInstanceConfigPath falls back to config artifacts only when no config route exists',
+  'resolveOpenClawConfigPathWithFallback prefers the standardized instance config path',
   () => {
-    assert.equal(
-      configPathFallbackModule?.resolveFallbackInstanceConfigPath({
-        dataAccess: {
-          routes: [],
-        },
-        artifacts: [
-          {
-            kind: 'configFile',
-            location: '/workspace/external/openclaw.json',
-          },
-        ],
-      } as any),
-      '/workspace/external/openclaw.json',
+    const detail = createDetail();
+    const resolved = resolveOpenClawConfigPathWithFallback(
+      {
+        resolveInstanceConfigPath: () => 'C:/Users/admin/.openclaw/openclaw.json',
+        resolveAttachedKernelConfigFile: () => 'C:/ProgramData/OpenClaw/config/openclaw.json',
+      },
+      detail,
     );
 
-    assert.equal(
-      configPathFallbackModule?.resolveFallbackInstanceConfigPath({
-        dataAccess: {
-          routes: [
-            {
-              scope: 'config',
-              mode: 'metadataOnly',
-              target: '/workspace/metadata-only/openclaw.json',
-            },
-          ],
-        },
-        artifacts: [
-          {
-            kind: 'configFile',
-            location: '/workspace/external/openclaw.json',
-          },
-        ],
-      } as any),
-      null,
-    );
+    assert.equal(resolved, 'C:/Users/admin/.openclaw/openclaw.json');
   },
 );
 
 await runTest(
-  'resolveFallbackInstanceConfigPath canonicalizes built-in OpenClaw config routes when legacy targets drift',
+  'resolveOpenClawConfigPathWithFallback falls back to the legacy attachment resolver when needed',
   () => {
-    assert.equal(
-      configPathFallbackModule?.resolveFallbackInstanceConfigPath({
-        instance: {
-          runtimeKind: 'openclaw',
-          deploymentMode: 'local-managed',
-          isBuiltIn: true,
-          config: {
-            workspacePath: OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.canonicalWorkspacePath,
-          },
-        },
-        dataAccess: {
-          routes: [
-            {
-              scope: 'config',
-              mode: 'managedFile',
-              target: OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.legacyConfigPath,
-            },
-          ],
-        },
-      } as any),
-      OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.canonicalConfigPath,
+    const detail = createDetail();
+    const resolved = resolveOpenClawConfigPathWithFallback(
+      {
+        resolveAttachedKernelConfigFile: () => 'C:/Users/admin/.openclaw/openclaw.json',
+      },
+      detail,
     );
+
+    assert.equal(resolved, 'C:/Users/admin/.openclaw/openclaw.json');
   },
 );

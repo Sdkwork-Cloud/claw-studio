@@ -4,9 +4,9 @@ import type {
   OpenClawAgentParamValue,
 } from '@sdkwork/claw-core';
 import {
-  normalizeLegacyProviderId,
-  normalizeLegacyProviderModelRef,
-} from '@sdkwork/claw-core';
+  normalizeLocalApiProxyLegacyProviderId as normalizeLegacyProviderId,
+  normalizeLocalApiProxyLegacyProviderModelRef as normalizeLegacyProviderModelRef,
+} from '@sdkwork/local-api-proxy';
 import type {
   InstanceWorkbenchAgent,
   InstanceWorkbenchLLMProvider,

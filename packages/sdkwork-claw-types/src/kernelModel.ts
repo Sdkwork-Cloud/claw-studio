@@ -48,13 +48,19 @@ export interface KernelAuthority {
 }
 
 export interface KernelConfig {
+  kernelId?: string | null;
+  runtimeKind?: string | null;
   configFile: string | null;
   configRoot: string | null;
+  stateRoot?: string | null;
   userRoot: string | null;
+  standardStateRoot?: string | null;
+  standardConfigFile?: string | null;
   format: 'json' | 'json5' | 'yaml' | 'unknown';
   access: KernelConfigAccessMode;
   provenance: string;
   writable: boolean;
   resolved: boolean;
   schemaVersion: string | null;
+  isStandardUserRootLayout?: boolean;
 }

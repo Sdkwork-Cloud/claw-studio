@@ -1,6 +1,7 @@
 import { studio } from '@sdkwork/claw-infrastructure';
 import type { Agent, StudioInstanceDetailRecord } from '@sdkwork/claw-types';
 import type { OpenClawConfigSnapshot } from './openClawConfigService.ts';
+import { resolveAttachedKernelConfigFile } from './kernelConfigAttachmentService.ts';
 import { openClawConfigService } from './openClawConfigService.ts';
 
 export interface OpenClawAgentCatalogAgent extends Agent {
@@ -14,7 +15,7 @@ export interface OpenClawAgentCatalog {
 
 export interface OpenClawAgentCatalogDependencies {
   getInstanceDetail: (instanceId: string) => Promise<StudioInstanceDetailRecord | null>;
-  resolveOpenClawConfigPath: (
+  resolveAttachedKernelConfigFile: (
     detail: StudioInstanceDetailRecord | null | undefined,
   ) => string | null;
   readOpenClawConfigSnapshot: (configPath: string) => Promise<OpenClawConfigSnapshot>;
@@ -22,7 +23,7 @@ export interface OpenClawAgentCatalogDependencies {
 
 export interface OpenClawAgentCatalogDependencyOverrides {
   getInstanceDetail?: OpenClawAgentCatalogDependencies['getInstanceDetail'];
-  resolveOpenClawConfigPath?: OpenClawAgentCatalogDependencies['resolveOpenClawConfigPath'];
+  resolveAttachedKernelConfigFile?: OpenClawAgentCatalogDependencies['resolveAttachedKernelConfigFile'];
   readOpenClawConfigSnapshot?: OpenClawAgentCatalogDependencies['readOpenClawConfigSnapshot'];
 }
 
@@ -90,7 +91,7 @@ class DefaultOpenClawAgentCatalogService {
       };
     }
 
-    const configPath = this.dependencies.resolveOpenClawConfigPath(detail);
+    const configPath = this.dependencies.resolveAttachedKernelConfigFile(detail);
     let configSnapshot: OpenClawConfigSnapshot | null = null;
     if (configPath) {
       configSnapshot = await this.dependencies.readOpenClawConfigSnapshot(configPath).catch(() => null);
@@ -200,9 +201,9 @@ export function createOpenClawAgentCatalogService(
 ) {
   return new DefaultOpenClawAgentCatalogService({
     getInstanceDetail: overrides.getInstanceDetail || ((instanceId) => studio.getInstanceDetail(instanceId)),
-    resolveOpenClawConfigPath:
-      overrides.resolveOpenClawConfigPath ||
-      ((detail) => openClawConfigService.resolveInstanceConfigPath(detail)),
+    resolveAttachedKernelConfigFile:
+      overrides.resolveAttachedKernelConfigFile ||
+      ((detail) => resolveAttachedKernelConfigFile(detail)),
     readOpenClawConfigSnapshot:
       overrides.readOpenClawConfigSnapshot ||
       ((configPath) => openClawConfigService.readConfigSnapshot(configPath)),

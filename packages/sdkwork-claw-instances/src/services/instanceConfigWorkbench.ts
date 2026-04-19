@@ -1,9 +1,12 @@
-import { analyzeOpenClawConfigDocument, parseOpenClawConfigDocument } from '@sdkwork/claw-core';
+import {
+  analyzeOpenClawConfigDocument,
+  parseOpenClawConfigDocument,
+  resolveAttachedKernelConfigFile,
+} from '@sdkwork/claw-core';
 import type { InstanceKernelConfigInsights } from '../types/index.ts';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
 import { buildKernelAuthorityProjection } from './kernelAuthorityProjection.ts';
 import { buildKernelConfigProjection } from './kernelConfigProjection.ts';
-import { resolveFallbackInstanceConfigPath } from './openClawConfigPathFallback.ts';
 
 export type InstanceConfigWorkbenchModeId = 'config' | 'raw';
 
@@ -53,7 +56,7 @@ export interface InstanceConfigWorkbenchCategorySummary {
 
 export interface InstanceConfigWorkbenchModel {
   document: {
-    configPath: string | null;
+    configFile: string | null;
     isWritable: boolean;
     defaultAgentId: string | null;
     defaultModelRef: string | null;
@@ -760,7 +763,11 @@ export function buildInstanceConfigWorkbenchModel(input: {
     workbench.kernelConfig ||
     buildKernelConfigProjection({
       runtimeKind: workbench.detail.instance.runtimeKind,
-      configPath: resolveFallbackInstanceConfigPath(workbench.detail),
+      deploymentMode: workbench.detail.instance.deploymentMode,
+      isBuiltIn: workbench.detail.instance.isBuiltIn,
+      configFile: resolveAttachedKernelConfigFile(workbench.detail),
+      workspacePath:
+        workbench.detail.config.workspacePath || workbench.detail.instance.config.workspacePath || null,
       configWritable: workbench.detail.lifecycle.configWritable,
       schemaVersion: null,
     });
@@ -782,7 +789,7 @@ export function buildInstanceConfigWorkbenchModel(input: {
 
   return {
     document: {
-      configPath: kernelConfig?.configFile || null,
+      configFile: kernelConfig?.configFile || null,
       isWritable: Boolean(kernelConfig?.writable && kernelAuthority?.configControl),
       defaultAgentId: kernelConfigInsights?.defaultAgentId || null,
       defaultModelRef: kernelConfigInsights?.defaultModelRef || null,

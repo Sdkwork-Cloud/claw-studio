@@ -1,5 +1,6 @@
 import {
   openClawConfigService,
+  resolveAttachedKernelConfigFile,
   type OpenClawConfigSnapshot,
 } from '@sdkwork/claw-core';
 import { studio } from '@sdkwork/claw-infrastructure';
@@ -19,10 +20,10 @@ export interface OpenClawGatewayHistoryConfigService {
 
 export interface OpenClawGatewayHistoryConfigServiceDependencies {
   getInstanceDetail: (instanceId: string) => Promise<StudioInstanceDetailRecord | null>;
-  resolveOpenClawConfigPath: (
+  resolveAttachedKernelConfigFile: (
     detail: StudioInstanceDetailRecord | null | undefined,
   ) => string | null;
-  readOpenClawConfigSnapshot: (configPath: string) => Promise<OpenClawConfigSnapshot>;
+  readOpenClawConfigSnapshot: (configFile: string) => Promise<OpenClawConfigSnapshot>;
   now?: () => number;
 }
 
@@ -132,12 +133,12 @@ class DefaultOpenClawGatewayHistoryConfigService
 
   private async resolveHistoryMaxChars(instanceId: string) {
     const detail = await this.dependencies.getInstanceDetail(instanceId).catch(() => null);
-    const configPath = this.dependencies.resolveOpenClawConfigPath(detail);
-    if (!configPath) {
+    const configFile = this.dependencies.resolveAttachedKernelConfigFile(detail);
+    if (!configFile) {
       return undefined;
     }
 
-    const snapshot = await this.dependencies.readOpenClawConfigSnapshot(configPath);
+    const snapshot = await this.dependencies.readOpenClawConfigSnapshot(configFile);
     return resolveHistoryMaxCharsFromSnapshot(snapshot);
   }
 }
@@ -151,6 +152,6 @@ export function createOpenClawGatewayHistoryConfigService(
 export const openClawGatewayHistoryConfigService =
   createOpenClawGatewayHistoryConfigService({
     getInstanceDetail: (instanceId) => studio.getInstanceDetail(instanceId),
-    resolveOpenClawConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
-    readOpenClawConfigSnapshot: (configPath) => openClawConfigService.readConfigSnapshot(configPath),
+    resolveAttachedKernelConfigFile: (detail) => resolveAttachedKernelConfigFile(detail),
+    readOpenClawConfigSnapshot: (configFile) => openClawConfigService.readConfigSnapshot(configFile),
   });

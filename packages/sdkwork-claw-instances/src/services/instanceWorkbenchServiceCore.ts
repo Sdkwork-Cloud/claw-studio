@@ -9,9 +9,11 @@ import type {
   OpenClawSkillsStatusResult,
   OpenClawToolsCatalogResult,
 } from '@sdkwork/claw-infrastructure';
-import type {
-  OpenClawChannelDefinition,
-  OpenClawConfigSnapshot,
+import {
+  openClawConfigService,
+  resolveAttachedKernelConfigFile,
+  type OpenClawChannelDefinition,
+  type OpenClawConfigSnapshot,
 } from '@sdkwork/claw-core';
 import type {
   Skill,
@@ -41,7 +43,6 @@ import {
   hasReadyOpenClawGateway,
   shouldProbeOpenClawGateway,
 } from './openClawManagementCapabilities.ts';
-import { resolveFallbackInstanceConfigPath } from './openClawConfigPathFallback.ts';
 import {
   buildOpenClawMemories,
   mapOpenClawFileEntryToWorkbenchFile,
@@ -74,6 +75,7 @@ import {
 import {
   buildRegistryBackedDetail,
 } from './instanceRegistryWorkbenchSupport.ts';
+import { resolveOpenClawConfigPathWithFallback } from './openClawConfigPathFallback.ts';
 import {
   buildDetailOnlyWorkbenchSnapshot,
   buildOpenClawChannelCatalog,
@@ -131,14 +133,19 @@ export interface InstanceWorkbenchServiceDependencies {
     getInstanceToken(id: string): Promise<string | undefined>;
     getInstanceLogs(id: string): Promise<string>;
   };
-  openClawConfigService: {
-    resolveInstanceConfigPath(
+  kernelConfigAttachmentApi: {
+    resolveInstanceConfigPath?(
       detail: StudioInstanceDetailRecord | null | undefined,
     ): string | null | undefined;
+    resolveAttachedKernelConfigFile(
+      detail: StudioInstanceDetailRecord | null | undefined,
+    ): string | null | undefined;
+  };
+  openClawConfigDocumentApi: {
     getConfigDocumentPathInfo?(
-      configPath: string,
+      configFile: string,
     ): Promise<{ exists: boolean; kind: 'file' | 'directory' | 'missing' }>;
-    readConfigSnapshot(configPath: string): Promise<OpenClawConfigSnapshot>;
+    readConfigSnapshot(configFile: string): Promise<OpenClawConfigSnapshot>;
     getChannelDefinitions(): OpenClawChannelDefinition[];
   };
   openClawGatewayClient: {
@@ -236,7 +243,12 @@ function toCreateTaskInput(
 export interface InstanceWorkbenchServiceDependencyOverrides {
   studioApi?: Partial<InstanceWorkbenchServiceDependencies['studioApi']>;
   instanceService?: Partial<InstanceWorkbenchServiceDependencies['instanceService']>;
-  openClawConfigService?: Partial<InstanceWorkbenchServiceDependencies['openClawConfigService']>;
+  kernelConfigAttachmentApi?: Partial<
+    InstanceWorkbenchServiceDependencies['kernelConfigAttachmentApi']
+  >;
+  openClawConfigDocumentApi?: Partial<
+    InstanceWorkbenchServiceDependencies['openClawConfigDocumentApi']
+  >;
   openClawGatewayClient?: Partial<InstanceWorkbenchServiceDependencies['openClawGatewayClient']>;
   buildCronTaskPayload?: InstanceWorkbenchServiceDependencies['buildCronTaskPayload'];
 }
@@ -345,9 +357,12 @@ function createDefaultDependencies(): InstanceWorkbenchServiceDependencies {
       getInstanceToken: createMissingAsyncDependency('instanceService.getInstanceToken'),
       getInstanceLogs: createMissingAsyncDependency('instanceService.getInstanceLogs'),
     },
-    openClawConfigService: {
-      resolveInstanceConfigPath: resolveFallbackInstanceConfigPath,
-      readConfigSnapshot: async (configPath) => createEmptyOpenClawConfigSnapshot(configPath),
+    kernelConfigAttachmentApi: {
+      resolveInstanceConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
+      resolveAttachedKernelConfigFile: resolveAttachedKernelConfigFile,
+    },
+    openClawConfigDocumentApi: {
+      readConfigSnapshot: async (configFile) => createEmptyOpenClawConfigSnapshot(configFile),
       getChannelDefinitions: () => [],
     },
     openClawGatewayClient: {
@@ -559,28 +574,30 @@ class InstanceWorkbenchService {
       return null;
     }
 
-    const configPath =
-      this.dependencies.openClawConfigService.resolveInstanceConfigPath(detail) || null;
-    if (!configPath) {
+    const configFile = resolveOpenClawConfigPathWithFallback(
+      this.dependencies.kernelConfigAttachmentApi,
+      detail,
+    );
+    if (!configFile) {
       return null;
     }
 
     if (shouldProbeOpenClawGateway(detail)) {
-      return configPath;
+      return configFile;
     }
 
     const getConfigDocumentPathInfo =
-      this.dependencies.openClawConfigService.getConfigDocumentPathInfo;
+      this.dependencies.openClawConfigDocumentApi.getConfigDocumentPathInfo;
     if (!getConfigDocumentPathInfo) {
-      return configPath;
+      return configFile;
     }
 
-    const pathInfo = await getConfigDocumentPathInfo(configPath).catch(() => null);
+    const pathInfo = await getConfigDocumentPathInfo(configFile).catch(() => null);
     if (!pathInfo) {
-      return configPath;
+      return configFile;
     }
 
-    return pathInfo.exists && pathInfo.kind === 'file' ? configPath : null;
+    return pathInfo.exists && pathInfo.kind === 'file' ? configFile : null;
   }
 
   private clearOpenClawTasksForInstance(instanceId: string) {
@@ -672,7 +689,7 @@ class InstanceWorkbenchService {
 
     const attachedConfigFilePath = await this.resolveAttachedConfigFilePath(detail);
     const configSnapshot = attachedConfigFilePath
-      ? await this.dependencies.openClawConfigService
+      ? await this.dependencies.openClawConfigDocumentApi
           .readConfigSnapshot(attachedConfigFilePath)
           .catch(() => null)
       : null;
@@ -827,7 +844,7 @@ class InstanceWorkbenchService {
        }),
       attachedConfigFilePath ?? null,
       configSnapshot,
-      buildOpenClawChannelCatalog(this.dependencies.openClawConfigService, configSnapshot),
+      buildOpenClawChannelCatalog(this.dependencies.openClawConfigDocumentApi, configSnapshot),
     );
     const gatewayTaskIds = new Set(
       normalizeWorkbenchTaskCollection(liveSnapshot?.tasks || []).map((task) => task.id),
@@ -847,7 +864,7 @@ class InstanceWorkbenchService {
     const detail = await this.dependencies.studioApi.getInstanceDetail(id);
     const attachedConfigFilePath = await this.resolveAttachedConfigFilePath(detail);
     const configSnapshot = attachedConfigFilePath
-      ? await this.dependencies.openClawConfigService
+      ? await this.dependencies.openClawConfigDocumentApi
           .readConfigSnapshot(attachedConfigFilePath)
           .catch(() => null)
       : null;
@@ -1153,13 +1170,17 @@ export function createInstanceWorkbenchService(
       ...defaults.instanceService,
       ...(overrides.instanceService || {}),
     },
+    kernelConfigAttachmentApi: {
+      ...defaults.kernelConfigAttachmentApi,
+      ...(overrides.kernelConfigAttachmentApi || {}),
+    },
+    openClawConfigDocumentApi: {
+      ...defaults.openClawConfigDocumentApi,
+      ...(overrides.openClawConfigDocumentApi || {}),
+    },
     openClawGatewayClient: {
       ...defaults.openClawGatewayClient,
       ...(overrides.openClawGatewayClient || {}),
-    },
-    openClawConfigService: {
-      ...defaults.openClawConfigService,
-      ...(overrides.openClawConfigService || {}),
     },
     buildCronTaskPayload: overrides.buildCronTaskPayload || defaults.buildCronTaskPayload,
   });

@@ -85,11 +85,11 @@ await runTest(
 
     try {
       const researchPlan = await openClawConfigService.resolveAgentPaths({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         agentId: 'Research Crew',
       });
       const mainPlan = await openClawConfigService.resolveAgentPaths({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         agentId: 'main',
       });
 
@@ -104,7 +104,6 @@ await runTest(
     }
   },
 );
-
 await runTest(
   'openClawConfigService configures multi-agent support by restoring main as coordinator, merging allowlists, and preserving user overrides',
   async () => {
@@ -155,7 +154,7 @@ await runTest(
 
     try {
       const snapshot = await openClawConfigService.configureMultiAgentSupport({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         coordinatorAgentId: 'main',
         allowAgentIds: ['research', 'ops'],
         subagentDefaults: {

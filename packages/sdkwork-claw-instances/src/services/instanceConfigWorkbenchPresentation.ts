@@ -27,7 +27,7 @@ export type InstanceConfigWorkbenchPresentableSection = Pick<
 >;
 
 export type InstanceConfigOverviewMetricId =
-  | 'configPath'
+  | 'configFile'
   | 'defaultAgent'
   | 'defaultModel'
   | 'sessions'
@@ -90,8 +90,8 @@ export function buildInstanceConfigOverviewMetrics(params: {
 
   return [
     {
-      id: 'configPath',
-      value: params.document.configPath || 'openclaw.json',
+      id: 'configFile',
+      value: params.document.configFile || 'openclaw.json',
     },
     {
       id: 'defaultAgent',

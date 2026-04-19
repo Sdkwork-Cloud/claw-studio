@@ -227,18 +227,18 @@ function createKernelInfoWithLocalAiProxy(
   return {
     localAiProxy: {
       lifecycle: 'running',
-      baseUrl: 'http://localhost:18791/v1',
-      rootBaseUrl: 'http://localhost:18791',
-      openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
-      anthropicBaseUrl: 'http://localhost:18791/v1',
-      geminiBaseUrl: 'http://localhost:18791',
-      activePort: 18791,
+      baseUrl: 'http://localhost:21280/v1',
+      rootBaseUrl: 'http://localhost:21280',
+      openaiCompatibleBaseUrl: 'http://localhost:21280/v1',
+      anthropicBaseUrl: 'http://localhost:21280/v1',
+      geminiBaseUrl: 'http://localhost:21280',
+      activePort: 21280,
       loopbackOnly: true,
       defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
       defaultRouteName: 'SDKWork Default',
       upstreamBaseUrl: 'https://ai.sdkwork.com',
       modelCount: 2,
-      configPath: 'D:/state/local-ai-proxy.json',
+      configFile: 'D:/state/local-ai-proxy.json',
       snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
       logPath: 'D:/logs/local-ai-proxy.log',
       lastError: null,
@@ -303,6 +303,89 @@ await runTest('providerConfigCenterService delegates route catalog CRUD to the s
   assert.deepEqual(deleteCalls, ['provider-config-openai-prod']);
   assert.equal(deleted, true);
 });
+
+await runTest(
+  'providerConfigCenterService forwards dirty drafts through the shared provider routing normalizer before saving',
+  async () => {
+    const routedRecord = createRecord({
+      id: 'provider-config-openai-prod',
+      updatedAt: 2,
+      providerId: 'openai',
+      defaultModelId: 'gpt-5.4',
+      reasoningModelId: 'o4-mini',
+      embeddingModelId: 'atlas-index',
+      models: [
+        { id: 'gpt-5.4', name: 'GPT-5.4' },
+        { id: 'o4-mini', name: 'o4-mini' },
+        { id: 'atlas-index', name: 'Atlas Index' },
+      ],
+      exposeTo: ['openclaw', 'desktop-clients'],
+    });
+    const saveCalls: SaveProviderRoutingRecordInput[] = [];
+    const service = createProviderConfigCenterService({
+      providerRoutingApi: {
+        listProviderRoutingRecords: async () => [routedRecord],
+        saveProviderRoutingRecord: async (input) => {
+          saveCalls.push(input);
+          return routedRecord;
+        },
+        deleteProviderRoutingRecord: async () => true,
+      },
+      kernelPlatformService: {
+        ensureRunning: async () => undefined,
+      } as any,
+    });
+
+    await service.saveProviderConfig({
+      presetId: ' openai ',
+      name: ' OpenAI Alias ',
+      providerId: '',
+      channelId: ' api-router-openai ',
+      apiKey: ' sk-openai ',
+      baseUrl: ' https://api.openai.com/v1/ ',
+      defaultModelId: ' gpt-5.4 ',
+      reasoningModelId: ' o4-mini ',
+      embeddingModelId: ' atlas-index ',
+      models: [
+        { id: ' gpt-5.4 ', name: ' GPT-5.4 ' },
+        { id: ' o4-mini ', name: ' o4-mini ' },
+        { id: ' atlas-index ', name: ' Atlas Index ' },
+        { id: 'gpt-5.4', name: 'Duplicate GPT-5.4' },
+      ],
+      exposeTo: [' openclaw ', ' desktop-clients ', 'openclaw'],
+      notes: ' shared route ',
+      config: {
+        temperature: 0.35,
+        streaming: false,
+      },
+    } as any);
+
+    assert.equal(saveCalls.length, 1);
+    assert.equal(saveCalls[0]?.presetId, 'openai');
+    assert.equal(saveCalls[0]?.name, 'OpenAI Alias');
+    assert.equal(saveCalls[0]?.providerId, 'openai');
+    assert.equal(saveCalls[0]?.upstreamBaseUrl, 'https://api.openai.com/v1');
+    assert.equal(saveCalls[0]?.baseUrl, 'https://api.openai.com/v1');
+    assert.equal(saveCalls[0]?.apiKey, 'sk-openai');
+    assert.equal(saveCalls[0]?.defaultModelId, 'gpt-5.4');
+    assert.equal(saveCalls[0]?.reasoningModelId, 'o4-mini');
+    assert.equal(saveCalls[0]?.embeddingModelId, 'atlas-index');
+    assert.deepEqual(saveCalls[0]?.models, [
+      { id: 'gpt-5.4', name: 'Duplicate GPT-5.4' },
+      { id: 'o4-mini', name: 'o4-mini' },
+      { id: 'atlas-index', name: 'Atlas Index' },
+    ]);
+    assert.deepEqual(saveCalls[0]?.exposeTo, ['openclaw', 'desktop-clients']);
+    assert.equal(saveCalls[0]?.notes, 'shared route');
+    assert.deepEqual(saveCalls[0]?.config, {
+      temperature: 0.35,
+      topP: 1,
+      maxTokens: 8192,
+      timeoutMs: 60000,
+      streaming: false,
+    });
+  },
+);
 
 await runTest(
   'providerConfigCenterService still lists provider configs when kernel info is temporarily unavailable',
@@ -863,7 +946,7 @@ await runTest(
 
     assert.ok(kiloPreset);
     assert.equal(kiloPreset?.draft.providerId, 'kilocode');
-    assert.equal(kiloPreset?.draft.upstreamBaseUrl, 'https://api.kilo.ai/api/gateway/');
+    assert.equal(kiloPreset?.draft.upstreamBaseUrl, 'https://api.kilo.ai/api/gateway');
     assert.equal(kiloPreset?.draft.defaultModelId, 'kilo/auto');
     assert.deepEqual(kiloPreset?.draft.models, [{ id: 'kilo/auto', name: 'Kilo Auto' }]);
 
@@ -1056,26 +1139,28 @@ await runTest('providerConfigCenterService exposes writable config-backed instan
         ({
           localAiProxy: {
             lifecycle: 'running',
-            baseUrl: 'http://localhost:18791/v1',
-            rootBaseUrl: 'http://localhost:18791',
-            openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
-            anthropicBaseUrl: 'http://localhost:18791/v1',
-            geminiBaseUrl: 'http://localhost:18791',
-            activePort: 18791,
+            baseUrl: 'http://localhost:21280/v1',
+            rootBaseUrl: 'http://localhost:21280',
+            openaiCompatibleBaseUrl: 'http://localhost:21280/v1',
+            anthropicBaseUrl: 'http://localhost:21280/v1',
+            geminiBaseUrl: 'http://localhost:21280',
+            activePort: 21280,
             loopbackOnly: true,
             defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
             defaultRouteName: 'SDKWork Default',
             upstreamBaseUrl: 'https://ai.sdkwork.com',
             modelCount: 2,
-            configPath: 'D:/state/local-ai-proxy.json',
+            configFile: 'D:/state/local-ai-proxy.json',
             snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
             logPath: 'D:/logs/local-ai-proxy.log',
             lastError: null,
           },
         }) as any,
     } as any,
-    openClawConfigService: {
-      resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+    kernelConfigAttachmentApi: {
+      resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+    },
+    openClawConfigDocumentApi: {
       readConfigSnapshot: async () =>
         ({
           agentSnapshots: [
@@ -1120,7 +1205,7 @@ await runTest('providerConfigCenterService exposes writable config-backed instan
     ['local-built-in', 'remote-custom'],
   );
   assert.equal(target.instance.id, 'local-built-in');
-  assert.equal(target.instance.configPath, 'D:/OpenClaw/.openclaw/openclaw.json');
+  assert.equal(target.instance.configFile, 'D:/OpenClaw/.openclaw/openclaw.json');
   assert.deepEqual(
     target.agents.map((agent) => agent.id),
     ['main', 'research'],
@@ -1164,8 +1249,8 @@ await runTest(
       kernelPlatformService: {
         getInfo: async () => null,
       } as any,
-      openClawConfigService: {
-        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      kernelConfigAttachmentApi: {
+        resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
       } as any,
     });
 
@@ -1346,26 +1431,28 @@ await runTest('providerConfigCenterService applies a saved provider config throu
         ({
           localAiProxy: {
             lifecycle: 'running',
-            baseUrl: 'http://localhost:18791/v1',
-            rootBaseUrl: 'http://localhost:18791',
-            openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
-            anthropicBaseUrl: 'http://localhost:18791/v1',
-            geminiBaseUrl: 'http://localhost:18791',
-            activePort: 18791,
+            baseUrl: 'http://localhost:21280/v1',
+            rootBaseUrl: 'http://localhost:21280',
+            openaiCompatibleBaseUrl: 'http://localhost:21280/v1',
+            anthropicBaseUrl: 'http://localhost:21280/v1',
+            geminiBaseUrl: 'http://localhost:21280',
+            activePort: 21280,
             loopbackOnly: true,
             defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
             defaultRouteName: 'SDKWork Default',
             upstreamBaseUrl: 'https://ai.sdkwork.com',
             modelCount: 3,
-            configPath: 'D:/state/local-ai-proxy.json',
+            configFile: 'D:/state/local-ai-proxy.json',
             snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
             logPath: 'D:/logs/local-ai-proxy.log',
             lastError: null,
           },
         }) as any,
     },
-    openClawConfigService: {
-      resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+    kernelConfigAttachmentApi: {
+      resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+    },
+    openClawConfigDocumentApi: {
       saveManagedLocalProxyProjection: async (input) => {
         projectionCalls.push(input);
         return null;
@@ -1386,37 +1473,15 @@ await runTest('providerConfigCenterService applies a saved provider config throu
   assert.deepEqual(kernelCalls, ['ensureRunning']);
   assert.deepEqual(projectionCalls, [
     {
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       projection: {
-        sourceRoute: {
-          id: 'provider-config-openai-prod',
-          schemaVersion: 1,
-          name: 'OpenAI Production',
-          enabled: true,
-          isDefault: true,
-          managedBy: 'user',
-          clientProtocol: 'openai-compatible',
-          upstreamProtocol: 'openai-compatible',
-          providerId: 'openai',
-          upstreamBaseUrl: 'https://api.openai.com/v1',
-          apiKey: 'sk-live-secret',
-          defaultModelId: 'gpt-5.4',
-          reasoningModelId: 'o4-mini',
-          embeddingModelId: 'text-embedding-3-large',
-          models: [
-            { id: 'gpt-5.4', name: 'GPT-5.4' },
-            { id: 'o4-mini', name: 'o4-mini' },
-            { id: 'text-embedding-3-large', name: 'text-embedding-3-large' },
-          ],
-          notes: undefined,
-          exposeTo: ['openclaw'],
-        },
+        sourceRoute: record,
         provider: {
           id: 'sdkwork-local-proxy',
           channelId: 'openai-compatible',
           name: 'SDKWork Local Proxy',
           apiKey: SDKWORK_LOCAL_PROXY_TOKEN_PLACEHOLDER,
-          baseUrl: 'http://localhost:18791/v1',
+          baseUrl: 'http://localhost:21280/v1',
           models: [
             { id: 'gpt-5.4', name: 'GPT-5.4' },
             { id: 'o4-mini', name: 'o4-mini' },
@@ -1447,7 +1512,7 @@ await runTest('providerConfigCenterService applies a saved provider config throu
   ]);
   assert.deepEqual(agentCalls, [
     {
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       agent: {
         id: 'main',
         model: {
@@ -1457,7 +1522,7 @@ await runTest('providerConfigCenterService applies a saved provider config throu
       },
     },
     {
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       agent: {
         id: 'research',
         model: {
@@ -1525,26 +1590,28 @@ await runTest('providerConfigCenterService applies provider configs through the 
         ({
           localAiProxy: {
             lifecycle: 'running',
-            baseUrl: 'http://localhost:18791/v1',
-            rootBaseUrl: 'http://localhost:18791',
-            openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
-            anthropicBaseUrl: 'http://localhost:18791/v1',
-            geminiBaseUrl: 'http://localhost:18791',
-            activePort: 18791,
+            baseUrl: 'http://localhost:21280/v1',
+            rootBaseUrl: 'http://localhost:21280',
+            openaiCompatibleBaseUrl: 'http://localhost:21280/v1',
+            anthropicBaseUrl: 'http://localhost:21280/v1',
+            geminiBaseUrl: 'http://localhost:21280',
+            activePort: 21280,
             loopbackOnly: true,
             defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
             defaultRouteName: 'SDKWork Default',
             upstreamBaseUrl: 'https://ai.sdkwork.com',
             modelCount: 2,
-            configPath: 'D:/state/local-ai-proxy.json',
+            configFile: 'D:/state/local-ai-proxy.json',
             snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
             logPath: 'D:/logs/local-ai-proxy.log',
             lastError: null,
           },
         }) as any,
     },
-    openClawConfigService: {
-      resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+    kernelConfigAttachmentApi: {
+      resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+    },
+    openClawConfigDocumentApi: {
       saveManagedLocalProxyProjection: async (input) => {
         projectionCalls.push(input);
         return null;
@@ -1565,36 +1632,15 @@ await runTest('providerConfigCenterService applies provider configs through the 
   assert.deepEqual(kernelCalls, ['ensureRunning']);
   assert.deepEqual(projectionCalls, [
     {
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       projection: {
-        sourceRoute: {
-          id: 'provider-config-anthropic-route',
-          schemaVersion: 1,
-          name: 'Anthropic Route',
-          enabled: true,
-          isDefault: true,
-          managedBy: 'user',
-          clientProtocol: 'openai-compatible',
-          upstreamProtocol: 'anthropic',
-          providerId: 'anthropic',
-          upstreamBaseUrl: 'https://api.anthropic.com/v1',
-          apiKey: 'sk-live-secret',
-          defaultModelId: 'claude-sonnet-4-20250514',
-          reasoningModelId: 'claude-opus-4-20250514',
-          embeddingModelId: undefined,
-          models: [
-            { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-            { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
-          ],
-          notes: undefined,
-          exposeTo: ['openclaw'],
-        },
+        sourceRoute: record,
         provider: {
           id: 'sdkwork-local-proxy',
           channelId: 'openai-compatible',
           name: 'SDKWork Local Proxy',
           apiKey: SDKWORK_LOCAL_PROXY_TOKEN_PLACEHOLDER,
-          baseUrl: 'http://localhost:18791/v1',
+          baseUrl: 'http://localhost:21280/v1',
           models: [
             { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
             { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
@@ -1618,7 +1664,7 @@ await runTest('providerConfigCenterService applies provider configs through the 
   ]);
   assert.deepEqual(agentCalls, [
     {
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       agent: {
         id: 'main',
         model: {
@@ -1687,26 +1733,28 @@ await runTest('providerConfigCenterService applies native gemini client routes t
         ({
           localAiProxy: {
             lifecycle: 'running',
-            baseUrl: 'http://localhost:18791/v1',
-            rootBaseUrl: 'http://localhost:18791',
-            openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
-            anthropicBaseUrl: 'http://localhost:18791/v1',
-            geminiBaseUrl: 'http://localhost:18791',
-            activePort: 18791,
+            baseUrl: 'http://localhost:21280/v1',
+            rootBaseUrl: 'http://localhost:21280',
+            openaiCompatibleBaseUrl: 'http://localhost:21280/v1',
+            anthropicBaseUrl: 'http://localhost:21280/v1',
+            geminiBaseUrl: 'http://localhost:21280',
+            activePort: 21280,
             loopbackOnly: true,
             defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
             defaultRouteName: 'SDKWork Default',
             upstreamBaseUrl: 'https://ai.sdkwork.com',
             modelCount: 2,
-            configPath: 'D:/state/local-ai-proxy.json',
+            configFile: 'D:/state/local-ai-proxy.json',
             snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
             logPath: 'D:/logs/local-ai-proxy.log',
             lastError: null,
           },
         }) as any,
     },
-    openClawConfigService: {
-      resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+    kernelConfigAttachmentApi: {
+      resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+    },
+    openClawConfigDocumentApi: {
       saveManagedLocalProxyProjection: async (input) => {
         projectionCalls.push(input);
         return null;
@@ -1727,36 +1775,15 @@ await runTest('providerConfigCenterService applies native gemini client routes t
   assert.deepEqual(kernelCalls, ['ensureRunning']);
   assert.deepEqual(projectionCalls, [
     {
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       projection: {
-        sourceRoute: {
-          id: 'provider-config-gemini-native',
-          schemaVersion: 1,
-          name: 'Gemini Native',
-          enabled: true,
-          isDefault: true,
-          managedBy: 'user',
-          clientProtocol: 'gemini',
-          upstreamProtocol: 'gemini',
-          providerId: 'google',
-          upstreamBaseUrl: 'https://generativelanguage.googleapis.com',
-          apiKey: 'sk-live-secret',
-          defaultModelId: 'gemini-2.5-pro',
-          reasoningModelId: undefined,
-          embeddingModelId: 'text-embedding-004',
-          models: [
-            { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-            { id: 'text-embedding-004', name: 'text-embedding-004' },
-          ],
-          notes: undefined,
-          exposeTo: ['openclaw'],
-        },
+        sourceRoute: record,
         provider: {
           id: 'sdkwork-local-proxy',
           channelId: 'gemini',
           name: 'SDKWork Local Proxy',
           apiKey: SDKWORK_LOCAL_PROXY_TOKEN_PLACEHOLDER,
-          baseUrl: 'http://localhost:18791',
+          baseUrl: 'http://localhost:21280',
           models: [
             { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
             { id: 'text-embedding-004', name: 'text-embedding-004' },
@@ -1780,7 +1807,7 @@ await runTest('providerConfigCenterService applies native gemini client routes t
   ]);
   assert.deepEqual(agentCalls, [
     {
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       agent: {
         id: 'main',
         model: {
@@ -1813,8 +1840,10 @@ await runTest(
           });
         },
       } as any,
-      openClawConfigService: {
-        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      kernelConfigAttachmentApi: {
+        resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      } as any,
+      openClawConfigDocumentApi: {
         saveManagedLocalProxyProjection: async (input) => {
           projectionCalls.push(input);
           return null;
@@ -1979,18 +2008,18 @@ await runTest('providerConfigCenterService delegates route tests through the ker
         return {
           localAiProxy: {
             lifecycle: 'running',
-            baseUrl: 'http://localhost:18791/v1',
-            rootBaseUrl: 'http://localhost:18791',
-            openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
-            anthropicBaseUrl: 'http://localhost:18791/v1',
-            geminiBaseUrl: 'http://localhost:18791',
-            activePort: 18791,
+            baseUrl: 'http://localhost:21280/v1',
+            rootBaseUrl: 'http://localhost:21280',
+            openaiCompatibleBaseUrl: 'http://localhost:21280/v1',
+            anthropicBaseUrl: 'http://localhost:21280/v1',
+            geminiBaseUrl: 'http://localhost:21280',
+            activePort: 21280,
             loopbackOnly: true,
             defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
             defaultRouteName: 'SDKWork Default',
             upstreamBaseUrl: 'https://ai.sdkwork.com',
             modelCount: 2,
-            configPath: 'D:/state/local-ai-proxy.json',
+            configFile: 'D:/state/local-ai-proxy.json',
             snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
             logPath: 'D:/logs/local-ai-proxy.log',
             lastError: null,
@@ -2136,8 +2165,10 @@ await runTest(
           throw new Error('kernel info unavailable');
         },
       } as any,
-      openClawConfigService: {
-        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      kernelConfigAttachmentApi: {
+        resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      } as any,
+      openClawConfigDocumentApi: {
         saveManagedLocalProxyProjection: async (input) => {
           projectionCalls.push(input);
           return null;

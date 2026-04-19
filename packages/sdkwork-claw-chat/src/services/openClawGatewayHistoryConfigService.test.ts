@@ -114,7 +114,7 @@ function createDetail(): StudioInstanceDetailRecord {
 
 function createSnapshot(root: OpenClawConfigSnapshot['root']): OpenClawConfigSnapshot {
   return {
-    configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+    configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
     providerSnapshots: [],
     agentSnapshots: [],
     channelSnapshots: [],
@@ -190,7 +190,7 @@ await runTest(
   async () => {
     const service = createOpenClawGatewayHistoryConfigService({
       getInstanceDetail: async () => createDetail(),
-      resolveOpenClawConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
       readOpenClawConfigSnapshot: async () =>
         createSnapshot({
           gateway: {
@@ -211,7 +211,7 @@ await runTest(
     let readCount = 0;
     const service = createOpenClawGatewayHistoryConfigService({
       getInstanceDetail: async () => createDetail(),
-      resolveOpenClawConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
       readOpenClawConfigSnapshot: async () => {
         readCount += 1;
         return createSnapshot({
@@ -238,7 +238,7 @@ await runTest(
   async () => {
     const service = createOpenClawGatewayHistoryConfigService({
       getInstanceDetail: async () => createDetail(),
-      resolveOpenClawConfigPath: () => null,
+      resolveAttachedKernelConfigFile: () => null,
       readOpenClawConfigSnapshot: async () => {
         throw new Error('should not read config without a path');
       },

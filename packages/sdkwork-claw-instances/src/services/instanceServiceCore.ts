@@ -28,6 +28,8 @@ import type {
 } from '@sdkwork/claw-core';
 import {
   deleteOpenClawAgentFromConfigDocument,
+  openClawConfigService,
+  resolveAttachedKernelConfigFile,
   saveOpenClawAgentInConfigDocument,
   saveOpenClawAuthCooldownsConfigInDocument,
   saveOpenClawChannelConfigInDocument,
@@ -52,8 +54,6 @@ import type { Instance, InstanceConfig, InstanceLLMProviderUpdate } from '../typ
 import type { ConfigUiHints } from './openClawConfigSchemaSupport.ts';
 import {
   buildOpenClawAgentFileId,
-  getArrayValue,
-  getObjectValue,
   normalizeOpenClawAgentFileId,
   parseOpenClawAgentFileId,
 } from './openClawSupport.ts';
@@ -62,7 +62,7 @@ import {
   isProviderCenterControlledOpenClawDetail,
   shouldProbeOpenClawGateway,
 } from './openClawManagementCapabilities.ts';
-import { resolveFallbackInstanceConfigPath } from './openClawConfigPathFallback.ts';
+import { resolveOpenClawConfigPathWithFallback } from './openClawConfigPathFallback.ts';
 import { buildRemoteOpenClawProviderConfigPatch } from './openClawProviderConfigPatch.ts';
 
 export interface CreateInstanceDTO {
@@ -173,25 +173,30 @@ export interface InstanceServiceDependencies {
     ): Promise<{ ok?: boolean; error?: string }>;
     runUpdate(instanceId: string): Promise<{ ok?: boolean; error?: string }>;
   };
-  openClawConfigService: {
-    resolveInstanceConfigPath(
+  kernelConfigAttachmentApi: {
+    resolveInstanceConfigPath?(
       detail: StudioInstanceDetailRecord,
     ): string | null | undefined;
+    resolveAttachedKernelConfigFile(
+      detail: StudioInstanceDetailRecord,
+    ): string | null | undefined;
+  };
+  openClawConfigDocumentApi: {
     getConfigDocumentPathInfo?(
-      configPath: string,
+      configFile: string,
     ): Promise<{ exists: boolean; kind: 'file' | 'directory' | 'missing' }>;
-    readConfigDocument(configPath: string): Promise<string>;
-    writeConfigDocument(configPath: string, raw: string): Promise<void>;
+    readConfigDocument(configFile: string): Promise<string>;
+    writeConfigDocument(configFile: string, raw: string): Promise<void>;
     saveAgent(args: {
-      configPath: string;
+      configFile: string;
       agent: OpenClawAgentInput;
     }): Promise<OpenClawAgentSnapshot | null>;
     deleteAgent(args: {
-      configPath: string;
+      configFile: string;
       agentId: string;
     }): Promise<OpenClawAgentSnapshot[]>;
     saveChannelConfiguration(args: {
-      configPath: string;
+      configFile: string;
       channelId: string;
       values: Record<string, string>;
       enabled: boolean;
@@ -215,7 +220,7 @@ export interface InstanceServiceDependencies {
       input: SaveOpenClawDreamingConfigurationInput,
     ): Promise<OpenClawDreamingConfigSnapshot>;
     setChannelEnabled(args: {
-      configPath: string;
+      configFile: string;
       channelId: string;
       enabled: boolean;
     }): Promise<OpenClawChannelSnapshot | null>;
@@ -225,7 +230,8 @@ export interface InstanceServiceDependencies {
 export interface InstanceServiceDependencyOverrides {
   studioApi?: Partial<InstanceServiceDependencies['studioApi']>;
   openClawGatewayClient?: Partial<InstanceServiceDependencies['openClawGatewayClient']>;
-  openClawConfigService?: Partial<InstanceServiceDependencies['openClawConfigService']>;
+  kernelConfigAttachmentApi?: Partial<InstanceServiceDependencies['kernelConfigAttachmentApi']>;
+  openClawConfigDocumentApi?: Partial<InstanceServiceDependencies['openClawConfigDocumentApi']>;
 }
 
 function mapStudioInstance(instance: StudioInstanceRecord): Instance {
@@ -397,28 +403,35 @@ function createDefaultDependencies(): InstanceServiceDependencies {
       applyConfig: createMissingAsyncDependency('openClawGatewayClient.applyConfig'),
       runUpdate: createMissingAsyncDependency('openClawGatewayClient.runUpdate'),
     },
-    openClawConfigService: {
-      resolveInstanceConfigPath: resolveFallbackInstanceConfigPath,
-      readConfigDocument: createMissingAsyncDependency('openClawConfigService.readConfigDocument'),
-      writeConfigDocument: createMissingAsyncDependency('openClawConfigService.writeConfigDocument'),
-      saveAgent: createMissingAsyncDependency('openClawConfigService.saveAgent'),
-      deleteAgent: createMissingAsyncDependency('openClawConfigService.deleteAgent'),
+    kernelConfigAttachmentApi: {
+      resolveInstanceConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
+      resolveAttachedKernelConfigFile: resolveAttachedKernelConfigFile,
+    },
+    openClawConfigDocumentApi: {
+      readConfigDocument: createMissingAsyncDependency('openClawConfigDocumentApi.readConfigDocument'),
+      writeConfigDocument: createMissingAsyncDependency(
+        'openClawConfigDocumentApi.writeConfigDocument',
+      ),
+      saveAgent: createMissingAsyncDependency('openClawConfigDocumentApi.saveAgent'),
+      deleteAgent: createMissingAsyncDependency('openClawConfigDocumentApi.deleteAgent'),
       saveChannelConfiguration:
-        createMissingAsyncDependency('openClawConfigService.saveChannelConfiguration'),
+        createMissingAsyncDependency('openClawConfigDocumentApi.saveChannelConfiguration'),
       saveWebSearchConfiguration:
-        createMissingAsyncDependency('openClawConfigService.saveWebSearchConfiguration'),
+        createMissingAsyncDependency('openClawConfigDocumentApi.saveWebSearchConfiguration'),
       saveXSearchConfiguration:
-        createMissingAsyncDependency('openClawConfigService.saveXSearchConfiguration'),
+        createMissingAsyncDependency('openClawConfigDocumentApi.saveXSearchConfiguration'),
       saveWebSearchNativeCodexConfiguration: createMissingAsyncDependency(
-        'openClawConfigService.saveWebSearchNativeCodexConfiguration',
+        'openClawConfigDocumentApi.saveWebSearchNativeCodexConfiguration',
       ),
       saveWebFetchConfiguration:
-        createMissingAsyncDependency('openClawConfigService.saveWebFetchConfiguration'),
+        createMissingAsyncDependency('openClawConfigDocumentApi.saveWebFetchConfiguration'),
       saveAuthCooldownsConfiguration:
-        createMissingAsyncDependency('openClawConfigService.saveAuthCooldownsConfiguration'),
+        createMissingAsyncDependency('openClawConfigDocumentApi.saveAuthCooldownsConfiguration'),
       saveDreamingConfiguration:
-        createMissingAsyncDependency('openClawConfigService.saveDreamingConfiguration'),
-      setChannelEnabled: createMissingAsyncDependency('openClawConfigService.setChannelEnabled'),
+        createMissingAsyncDependency('openClawConfigDocumentApi.saveDreamingConfiguration'),
+      setChannelEnabled: createMissingAsyncDependency(
+        'openClawConfigDocumentApi.setChannelEnabled',
+      ),
     },
   };
 }
@@ -485,27 +498,27 @@ export interface IInstanceService {
   ): Promise<void>;
   saveOpenClawWebSearchConfig(
     id: string,
-    input: Omit<SaveOpenClawWebSearchConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawWebSearchConfigurationInput, 'configFile'>,
   ): Promise<void>;
   saveOpenClawXSearchConfig(
     id: string,
-    input: Omit<SaveOpenClawXSearchConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawXSearchConfigurationInput, 'configFile'>,
   ): Promise<void>;
   saveOpenClawWebSearchNativeCodexConfig(
     id: string,
-    input: Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configFile'>,
   ): Promise<void>;
   saveOpenClawWebFetchConfig(
     id: string,
-    input: Omit<SaveOpenClawWebFetchConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawWebFetchConfigurationInput, 'configFile'>,
   ): Promise<void>;
   saveOpenClawAuthCooldownsConfig(
     id: string,
-    input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configFile'>,
   ): Promise<void>;
   saveOpenClawDreamingConfig(
     id: string,
-    input: Omit<SaveOpenClawDreamingConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawDreamingConfigurationInput, 'configFile'>,
   ): Promise<void>;
   setOpenClawChannelEnabled(id: string, channelId: string, enabled: boolean): Promise<void>;
 }
@@ -519,7 +532,7 @@ class InstanceService implements IInstanceService {
 
   private async assertOpenClawConfigDocumentAvailable(configPath: string) {
     const getConfigDocumentPathInfo =
-      this.dependencies.openClawConfigService.getConfigDocumentPathInfo;
+      this.dependencies.openClawConfigDocumentApi.getConfigDocumentPathInfo;
     if (!getConfigDocumentPathInfo) {
       return;
     }
@@ -556,7 +569,8 @@ class InstanceService implements IInstanceService {
       return null;
     }
 
-    const configPath = this.dependencies.openClawConfigService.resolveInstanceConfigPath(
+    const configPath = resolveOpenClawConfigPathWithFallback(
+      this.dependencies.kernelConfigAttachmentApi,
       resolvedDetail,
     );
     if (!configPath) {
@@ -566,6 +580,7 @@ class InstanceService implements IInstanceService {
     return {
       detail: resolvedDetail,
       configPath,
+      configFile: configPath,
     };
   }
 
@@ -601,6 +616,7 @@ class InstanceService implements IInstanceService {
     configBinding: {
       detail: StudioInstanceDetailRecord;
       configPath: string;
+      configFile: string;
     },
     buildNextRaw: (currentRaw: string) => string,
   ) {
@@ -810,8 +826,8 @@ class InstanceService implements IInstanceService {
     }
 
     await this.assertOpenClawConfigDocumentAvailable(configBinding.configPath);
-    return this.dependencies.openClawConfigService.readConfigDocument(
-      configBinding.configPath,
+    return this.dependencies.openClawConfigDocumentApi.readConfigDocument(
+      configBinding.configFile,
     );
   }
 
@@ -846,8 +862,8 @@ class InstanceService implements IInstanceService {
     }
 
     await this.assertOpenClawConfigDocumentAvailable(configBinding.configPath);
-    await this.dependencies.openClawConfigService.writeConfigDocument(
-      configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.writeConfigDocument(
+      configBinding.configFile,
       raw,
     );
   }
@@ -1079,13 +1095,10 @@ class InstanceService implements IInstanceService {
 
     if (isOpenClawDetail(detail)) {
       const snapshot = await this.dependencies.openClawGatewayClient.getConfig(id);
-      const providerConfig =
-        getObjectValue(snapshot.config, ['models', 'providers', providerId]) || {};
-      const existingModels = getArrayValue(providerConfig, ['models']) || [];
       const patch = buildRemoteOpenClawProviderConfigPatch(
+        snapshot.config,
         providerId,
         update,
-        existingModels,
       );
 
       const result = await this.dependencies.openClawGatewayClient.patchConfig(id, {
@@ -1218,8 +1231,8 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.saveAgent({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.saveAgent({
+      configFile: configBinding.configPath,
       agent,
     });
   }
@@ -1238,8 +1251,8 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.saveAgent({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.saveAgent({
+      configFile: configBinding.configPath,
       agent,
     });
   }
@@ -1258,8 +1271,8 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.deleteAgent({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.deleteAgent({
+      configFile: configBinding.configPath,
       agentId,
     });
   }
@@ -1286,8 +1299,8 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.saveChannelConfiguration({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.saveChannelConfiguration({
+      configFile: configBinding.configPath,
       channelId,
       values,
       enabled: true,
@@ -1296,7 +1309,7 @@ class InstanceService implements IInstanceService {
 
   async saveOpenClawWebSearchConfig(
     id: string,
-    input: Omit<SaveOpenClawWebSearchConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawWebSearchConfigurationInput, 'configFile'>,
   ): Promise<void> {
     const configBinding = await this.resolveOpenClawConfigBinding(id);
     if (!configBinding) {
@@ -1311,15 +1324,15 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.saveWebSearchConfiguration({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.saveWebSearchConfiguration({
+      configFile: configBinding.configPath,
       ...input,
     });
   }
 
   async saveOpenClawXSearchConfig(
     id: string,
-    input: Omit<SaveOpenClawXSearchConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawXSearchConfigurationInput, 'configFile'>,
   ): Promise<void> {
     const configBinding = await this.resolveOpenClawConfigBinding(id);
     if (!configBinding) {
@@ -1334,15 +1347,15 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.saveXSearchConfiguration({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.saveXSearchConfiguration({
+      configFile: configBinding.configPath,
       ...input,
     });
   }
 
   async saveOpenClawWebSearchNativeCodexConfig(
     id: string,
-    input: Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configFile'>,
   ): Promise<void> {
     const configBinding = await this.resolveOpenClawConfigBinding(id);
     if (!configBinding) {
@@ -1357,15 +1370,15 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.saveWebSearchNativeCodexConfiguration({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.saveWebSearchNativeCodexConfiguration({
+      configFile: configBinding.configPath,
       ...input,
     });
   }
 
   async saveOpenClawWebFetchConfig(
     id: string,
-    input: Omit<SaveOpenClawWebFetchConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawWebFetchConfigurationInput, 'configFile'>,
   ): Promise<void> {
     const configBinding = await this.resolveOpenClawConfigBinding(id);
     if (!configBinding) {
@@ -1380,15 +1393,15 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.saveWebFetchConfiguration({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.saveWebFetchConfiguration({
+      configFile: configBinding.configPath,
       ...input,
     });
   }
 
   async saveOpenClawAuthCooldownsConfig(
     id: string,
-    input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configFile'>,
   ): Promise<void> {
     const configBinding = await this.resolveOpenClawConfigBinding(id);
     if (!configBinding) {
@@ -1403,15 +1416,15 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.saveAuthCooldownsConfiguration({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.saveAuthCooldownsConfiguration({
+      configFile: configBinding.configPath,
       ...input,
     });
   }
 
   async saveOpenClawDreamingConfig(
     id: string,
-    input: Omit<SaveOpenClawDreamingConfigurationInput, 'configPath'>,
+    input: Omit<SaveOpenClawDreamingConfigurationInput, 'configFile'>,
   ): Promise<void> {
     const configBinding = await this.resolveOpenClawConfigBinding(id);
     if (!configBinding) {
@@ -1426,8 +1439,8 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.saveDreamingConfiguration({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.saveDreamingConfiguration({
+      configFile: configBinding.configPath,
       ...input,
     });
   }
@@ -1453,8 +1466,8 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    await this.dependencies.openClawConfigService.setChannelEnabled({
-      configPath: configBinding.configPath,
+    await this.dependencies.openClawConfigDocumentApi.setChannelEnabled({
+      configFile: configBinding.configPath,
       channelId,
       enabled,
     });
@@ -1475,9 +1488,13 @@ export function createInstanceService(
       ...defaults.openClawGatewayClient,
       ...(overrides.openClawGatewayClient || {}),
     },
-    openClawConfigService: {
-      ...defaults.openClawConfigService,
-      ...(overrides.openClawConfigService || {}),
+    kernelConfigAttachmentApi: {
+      ...defaults.kernelConfigAttachmentApi,
+      ...(overrides.kernelConfigAttachmentApi || {}),
+    },
+    openClawConfigDocumentApi: {
+      ...defaults.openClawConfigDocumentApi,
+      ...(overrides.openClawConfigDocumentApi || {}),
     },
   });
 }

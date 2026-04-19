@@ -15,8 +15,6 @@ use crate::framework::{
     services::{
         kernel_runtime_authority::KernelRuntimeAuthorityService,
         openclaw_runtime::{load_manifest, DEFAULT_GATEWAY_PORT},
-        openclaw_config_compat::read_openclaw_authority_state_file,
-        openclaw_runtime::{load_manifest, DEFAULT_GATEWAY_PORT},
         supervisor::{ManagedServiceLifecycle, SERVICE_ID_OPENCLAW_GATEWAY},
     },
     storage::{
@@ -4781,7 +4779,9 @@ fn read_active_state(paths: &AppPaths) -> Option<ActiveState> {
 
 fn read_openclaw_authority_state(paths: &AppPaths) -> Option<KernelAuthorityState> {
     let authority_file = paths.kernel_paths("openclaw").ok()?.authority_file;
-    read_openclaw_authority_state_file(&authority_file).ok()
+    fs::read_to_string(&authority_file)
+        .ok()
+        .and_then(|content| serde_json::from_str::<KernelAuthorityState>(&content).ok())
 }
 
 fn normalize_legacy_active_version_label(value: &str) -> Option<String> {
@@ -5856,7 +5856,6 @@ mod tests {
         },
         paths::resolve_paths_for_root,
         services::{
-            openclaw_config_compat::legacy_openclaw_config_file_path,
             kernel_runtime_authority::KernelRuntimeAuthorityService,
             openclaw_runtime::ActivatedOpenClawRuntime,
             storage::StorageService,
@@ -5874,6 +5873,7 @@ mod tests {
         fs,
         io::{Read, Write},
         net::{TcpListener, TcpStream},
+        path::PathBuf,
         sync::{
             atomic::{AtomicBool, Ordering},
             Arc, Mutex,
@@ -5881,6 +5881,13 @@ mod tests {
         thread::{self, JoinHandle},
         time::Duration,
     };
+
+    fn legacy_managed_config_file_path(paths: &crate::framework::paths::AppPaths) -> PathBuf {
+        paths
+            .openclaw_kernel_dir
+            .join("managed-config")
+            .join("openclaw.json")
+    }
 
     #[test]
     fn studio_runtime_kind_preserves_unknown_kernel_ids_during_json_round_trip() {
@@ -7053,7 +7060,7 @@ mod tests {
     #[test]
     fn built_in_instance_ignores_legacy_authority_config_file_path_when_reading_http_auth() {
         let (_root, paths, config, storage, service) = studio_context();
-        let legacy_authority_config_file_path = legacy_openclaw_config_file_path(&paths);
+        let legacy_authority_config_file_path = legacy_managed_config_file_path(&paths);
         let canonical_config_file_path = paths.openclaw_config_file.clone();
         fs::create_dir_all(
             legacy_authority_config_file_path
@@ -7570,6 +7577,70 @@ mod tests {
             && route.mode == StudioInstanceDataAccessMode::ManagedFile
             && route.authoritative
             && route.target.as_deref() == Some(config_file_path.to_string_lossy().as_ref())));
+    }
+
+    #[test]
+    fn built_in_instance_detail_keeps_canonical_config_targets_when_authority_path_is_legacy() {
+        let (_root, paths, config, storage, service) = studio_context();
+        let (supervisor, _server) = configured_openclaw_supervisor(&paths);
+        let legacy_config_file_path = legacy_managed_config_file_path(&paths);
+        let canonical_config_file_path = paths.openclaw_config_file.clone();
+        let authority_file = paths
+            .kernel_paths("openclaw")
+            .expect("openclaw kernel paths")
+            .authority_file;
+
+        if let Some(parent) = canonical_config_file_path.parent() {
+            fs::create_dir_all(parent).expect("canonical config parent");
+        }
+        fs::write(
+            &canonical_config_file_path,
+            r#"{
+  gateway: {
+    port: 19876,
+    auth: {
+      mode: "token",
+      token: "studio-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("seed canonical config file");
+
+        let mut authority =
+            super::read_openclaw_authority_state(&paths).expect("authority state");
+        authority.config_file_path = Some(legacy_config_file_path.to_string_lossy().into_owned());
+        fs::write(
+            &authority_file,
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&authority).expect("serialize authority")
+            ),
+        )
+        .expect("write legacy authority file");
+
+        let detail = service
+            .get_instance_detail_with_supervisor(
+                &paths,
+                &config,
+                &storage,
+                &supervisor,
+                DEFAULT_INSTANCE_ID,
+            )
+            .expect("load instance detail")
+            .expect("built-in detail");
+
+        assert!(detail.data_access.routes.iter().any(|route| route.scope
+            == StudioInstanceDataAccessScope::Config
+            && route.mode == StudioInstanceDataAccessMode::ManagedFile
+            && route.authoritative
+            && route.target.as_deref()
+                == Some(canonical_config_file_path.to_string_lossy().as_ref())));
+        assert!(detail.artifacts.iter().any(|artifact| artifact.kind
+            == StudioInstanceArtifactKind::ConfigFile
+            && artifact.location.as_deref()
+                == Some(canonical_config_file_path.to_string_lossy().as_ref())));
     }
 
     #[test]

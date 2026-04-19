@@ -49,7 +49,7 @@ await runTest(
   () => {
     const source = readFileSync(new URL('./ProviderConfigCenter.tsx', import.meta.url), 'utf8');
 
-    assert.match(source, /providerConfigCenterService\.getActionSupport\(/);
+    assert.match(source, /providerConfigCenterWorkspaceService\.loadOverview\(/);
     assert.match(source, /resolveActionSupportReasonLabel\(/);
     assert.match(source, /case 'quickApplyRequiresLoopback':/);
     assert.match(source, /disabled=\{!actionSupport\.quickApply\.available\}/);

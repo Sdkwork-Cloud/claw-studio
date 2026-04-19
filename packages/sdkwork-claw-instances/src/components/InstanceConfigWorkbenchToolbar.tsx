@@ -21,7 +21,7 @@ interface InstanceConfigWorkbenchToolbarProps {
   tr: Translate;
   activeMode: InstanceConfigWorkbenchModeId;
   onModeChange: (mode: InstanceConfigWorkbenchModeId) => void;
-  configPath: string | null;
+  configFile: string | null;
   isWritable: boolean;
   hasPendingChanges: boolean;
   schemaVersion?: string | null;
@@ -74,7 +74,7 @@ export function InstanceConfigWorkbenchToolbar(
 
       <div className="flex flex-wrap items-center gap-2">
         <InstanceConfigWorkbenchStatusChip>
-          {props.configPath || 'openclaw.json'}
+          {props.configFile || 'openclaw.json'}
         </InstanceConfigWorkbenchStatusChip>
         <InstanceConfigWorkbenchStatusChip
           tone={
@@ -134,7 +134,7 @@ export function InstanceConfigWorkbenchToolbar(
         <button
           type="button"
           onClick={props.onOpenConfigFile}
-          disabled={!props.configPath || props.isLoading || props.schemaLoading}
+          disabled={!props.configFile || props.isLoading || props.schemaLoading}
           className="inline-flex items-center gap-2 rounded-xl border border-zinc-200/70 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900"
         >
           <FolderOpen className="h-4 w-4" />

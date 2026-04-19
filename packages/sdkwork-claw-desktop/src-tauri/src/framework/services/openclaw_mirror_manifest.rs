@@ -25,7 +25,7 @@ pub struct OpenClawMirrorRuntimeSnapshot {
     pub home_dir: String,
     pub state_dir: String,
     pub workspace_dir: String,
-    pub config_path: String,
+    pub config_file: String,
     pub gateway_port: u16,
 }
 
@@ -136,7 +136,7 @@ pub fn build_managed_runtime_snapshot(
         home_dir: normalize_path(&runtime.home_dir),
         state_dir: normalize_path(&runtime.state_dir),
         workspace_dir: normalize_path(&runtime.workspace_dir),
-        config_path: normalize_path(&runtime.config_path),
+        config_file: normalize_path(&runtime.config_path),
         gateway_port: runtime.gateway_port,
     })
 }
@@ -703,7 +703,7 @@ mod tests {
         assert!(snapshot.state_dir.ends_with(".openclaw"));
         assert!(snapshot.workspace_dir.ends_with(".openclaw/workspace"));
         assert!(snapshot
-            .config_path
+            .config_file
             .ends_with("user-home/.openclaw/openclaw.json"));
     }
 

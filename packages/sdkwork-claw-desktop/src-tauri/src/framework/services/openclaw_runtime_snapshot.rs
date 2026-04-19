@@ -122,7 +122,7 @@ impl OpenClawRuntimeSnapshotService {
                 .map(|runtime| path_string(&runtime.runtime_dir)),
             home_dir: path_string(&paths.openclaw_root_dir),
             workspace_dir: path_string(&paths.openclaw_workspace_dir),
-            config_path: path_string(&active_openclaw_config_path(paths)),
+            config_file: path_string(&active_openclaw_config_path(paths)),
             gateway_port: configured_runtime
                 .as_ref()
                 .map(|runtime| runtime.gateway_port),
@@ -135,7 +135,7 @@ impl OpenClawRuntimeSnapshotService {
                 .map(|health| health.base_url.clone()),
             local_ai_proxy_snapshot_path: path_string(&paths.local_ai_proxy_snapshot_file),
             authority: DesktopOpenClawRuntimeAuthorityInfo {
-                config_file_path: path_string(&authority.config_file_path),
+                config_file: path_string(&authority.config_file_path),
                 owned_runtime_roots: authority
                     .owned_runtime_roots
                     .iter()
@@ -509,18 +509,29 @@ fn path_string(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::build_provider_projection;
-    use crate::framework::services::local_ai_proxy::{
-        LocalAiProxyDefaultRouteHealth, LocalAiProxyLifecycle, LocalAiProxyServiceHealth,
-        LocalAiProxyServiceStatus,
+    use crate::framework::services::{
+        local_ai_proxy::{
+            LocalAiProxyDefaultRouteHealth, LocalAiProxyLifecycle, LocalAiProxyServiceHealth,
+            LocalAiProxyServiceStatus,
+        },
+        local_ai_proxy_snapshot::LOCAL_AI_PROXY_DEFAULT_PORT,
     };
     use serde_json::json;
+
+    fn default_local_ai_proxy_root_base_url() -> String {
+        format!("http://127.0.0.1:{LOCAL_AI_PROXY_DEFAULT_PORT}")
+    }
+
+    fn default_local_ai_proxy_v1_base_url() -> String {
+        format!("{}/v1", default_local_ai_proxy_root_base_url())
+    }
 
     fn create_running_local_ai_proxy_status(client_protocol: &str) -> LocalAiProxyServiceStatus {
         LocalAiProxyServiceStatus {
             lifecycle: LocalAiProxyLifecycle::Running,
             health: Some(LocalAiProxyServiceHealth {
-                base_url: "http://127.0.0.1:18791/v1".to_string(),
-                active_port: 18_791,
+                base_url: default_local_ai_proxy_v1_base_url(),
+                active_port: LOCAL_AI_PROXY_DEFAULT_PORT,
                 loopback_only: true,
                 default_route_id: "default-route".to_string(),
                 default_route_name: "SDKWork Default".to_string(),
@@ -550,7 +561,7 @@ mod tests {
             "models": {
                 "providers": {
                     "sdkwork-local-proxy": {
-                        "baseUrl": "http://127.0.0.1:18791",
+                        "baseUrl": default_local_ai_proxy_root_base_url(),
                         "api": "google-generative-ai",
                         "auth": "api-key"
                     }
@@ -583,7 +594,7 @@ mod tests {
             "models": {
                 "providers": {
                     "sdkwork-local-proxy": {
-                        "baseUrl": "http://127.0.0.1:18791",
+                        "baseUrl": default_local_ai_proxy_root_base_url(),
                         "api": "openai-completions",
                         "auth": "api-key"
                     }
@@ -614,7 +625,7 @@ mod tests {
             "models": {
                 "providers": {
                     "sdkwork-local-proxy": {
-                        "baseUrl": "http://127.0.0.1:18791/v1",
+                        "baseUrl": default_local_ai_proxy_v1_base_url(),
                         "api": "openai-completions",
                         "auth": "bearer"
                     }

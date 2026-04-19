@@ -31,7 +31,7 @@ pub struct ProjectedServerServiceManifest {
     pub service_name: String,
     pub service_config_path: PathBuf,
     pub executable_path: PathBuf,
-    pub config_path: PathBuf,
+    pub config_file: PathBuf,
     pub runtime_args: Vec<String>,
     pub runtime_environment: BTreeMap<String, String>,
     pub working_directory: PathBuf,
@@ -87,7 +87,7 @@ pub struct PlannedServerServiceLifecycleAction {
     pub service_name: String,
     pub service_config_path: PathBuf,
     pub executable_path: PathBuf,
-    pub config_path: PathBuf,
+    pub config_file: PathBuf,
     pub commands: Vec<ServerServiceShellCommand>,
     pub runtime_config: ResolvedServerRuntimeConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -121,7 +121,7 @@ pub struct ServerServiceExecutionResult {
     pub service_name: String,
     pub service_config_path: PathBuf,
     pub executable_path: PathBuf,
-    pub config_path: PathBuf,
+    pub config_file: PathBuf,
     pub commands: Vec<ServerServiceShellCommand>,
     pub runtime_config: ResolvedServerRuntimeConfig,
     pub artifact_written: bool,
@@ -366,7 +366,7 @@ pub fn project_service_manifest(
         service_name,
         service_config_path,
         executable_path: request.executable_path,
-        config_path: request.config_path,
+        config_file: request.config_path,
         runtime_args,
         runtime_environment,
         working_directory,
@@ -395,7 +395,7 @@ pub fn plan_server_service_lifecycle(
         service_name: manifest.service_name.clone(),
         service_config_path: manifest.service_config_path.clone(),
         executable_path: manifest.executable_path.clone(),
-        config_path: manifest.config_path.clone(),
+        config_file: manifest.config_file.clone(),
         commands,
         runtime_config: request.runtime_config,
         manifest: if matches!(request.action, ServerServiceLifecycleAction::Install) {
@@ -414,11 +414,11 @@ pub fn execute_server_service_lifecycle_with_runtime<R: ServerServiceRuntime>(
     let mut written_files = Vec::new();
     if let Some(manifest) = plan.manifest.as_ref() {
         runtime.write_text_file(
-            &manifest.config_path,
+            &manifest.config_file,
             &serde_json::to_string_pretty(&manifest.runtime_config)
                 .expect("service install config should serialize"),
         )?;
-        written_files.push(manifest.config_path.clone());
+        written_files.push(manifest.config_file.clone());
         runtime.write_text_file(&manifest.service_config_path, &manifest.artifact_content)?;
         written_files.push(manifest.service_config_path.clone());
         artifact_written = true;
@@ -464,7 +464,7 @@ pub fn execute_server_service_lifecycle_with_runtime<R: ServerServiceRuntime>(
         service_name: plan.service_name.clone(),
         service_config_path: plan.service_config_path.clone(),
         executable_path: plan.executable_path.clone(),
-        config_path: plan.config_path.clone(),
+        config_file: plan.config_file.clone(),
         commands: plan.commands.clone(),
         runtime_config: plan.runtime_config.clone(),
         artifact_written,
@@ -964,6 +964,21 @@ mod tests {
         assert_eq!(error, "service manager unavailable");
     }
 
+    #[test]
+    fn server_service_execution_result_serializes_config_file_key() {
+        let payload = serde_json::to_value(sample_service_execution_result("status", "running"))
+            .expect("service execution result should serialize");
+
+        assert_eq!(
+            payload.get("configFile").and_then(serde_json::Value::as_str),
+            Some("D:/managed/config.json")
+        );
+        assert!(
+            payload.get("configPath").is_none(),
+            "legacy configPath should not be serialized",
+        );
+    }
+
     fn sample_runtime_contract(platform: ClawServerServicePlatform) -> ServerRuntimeContract {
         ServerRuntimeContract {
             platform,
@@ -1001,7 +1016,7 @@ mod tests {
             service_name: "ClawServer".to_string(),
             service_config_path: PathBuf::from("D:/managed/service/windows-service.json"),
             executable_path: PathBuf::from("D:/managed/claw-server.exe"),
-            config_path: PathBuf::from("D:/managed/config.json"),
+            config_file: PathBuf::from("D:/managed/config.json"),
             commands: vec![ServerServiceShellCommand {
                 program: "sc.exe".to_string(),
                 args: vec!["query".to_string(), "ClawServer".to_string()],

@@ -160,7 +160,7 @@
       "description": "Apply the selected route config to an OpenClaw instance default provider selection and optionally update agent model bindings while the full local-proxy projection rolls out.",
       "instance": "Instance",
       "instancePlaceholder": "Choose an instance",
-      "configPath": "Config Path",
+      "configFile": "OpenClaw config file",
       "targetSummary": "Route Config Summary",
       "agents": "Agents",
       "agentHint": "Checked agents will switch their primary model to the selected LLM, with the reasoning model added as fallback when configured.",

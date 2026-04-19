@@ -102,7 +102,7 @@ export interface AgentWorkbenchRequest {
 }
 
 export interface AgentWorkbenchServiceDependencies {
-  readOpenClawConfigSnapshot: (configPath: string) => Promise<OpenClawConfigSnapshot>;
+  readOpenClawConfigSnapshot: (configFile: string) => Promise<OpenClawConfigSnapshot>;
   openClawGatewayClient: {
     getSkillsStatus: (
       instanceId: string,
@@ -623,10 +623,10 @@ class DefaultAgentWorkbenchService implements AgentWorkbenchService {
       throw new Error(`Agent "${input.agentId}" was not found in the instance workbench.`);
     }
 
-    const configFilePath = input.workbench.kernelConfig?.configFile || null;
-    const configSnapshot = configFilePath
+    const configFile = input.workbench.kernelConfig?.configFile || null;
+    const configSnapshot = configFile
       ? await this.dependencies
-          .readOpenClawConfigSnapshot(configFilePath)
+          .readOpenClawConfigSnapshot(configFile)
           .catch(() => null)
       : null;
     const defaultAgentId = resolveDefaultAgentId(configSnapshot, input.workbench);

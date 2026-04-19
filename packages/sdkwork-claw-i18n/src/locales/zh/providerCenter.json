@@ -160,7 +160,7 @@
       "description": "将选中的路由配置应用到某个 OpenClaw 实例的默认 Provider 选择中，并可在本地代理完整投影生效前同步更新 Agent 模型绑定。",
       "instance": "实例",
       "instancePlaceholder": "选择实例",
-      "configPath": "配置路径",
+      "configFile": "OpenClaw 配置文件",
       "targetSummary": "路由配置摘要",
       "agents": "Agent 列表",
       "agentHint": "勾选的 Agent 会切换到当前选择的默认 LLM；如果已配置推理模型，也会一并作为 fallback 加入。",

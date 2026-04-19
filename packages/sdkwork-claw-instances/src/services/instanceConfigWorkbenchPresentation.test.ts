@@ -70,7 +70,7 @@ await runTest(
   () => {
     const metrics = buildInstanceConfigOverviewMetrics({
       document: {
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         isWritable: true,
         defaultAgentId: 'main',
         defaultModelRef: 'openai/gpt-5.4',
@@ -92,7 +92,7 @@ await runTest(
     });
 
     assert.deepEqual(metrics, [
-      { id: 'configPath', value: 'D:/OpenClaw/.openclaw/openclaw.json' },
+      { id: 'configFile', value: 'D:/OpenClaw/.openclaw/openclaw.json' },
       { id: 'defaultAgent', value: 'main' },
       { id: 'defaultModel', value: 'openai/gpt-5.4' },
       { id: 'sessions', value: 'tree' },

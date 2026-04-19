@@ -33,9 +33,13 @@ import {
   applyProviderConfigFormClientProtocolInput,
   applyProviderConfigFormProviderIdInput,
   applyProviderConfigFormUpstreamProtocolInput,
+  createProviderConfigBadgeLabel,
   findProviderConfigKnownProviderOption,
   listProviderConfigModelRows,
+  listProviderConfigModelSelectionOptions,
   moveProviderConfigModelRow,
+  matchProviderConfigCustomRouteSearch,
+  matchProviderConfigKnownProviderSearch,
   providerConfigClientProtocolOptions,
   providerConfigUpstreamProtocolOptions,
   removeProviderConfigModelRow,
@@ -47,63 +51,6 @@ import {
 
 const CUSTOM_PROVIDER_OPTION_VALUE = '__custom__';
 const UNSET_MODEL_OPTION_VALUE = '__unset_model__';
-
-function createProviderBadgeLabel(label: string, providerId: string) {
-  const source = label.trim() || providerId.trim();
-  if (!source) {
-    return 'AI';
-  }
-
-  const tokens = source
-    .split(/[\s/-]+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
-
-  if (tokens.length >= 2) {
-    return `${tokens[0][0] || ''}${tokens[1][0] || ''}`.toUpperCase();
-  }
-
-  return source.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase() || 'AI';
-}
-
-function buildModelSelectionOptions(form: ProviderConfigFormState) {
-  return Array.from(
-    new Map(
-      listProviderConfigModelRows(form)
-        .map((model) => {
-          const id = model.id.trim();
-          const name = model.name.trim();
-          return id ? { id, label: name || id } : null;
-        })
-        .filter((model): model is { id: string; label: string } => Boolean(model))
-        .map((model) => [model.id, model] as const),
-    ).values(),
-  );
-}
-
-function matchesProviderSearch(query: string, option: ProviderConfigKnownProviderOption) {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return true;
-  }
-
-  return [
-    option.label,
-    option.providerId,
-    option.vendor,
-    option.modelFamily,
-    option.description,
-  ].some((value) => value.toLowerCase().includes(normalizedQuery));
-}
-
-function matchesCustomRouteSearch(query: string, customRouteLabel: string, customRouteHint: string) {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return true;
-  }
-
-  return [customRouteLabel, customRouteHint].some((value) => value.toLowerCase().includes(normalizedQuery));
-}
 
 export interface ProviderConfigEditorSheetProps {
   open: boolean;
@@ -149,15 +96,15 @@ export function ProviderConfigEditorSheet({
   const selectedProviderModelFamily =
     selectedKnownProvider?.modelFamily || t('providerCenter.states.notSet');
   const filteredProviderOptions = knownProviderOptions.filter((option) =>
-    matchesProviderSearch(providerSearchQuery, option),
+    matchProviderConfigKnownProviderSearch(providerSearchQuery, option),
   );
-  const showCustomRouteOption = matchesCustomRouteSearch(
+  const showCustomRouteOption = matchProviderConfigCustomRouteSearch(
     providerSearchQuery,
     customRouteLabel,
     customRouteHint,
   );
   const modelRows = listProviderConfigModelRows(draft);
-  const modelSelectionOptions = buildModelSelectionOptions(draft);
+  const modelSelectionOptions = listProviderConfigModelSelectionOptions(draft);
   const selectableModelIds = new Set(modelSelectionOptions.map((model) => model.id));
   const headerTitle =
     mode === 'view'
@@ -225,7 +172,10 @@ export function ProviderConfigEditorSheet({
                   {filteredProviderOptions.length > 0 ? (
                     filteredProviderOptions.map((option) => {
                       const isActive = activeProviderSelectionId === option.id;
-                      const badgeLabel = createProviderBadgeLabel(option.label, option.providerId);
+                      const badgeLabel = createProviderConfigBadgeLabel(
+                        option.label,
+                        option.providerId,
+                      );
                       return (
                         <button
                           key={option.id}

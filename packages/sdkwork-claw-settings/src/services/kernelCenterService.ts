@@ -104,7 +104,7 @@ export interface KernelCenterDashboard {
     routeTests: LocalAiProxyRouteTestRecord[];
     messageCaptureEnabled: boolean;
     observabilityDbPath: string | null;
-    configPath: string | null;
+    configFile: string | null;
     snapshotPath: string | null;
     logPath: string | null;
     lastError: string | null;
@@ -117,7 +117,7 @@ export interface KernelCenterDashboard {
     profileCount: number;
   };
   runtimeAuthority: {
-    configFilePath: string | null;
+    configFile: string | null;
     ownedRuntimeRoots: string[];
     supportsLoopbackHealthProbe: boolean | null;
     healthProbeTimeoutMs: number | null;
@@ -166,7 +166,7 @@ export interface KernelCenterDashboard {
     platformLabel: string;
     runtimeVersion: string | null;
     nodeVersion: string | null;
-    configPath: string | null;
+    configFile: string | null;
     runtimeHomeDir: string | null;
     runtimeInstallDir: string | null;
   };
@@ -752,7 +752,7 @@ function mapDashboard(
       routeTests: info?.localAiProxy?.routeTests ?? [],
       messageCaptureEnabled: info?.localAiProxy?.messageCaptureEnabled ?? false,
       observabilityDbPath: info?.localAiProxy?.observabilityDbPath ?? null,
-      configPath: info?.localAiProxy?.configPath ?? null,
+      configFile: info?.localAiProxy?.configFile ?? null,
       snapshotPath: info?.localAiProxy?.snapshotPath ?? null,
       logPath: info?.localAiProxy?.logPath ?? null,
       lastError: info?.localAiProxy?.lastError ?? null,
@@ -765,9 +765,9 @@ function mapDashboard(
       profileCount: info?.storage.profiles.length ?? 0,
     },
     runtimeAuthority: {
-      configFilePath:
-        runtimeAuthority?.configFilePath
-        ?? openClawRuntime?.authority?.configFilePath
+      configFile:
+        runtimeAuthority?.configFile
+        ?? openClawRuntime?.authority?.configFile
         ?? null,
       ownedRuntimeRoots:
         runtimeAuthority?.ownedRuntimeRoots
@@ -847,11 +847,10 @@ function mapDashboard(
         ?? snapshot?.nodeVersion
         ?? kernelHost?.provenance.nodeVersion
         ?? null,
-      configPath:
-        activeRuntime?.configPath
-        ?? runtimeAuthority?.configPath
-        ?? openClawRuntime?.configPath
-        ?? kernelHost?.provenance.configPath
+      configFile:
+        activeRuntime?.configFile
+        ?? openClawRuntime?.configFile
+        ?? kernelHost?.provenance.configFile
         ?? null,
       runtimeHomeDir:
         activeRuntime?.runtimeHomeDir

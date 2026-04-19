@@ -53,7 +53,7 @@ await runTest(
           prefix: ' Bearer ',
         },
         proxy: {
-          mode: 'http',
+          mode: 'explicit-proxy',
           url: ' https://proxy.example.com ',
           tls: {
             ca: ' ca-cert ',
@@ -84,7 +84,7 @@ await runTest(
           prefix: 'Bearer',
         },
         proxy: {
-          mode: 'http',
+          mode: 'explicit-proxy',
           url: 'https://proxy.example.com',
           tls: {
             ca: 'ca-cert',
@@ -112,45 +112,59 @@ await runTest(
   'buildRemoteOpenClawProviderConfigPatch builds provider defaults and per-model streaming metadata',
   () => {
     assert.deepEqual(
-      providerConfigPatchModule?.buildRemoteOpenClawProviderConfigPatch(' openai ', {
-        endpoint: ' https://api.openai.example/v1 ',
-        apiKeySource: ' env:OPENAI_API_KEY ',
-        defaultModelId: ' gpt-5.4 ',
-        reasoningModelId: ' o4-mini ',
-        embeddingModelId: ' text-embedding-3-small ',
-        config: {
-          temperature: 0.3,
-          topP: 0.9,
-          maxTokens: 4096,
-          timeoutMs: 45000,
-          streaming: true,
-          request: {
-            headers: {
-              ' OpenAI-Organization ': ' org_live ',
+      providerConfigPatchModule?.buildRemoteOpenClawProviderConfigPatch(
+        {
+          models: {
+            providers: {
+              openai: {
+                baseUrl: 'https://api.openai.example/v1',
+                apiKey: '${OPENAI_API_KEY}',
+                models: [
+                  {
+                    id: 'gpt-5.4',
+                    name: 'GPT-5.4',
+                  },
+                  {
+                    id: 'o4-mini',
+                    name: 'o4-mini',
+                  },
+                  {
+                    id: 'text-embedding-3-small',
+                    name: 'text-embedding-3-small',
+                    role: 'embedding',
+                  },
+                ],
+              },
             },
           },
         },
-      }, [
+        ' openai ',
         {
-          id: 'gpt-5.4',
-          name: 'GPT-5.4',
+          endpoint: ' https://api.openai.example/v1 ',
+          apiKeySource: ' env:OPENAI_API_KEY ',
+          defaultModelId: ' gpt-5.4 ',
+          reasoningModelId: ' o4-mini ',
+          embeddingModelId: ' text-embedding-3-small ',
+          config: {
+            temperature: 0.3,
+            topP: 0.9,
+            maxTokens: 4096,
+            timeoutMs: 45000,
+            streaming: true,
+            request: {
+              headers: {
+                ' OpenAI-Organization ': ' org_live ',
+              },
+            },
+          },
         },
-        {
-          id: 'o4-mini',
-          name: 'o4-mini',
-        },
-        {
-          id: 'text-embedding-3-small',
-          name: 'text-embedding-3-small',
-          role: 'embedding',
-        },
-      ]),
+      ),
       {
         models: {
           providers: {
             openai: {
               baseUrl: 'https://api.openai.example/v1',
-              apiKey: 'env:OPENAI_API_KEY',
+              apiKey: '${OPENAI_API_KEY}',
               temperature: null,
               topP: null,
               maxTokens: null,

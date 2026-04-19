@@ -448,13 +448,13 @@ export function KernelCenter() {
     platformLabel: null,
     runtimeVersion: null,
     nodeVersion: null,
-    configPath: null,
+    configFile: null,
     runtimeHomeDir: null,
     runtimeInstallDir: null,
   };
   const installSourceLabel = translateInstallSource(t, provenance.installSource);
   const runtimeAuthority = dashboard?.runtimeAuthority ?? {
-    configFilePath: null,
+    configFile: null,
     ownedRuntimeRoots: [],
     supportsLoopbackHealthProbe: null,
     healthProbeTimeoutMs: null,
@@ -476,7 +476,7 @@ export function KernelCenter() {
     routeTests: [],
     messageCaptureEnabled: false,
     observabilityDbPath: null,
-    configPath: null,
+    configFile: null,
     snapshotPath: null,
     logPath: null,
     lastError: null,
@@ -1206,8 +1206,8 @@ export function KernelCenter() {
               emptyLabel={notAvailableLabel}
             />
             <ValueRow
-              label={t('settings.kernelCenter.fields.configPath')}
-              value={provenance.configPath || null}
+              label={t('settings.kernelCenter.fields.configFilePath')}
+              value={provenance.configFile || null}
               emptyLabel={notAvailableLabel}
               mono
             />
@@ -1231,7 +1231,7 @@ export function KernelCenter() {
             <div className="space-y-4">
               <ValueRow
                 label={t('settings.kernelCenter.fields.configFilePath')}
-                value={runtimeAuthority.configFilePath || null}
+                value={runtimeAuthority.configFile || null}
                 emptyLabel={notAvailableLabel}
                 mono
               />
@@ -1453,8 +1453,8 @@ export function KernelCenter() {
               mono
             />
             <ValueRow
-              label={t('settings.kernelCenter.fields.configPath')}
-              value={localAiProxy.configPath || null}
+              label={t('settings.kernelCenter.fields.configFilePath')}
+              value={localAiProxy.configFile || null}
               emptyLabel={notAvailableLabel}
               mono
             />

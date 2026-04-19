@@ -351,17 +351,21 @@ mod tests {
         assert_eq!(payload["activeRuntime"]["state"], "stopped");
         assert_eq!(payload["activeRuntime"]["health"], "degraded");
         assert!(normalize_path_suffix(
-            payload["activeRuntime"]["configPath"]
+            payload["activeRuntime"]["configFile"]
                 .as_str()
-                .expect("active runtime config path"),
+                .expect("active runtime config file"),
         )
         .ends_with("user-home/.openclaw/openclaw.json"));
         assert!(normalize_path_suffix(
-            payload["activeRuntime"]["authority"]["configFilePath"]
+            payload["activeRuntime"]["authority"]["configFile"]
                 .as_str()
-                .expect("active runtime config file path"),
+                .expect("active runtime config file"),
         )
         .ends_with("user-home/.openclaw/openclaw.json"));
+        assert!(
+            payload["activeRuntime"]["authority"]["configFilePath"].is_null(),
+            "active runtime authority should not publish legacy configFilePath",
+        );
         assert_eq!(payload["openClawRuntime"]["runtimeId"], "openclaw");
         assert_eq!(payload["openClawRuntime"]["lifecycle"], "inactive");
         assert!(normalize_path_suffix(
@@ -381,17 +385,21 @@ mod tests {
         )
         .ends_with("user-home/.openclaw/workspace"));
         assert!(normalize_path_suffix(
-            payload["openClawRuntime"]["configPath"]
+            payload["openClawRuntime"]["configFile"]
                 .as_str()
-                .expect("runtime config path"),
+                .expect("runtime config file"),
         )
         .ends_with("user-home/.openclaw/openclaw.json"));
         assert!(normalize_path_suffix(
-            payload["openClawRuntime"]["authority"]["configFilePath"]
+            payload["openClawRuntime"]["authority"]["configFile"]
                 .as_str()
-                .expect("authority config file path"),
+                .expect("authority config file"),
         )
         .ends_with("user-home/.openclaw/openclaw.json"));
+        assert!(
+            payload["openClawRuntime"]["authority"]["configFilePath"].is_null(),
+            "openclaw runtime authority should not publish legacy configFilePath",
+        );
         let owned_runtime_roots = payload["openClawRuntime"]["authority"]["ownedRuntimeRoots"]
             .as_array()
             .expect("authority owned runtime roots");

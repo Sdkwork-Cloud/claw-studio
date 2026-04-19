@@ -3,7 +3,7 @@ use crate::framework::{
         bundled_component_defaults, PackagedComponentDefinition, PackagedComponentKind,
         PackagedComponentStartupMode,
     },
-    paths::{AppPaths, OPENCLAW_KERNEL_ID},
+    paths::AppPaths,
     Result,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -519,15 +519,7 @@ pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
     for runtime_id in crate::framework::paths::supported_kernel_ids() {
         let runtime_id = *runtime_id;
         let kernel = paths.kernel_paths(runtime_id)?;
-        if runtime_id == OPENCLAW_KERNEL_ID && kernel.authority_file.exists() {
-            let authority =
-                crate::framework::services::openclaw_config_compat::read_openclaw_authority_state_file(
-                    &kernel.authority_file,
-                )?;
-            write_json_file(&kernel.authority_file, &authority)?;
-        } else {
-            write_json_if_missing(&kernel.authority_file, &KernelAuthorityState::default())?;
-        }
+        write_json_if_missing(&kernel.authority_file, &KernelAuthorityState::default())?;
         write_json_if_missing(&kernel.migrations_file, &KernelMigrationState::default())?;
         write_json_if_missing(
             &kernel.runtime_upgrades_file,

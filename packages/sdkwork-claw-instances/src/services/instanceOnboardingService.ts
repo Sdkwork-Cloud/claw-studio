@@ -11,7 +11,12 @@ import {
   type StudioInstanceRecord,
   type StudioUpdateInstanceInput,
 } from '@sdkwork/claw-infrastructure';
-import { openClawConfigService, type OpenClawConfigPathInput } from '@sdkwork/claw-core';
+import {
+  kernelConfigDiscoveryService,
+  openClawConfigService,
+  resolveOpenClawStateRootFromConfigFile,
+  type ListKernelInstallConfigPathCandidatesInput,
+} from '@sdkwork/claw-core';
 
 export interface OpenClawAssociationSnapshot {
   root: Record<string, unknown>;
@@ -27,7 +32,7 @@ export interface DiscoveredInstalledOpenClawInstall {
   runtimePlatform: 'host' | 'wsl';
   installControlLevel: InstallAssessmentResult['installControlLevel'];
   installStatus: NonNullable<InstallAssessmentResult['installStatus']>;
-  configPath: string | null;
+  configFile: string | null;
   installRoot: string | null;
   workRoot: string | null;
   dataRoot: string | null;
@@ -42,8 +47,8 @@ export interface AssociateInstalledOpenClawInstallInput {
   request: InstallRequest;
 }
 
-export interface AssociateOpenClawConfigPathInput {
-  configPath: string;
+export interface AssociateOpenClawConfigFileInput {
+  configFile: string;
   installationMethodId?: string | null;
   installationMethodLabel?: string | null;
   installRoot?: string | null;
@@ -54,7 +59,7 @@ export interface AssociateOpenClawConfigPathInput {
 export interface OpenClawAssociationResult {
   mode: 'created' | 'updated';
   instance: StudioInstanceRecord;
-  configPath: string;
+  configFile: string;
 }
 
 export interface CreateRemoteOpenClawInstanceInput {
@@ -79,9 +84,11 @@ interface InstanceOnboardingDependencies {
     createInstance(input: StudioCreateInstanceInput): Promise<StudioInstanceRecord>;
     updateInstance(id: string, input: StudioUpdateInstanceInput): Promise<StudioInstanceRecord>;
   };
-  openClawConfigApi: {
-    resolveInstallConfigPath(input: OpenClawConfigPathInput): Promise<string | null>;
-    readAssociationSnapshot(configPath: string): Promise<OpenClawAssociationSnapshot>;
+  kernelConfigApi: {
+    resolveInstallConfigPath(input: ListKernelInstallConfigPathCandidatesInput): Promise<string | null>;
+  };
+  openClawAssociationApi: {
+    readAssociationSnapshot(configFile: string): Promise<OpenClawAssociationSnapshot>;
   };
 }
 
@@ -89,7 +96,8 @@ export interface InstanceOnboardingDependencyOverrides {
   runtimeApi?: Partial<InstanceOnboardingDependencies['runtimeApi']>;
   installerApi?: Partial<InstanceOnboardingDependencies['installerApi']>;
   studioApi?: Partial<InstanceOnboardingDependencies['studioApi']>;
-  openClawConfigApi?: Partial<InstanceOnboardingDependencies['openClawConfigApi']>;
+  kernelConfigApi?: Partial<InstanceOnboardingDependencies['kernelConfigApi']>;
+  openClawAssociationApi?: Partial<InstanceOnboardingDependencies['openClawAssociationApi']>;
 }
 
 function createDefaultDependencies(): InstanceOnboardingDependencies {
@@ -106,10 +114,13 @@ function createDefaultDependencies(): InstanceOnboardingDependencies {
       createInstance: (input) => studio.createInstance(input),
       updateInstance: (id, input) => studio.updateInstance(id, input),
     },
-    openClawConfigApi: {
-      resolveInstallConfigPath: (input) => openClawConfigService.resolveInstallConfigPath(input),
-      readAssociationSnapshot: async (configPath) => {
-        const snapshot = await openClawConfigService.readConfigSnapshot(configPath);
+    kernelConfigApi: {
+      resolveInstallConfigPath: (input) =>
+        kernelConfigDiscoveryService.resolveInstallConfigPath(input),
+    },
+    openClawAssociationApi: {
+      readAssociationSnapshot: async (configFile) => {
+        const snapshot = await openClawConfigService.readConfigSnapshot(configFile);
         const defaultAgent =
           snapshot.agentSnapshots.find((agent) => agent.isDefault) ||
           snapshot.agentSnapshots[0] ||
@@ -204,32 +215,19 @@ function resolveSyncedOpenClawAuthToken(input: {
   return normalizeNullableString(input.existingAuthToken);
 }
 
-function resolveStateRootFromConfigPath(configPath: string) {
-  const normalized = normalizePath(configPath) || configPath;
-  if (normalized.endsWith('/.openclaw/openclaw.json')) {
-    return normalized.slice(0, -'/openclaw.json'.length);
-  }
-  if (normalized.endsWith('/config/openclaw.json')) {
-    return normalized.slice(0, -'/config/openclaw.json'.length);
-  }
-
-  const lastSlashIndex = normalized.lastIndexOf('/');
-  return lastSlashIndex >= 0 ? normalized.slice(0, lastSlashIndex) : normalized;
-}
-
 function resolveWorkspacePath(input: {
   snapshot: OpenClawAssociationSnapshot;
   workRoot?: string | null;
   dataRoot?: string | null;
   installRoot?: string | null;
-  configPath: string;
+  configFile: string;
 }) {
   return (
     normalizePath(input.snapshot.defaultWorkspacePath) ||
     normalizePath(input.workRoot) ||
     normalizePath(input.dataRoot) ||
     normalizePath(input.installRoot) ||
-    normalizePath(resolveStateRootFromConfigPath(input.configPath))
+    normalizePath(resolveOpenClawStateRootFromConfigFile(input.configFile))
   );
 }
 
@@ -308,6 +306,20 @@ function resolveHomeRoots(runtimeInfo: RuntimeInfo, assessment: InstallAssessmen
   }
 
   return [...homeRoots];
+}
+
+function buildInstalledKernelConfigLookupInput(input: {
+  kernelId: string;
+  runtimeInfo: RuntimeInfo;
+  assessment: InstallAssessmentResult;
+}): ListKernelInstallConfigPathCandidatesInput {
+  return {
+    kernelId: input.kernelId,
+    installRoot: input.assessment.resolvedInstallRoot,
+    workRoot: input.assessment.resolvedWorkRoot,
+    dataRoot: input.assessment.resolvedDataRoot,
+    homeRoots: resolveHomeRoots(input.runtimeInfo, input.assessment),
+  };
 }
 
 function buildLocalExternalInstanceCreateInput(input: {
@@ -410,14 +422,15 @@ class InstanceOnboardingService {
           return null;
         }
 
-        const configPath = await this.dependencies.openClawConfigApi.resolveInstallConfigPath({
-          installRoot: assessment.resolvedInstallRoot,
-          workRoot: assessment.resolvedWorkRoot,
-          dataRoot: assessment.resolvedDataRoot,
-          homeRoots: resolveHomeRoots(runtimeInfo, assessment),
-        });
+        const configFile = await this.dependencies.kernelConfigApi.resolveInstallConfigPath(
+          buildInstalledKernelConfigLookupInput({
+            kernelId: 'openclaw',
+            runtimeInfo,
+            assessment,
+          }),
+        );
 
-        if (!configPath) {
+        if (!configFile) {
           return {
             id: variant.id,
             label: variant.label,
@@ -427,7 +440,7 @@ class InstanceOnboardingService {
             runtimePlatform: variant.runtimePlatform,
             installControlLevel: assessment.installControlLevel,
             installStatus: 'installed' as const,
-            configPath: null,
+            configFile: null,
             installRoot: normalizePath(assessment.resolvedInstallRoot),
             workRoot: normalizePath(assessment.resolvedWorkRoot),
             dataRoot: normalizePath(assessment.resolvedDataRoot),
@@ -439,14 +452,16 @@ class InstanceOnboardingService {
           };
         }
 
-        const snapshot = await this.dependencies.openClawConfigApi.readAssociationSnapshot(configPath);
+        const snapshot = await this.dependencies.openClawAssociationApi.readAssociationSnapshot(
+          configFile,
+        );
         const gateway = buildGatewayUrls(snapshot.root);
         const workspacePath = resolveWorkspacePath({
           snapshot,
           workRoot: assessment.resolvedWorkRoot,
           dataRoot: assessment.resolvedDataRoot,
           installRoot: assessment.resolvedInstallRoot,
-          configPath,
+          configFile,
         });
         const existing = findMatchingLocalExternalInstance(instances, {
           workspacePath,
@@ -463,7 +478,7 @@ class InstanceOnboardingService {
           runtimePlatform: variant.runtimePlatform,
           installControlLevel: assessment.installControlLevel,
           installStatus: 'installed' as const,
-          configPath: normalizePath(configPath),
+          configFile: normalizePath(configFile),
           installRoot: normalizePath(assessment.resolvedInstallRoot),
           workRoot: normalizePath(assessment.resolvedWorkRoot),
           dataRoot: normalizePath(assessment.resolvedDataRoot),
@@ -484,19 +499,20 @@ class InstanceOnboardingService {
   ): Promise<OpenClawAssociationResult> {
     const runtimeInfo = await this.dependencies.runtimeApi.getRuntimeInfo();
     const assessment = await this.dependencies.installerApi.inspectInstall(input.request);
-    const configPath = await this.dependencies.openClawConfigApi.resolveInstallConfigPath({
-      installRoot: assessment.resolvedInstallRoot,
-      workRoot: assessment.resolvedWorkRoot,
-      dataRoot: assessment.resolvedDataRoot,
-      homeRoots: resolveHomeRoots(runtimeInfo, assessment),
-    });
+    const configFile = await this.dependencies.kernelConfigApi.resolveInstallConfigPath(
+      buildInstalledKernelConfigLookupInput({
+        kernelId: 'openclaw',
+        runtimeInfo,
+        assessment,
+      }),
+    );
 
-    if (!configPath) {
+    if (!configFile) {
       throw new Error('Unable to locate the installed OpenClaw config file.');
     }
 
-    return this.associateOpenClawConfigPath({
-      configPath,
+    return this.associateOpenClawConfigFile({
+      configFile,
       installationMethodId: assessment.installation?.method.id ?? null,
       installationMethodLabel: assessment.installation?.method.label ?? null,
       installRoot: assessment.resolvedInstallRoot,
@@ -505,22 +521,24 @@ class InstanceOnboardingService {
     });
   }
 
-  async associateOpenClawConfigPath(
-    input: AssociateOpenClawConfigPathInput,
+  async associateOpenClawConfigFile(
+    input: AssociateOpenClawConfigFileInput,
   ): Promise<OpenClawAssociationResult> {
-    const configPath = normalizePath(input.configPath);
-    if (!configPath) {
-      throw new Error('OpenClaw config path is required.');
+    const configFile = normalizePath(input.configFile);
+    if (!configFile) {
+      throw new Error('OpenClaw config file is required.');
     }
 
-    const snapshot = await this.dependencies.openClawConfigApi.readAssociationSnapshot(configPath);
+    const snapshot = await this.dependencies.openClawAssociationApi.readAssociationSnapshot(
+      configFile,
+    );
     const gateway = buildGatewayUrls(snapshot.root);
     const workspacePath = resolveWorkspacePath({
       snapshot,
       workRoot: input.workRoot,
       dataRoot: input.dataRoot,
       installRoot: input.installRoot,
-      configPath,
+      configFile,
     });
     const instances = await this.dependencies.studioApi.listInstances();
     const existing = findMatchingLocalExternalInstance(instances, {
@@ -548,7 +566,7 @@ class InstanceOnboardingService {
       return {
         mode: 'updated',
         instance: updated,
-        configPath,
+        configFile,
       };
     }
 
@@ -565,7 +583,7 @@ class InstanceOnboardingService {
     return {
       mode: 'created',
       instance: created,
-      configPath,
+      configFile,
     };
   }
 
@@ -638,9 +656,13 @@ export function createInstanceOnboardingService(
       ...defaults.studioApi,
       ...(overrides.studioApi || {}),
     },
-    openClawConfigApi: {
-      ...defaults.openClawConfigApi,
-      ...(overrides.openClawConfigApi || {}),
+    kernelConfigApi: {
+      ...defaults.kernelConfigApi,
+      ...(overrides.kernelConfigApi || {}),
+    },
+    openClawAssociationApi: {
+      ...defaults.openClawAssociationApi,
+      ...(overrides.openClawAssociationApi || {}),
     },
   });
 }

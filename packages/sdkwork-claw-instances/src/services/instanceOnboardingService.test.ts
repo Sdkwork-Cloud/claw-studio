@@ -279,12 +279,19 @@ await runTest('discoverInstalledOpenClawInstalls returns installed variants with
         throw new Error('updateInstance should not run during discovery');
       },
     },
-    openClawConfigApi: {
+    kernelConfigApi: {
       resolveInstallConfigPath: async (input) => {
-        assert.equal(input.workRoot, 'D:/OpenClaw/openclaw-pnpm/work');
-        assert.deepEqual(input.homeRoots, ['D:/Users/admin']);
+        assert.deepEqual(input, {
+          kernelId: 'openclaw',
+          installRoot: 'D:/OpenClaw/openclaw-pnpm/install',
+          workRoot: 'D:/OpenClaw/openclaw-pnpm/work',
+          dataRoot: 'D:/OpenClaw/openclaw-pnpm/data',
+          homeRoots: ['D:/Users/admin'],
+        });
         return 'D:/Users/admin/.openclaw/openclaw.json';
       },
+    },
+    openClawAssociationApi: {
       readAssociationSnapshot: async () => ({
         root: {
           gateway: {
@@ -311,7 +318,7 @@ await runTest('discoverInstalledOpenClawInstalls returns installed variants with
     runtimePlatform: 'host',
     installControlLevel: 'partial',
     installStatus: 'installed',
-    configPath: 'D:/Users/admin/.openclaw/openclaw.json',
+    configFile: 'D:/Users/admin/.openclaw/openclaw.json',
     installRoot: 'D:/OpenClaw/openclaw-pnpm/install',
     workRoot: 'D:/OpenClaw/openclaw-pnpm/work',
     dataRoot: 'D:/OpenClaw/openclaw-pnpm/data',
@@ -321,6 +328,7 @@ await runTest('discoverInstalledOpenClawInstalls returns installed variants with
     associatedInstanceId: 'instance-associated',
     associationStatus: 'associated',
   });
+  assert.equal('configPath' in (installs[0] || {}), false);
 });
 
 await runTest(
@@ -352,8 +360,10 @@ await runTest(
           throw new Error('updateInstance should not run during discovery');
         },
       },
-      openClawConfigApi: {
+      kernelConfigApi: {
         resolveInstallConfigPath: async () => 'D:/Users/admin/.openclaw/openclaw.json',
+      },
+      openClawAssociationApi: {
         readAssociationSnapshot: async () => ({
           root: {
             gateway: {
@@ -414,8 +424,10 @@ await runTest('discoverInstalledOpenClawInstalls keeps installs visible when the
         throw new Error('updateInstance should not run during discovery');
       },
     },
-    openClawConfigApi: {
+    kernelConfigApi: {
       resolveInstallConfigPath: async () => null,
+    },
+    openClawAssociationApi: {
       readAssociationSnapshot: async () => {
         throw new Error('readAssociationSnapshot should not run when config is missing');
       },
@@ -426,8 +438,9 @@ await runTest('discoverInstalledOpenClawInstalls keeps installs visible when the
 
   assert.equal(installs.length, 1);
   assert.equal(installs[0]?.associationStatus, 'configMissing');
-  assert.equal(installs[0]?.configPath, null);
+  assert.equal(installs[0]?.configFile, null);
   assert.equal(installs[0]?.methodId, 'docker');
+  assert.equal('configPath' in (installs[0] || {}), false);
 });
 
 await runTest('associateInstalledOpenClawInstall updates an existing matching local-external instance instead of duplicating it', async () => {
@@ -463,8 +476,10 @@ await runTest('associateInstalledOpenClawInstall updates an existing matching lo
         });
       },
     },
-    openClawConfigApi: {
+    kernelConfigApi: {
       resolveInstallConfigPath: async () => 'D:/Users/admin/.openclaw/openclaw.json',
+    },
+    openClawAssociationApi: {
       readAssociationSnapshot: async () => ({
         root: {
           gateway: {
@@ -485,7 +500,8 @@ await runTest('associateInstalledOpenClawInstall updates an existing matching lo
 
   assert.equal(result.instance.id, 'existing-openclaw');
   assert.equal(result.mode, 'updated');
-  assert.equal(result.configPath, 'D:/Users/admin/.openclaw/openclaw.json');
+  assert.equal(result.configFile, 'D:/Users/admin/.openclaw/openclaw.json');
+  assert.equal('configPath' in result, false);
   assert.equal(creates.length, 0);
   assert.equal(updates.length, 1);
   assert.equal(updates[0]?.id, 'existing-openclaw');
@@ -504,7 +520,7 @@ await runTest('associateInstalledOpenClawInstall updates an existing matching lo
   });
 });
 
-await runTest('associateOpenClawConfigPath creates a local-external instance from a manually selected config file', async () => {
+await runTest('associateOpenClawConfigFile creates a local-external instance from a manually selected config file', async () => {
   const creates: StudioCreateInstanceInput[] = [];
   const service = createInstanceOnboardingService({
     runtimeApi: {
@@ -547,10 +563,9 @@ await runTest('associateOpenClawConfigPath creates a local-external instance fro
         throw new Error('updateInstance should not run when no match exists');
       },
     },
-    openClawConfigApi: {
-      resolveInstallConfigPath: async () => null,
-      readAssociationSnapshot: async (configPath) => {
-        assert.equal(configPath, '/opt/openclaw/.openclaw/openclaw.json');
+    openClawAssociationApi: {
+      readAssociationSnapshot: async (configFile) => {
+        assert.equal(configFile, '/opt/openclaw/.openclaw/openclaw.json');
         return {
           root: {
             gateway: {
@@ -566,8 +581,8 @@ await runTest('associateOpenClawConfigPath creates a local-external instance fro
     },
   });
 
-  const result = await service.associateOpenClawConfigPath({
-    configPath: '/opt/openclaw/.openclaw/openclaw.json',
+  const result = await service.associateOpenClawConfigFile({
+    configFile: '/opt/openclaw/.openclaw/openclaw.json',
     installationMethodId: 'docker',
     installationMethodLabel: 'Docker Compose',
   });
@@ -580,10 +595,12 @@ await runTest('associateOpenClawConfigPath creates a local-external instance fro
   assert.equal(creates[0]?.websocketUrl, 'ws://127.0.0.1:29876');
   assert.equal(creates[0]?.config?.workspacePath, '/srv/openclaw/workspace');
   assert.equal(creates[0]?.config?.authToken, 'docker-token');
+  assert.equal(result.configFile, '/opt/openclaw/.openclaw/openclaw.json');
+  assert.equal('configPath' in result, false);
 });
 
 await runTest(
-  'associateOpenClawConfigPath projects the configured control-ui base path into websocket metadata',
+  'associateOpenClawConfigFile projects the configured control-ui base path into websocket metadata',
   async () => {
     const creates: StudioCreateInstanceInput[] = [];
     const service = createInstanceOnboardingService({
@@ -615,8 +632,7 @@ await runTest(
           throw new Error('updateInstance should not run when no match exists');
         },
       },
-      openClawConfigApi: {
-        resolveInstallConfigPath: async () => null,
+      openClawAssociationApi: {
         readAssociationSnapshot: async () => ({
           root: {
             gateway: {
@@ -634,13 +650,14 @@ await runTest(
       },
     });
 
-    const result = await service.associateOpenClawConfigPath({
-      configPath: '/opt/openclaw/.openclaw/openclaw.json',
+    const result = await service.associateOpenClawConfigFile({
+      configFile: '/opt/openclaw/.openclaw/openclaw.json',
       installationMethodId: 'docker',
       installationMethodLabel: 'Docker Compose',
     });
 
     assert.equal(result.mode, 'created');
+    assert.equal(result.configFile, '/opt/openclaw/.openclaw/openclaw.json');
     assert.equal(creates.length, 1);
     assert.equal(creates[0]?.baseUrl, 'http://127.0.0.1:29876');
     assert.equal(creates[0]?.websocketUrl, 'ws://127.0.0.1:29876/openclaw');
@@ -678,13 +695,6 @@ await runTest('createRemoteOpenClawInstance maps a polished remote gateway form 
       updateInstance: async () => {
         throw new Error('updateInstance should not run for new remote instances');
       },
-    },
-    openClawConfigApi: {
-      resolveInstallConfigPath: async () => null,
-      readAssociationSnapshot: async () => ({
-        root: {},
-        defaultWorkspacePath: null,
-      }),
     },
   });
 

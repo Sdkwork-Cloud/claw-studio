@@ -404,7 +404,7 @@ class ChannelService implements IChannelService {
     if (configFilePath) {
       try {
         await openClawConfigService.setChannelEnabled({
-          configPath: configFilePath,
+          configFile: configFilePath,
           channelId,
           enabled,
         });
@@ -438,7 +438,7 @@ class ChannelService implements IChannelService {
     if (configFilePath) {
       try {
         await openClawConfigService.saveChannelConfiguration({
-          configPath: configFilePath,
+          configFile: configFilePath,
           channelId,
           values: configData,
           enabled: true,
@@ -469,7 +469,7 @@ class ChannelService implements IChannelService {
     if (configFilePath) {
       try {
         await openClawConfigService.saveChannelConfiguration({
-          configPath: configFilePath,
+          configFile: configFilePath,
           channelId,
           values: {},
           enabled: false,

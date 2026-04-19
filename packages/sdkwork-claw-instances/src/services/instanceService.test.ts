@@ -863,7 +863,7 @@ await runTest(
             },
           }),
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         readConfigDocument: async (configPath: string) => {
           calls.push(configPath);
           return '{\n  "agents": {}\n}\n';
@@ -912,7 +912,7 @@ await runTest(
             },
           }),
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         getConfigDocumentPathInfo: async (configPath: string) => ({
           path: configPath,
           name: 'openclaw.json',
@@ -924,7 +924,7 @@ await runTest(
         }),
         readConfigDocument: async () => {
           throw new Error(
-            'filesystem.readTextFile failed for read_text_file: io error: 系统找不到指定的文件。 (os error 2)',
+            'filesystem.readTextFile failed for read_text_file: io error: 绯荤粺鎵句笉鍒版寚瀹氱殑鏂囦欢銆?(os error 2)',
           );
         },
       },
@@ -991,7 +991,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         readConfigDocument: async (configPath: string) => {
           fileCalls.push(configPath);
           throw new Error('platform file read should not be used when gateway is ready');
@@ -1053,7 +1053,7 @@ await runTest(
             ],
           }),
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         readConfigDocument: async (configPath: string) => {
           calls.push(configPath);
           return '{}';
@@ -1104,7 +1104,7 @@ await runTest(
             },
           }),
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         writeConfigDocument: async (configPath: string, raw: string) => {
           calls.push([configPath, raw]);
         },
@@ -1188,7 +1188,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         writeConfigDocument: async (configPath: string, raw: string) => {
           fileCalls.push([configPath, raw]);
           throw new Error('platform file write should not be used when gateway is ready');
@@ -1230,7 +1230,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         saveAgent: async () => {
           fileCalls.push('saveAgent');
           throw new Error('platform config save should not be used when gateway is ready');
@@ -1263,6 +1263,57 @@ await runTest(
         ],
       },
     });
+  },
+);
+
+await runTest(
+  'createOpenClawAgent writes through the local config file service with configFile when the gateway is unavailable',
+  async () => {
+    const saveCalls: Array<{ configFile: string; agent: Record<string, unknown> }> = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createConfigBackedOpenClawDetail('managed-openclaw', {
+            instance: {
+              ...createConfigBackedOpenClawDetail('managed-openclaw').instance,
+              status: 'offline',
+            },
+          }),
+      },
+      openClawGatewayClient: {
+        getConfig: async () => {
+          throw new Error('gateway should not be used while offline');
+        },
+      },
+      openClawConfigDocumentApi: {
+        saveAgent: async (input) => {
+          saveCalls.push(input as any);
+          return null;
+        },
+      },
+    });
+
+    await service.createOpenClawAgent('managed-openclaw', {
+      id: 'ops',
+      name: 'Ops Agent',
+      workspace: './workspace/ops',
+      agentDir: 'agents/ops/agent',
+      isDefault: true,
+    });
+
+    assert.deepEqual(saveCalls, [
+      {
+        configFile: 'D:/OpenClaw/managed-openclaw/.openclaw/openclaw.json',
+        agent: {
+          id: 'ops',
+          name: 'Ops Agent',
+          workspace: './workspace/ops',
+          agentDir: 'agents/ops/agent',
+          isDefault: true,
+        },
+      },
+    ]);
+    assert.equal('configPath' in (saveCalls[0] || {}), false);
   },
 );
 
@@ -1306,7 +1357,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         deleteAgent: async () => {
           fileCalls.push('deleteAgent');
           throw new Error('platform config delete should not be used when gateway is ready');
@@ -1331,6 +1382,45 @@ await runTest(
         ],
       },
     });
+  },
+);
+
+await runTest(
+  'deleteOpenClawAgent writes through the local config file service with configFile when the gateway is unavailable',
+  async () => {
+    const deleteCalls: Array<{ configFile: string; agentId: string }> = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createConfigBackedOpenClawDetail('managed-openclaw', {
+            instance: {
+              ...createConfigBackedOpenClawDetail('managed-openclaw').instance,
+              status: 'offline',
+            },
+          }),
+      },
+      openClawGatewayClient: {
+        getConfig: async () => {
+          throw new Error('gateway should not be used while offline');
+        },
+      },
+      openClawConfigDocumentApi: {
+        deleteAgent: async (input) => {
+          deleteCalls.push(input as any);
+          return [];
+        },
+      },
+    });
+
+    await service.deleteOpenClawAgent('managed-openclaw', 'ops');
+
+    assert.deepEqual(deleteCalls, [
+      {
+        configFile: 'D:/OpenClaw/managed-openclaw/.openclaw/openclaw.json',
+        agentId: 'ops',
+      },
+    ]);
+    assert.equal('configPath' in (deleteCalls[0] || {}), false);
   },
 );
 
@@ -1360,7 +1450,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         saveChannelConfiguration: async () => {
           fileCalls.push('saveChannelConfiguration');
           throw new Error('platform channel save should not be used when gateway is ready');
@@ -1415,7 +1505,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         saveWebSearchConfiguration: async () => {
           fileCalls.push('saveWebSearchConfiguration');
           throw new Error('platform web search save should not be used when gateway is ready');
@@ -1510,7 +1600,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         saveWebFetchConfiguration: async () => {
           fileCalls.push('saveWebFetchConfiguration');
           throw new Error('platform web fetch save should not be used when gateway is ready');
@@ -1620,7 +1710,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         saveXSearchConfiguration: async () => {
           fileCalls.push('saveXSearchConfiguration');
           throw new Error('platform x_search save should not be used when gateway is ready');
@@ -1709,7 +1799,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         saveWebSearchNativeCodexConfiguration: async () => {
           fileCalls.push('saveWebSearchNativeCodexConfiguration');
           throw new Error('platform native codex search save should not be used when gateway is ready');
@@ -1794,7 +1884,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         saveAuthCooldownsConfiguration: async () => {
           fileCalls.push('saveAuthCooldownsConfiguration');
           throw new Error('platform auth cooldown save should not be used when gateway is ready');
@@ -1870,7 +1960,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         saveDreamingConfiguration: async () => {
           fileCalls.push('saveDreamingConfiguration');
           throw new Error('platform dreaming save should not be used when gateway is ready');
@@ -1942,7 +2032,7 @@ await runTest(
           };
         },
       },
-      openClawConfigService: {
+      openClawConfigDocumentApi: {
         setChannelEnabled: async () => {
           fileCalls.push('setChannelEnabled');
           throw new Error('platform channel toggle should not be used when gateway is ready');
@@ -2659,7 +2749,7 @@ await runTest('updateInstanceLlmProviderConfig patches remote OpenClaw provider 
             {
               id: 'old-default',
               name: 'old-default',
-              role: 'primary',
+              role: 'fallback',
             },
             {
               id: 'old-embedding',
@@ -2854,6 +2944,211 @@ await runTest(
                 timeoutMs: 90000,
                 streaming: true,
               },
+            },
+          },
+        },
+      },
+    });
+  },
+);
+
+await runTest(
+  'saveOpenClawChannelConfig writes through the local config file service with configFile when the gateway is unavailable',
+  async () => {
+    const saveCalls: Array<{
+      configFile: string;
+      channelId: string;
+      values: Record<string, string>;
+      enabled: boolean;
+    }> = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createConfigBackedOpenClawDetail('managed-openclaw', {
+            instance: {
+              ...createConfigBackedOpenClawDetail('managed-openclaw').instance,
+              status: 'offline',
+            },
+          }),
+      },
+      openClawGatewayClient: {
+        getConfig: async () => {
+          throw new Error('gateway should not be used while offline');
+        },
+      },
+      openClawConfigDocumentApi: {
+        saveChannelConfiguration: async (input) => {
+          saveCalls.push(input as any);
+          return null;
+        },
+      },
+    });
+
+    await service.saveOpenClawChannelConfig('managed-openclaw', 'qq', {
+      botKey: 'qq-bot-key',
+      groupId: '123456',
+    });
+
+    assert.deepEqual(saveCalls, [
+      {
+        configFile: 'D:/OpenClaw/managed-openclaw/.openclaw/openclaw.json',
+        channelId: 'qq',
+        values: {
+          botKey: 'qq-bot-key',
+          groupId: '123456',
+        },
+        enabled: true,
+      },
+    ]);
+    assert.equal('configPath' in (saveCalls[0] || {}), false);
+  },
+);
+
+await runTest(
+  'updateInstanceLlmProviderConfig normalizes legacy remote OpenClaw provider ids through the shared snapshot authority before patching',
+  async () => {
+    const patches: Array<{ instanceId: string; args: { raw: string; baseHash?: string } }> = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () => createOpenClawDetail('remote-openclaw-legacy-provider'),
+      },
+      openClawGatewayClient: {
+        getConfig: async () => ({
+          baseHash: 'hash-legacy-provider',
+          config: {
+            models: {
+              providers: {
+                'api-router-openai': {
+                  baseUrl: 'https://legacy-router.example.com/v1',
+                  apiKey: '${LEGACY_OPENAI_KEY}',
+                  models: [
+                    {
+                      id: 'gpt-4.1',
+                      name: 'GPT-4.1',
+                      role: 'primary',
+                    },
+                    {
+                      id: 'legacy-fallback',
+                      name: 'Legacy Fallback',
+                      role: 'fallback',
+                    },
+                  ],
+                },
+              },
+            },
+            agents: {
+              defaults: {
+                model: {
+                  primary: 'api-router-openai/gpt-4.1',
+                },
+                models: {
+                  'api-router-openai/gpt-4.1': {
+                    alias: 'GPT-4.1',
+                    streaming: true,
+                    params: {
+                      temperature: 0.2,
+                      topP: 1,
+                      maxTokens: 4096,
+                      timeoutMs: 60000,
+                      streaming: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
+        patchConfig: async (instanceId, args) => {
+          patches.push({ instanceId, args });
+          return {
+            ok: true,
+          };
+        },
+      },
+    });
+
+    await service.updateInstanceLlmProviderConfig('remote-openclaw-legacy-provider', 'openai', {
+      endpoint: ' https://api.openai.com/v1 ',
+      apiKeySource: ' ${OPENAI_API_KEY} ',
+      defaultModelId: ' gpt-5.4 ',
+      reasoningModelId: ' o4-mini ',
+      embeddingModelId: undefined,
+      config: {
+        temperature: 0.3,
+        topP: 0.95,
+        maxTokens: 12000,
+        timeoutMs: 120000,
+        streaming: true,
+      },
+    });
+
+    assert.equal(patches.length, 1);
+    assert.deepEqual(JSON.parse(patches[0]!.args.raw), {
+      models: {
+        providers: {
+          openai: {
+            baseUrl: 'https://api.openai.com/v1',
+            apiKey: '${OPENAI_API_KEY}',
+            temperature: null,
+            topP: null,
+            maxTokens: null,
+            timeoutMs: null,
+            streaming: null,
+            request: null,
+            models: [
+              {
+                id: 'gpt-5.4',
+                name: 'gpt-5.4',
+                role: 'primary',
+              },
+              {
+                id: 'o4-mini',
+                name: 'o4-mini',
+                role: 'reasoning',
+              },
+              {
+                id: 'gpt-4.1',
+                name: 'GPT-4.1',
+                role: 'fallback',
+              },
+              {
+                id: 'legacy-fallback',
+                name: 'Legacy Fallback',
+                role: 'fallback',
+              },
+            ],
+          },
+        },
+      },
+      agents: {
+        defaults: {
+          model: {
+            primary: 'openai/gpt-5.4',
+            fallbacks: ['openai/o4-mini'],
+          },
+          models: {
+            'openai/gpt-5.4': {
+              alias: 'gpt-5.4',
+              streaming: true,
+              params: {
+                temperature: 0.3,
+                topP: 0.95,
+                maxTokens: 12000,
+                timeoutMs: 120000,
+                streaming: true,
+              },
+            },
+            'openai/o4-mini': {
+              alias: 'o4-mini',
+              streaming: true,
+            },
+            'openai/gpt-4.1': {
+              alias: 'GPT-4.1',
+              streaming: true,
+            },
+            'openai/legacy-fallback': {
+              alias: 'Legacy Fallback',
+              streaming: true,
             },
           },
         },
@@ -3113,7 +3408,7 @@ await runTest('updateInstanceLlmProviderConfig rejects config-backed OpenClaw pr
   await assert.rejects(
     () =>
       service.updateInstanceLlmProviderConfig('managed-openclaw', 'sdkwork-local-proxy', {
-        endpoint: 'http://localhost:18791/v1',
+        endpoint: 'http://localhost:21280/v1',
         apiKeySource: 'sk_sdkwork_api_key',
         defaultModelId: 'sdkwork-chat',
         reasoningModelId: 'sdkwork-reasoning',

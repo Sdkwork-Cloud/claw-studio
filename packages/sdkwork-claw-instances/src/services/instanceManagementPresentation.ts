@@ -6,7 +6,7 @@ import {
   type BundledOpenClawStartupAlert,
   type BundledOpenClawStartupAlertDiagnostic,
 } from './bundledOpenClawStartupAlert.ts';
-import { resolveFallbackInstanceConfigPath } from './openClawConfigPathFallback.ts';
+import { resolveAttachedKernelConfigFile } from '@sdkwork/claw-core';
 
 export type InstanceManagementEntryTone = 'neutral' | 'success' | 'warning';
 
@@ -97,7 +97,7 @@ function buildKernelConfigEntry(
   const configRoute = resolveKernelConfigRoute(workbench);
   if (configRoute?.target) {
     const kernelConfigPath =
-      resolveFallbackInstanceConfigPath(workbench.detail) || configRoute.target;
+      resolveAttachedKernelConfigFile(workbench.detail) || configRoute.target;
 
     return {
       id: 'kernelConfig',

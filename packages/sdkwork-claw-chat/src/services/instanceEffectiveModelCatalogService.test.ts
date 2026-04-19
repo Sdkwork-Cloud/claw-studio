@@ -59,7 +59,7 @@ await runTest(
           },
         ];
       },
-      resolveOpenClawConfigPath: () => null,
+      resolveAttachedKernelConfigFile: () => null,
       readOpenClawConfigSnapshot: async () => {
         throw new Error('should not read OpenClaw config for unsupported routes');
       },
@@ -151,7 +151,7 @@ await runTest(
           },
         ];
       },
-      resolveOpenClawConfigPath: () => null,
+      resolveAttachedKernelConfigFile: () => null,
       readOpenClawConfigSnapshot: async () => {
         throw new Error('should not read OpenClaw config while authoritative detail says the runtime is still starting');
       },
@@ -270,11 +270,11 @@ await runTest(
           streaming: true,
         },
       ],
-      resolveOpenClawConfigPath: (detail) =>
+      resolveAttachedKernelConfigFile: (detail) =>
         detail?.dataAccess?.routes?.[0]?.target ?? null,
       readOpenClawConfigSnapshot: async () =>
         ({
-          configPath: 'C:/openclaw/openclaw.json',
+          configFile: 'C:/openclaw/openclaw.json',
           providerSnapshots: [
             {
               id: 'api-router-openai',
@@ -393,7 +393,7 @@ await runTest(
           streaming: true,
         },
       ],
-      resolveOpenClawConfigPath: () => null,
+      resolveAttachedKernelConfigFile: () => null,
       readOpenClawConfigSnapshot: async () => {
         throw new Error('should not read OpenClaw config for non-OpenClaw instances');
       },
@@ -421,7 +421,68 @@ await runTest(
     );
   },
 );
+await runTest(
+  'instance effective model catalog respects router provider default models before alphabetical fallback for non-OpenClaw instances',
+  async () => {
+    const service = createInstanceEffectiveModelCatalogService({
+      getInstance: async () =>
+        ({
+          id: 'instance-http-route-default',
+          runtimeKind: 'custom',
+          transportKind: 'openaiHttp',
+          deploymentMode: 'remote',
+          baseUrl: 'http://127.0.0.1:11434/v1',
+          config: {
+            baseUrl: 'http://127.0.0.1:11434/v1',
+            websocketUrl: null,
+          },
+        }) as any,
+      getInstanceDetail: async () => null,
+      listRouterChannels: async () => [{ id: 'general', name: 'General' }],
+      listRouterProviders: async () => [
+        {
+          id: 'openai',
+          channel_id: 'general',
+          default_model_id: 'omega-pro',
+          base_url: 'https://api.openai.com/v1',
+          channel_bindings: [
+            {
+              provider_id: 'openai',
+              channel_id: 'general',
+              is_primary: true,
+            },
+          ],
+        },
+      ],
+      listRouterModels: async () => [
+        {
+          external_name: 'alpha-fast',
+          provider_id: 'openai',
+        },
+        {
+          external_name: 'omega-pro',
+          provider_id: 'openai',
+        },
+      ],
+      resolveAttachedKernelConfigFile: () => null,
+      readOpenClawConfigSnapshot: async () => {
+        throw new Error('should not read OpenClaw config for non-OpenClaw instances');
+      },
+      listGatewayModels: async () => {
+        throw new Error('should not query gateway models for non-OpenClaw instances');
+      },
+    });
 
+    const catalog = await service.getCatalog('instance-http-route-default');
+
+    assert.equal(catalog.channels[0]?.id, 'general');
+    assert.equal(catalog.channels[0]?.defaultModelId, 'omega-pro');
+    assert.deepEqual(
+      catalog.channels[0]?.models.map((model) => model.id),
+      ['omega-pro', 'alpha-fast'],
+    );
+  },
+);
 await runTest(
   'instance effective model catalog uses gateway runtime models for non-OpenClaw gateway transport instances',
   async () => {
@@ -488,7 +549,7 @@ await runTest(
           streaming: true,
         },
       ],
-      resolveOpenClawConfigPath: () => null,
+      resolveAttachedKernelConfigFile: () => null,
       readOpenClawConfigSnapshot: async () => {
         throw new Error('should not read OpenClaw config for non-OpenClaw gateway transport instances');
       },
@@ -607,11 +668,11 @@ await runTest(
           streaming: true,
         },
       ],
-      resolveOpenClawConfigPath: (detail) =>
+      resolveAttachedKernelConfigFile: (detail) =>
         detail?.dataAccess?.routes?.[0]?.target ?? null,
       readOpenClawConfigSnapshot: async () =>
         ({
-          configPath: 'C:/openclaw/openclaw.json',
+          configFile: 'C:/openclaw/openclaw.json',
           providerSnapshots: [
             {
               id: 'api-router-anthropic',
@@ -737,11 +798,11 @@ await runTest(
           streaming: true,
         },
       ],
-      resolveOpenClawConfigPath: (detail) =>
+      resolveAttachedKernelConfigFile: (detail) =>
         detail?.dataAccess?.routes?.[0]?.target ?? null,
       readOpenClawConfigSnapshot: async () =>
         ({
-          configPath: 'C:/openclaw/openclaw.json',
+          configFile: 'C:/openclaw/openclaw.json',
           providerSnapshots: [
             {
               id: 'api-router-openai',
@@ -804,6 +865,111 @@ await runTest(
     assert.deepEqual(
       catalog.channels[0]?.models.map((model) => model.id),
       ['openai/gpt-4.1', 'anthropic/claude-3-7-sonnet'],
+    );
+  },
+);
+
+await runTest(
+  'instance effective model catalog preserves already-qualified router model refs for OpenClaw routes',
+  async () => {
+    const service = createInstanceEffectiveModelCatalogService({
+      getInstance: async () =>
+        ({
+          id: 'instance-openclaw-openrouter-qualified-models',
+          runtimeKind: 'openclaw',
+          transportKind: 'openclawGatewayWs',
+          deploymentMode: 'local-managed',
+          status: 'online',
+          baseUrl: 'http://127.0.0.1:18795',
+          websocketUrl: 'ws://127.0.0.1:18789',
+        }) as any,
+      getInstanceDetail: async () =>
+        ({
+          dataAccess: {
+            routes: [
+              {
+                scope: 'config',
+                mode: 'managedFile',
+                target: 'C:/openclaw/openclaw.json',
+              },
+            ],
+          },
+        }) as any,
+      listRouterChannels: async () => [{ id: 'general', name: 'General' }],
+      listRouterProviders: async () => [
+        {
+          id: 'openrouter',
+          channel_id: 'general',
+          default_model_id: 'openrouter/meta-llama/llama-3.1-8b-instruct',
+          base_url: 'https://openrouter.ai/api/v1',
+          channel_bindings: [
+            {
+              provider_id: 'openrouter',
+              channel_id: 'general',
+              is_primary: true,
+            },
+          ],
+        },
+      ],
+      listRouterModels: async () => [
+        {
+          external_name: 'openrouter/meta-llama/llama-3.1-8b-instruct',
+          provider_id: 'openrouter',
+        },
+        {
+          external_name: 'anthropic/claude-3.7-sonnet',
+          provider_id: 'openrouter',
+        },
+      ],
+      resolveAttachedKernelConfigFile: (detail) =>
+        detail?.dataAccess?.routes?.[0]?.target ?? null,
+      readOpenClawConfigSnapshot: async () =>
+        ({
+          configFile: 'C:/openclaw/openclaw.json',
+          providerSnapshots: [
+            {
+              id: 'openrouter',
+            },
+          ],
+          agentSnapshots: [],
+          channelSnapshots: [],
+          root: {
+            agents: {
+              defaults: {
+                model: {
+                  primary: 'openrouter/meta-llama/llama-3.1-8b-instruct',
+                },
+              },
+            },
+          },
+        }) as any,
+      listGatewayModels: async () => ({
+        models: [
+          {
+            id: 'openrouter/meta-llama/llama-3.1-8b-instruct',
+            name: 'Llama 3.1 8B Instruct',
+            provider: 'openrouter',
+          },
+          {
+            id: 'anthropic/claude-3.7-sonnet',
+            name: 'Claude 3.7 Sonnet',
+            provider: 'openrouter',
+          },
+        ],
+      }),
+    });
+
+    const catalog = await service.getCatalog('instance-openclaw-openrouter-qualified-models');
+
+    assert.equal(catalog.preferredModelId, 'openrouter/meta-llama/llama-3.1-8b-instruct');
+    assert.equal(catalog.channels[0]?.id, 'general');
+    assert.equal(catalog.channels[0]?.defaultModelId, 'openrouter/meta-llama/llama-3.1-8b-instruct');
+    assert.deepEqual(
+      catalog.channels[0]?.models.map((model) => model.id),
+      [
+        'openrouter/meta-llama/llama-3.1-8b-instruct',
+        'anthropic/claude-3.7-sonnet',
+      ],
     );
   },
 );
@@ -884,11 +1050,11 @@ await runTest(
           streaming: true,
         },
       ],
-      resolveOpenClawConfigPath: (detail) =>
+      resolveAttachedKernelConfigFile: (detail) =>
         detail?.dataAccess?.routes?.[0]?.target ?? null,
       readOpenClawConfigSnapshot: async () =>
         ({
-          configPath: 'C:/openclaw/openclaw.json',
+          configFile: 'C:/openclaw/openclaw.json',
           providerSnapshots: [
             {
               id: 'api-router-openai',
@@ -1046,11 +1212,11 @@ await runTest(
           streaming: true,
         },
       ],
-      resolveOpenClawConfigPath: (detail) =>
+      resolveAttachedKernelConfigFile: (detail) =>
         detail?.dataAccess?.routes?.[0]?.target ?? null,
       readOpenClawConfigSnapshot: async () =>
         ({
-          configPath: 'C:/openclaw/openclaw.json',
+          configFile: 'C:/openclaw/openclaw.json',
           providerSnapshots: [
             { id: 'api-router-openai' },
             { id: 'api-router-anthropic' },

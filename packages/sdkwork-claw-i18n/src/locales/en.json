@@ -2900,7 +2900,7 @@
         "config": {
           "loading": "Loading configuration workspace...",
           "instance": "Target instance",
-          "configPath": "Config file",
+          "configFile": "Config file",
           "provider": "Model provider",
           "defaultModel": "Default model",
           "reasoningModel": "Reasoning model",
@@ -3384,7 +3384,7 @@
         "configMissingHint": "This install record exists, but its OpenClaw config file could not be located automatically. Use manual association to pick the config file directly.",
         "configUnavailable": "Config file not discovered",
         "labels": {
-          "configPath": "Config path",
+          "configFile": "OpenClaw config file",
           "endpoint": "Gateway endpoint",
           "workRoot": "Work root",
           "linkedInstance": "Linked instance"
@@ -3781,7 +3781,7 @@
             "sessionsVisibility": "Session Visibility",
             "agentToAgent": "Agent-to-Agent",
             "allowList": "Allow List",
-            "managedFile": "Config File",
+            "managedFile": "OpenClaw config file",
             "rawStatus": "Draft Validity",
             "parseReady": "Ready",
             "parseInvalid": "Invalid Draft",
@@ -3895,7 +3895,7 @@
               "other": "Other"
             },
             "metrics": {
-              "configPath": "Config path",
+              "configFile": "OpenClaw config file",
               "defaultAgent": "Default agent",
               "defaultModel": "Default model",
               "sessions": "Sessions",
@@ -4390,7 +4390,7 @@
             "labels": {
               "controlPlane": "Control Plane",
               "installMethod": "Install Method",
-              "kernelConfig": "Config File",
+              "kernelConfig": "OpenClaw config file",
               "defaultWorkspace": "Default Workspace",
               "managementScope": "Management Scope"
             },
@@ -4402,7 +4402,7 @@
               "configManagedDirectory": "Configuration is resolved from the kernel config directory binding instead of a single file path.",
               "configRemoteEndpoint": "Configuration is only exposed through a runtime endpoint, so management stays partial and depends on gateway support.",
               "configMetadataOnly": "Only metadata-level config discovery is available for this instance right now.",
-              "configUnavailable": "No authoritative config path is currently attached to this instance.",
+              "configUnavailable": "No authoritative OpenClaw config file is currently attached to this instance.",
               "workspaceAgent": "This workspace comes from the current default agent and is the primary filesystem scope for prompts, skills, and agent files.",
               "workspaceArtifact": "This workspace path was discovered from the instance artifact map rather than the agent registry.",
               "workspaceNamespace": "No concrete workspace path is attached, so the storage namespace is shown as the fallback scope.",
@@ -4518,7 +4518,7 @@
           },
           "panel": {
             "badge": "OpenClaw Providers",
-            "configFile": "Config File",
+            "configFile": "OpenClaw config file",
             "description": "Provider and model CRUD write back to the real config-backed OpenClaw config and keep defaults plus agent model references synchronized.",
             "newProvider": "New Provider",
             "emptyTitle": "No providers configured",
@@ -4586,7 +4586,7 @@
           },
           "panel": {
             "badge": "OpenClaw Agents",
-            "configFile": "Config File",
+            "configFile": "OpenClaw config file",
             "descriptionPrefix": "Agent identity, workspace, per-agent model overrides, and state directories are written back to the real config-backed OpenClaw config. Credentials still live inside each agent's",
             "authProfilesFile": "auth-profiles.json",
             "descriptionMiddle": "under its",
@@ -4968,7 +4968,7 @@
         "description": "Apply the selected route config to an OpenClaw instance default provider selection and optionally update agent model bindings while the full local-proxy projection rolls out.",
         "instance": "Instance",
         "instancePlaceholder": "Choose an instance",
-        "configPath": "Config Path",
+        "configFile": "OpenClaw config file",
         "targetSummary": "Route Config Summary",
         "agents": "Agents",
         "agentHint": "Checked agents will switch their primary model to the selected LLM, with the reasoning model added as fallback when configured.",
@@ -5232,7 +5232,7 @@
         "profileCount": "Profile Count",
         "installSource": "Install Source",
         "platform": "Platform",
-        "configPath": "Config Path",
+        "configFile": "Config file",
         "runtimeHome": "Runtime Home",
         "runtimeInstallDir": "Runtime Install Dir",
         "configFilePath": "Config File Path",

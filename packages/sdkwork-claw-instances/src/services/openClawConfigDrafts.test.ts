@@ -33,7 +33,7 @@ function runTest(name: string, fn: () => void | Promise<void>) {
     });
 }
 
-await runTest('buildOpenClawWebSearchSaveInput trims provider and parses positive numeric fields', () => {
+await runTest('buildOpenClawWebSearchSaveInput trims provider, parses numeric fields, and normalizes env placeholders', () => {
   assert.deepEqual(
     buildOpenClawWebSearchSaveInput({
       sharedDraft: {
@@ -45,7 +45,7 @@ await runTest('buildOpenClawWebSearchSaveInput trims provider and parses positiv
       },
       providerId: 'tavily',
       providerDraft: {
-        apiKeySource: 'env:TAVILY_API_KEY',
+        apiKeySource: ' ${TAVILY_API_KEY} ',
         baseUrl: 'https://api.tavily.example',
         model: 'search-pro',
         advancedConfig: '{"safe":true}',
@@ -96,11 +96,11 @@ await runTest('buildOpenClawWebSearchSaveInput rejects a blank provider', () => 
   );
 });
 
-await runTest('buildOpenClawXSearchSaveInput parses numeric fields and preserves inline citations', () => {
+await runTest('buildOpenClawXSearchSaveInput parses numeric fields, preserves inline citations, and normalizes env placeholders', () => {
   assert.deepEqual(
     buildOpenClawXSearchSaveInput({
       enabled: false,
-      apiKeySource: 'env:XAI_API_KEY',
+      apiKeySource: ' ${XAI_API_KEY} ',
       model: 'grok-3-search',
       inlineCitations: true,
       maxTurns: '3',
@@ -154,7 +154,7 @@ await runTest('buildOpenClawWebSearchNativeCodexSaveInput normalizes allowed dom
   );
 });
 
-await runTest('buildOpenClawWebFetchSaveInput parses numeric limits and preserves fallback config', () => {
+await runTest('buildOpenClawWebFetchSaveInput parses numeric limits and normalizes fallback env placeholders', () => {
   assert.deepEqual(
     buildOpenClawWebFetchSaveInput({
       sharedDraft: {
@@ -169,7 +169,7 @@ await runTest('buildOpenClawWebFetchSaveInput parses numeric limits and preserve
         userAgent: 'Claw Studio',
       },
       fallbackDraft: {
-        apiKeySource: 'env:FIRECRAWL_API_KEY',
+        apiKeySource: ' ${FIRECRAWL_API_KEY} ',
         baseUrl: 'https://firecrawl.example',
         advancedConfig: '{"cache":true}',
       },
@@ -238,7 +238,7 @@ await runTest('buildOpenClawAuthCooldownsSaveInput omits blank values and reject
 });
 
 await runTest(
-  'config draft factories map snapshot values into editable page drafts',
+  'config draft factories map snapshot values into editable page drafts and normalize env placeholders',
   () => {
     assert.deepEqual(
       createOpenClawWebSearchDraftState({
@@ -251,14 +251,14 @@ await runTest(
           providers: [
             {
               id: 'tavily',
-              apiKeySource: 'env:TAVILY_API_KEY',
+              apiKeySource: '${TAVILY_API_KEY}',
               baseUrl: 'https://api.tavily.example',
               model: 'search-pro',
               advancedConfig: '{"safe":true}',
             },
             {
               id: 'exa',
-              apiKeySource: 'env:EXA_API_KEY',
+              apiKeySource: '${EXA_API_KEY}',
               baseUrl: 'https://api.exa.example',
               model: 'exa-search',
               advancedConfig: '',
@@ -299,7 +299,7 @@ await runTest(
 
     assert.deepEqual(
       createOpenClawWebSearchProviderDraft({
-        apiKeySource: 'env:TAVILY_API_KEY',
+        apiKeySource: '${TAVILY_API_KEY}',
         baseUrl: 'https://api.tavily.example',
         model: 'search-pro',
         advancedConfig: '{"safe":true}',
@@ -322,7 +322,7 @@ await runTest(
         providers: [
           {
             id: 'tavily',
-            apiKeySource: 'env:TAVILY_API_KEY',
+            apiKeySource: '${TAVILY_API_KEY}',
             baseUrl: 'https://api.tavily.example',
             model: 'search-pro',
             advancedConfig: '{"safe":true}',
@@ -390,7 +390,7 @@ await runTest(
     assert.deepEqual(
       createOpenClawXSearchDraft({
         enabled: false,
-        apiKeySource: 'env:XAI_API_KEY',
+        apiKeySource: '${XAI_API_KEY}',
         model: 'grok-3-search',
         inlineCitations: true,
         maxTurns: 3,
@@ -463,7 +463,7 @@ await runTest(
     assert.deepEqual(
       createOpenClawWebFetchFallbackDraft({
         fallbackProvider: {
-          apiKeySource: 'env:FIRECRAWL_API_KEY',
+          apiKeySource: '${FIRECRAWL_API_KEY}',
           baseUrl: 'https://firecrawl.example',
           advancedConfig: '{"cache":true}',
         },
@@ -487,7 +487,7 @@ await runTest(
         readability: true,
         userAgent: 'Claw Studio',
         fallbackProvider: {
-          apiKeySource: 'env:FIRECRAWL_API_KEY',
+          apiKeySource: '${FIRECRAWL_API_KEY}',
           baseUrl: 'https://firecrawl.example',
           advancedConfig: '{"cache":true}',
         },

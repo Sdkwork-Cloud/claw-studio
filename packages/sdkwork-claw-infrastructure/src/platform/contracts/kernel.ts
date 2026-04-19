@@ -134,7 +134,7 @@ export interface RuntimeDesktopKernelProvenanceInfo {
   platform: string;
   arch: string;
   installSource: RuntimeDesktopKernelInstallSource;
-  configPath: string;
+  configFile: string;
   runtimeHomeDir: string;
   runtimeInstallDir?: string | null;
 }

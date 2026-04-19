@@ -1,6 +1,7 @@
 import {
   openClawConfigService,
   providerRoutingCatalogService,
+  resolveAttachedKernelConfigFile,
 } from '@sdkwork/claw-core';
 import {
   studio,
@@ -29,11 +30,12 @@ export const instanceEffectiveModelCatalogService = createInstanceEffectiveModel
           provider.channelId,
           provider,
         ]),
-      ).values(),
+    ).values(),
     ).map((provider) => ({
       id: provider.channelId,
       channel_id: provider.channelId,
       base_url: provider.baseUrl,
+      default_model_id: provider.defaultModelId,
       channel_bindings: [{ channel_id: provider.channelId, is_primary: true }],
     })),
   listRouterModels: async () =>
@@ -50,8 +52,8 @@ export const instanceEffectiveModelCatalogService = createInstanceEffectiveModel
         provider_id: provider.channelId,
       })),
     ),
-  resolveOpenClawConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
-  readOpenClawConfigSnapshot: (configPath) => openClawConfigService.readConfigSnapshot(configPath),
+  resolveAttachedKernelConfigFile: (detail) => resolveAttachedKernelConfigFile(detail),
+  readOpenClawConfigSnapshot: (configFile) => openClawConfigService.readConfigSnapshot(configFile),
   listGatewayModels: async (instanceId) => {
     const client = await getSharedOpenClawGatewayClient(instanceId);
     return client.listModels();

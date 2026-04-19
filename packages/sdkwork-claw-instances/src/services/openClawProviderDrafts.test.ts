@@ -74,7 +74,7 @@ await runTest(
             id: 'openai-router',
             channelId: 'openai-router',
             name: 'Shared OpenAI Router',
-            apiKey: 'env:OPENAI_API_KEY',
+            apiKey: '${OPENAI_API_KEY}',
             baseUrl: 'https://router.example.com/v1',
             models: [
               {
@@ -107,6 +107,83 @@ await runTest(
             defaultModelId: 'gpt-5.4',
             reasoningModelId: 'o4-mini',
             embeddingModelId: 'text-embedding-3-small',
+          },
+        },
+      },
+    );
+  },
+);
+
+await runTest(
+  'buildOpenClawProviderDialogSaveInput normalizes aliased provider ids, trailing-slash endpoints, and dirty model catalogs through the shared OpenClaw provider standard',
+  () => {
+    assert.deepEqual(
+      buildOpenClawProviderDialogSaveInput({
+        draft: {
+          id: '  api-router-openai  ',
+          name: '   ',
+          endpoint: '  https://api.openai.com/v1/  ',
+          apiKeySource: '  env:OPENAI_API_KEY  ',
+          defaultModelId: ' gpt-5.4 ',
+          reasoningModelId: ' o4-mini ',
+          embeddingModelId: ' text-embedding-3-large ',
+          requestOverridesText: '',
+        },
+        models: [
+          {
+            id: ' gpt-5.4 ',
+            name: ' GPT-5.4 ',
+          },
+          {
+            id: ' o4-mini ',
+            name: ' o4-mini ',
+          },
+          {
+            id: ' text-embedding-3-large ',
+            name: ' Text Embedding 3 Large ',
+          },
+          {
+            id: 'gpt-5.4',
+            name: 'Duplicate GPT-5.4',
+          },
+        ],
+      }),
+      {
+        ok: true,
+        value: {
+          providerId: 'openai',
+          providerInput: {
+            id: 'openai',
+            channelId: 'openai',
+            name: 'openai',
+            apiKey: '${OPENAI_API_KEY}',
+            baseUrl: 'https://api.openai.com/v1',
+            models: [
+              {
+                id: 'gpt-5.4',
+                name: 'GPT-5.4',
+              },
+              {
+                id: 'o4-mini',
+                name: 'o4-mini',
+              },
+              {
+                id: 'text-embedding-3-large',
+                name: 'Text Embedding 3 Large',
+              },
+            ],
+            config: {
+              temperature: 0.2,
+              topP: 1,
+              maxTokens: 8192,
+              timeoutMs: 60000,
+              streaming: true,
+            },
+          },
+          selection: {
+            defaultModelId: 'gpt-5.4',
+            reasoningModelId: 'o4-mini',
+            embeddingModelId: 'text-embedding-3-large',
           },
         },
       },
@@ -367,7 +444,7 @@ await runTest(
           id: 'openai-router',
           channelId: 'openai-router',
           name: 'Shared OpenAI Router',
-          apiKey: 'env:OPENAI_API_KEY',
+          apiKey: '${OPENAI_API_KEY}',
           baseUrl: 'https://router.example.com/v1',
           models: [
             {
@@ -381,7 +458,6 @@ await runTest(
             maxTokens: 8192,
             timeoutMs: 60000,
             streaming: true,
-            request: undefined,
           },
         },
         selection: {
@@ -548,6 +624,52 @@ await runTest(
         selectedProviderId: 'provider-01',
         successKey: 'instances.detail.instanceWorkbench.llmProviders.saved',
         failureKey: 'instances.detail.instanceWorkbench.llmProviders.saveFailed',
+      },
+    );
+  },
+);
+
+await runTest(
+  'buildOpenClawProviderConfigSaveInput normalizes aliased provider ids, trims model selections, and canonicalizes runtime config defaults',
+  () => {
+    assert.deepEqual(
+      buildOpenClawProviderConfigSaveInput({
+        providerId: ' api-router-openai ',
+        draft: {
+          endpoint: ' https://api.openai.com/v1/ ',
+          apiKeySource: ' env:OPENAI_API_KEY ',
+          defaultModelId: ' gpt-5.4 ',
+          reasoningModelId: ' o4-mini ',
+          embeddingModelId: ' ',
+          config: {
+            temperature: 0.4,
+            topP: 0.9,
+            maxTokens: 4096,
+            timeoutMs: 120000,
+            streaming: true,
+          },
+        },
+        requestOverridesText: '',
+      }),
+      {
+        ok: true,
+        value: {
+          providerId: 'openai',
+          providerUpdate: {
+            endpoint: 'https://api.openai.com/v1',
+            apiKeySource: 'env:OPENAI_API_KEY',
+            defaultModelId: 'gpt-5.4',
+            reasoningModelId: 'o4-mini',
+            embeddingModelId: undefined,
+            config: {
+              temperature: 0.4,
+              topP: 0.9,
+              maxTokens: 4096,
+              timeoutMs: 120000,
+              streaming: true,
+            },
+          },
+        },
       },
     );
   },

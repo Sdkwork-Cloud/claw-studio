@@ -33,7 +33,6 @@ pub mod openclaw_mirror;
 pub mod openclaw_mirror_export;
 pub mod openclaw_mirror_import;
 pub mod openclaw_mirror_manifest;
-pub mod openclaw_config_compat;
 pub mod openclaw_runtime;
 pub mod openclaw_runtime_snapshot;
 pub mod path_registration;
@@ -292,7 +291,7 @@ impl FrameworkServices {
                 .collect(),
             message_capture_enabled: message_capture_settings.enabled,
             observability_db_path: Some(observability_db_path),
-            config_path: paths
+            config_file: paths
                 .local_ai_proxy_config_file
                 .to_string_lossy()
                 .into_owned(),
@@ -348,7 +347,7 @@ impl FrameworkServices {
             if runtime_id == open_claw_runtime.runtime_id {
                 authorities.push(DesktopKernelRuntimeAuthorityInfo {
                     runtime_id,
-                    config_file_path: open_claw_runtime.authority.config_file_path.clone(),
+                    config_file: open_claw_runtime.authority.config_file.clone(),
                     owned_runtime_roots: open_claw_runtime.authority.owned_runtime_roots.clone(),
                     readiness_probe: DesktopKernelRuntimeAuthorityProbeInfo {
                         supports_loopback_health_probe: open_claw_runtime
@@ -365,7 +364,6 @@ impl FrameworkServices {
                     platform: Some(open_claw_runtime.platform.clone()),
                     arch: Some(open_claw_runtime.arch.clone()),
                     install_source: Some(host.provenance.install_source.clone()),
-                    config_path: Some(open_claw_runtime.config_path.clone()),
                     runtime_home_dir: Some(open_claw_runtime.home_dir.clone()),
                     runtime_install_dir: open_claw_runtime.install_dir.clone(),
                 });
@@ -374,7 +372,7 @@ impl FrameworkServices {
 
             authorities.push(DesktopKernelRuntimeAuthorityInfo {
                 runtime_id: runtime_id.clone(),
-                config_file_path: contract.config_file_path.to_string_lossy().into_owned(),
+                config_file: contract.config_file_path.to_string_lossy().into_owned(),
                 owned_runtime_roots: contract
                     .owned_runtime_roots
                     .iter()
@@ -411,7 +409,6 @@ impl FrameworkServices {
                 } else {
                     None
                 },
-                config_path: Some(contract.config_file_path.to_string_lossy().into_owned()),
                 runtime_home_dir: None,
                 runtime_install_dir: contract
                     .owned_runtime_roots

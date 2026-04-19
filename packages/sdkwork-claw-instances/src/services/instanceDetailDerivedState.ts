@@ -1,4 +1,5 @@
 import type { ChannelWorkspaceItem } from '@sdkwork/claw-ui';
+import { resolveAttachedKernelConfig } from '@sdkwork/claw-core';
 import type {
   InstanceLLMProviderUpdate,
   InstanceWorkbenchSnapshot,
@@ -96,6 +97,58 @@ export interface InstanceDetailDerivedState {
   configChannelWorkspaceItems: ChannelWorkspaceItem[];
 }
 
+function normalizeDetailConfigDisplays(
+  detail: InstanceWorkbenchSnapshot['detail'] | null,
+  configFile: string | null,
+) {
+  if (!detail || !configFile) {
+    return detail;
+  }
+
+  let changed = false;
+  const routes = detail.dataAccess.routes.map((route) => {
+    if (route.scope !== 'config' || route.mode !== 'managedFile' || !route.target) {
+      return route;
+    }
+    if (route.target === configFile) {
+      return route;
+    }
+
+    changed = true;
+    return {
+      ...route,
+      target: configFile,
+    };
+  });
+  const artifacts = detail.artifacts.map((artifact) => {
+    if (artifact.kind !== 'configFile' || !artifact.location) {
+      return artifact;
+    }
+    if (artifact.location === configFile) {
+      return artifact;
+    }
+
+    changed = true;
+    return {
+      ...artifact,
+      location: configFile,
+    };
+  });
+
+  if (!changed) {
+    return detail;
+  }
+
+  return {
+    ...detail,
+    dataAccess: {
+      ...detail.dataAccess,
+      routes,
+    },
+    artifacts,
+  };
+}
+
 export function buildInstanceDetailDerivedState({
   id,
   workbench,
@@ -111,19 +164,33 @@ export function buildInstanceDetailDerivedState({
   providerDialogDraft,
   t,
 }: BuildInstanceDetailDerivedStateInput): InstanceDetailDerivedState {
-  const instance = workbench?.instance || null;
-  const detail = workbench?.detail || null;
-  const kernelConfig = workbench?.kernelConfig || null;
+  const rawDetail = workbench?.detail || null;
+  const resolvedKernelConfig =
+    workbench?.kernelConfig || resolveAttachedKernelConfig(rawDetail);
+  const detail = normalizeDetailConfigDisplays(
+    rawDetail,
+    resolvedKernelConfig?.configFile || null,
+  );
+  const normalizedWorkbench: InstanceWorkbenchSnapshot | null =
+    workbench && (detail !== rawDetail || resolvedKernelConfig !== workbench.kernelConfig)
+      ? {
+          ...workbench,
+          detail: detail ?? workbench.detail,
+          kernelConfig: resolvedKernelConfig,
+        }
+      : workbench;
+  const instance = normalizedWorkbench?.instance || null;
+  const kernelConfig = normalizedWorkbench?.kernelConfig || null;
   const kernelAuthority =
-    workbench?.kernelAuthority || buildKernelAuthorityProjection(detail);
+    normalizedWorkbench?.kernelAuthority || buildKernelAuthorityProjection(detail);
   const configFilePath = kernelConfig?.configFile || null;
-  const configChannels = workbench?.configChannels || [];
-  const configWebSearch = workbench?.configWebSearch || null;
-  const configXSearch = workbench?.configXSearch || null;
-  const configWebSearchNativeCodex = workbench?.configWebSearchNativeCodex || null;
-  const configWebFetch = workbench?.configWebFetch || null;
-  const configAuthCooldowns = workbench?.configAuthCooldowns || null;
-  const configDreaming = workbench?.configDreaming || null;
+  const configChannels = normalizedWorkbench?.configChannels || [];
+  const configWebSearch = normalizedWorkbench?.configWebSearch || null;
+  const configXSearch = normalizedWorkbench?.configXSearch || null;
+  const configWebSearchNativeCodex = normalizedWorkbench?.configWebSearchNativeCodex || null;
+  const configWebFetch = normalizedWorkbench?.configWebFetch || null;
+  const configAuthCooldowns = normalizedWorkbench?.configAuthCooldowns || null;
+  const configDreaming = normalizedWorkbench?.configDreaming || null;
   const actionCapabilityInstance = instance
     ? {
         ...instance,
@@ -177,10 +244,12 @@ export function buildInstanceDetailDerivedState({
     canOpenControlPage: Boolean(
       consoleAccess?.available && (consoleAccess.autoLoginUrl || consoleAccess.url),
     ),
-    memoryWorkbenchState: buildInstanceMemoryWorkbenchState(workbench),
-    managementSummary: workbench ? buildInstanceManagementSummary(workbench) : null,
+    memoryWorkbenchState: buildInstanceMemoryWorkbenchState(normalizedWorkbench),
+    managementSummary: normalizedWorkbench
+      ? buildInstanceManagementSummary(normalizedWorkbench)
+      : null,
     providerSelectionState: buildOpenClawProviderSelectionState({
-      workbench,
+      workbench: normalizedWorkbench,
       selectedProviderId,
       providerDeleteId,
       providerModelDeleteId,
@@ -203,10 +272,10 @@ export function buildInstanceDetailDerivedState({
       t,
     }),
     availableAgentModelOptions: buildOpenClawAgentModelOptions(workbench?.llmProviders),
-    readonlyChannelWorkspaceItems: buildReadonlyChannelWorkspaceItems(workbench?.channels),
+    readonlyChannelWorkspaceItems: buildReadonlyChannelWorkspaceItems(normalizedWorkbench?.channels),
     configChannelWorkspaceItems: buildOpenClawConfigChannelWorkspaceItems({
       configChannels,
-      runtimeChannels: workbench?.channels,
+      runtimeChannels: normalizedWorkbench?.channels,
       configChannelDrafts,
     }),
   };

@@ -4479,7 +4479,7 @@ mod tests {
             &archive_path,
             label,
             PRIVATE_RUNTIME_SNAPSHOT_FILE_NAME,
-            "{\n  \"runtimeId\": \"openclaw\",\n  \"installKey\": \"0.4.0-windows-x64\",\n  \"openclawVersion\": \"0.4.0\",\n  \"nodeVersion\": null,\n  \"platform\": \"windows\",\n  \"arch\": \"x64\",\n  \"homeDir\": \"D:/tampered/home/.openclaw\",\n  \"stateDir\": \"D:/tampered/home/.openclaw\",\n  \"workspaceDir\": \"D:/tampered/home/.openclaw/workspace\",\n  \"configPath\": \"D:/tampered/home/.openclaw/openclaw.json\",\n  \"gatewayPort\": 19999\n}\n",
+            "{\n  \"runtimeId\": \"openclaw\",\n  \"installKey\": \"0.4.0-windows-x64\",\n  \"openclawVersion\": \"0.4.0\",\n  \"nodeVersion\": null,\n  \"platform\": \"windows\",\n  \"arch\": \"x64\",\n  \"homeDir\": \"D:/tampered/home/.openclaw\",\n  \"stateDir\": \"D:/tampered/home/.openclaw\",\n  \"workspaceDir\": \"D:/tampered/home/.openclaw/workspace\",\n  \"configFile\": \"D:/tampered/home/.openclaw/openclaw.json\",\n  \"gatewayPort\": 19999\n}\n",
         );
 
         let error = inspect_openclaw_mirror_import(&corrupted_archive_path)

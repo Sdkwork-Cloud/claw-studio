@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { storage, studio } from '@sdkwork/claw-infrastructure';
 import { llmService } from './llmService.ts';
-import { providerRoutingCatalogService } from '../services/providerRoutingCatalogService.ts';
+import {
+  PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
+  providerRoutingCatalogService,
+} from '../services/providerRoutingCatalogService.ts';
 import { instanceStore } from '../stores/instanceStore.ts';
 
 async function runTest(name: string, fn: () => void | Promise<void>) {
@@ -60,12 +63,12 @@ await runTest(
       storage.getStorageInfo = async () => null;
       storage.listKeys = async () => ({
         profileId: 'default-sqlite',
-        namespace: 'studio.provider-center',
+        namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
         keys: [],
       });
       storage.getText = async () => ({
         profileId: 'default-sqlite',
-        namespace: 'studio.provider-center',
+        namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
         key: 'unused',
         value: null,
       });

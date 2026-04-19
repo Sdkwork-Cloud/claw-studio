@@ -484,14 +484,14 @@ fn resolve_active_runtime(
                     host.provenance.arch.clone()
                 }
             }),
-        config_path: authority
+        config_file: authority
             .as_ref()
-            .and_then(|authority| authority.config_path.clone())
+            .map(|authority| authority.config_file.clone())
             .unwrap_or_else(|| {
                 if is_openclaw_runtime {
-                    open_claw_runtime.config_path.clone()
+                    open_claw_runtime.config_file.clone()
                 } else {
-                    host.provenance.config_path.clone()
+                    host.provenance.config_file.clone()
                 }
             }),
         runtime_home_dir: authority

@@ -2895,7 +2895,7 @@
         "config": {
           "loading": "正在加载配置工作区...",
           "instance": "目标实例",
-          "configPath": "配置文件",
+          "configFile": "配置文件",
           "provider": "模型提供方",
           "defaultModel": "默认模型",
           "reasoningModel": "推理模型",
@@ -3379,7 +3379,7 @@
         "configMissingHint": "已通过安装记录发现此 OpenClaw，但暂时无法自动定位到它的配置文件。可以使用下方的手动关联直接选择配置文件。",
         "configUnavailable": "未发现配置文件",
         "labels": {
-          "configPath": "配置路径",
+          "configFile": "OpenClaw 配置文件",
           "endpoint": "网关地址",
           "workRoot": "工作根目录",
           "linkedInstance": "已关联实例"
@@ -3770,7 +3770,7 @@
             "sessionsVisibility": "会话可见性",
             "agentToAgent": "智能体互调",
             "allowList": "允许列表",
-            "managedFile": "配置文件",
+            "managedFile": "OpenClaw 配置文件",
             "none": "无",
             "notConfigured": "未配置"
           },
@@ -3845,7 +3845,7 @@
               "other": "Other"
             },
             "metrics": {
-              "configPath": "Config path",
+              "configFile": "OpenClaw 配置文件",
               "defaultAgent": "Default agent",
               "defaultModel": "Default model",
               "sessions": "Sessions",
@@ -4340,7 +4340,7 @@
             "labels": {
               "controlPlane": "管理平面",
               "installMethod": "安装方式",
-              "kernelConfig": "配置文件",
+              "kernelConfig": "OpenClaw 配置文件",
               "defaultWorkspace": "默认工作区",
               "managementScope": "可管范围"
             },
@@ -4352,7 +4352,7 @@
               "configManagedDirectory": "当前配置来自内核配置目录绑定，而不是单一的配置文件路径。",
               "configRemoteEndpoint": "配置只能通过运行时端点访问，因此只能提供部分管理能力。",
               "configMetadataOnly": "目前只拿到了配置层的元数据，还没有直接可写的管理入口。",
-              "configUnavailable": "这个实例还没有挂上权威配置路径。",
+              "configUnavailable": "当前这个实例还没有挂上权威 OpenClaw 配置文件。",
               "workspaceAgent": "这个工作区来自当前默认 agent，是 Prompt、Skills 与 Agent 文件的主要文件系统范围。",
               "workspaceArtifact": "这个工作区路径是从实例 artifact 映射中发现的，而不是直接来自 agent 注册信息。",
               "workspaceNamespace": "还没有可直接展示的工作区路径，先以存储 namespace 作为管理范围的代替展示。",
@@ -4468,7 +4468,7 @@
           },
           "panel": {
             "badge": "OpenClaw Providers",
-            "configFile": "配置文件",
+            "configFile": "OpenClaw 配置文件",
             "description": "提供方和模型的增删改会回写到真实的 config-backed OpenClaw 配置中，并保持默认模型与智能体模型引用同步。",
             "newProvider": "新建提供方",
             "emptyTitle": "还没有配置提供方",
@@ -4536,7 +4536,7 @@
           },
           "panel": {
             "badge": "OpenClaw Agents",
-            "configFile": "配置文件",
+            "configFile": "OpenClaw 配置文件",
             "descriptionPrefix": "智能体身份、工作区、单智能体模型覆盖和状态目录都会回写到真实的 config-backed OpenClaw 配置里。凭据仍保存在每个智能体自己的",
             "authProfilesFile": "auth-profiles.json",
             "descriptionMiddle": "以及",
@@ -4917,7 +4917,7 @@
         "description": "将选中的路由配置应用到某个 OpenClaw 实例的默认 Provider 选择中，并可在本地代理完整投影生效前同步更新 Agent 模型绑定。",
         "instance": "实例",
         "instancePlaceholder": "选择实例",
-        "configPath": "配置路径",
+        "configFile": "OpenClaw 配置文件",
         "targetSummary": "路由配置摘要",
         "agents": "Agent 列表",
         "agentHint": "勾选的 Agent 会切换到当前选择的默认 LLM；如果已配置推理模型，也会一并作为 fallback 加入。",
@@ -5180,7 +5180,7 @@
         "profileCount": "配置数量",
         "installSource": "安装来源",
         "platform": "平台",
-        "configPath": "配置文件路径",
+        "configFile": "配置文件",
         "runtimeHome": "运行时主目录",
         "runtimeInstallDir": "运行时安装目录",
         "configFilePath": "配置文件路径",

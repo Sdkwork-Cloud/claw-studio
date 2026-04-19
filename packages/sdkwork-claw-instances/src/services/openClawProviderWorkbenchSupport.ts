@@ -1,4 +1,11 @@
-import type { OpenClawConfigSnapshot } from '@sdkwork/claw-core';
+import {
+  buildOpenClawProviderSnapshotsFromConfigRoot,
+  presentOpenClawProviderApiKeySource,
+  type OpenClawConfigSnapshot,
+} from '@sdkwork/claw-core';
+import {
+  normalizeLocalApiProxyLegacyProviderId as normalizeLegacyProviderId,
+} from '@sdkwork/local-api-proxy';
 import type {
   OpenClawConfigSnapshot as GatewayOpenClawConfigSnapshot,
   OpenClawModelRecord,
@@ -6,17 +13,9 @@ import type {
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
 import type { InstanceWorkbenchLLMProvider } from '../types/index.ts';
 import {
-  describeSecretSource,
-  getArrayValue,
-  getBooleanValue,
-  getNumberValue,
-  getObjectValue,
-  getRecordValue,
   getStringValue,
   inferProviderCapabilities,
-  isRecord,
   mapOpenClawProviderModels,
-  titleCaseIdentifier,
 } from './openClawSupport.ts';
 
 export function mapConfigBackedProvider(
@@ -27,7 +26,7 @@ export function mapConfigBackedProvider(
     name: provider.name,
     provider: provider.provider,
     endpoint: provider.endpoint,
-    apiKeySource: provider.apiKeySource,
+    apiKeySource: presentOpenClawProviderApiKeySource(provider.apiKeySource),
     status: provider.status,
     defaultModelId: provider.defaultModelId,
     reasoningModelId: provider.reasoningModelId,
@@ -58,9 +57,9 @@ export function providerMatchesId(model: OpenClawModelRecord, providerId: string
     typeof model.providerId === 'string' ? model.providerId : undefined,
   ]
     .filter(Boolean)
-    .map((value) => value!.toLowerCase());
+    .map((value) => normalizeLegacyProviderId(value).toLowerCase());
 
-  return candidates.includes(providerId.toLowerCase());
+  return candidates.includes(normalizeLegacyProviderId(providerId).toLowerCase());
 }
 
 export function buildOpenClawLlmProviders(
@@ -68,48 +67,32 @@ export function buildOpenClawLlmProviders(
   liveModels: OpenClawModelRecord[],
   detail: StudioInstanceDetailRecord,
 ): InstanceWorkbenchLLMProvider[] {
-  const providers = getObjectValue(configSnapshot?.config, ['models', 'providers']) || {};
   const lastCheckedAt =
     getStringValue(configSnapshot?.config, ['meta', 'lastTouchedAt']) ||
     (detail.observability.lastSeenAt
       ? new Date(detail.observability.lastSeenAt).toISOString()
       : 'Unknown');
 
-  return Object.entries(providers)
-    .filter(([, providerValue]) => isRecord(providerValue))
-    .map(([providerId, providerValue]) => {
-      const configModels = getArrayValue(providerValue, ['models']) || [];
-      const providerModels = liveModels.filter((model) => providerMatchesId(model, providerId));
-      const modelSource = providerModels.length > 0 ? providerModels : configModels;
-      const models = mapOpenClawProviderModels(modelSource);
-      const defaultModelId =
-        models.find((model) => model.role === 'primary')?.id || models[0]?.id || '';
+  return buildOpenClawProviderSnapshotsFromConfigRoot(configSnapshot?.config, { lastCheckedAt })
+    .map((providerSnapshot) => {
+      const providerModels = liveModels.filter((model) =>
+        providerMatchesId(model, providerSnapshot.providerKey),
+      );
+      if (providerModels.length === 0) {
+        return mapConfigBackedProvider(providerSnapshot);
+      }
+
+      const models = mapOpenClawProviderModels(providerModels);
+      const defaultModelId = models.find((model) => model.role === 'primary')?.id || models[0]?.id || '';
 
       return {
-        id: providerId,
-        name: titleCaseIdentifier(providerId),
-        provider: providerId,
-        endpoint:
-          getStringValue(providerValue, ['baseUrl']) ||
-          getStringValue(providerValue, ['endpoint']) ||
-          '',
-        apiKeySource: describeSecretSource(getRecordValue(providerValue, ['apiKey'])),
+        ...mapConfigBackedProvider(providerSnapshot),
         status: defaultModelId ? 'ready' : 'configurationRequired',
         defaultModelId,
         reasoningModelId: models.find((model) => model.role === 'reasoning')?.id,
         embeddingModelId: models.find((model) => model.role === 'embedding')?.id,
-        description: `${titleCaseIdentifier(providerId)} provider configured through the OpenClaw gateway.`,
-        icon: providerId.charAt(0).toUpperCase() || 'O',
-        lastCheckedAt,
-        capabilities: inferProviderCapabilities(modelSource),
+        capabilities: inferProviderCapabilities(providerModels),
         models,
-        config: {
-          temperature: getNumberValue(providerValue, ['temperature']) ?? 0.2,
-          topP: getNumberValue(providerValue, ['topP']) ?? 1,
-          maxTokens: getNumberValue(providerValue, ['maxTokens']) ?? 4096,
-          timeoutMs: getNumberValue(providerValue, ['timeoutMs']) ?? 60000,
-          streaming: getBooleanValue(providerValue, ['streaming']) ?? true,
-        },
       } satisfies InstanceWorkbenchLLMProvider;
     })
     .sort((left, right) => left.name.localeCompare(right.name));

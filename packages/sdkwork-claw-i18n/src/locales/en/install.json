@@ -651,7 +651,7 @@
       "config": {
         "loading": "Loading configuration workspace...",
         "instance": "Target instance",
-        "configPath": "Config file",
+        "configFile": "Config file",
         "provider": "Model provider",
         "defaultModel": "Default model",
         "reasoningModel": "Reasoning model",

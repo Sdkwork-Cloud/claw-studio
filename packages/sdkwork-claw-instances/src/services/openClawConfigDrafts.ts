@@ -5,6 +5,7 @@ import type {
   SaveOpenClawWebSearchNativeCodexConfigurationInput,
   SaveOpenClawXSearchConfigurationInput,
 } from '@sdkwork/claw-core';
+import { normalizeOpenClawSecretSource } from '@sdkwork/claw-core';
 import {
   createOpenClawDreamingFormState,
   type OpenClawDreamingFormState,
@@ -231,7 +232,7 @@ export function createOpenClawWebSearchProviderDraft(
   provider?: OpenClawWebSearchProviderRecord | null,
 ): OpenClawWebSearchProviderDraftValue {
   return {
-    apiKeySource: provider?.apiKeySource || '',
+    apiKeySource: normalizeOpenClawSecretSource(provider?.apiKeySource),
     baseUrl: provider?.baseUrl || '',
     model: provider?.model || '',
     advancedConfig: provider?.advancedConfig || '',
@@ -321,7 +322,7 @@ export function createOpenClawXSearchDraft(
 
   return {
     enabled: config.enabled,
-    apiKeySource: config.apiKeySource,
+    apiKeySource: normalizeOpenClawSecretSource(config.apiKeySource),
     model: config.model,
     inlineCitations: config.inlineCitations,
     maxTurns: String(config.maxTurns),
@@ -374,7 +375,7 @@ export function createOpenClawWebFetchFallbackDraft(
   config: InstanceWorkbenchSnapshot['configWebFetch'] | null | undefined,
 ): OpenClawWebFetchFallbackDraftValue {
   return {
-    apiKeySource: config?.fallbackProvider.apiKeySource || '',
+    apiKeySource: normalizeOpenClawSecretSource(config?.fallbackProvider.apiKeySource),
     baseUrl: config?.fallbackProvider.baseUrl || '',
     advancedConfig: config?.fallbackProvider.advancedConfig || '',
   };
@@ -454,7 +455,7 @@ export function buildOpenClawWebSearchSaveInput(args: {
   sharedDraft: OpenClawWebSearchSharedDraftValue;
   providerId: string;
   providerDraft: OpenClawWebSearchProviderDraftValue;
-}): DraftBuildResult<Omit<SaveOpenClawWebSearchConfigurationInput, 'configPath'>> {
+}): DraftBuildResult<Omit<SaveOpenClawWebSearchConfigurationInput, 'configFile'>> {
   const provider = args.sharedDraft.provider.trim();
   if (!provider) {
     return {
@@ -497,7 +498,7 @@ export function buildOpenClawWebSearchSaveInput(args: {
       cacheTtlMinutes: cacheTtlMinutes.value,
       providerConfig: {
         providerId: args.providerId,
-        apiKeySource: args.providerDraft.apiKeySource,
+        apiKeySource: normalizeOpenClawSecretSource(args.providerDraft.apiKeySource),
         baseUrl: args.providerDraft.baseUrl,
         model: args.providerDraft.model,
         advancedConfig: args.providerDraft.advancedConfig,
@@ -508,7 +509,7 @@ export function buildOpenClawWebSearchSaveInput(args: {
 
 export function buildOpenClawXSearchSaveInput(
   draft: OpenClawXSearchDraftValue,
-): DraftBuildResult<Omit<SaveOpenClawXSearchConfigurationInput, 'configPath'>> {
+): DraftBuildResult<Omit<SaveOpenClawXSearchConfigurationInput, 'configFile'>> {
   const maxTurns = buildPositiveInteger(
     draft.maxTurns,
     'instances.detail.instanceWorkbench.xSearch.errors.maxTurnsInvalid',
@@ -537,7 +538,7 @@ export function buildOpenClawXSearchSaveInput(
     ok: true,
     value: {
       enabled: draft.enabled,
-      apiKeySource: draft.apiKeySource,
+      apiKeySource: normalizeOpenClawSecretSource(draft.apiKeySource),
       model: draft.model,
       inlineCitations: draft.inlineCitations,
       maxTurns: maxTurns.value,
@@ -550,7 +551,7 @@ export function buildOpenClawXSearchSaveInput(
 
 export function buildOpenClawWebSearchNativeCodexSaveInput(
   draft: OpenClawWebSearchNativeCodexDraftValue,
-): Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configPath'> {
+): Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configFile'> {
   const allowedDomains = [
     ...new Set(
       draft.allowedDomains
@@ -577,7 +578,7 @@ export function buildOpenClawWebSearchNativeCodexSaveInput(
 export function buildOpenClawWebFetchSaveInput(args: {
   sharedDraft: OpenClawWebFetchSharedDraftValue;
   fallbackDraft: OpenClawWebFetchFallbackDraftValue;
-}): DraftBuildResult<Omit<SaveOpenClawWebFetchConfigurationInput, 'configPath'>> {
+}): DraftBuildResult<Omit<SaveOpenClawWebFetchConfigurationInput, 'configFile'>> {
   const maxChars = buildPositiveInteger(
     args.sharedDraft.maxChars,
     'instances.detail.instanceWorkbench.webFetch.errors.maxCharsInvalid',
@@ -640,7 +641,7 @@ export function buildOpenClawWebFetchSaveInput(args: {
       userAgent: args.sharedDraft.userAgent,
       fallbackProviderConfig: {
         providerId: 'firecrawl',
-        apiKeySource: args.fallbackDraft.apiKeySource,
+        apiKeySource: normalizeOpenClawSecretSource(args.fallbackDraft.apiKeySource),
         baseUrl: args.fallbackDraft.baseUrl,
         advancedConfig: args.fallbackDraft.advancedConfig,
       },
@@ -650,7 +651,7 @@ export function buildOpenClawWebFetchSaveInput(args: {
 
 export function buildOpenClawAuthCooldownsSaveInput(
   draft: OpenClawAuthCooldownsDraftValue,
-): DraftBuildResult<Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configPath'>> {
+): DraftBuildResult<Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configFile'>> {
   const rateLimitedProfileRotations = buildOptionalWholeNumber(
     draft.rateLimitedProfileRotations,
     'instances.detail.instanceWorkbench.authCooldowns.errors.rateLimitedProfileRotationsInvalid',

@@ -56,11 +56,14 @@ type OpenClawChannelCatalogSource = {
 
 function buildSnapshotKernelConfig(
   detail: StudioInstanceDetailRecord,
-  configPath: string | null | undefined,
+  configFile: string | null | undefined,
 ) {
   return buildKernelConfigProjection({
     runtimeKind: detail.instance.runtimeKind,
-    configPath,
+    deploymentMode: detail.instance.deploymentMode,
+    isBuiltIn: detail.instance.isBuiltIn,
+    configFile,
+    workspacePath: detail.config.workspacePath || detail.instance.config.workspacePath || null,
     configWritable: detail.lifecycle.configWritable,
     schemaVersion: null,
   });

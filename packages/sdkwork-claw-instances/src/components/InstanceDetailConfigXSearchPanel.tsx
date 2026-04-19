@@ -1,4 +1,5 @@
 import React from 'react';
+import { presentOpenClawSecretSource } from '@sdkwork/claw-core';
 import { Button, Input, Label, Switch, Textarea } from '@sdkwork/claw-ui';
 import { RowMetric } from './InstanceWorkbenchPrimitives.tsx';
 
@@ -160,7 +161,7 @@ export function InstanceDetailConfigXSearchPanel({
           <div className="mt-4 flex flex-wrap gap-4">
             <RowMetric
               label={t('instances.detail.instanceWorkbench.xSearch.metrics.sharedAuth')}
-              value={xSearchDraft.apiKeySource.trim() || '--'}
+              value={presentOpenClawSecretSource(xSearchDraft.apiKeySource)}
             />
             <RowMetric
               label={t('instances.detail.instanceWorkbench.xSearch.metrics.model')}

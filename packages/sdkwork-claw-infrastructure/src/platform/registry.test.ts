@@ -214,7 +214,7 @@ function createKernelStatus(callId: number) {
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
-      configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+      configFile: 'C:/Users/admin/.openclaw/openclaw.json',
       runtimeHomeDir: 'C:/Users/admin',
       runtimeInstallDir:
         `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/install-${callId}`,

@@ -167,6 +167,23 @@ await runTest(
 );
 
 await runTest(
+  'KernelCenter renders config-file labels for provenance and local AI proxy sections without using legacy configPath copy',
+  async () => {
+    const kernelCenterSource = fs.readFileSync(
+      new URL('./KernelCenter.tsx', import.meta.url),
+      'utf8',
+    );
+
+    assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.configFilePath/);
+    assert.doesNotMatch(kernelCenterSource, /settings\.kernelCenter\.fields\.configPath/);
+    assert.match(kernelCenterSource, /provenance\.configFile/);
+    assert.match(kernelCenterSource, /localAiProxy\.configFile/);
+    assert.doesNotMatch(kernelCenterSource, /provenance\.configPath/);
+    assert.doesNotMatch(kernelCenterSource, /localAiProxy\.configPath/);
+  },
+);
+
+await runTest(
   'KernelCenter local AI proxy lifecycle treats ready as a first-class localized state',
   async () => {
     const kernelCenterSource = fs.readFileSync(

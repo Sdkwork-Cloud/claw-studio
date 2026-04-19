@@ -53,9 +53,11 @@ await runTest(
             ],
           },
         }) as any,
-      resolveOpenClawConfigPath: (detail) => detail?.dataAccess?.routes?.[0]?.target ?? null,
-      readOpenClawConfigSnapshot: async () =>
-        ({
+      resolveAttachedKernelConfigFile: (detail) =>
+        detail?.dataAccess?.routes?.[0]?.target ?? null,
+      readOpenClawConfigSnapshot: async (configFile) => {
+        assert.equal(configFile, 'D:/OpenClaw/.openclaw/openclaw.json');
+        return ({
           agentSnapshots: [
             {
               id: 'research',
@@ -85,7 +87,9 @@ await runTest(
               params: {},
             },
           ],
-        }) as any,
+          configFile,
+        }) as any;
+      },
     });
 
     const catalog = await service.getCatalog('instance-openclaw');
@@ -161,7 +165,8 @@ await runTest(
             ],
           },
         }) as any,
-      resolveOpenClawConfigPath: (detail) => detail?.dataAccess?.routes?.[0]?.target ?? null,
+      resolveAttachedKernelConfigFile: (detail) =>
+        detail?.dataAccess?.routes?.[0]?.target ?? null,
       readOpenClawConfigSnapshot: async () => {
         throw new Error('config unavailable');
       },

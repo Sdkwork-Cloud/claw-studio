@@ -16,6 +16,16 @@ function readJson<T>(relPath: string): T {
   return JSON.parse(read(relPath)) as T;
 }
 
+function stripRustTestModule(source: string) {
+  const marker = '#[cfg(test)]';
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex === -1) {
+    return source;
+  }
+
+  return source.slice(0, markerIndex);
+}
+
 function extractTypeAlias(source: string, aliasName: string) {
   const match = source.match(
     new RegExp(`export type ${aliasName} =[\\s\\S]*?;`),
@@ -204,6 +214,48 @@ runTest('shared host runtime contracts freeze endpoint governance and canonical 
   assert.match(serverBrowserBridgeSource, /distributionFamily:\s*config\.distributionFamily/);
   assert.match(serverBrowserBridgeSource, /deploymentFamily:\s*config\.deploymentFamily/);
   assert.match(serverBrowserBridgeSource, /acceleratorProfile:\s*config\.acceleratorProfile/);
+});
+
+runTest('desktop runtime authority contracts expose configFile and do not publish legacy configFilePath', () => {
+  const runtimeContractSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
+  );
+  const desktopKernelModelSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/kernel.rs',
+  );
+
+  assert.match(
+    runtimeContractSource,
+    /export interface RuntimeDesktopOpenClawRuntimeAuthorityInfo \{[\s\S]*configFile:\s*string;[\s\S]*ownedRuntimeRoots:\s*string\[];/,
+  );
+  assert.match(
+    runtimeContractSource,
+    /export interface RuntimeDesktopKernelRuntimeAuthorityInfo \{[\s\S]*configFile:\s*string;[\s\S]*ownedRuntimeRoots:\s*string\[];/,
+  );
+  assert.doesNotMatch(
+    runtimeContractSource,
+    /export interface RuntimeDesktopOpenClawRuntimeAuthorityInfo \{[\s\S]*configFilePath:\s*string;/,
+  );
+  assert.doesNotMatch(
+    runtimeContractSource,
+    /export interface RuntimeDesktopKernelRuntimeAuthorityInfo \{[\s\S]*configFilePath:\s*string;/,
+  );
+  assert.match(
+    desktopKernelModelSource,
+    /pub struct DesktopOpenClawRuntimeAuthorityInfo \{[\s\S]*pub config_file: String,[\s\S]*pub owned_runtime_roots: Vec<String>,/,
+  );
+  assert.match(
+    desktopKernelModelSource,
+    /pub struct DesktopKernelRuntimeAuthorityInfo \{[\s\S]*pub runtime_id: String,[\s\S]*pub config_file: String,[\s\S]*pub owned_runtime_roots: Vec<String>,/,
+  );
+  assert.doesNotMatch(
+    desktopKernelModelSource,
+    /pub struct DesktopOpenClawRuntimeAuthorityInfo \{[\s\S]*config_file_path:/,
+  );
+  assert.doesNotMatch(
+    desktopKernelModelSource,
+    /pub struct DesktopKernelRuntimeAuthorityInfo \{[\s\S]*config_file_path:/,
+  );
 });
 
 runTest('shared kernel-platform types keep runtime, transport, console, and activation ids extensible for future kernels', () => {
@@ -825,11 +877,11 @@ runTest('OpenClaw config workbench uses gateway authority when the runtime is on
   );
   assert.match(
     instanceServiceCoreSource,
-    /openClawConfigService\.readConfigDocument\(\s*configBinding\.configPath/,
+    /openClawConfigDocumentApi\.readConfigDocument\(\s*configBinding\.configFile/,
   );
   assert.match(
     instanceServiceCoreSource,
-    /openClawConfigService\.writeConfigDocument\(\s*configBinding\.configPath,\s*raw/,
+    /openClawConfigDocumentApi\.writeConfigDocument\(\s*configBinding\.configFile,\s*raw/,
   );
   assert.match(
     instanceServiceSource,
@@ -924,9 +976,13 @@ runTest('internal built-in OpenClaw helpers use built-in naming instead of manag
   assert.doesNotMatch(gatewayClientSource, /function isBuiltInManagedOpenClawAccess\(/);
   assert.doesNotMatch(gatewayClientSource, /isBuiltInManagedOpenClawAccess\(access\)/);
 
-  assert.match(configServiceSource, /function isBuiltInOpenClawDetail\(/);
-  assert.match(configServiceSource, /function resolveBuiltInOpenClawWorkspacePath\(/);
-  assert.match(configServiceSource, /function canonicalizeBuiltInOpenClawConfigPath\(/);
+  assert.match(
+    configServiceSource,
+    /buildOpenClawProviderSnapshotsFromConfigRoot as buildOpenClawProviderSnapshotsFromConfigRootDelegate/,
+  );
+  assert.match(configServiceSource, /writeOpenClawProviderConfigToConfigRoot/);
+  assert.match(configServiceSource, /buildConfigDocumentPreview as buildConfigDocumentPreviewDelegate/);
+  assert.match(configServiceSource, /configureOpenClawMultiAgentSupportInConfigRoot/);
   assert.doesNotMatch(configServiceSource, /function isBuiltInManagedOpenClawDetail\(/);
   assert.doesNotMatch(configServiceSource, /function resolveBuiltInManagedOpenClawWorkspacePath\(/);
   assert.doesNotMatch(configServiceSource, /function canonicalizeBuiltInManagedOpenClawConfigPath\(/);
@@ -958,9 +1014,7 @@ runTest('desktop runtime authority internals use config_file_path terminology in
   const authorityServiceSource = read(
     'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/kernel_runtime_authority.rs',
   );
-  const compatSource = read(
-    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_config_compat.rs',
-  );
+  const authorityServiceProductionSource = stripRustTestModule(authorityServiceSource);
   const openClawRuntimeSnapshotSource = read(
     'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime_snapshot.rs',
   );
@@ -970,24 +1024,18 @@ runTest('desktop runtime authority internals use config_file_path terminology in
 
   assert.match(kernelRuntimeTypesSource, /pub config_file_path: PathBuf,/);
   assert.doesNotMatch(kernelRuntimeTypesSource, /pub managed_config_path: PathBuf,/);
-  assert.match(authorityServiceSource, /pub fn active_config_file_path\(/);
-  assert.doesNotMatch(authorityServiceSource, /pub fn active_managed_config_path\(/);
+  assert.match(authorityServiceProductionSource, /pub fn active_config_file_path\(/);
+  assert.doesNotMatch(authorityServiceProductionSource, /pub fn active_managed_config_path\(/);
   assert.match(
-    compatSource,
-    /pub fn legacy_openclaw_config_file_path\(paths: &AppPaths\) -> PathBuf/,
-  );
-  assert.doesNotMatch(authorityServiceSource, /fn legacy_openclaw_config_file_path\(/);
-  assert.doesNotMatch(compatSource, /fn legacy_openclaw_managed_config_path\(/);
-  assert.match(
-    authorityServiceSource,
+    authorityServiceProductionSource,
     /fn reconcile_openclaw_authority_config_file_path\(/,
   );
   assert.doesNotMatch(
-    authorityServiceSource,
+    authorityServiceProductionSource,
     /fn reconcile_openclaw_authority_managed_config_path\(/,
   );
-  assert.match(compatSource, /fn read_openclaw_authority_state_file\(/);
-  assert.match(compatSource, /fn normalize_legacy_openclaw_authority_json\(/);
+  assert.doesNotMatch(authorityServiceProductionSource, /managed-config/);
+  assert.doesNotMatch(authorityServiceProductionSource, /fn legacy_managed_config_file_path\(/);
   assert.match(openClawRuntimeSnapshotSource, /authority\.config_file_path/);
   assert.doesNotMatch(openClawRuntimeSnapshotSource, /authority\.managed_config_path/);
   assert.doesNotMatch(layoutSource, /managedConfigPath/);
@@ -1175,26 +1223,18 @@ runTest('desktop openclaw helpers use config file terminology in supervisor and 
   assert.doesNotMatch(openclawWorkbenchSource, /fn authority_managed_openclaw_config_path\(/);
 });
 
-runTest('desktop OpenClaw legacy config path compatibility is isolated in a dedicated compat helper', () => {
+runTest('desktop OpenClaw legacy config path compatibility stays quarantined to drift handling and tests', () => {
   const authorityServiceSource = read(
     'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/kernel_runtime_authority.rs',
   );
-  const compatSource = read(
-    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_config_compat.rs',
-  );
+  const authorityServiceProductionSource = stripRustTestModule(authorityServiceSource);
 
-  assert.match(compatSource, /managed-config/);
-  assert.match(
-    compatSource,
-    /pub fn legacy_openclaw_config_file_path\(paths: &AppPaths\) -> PathBuf/,
-  );
-  assert.match(
-    compatSource,
-    /pub fn resolve_legacy_openclaw_config_source_path\(/,
-  );
-  assert.doesNotMatch(authorityServiceSource, /managed-config/);
-  assert.doesNotMatch(authorityServiceSource, /fn legacy_openclaw_config_file_path\(/);
-  assert.doesNotMatch(authorityServiceSource, /fn resolve_legacy_openclaw_config_source_path\(/);
+  assert.match(authorityServiceSource, /\#\[cfg\(test\)\]\s*mod tests \{/);
+  assert.match(authorityServiceSource, /fn legacy_managed_config_file_path\(/);
+  assert.match(authorityServiceProductionSource, /fn reconcile_openclaw_authority_config_file_path\(/);
+  assert.doesNotMatch(authorityServiceProductionSource, /managed-config/);
+  assert.doesNotMatch(authorityServiceProductionSource, /fn legacy_managed_config_file_path\(/);
+  assert.doesNotMatch(authorityServiceProductionSource, /fn resolve_legacy_openclaw_config_source_path\(/);
 });
 
 runTest('desktop rust test helpers use config file terminology for openclaw config paths', () => {

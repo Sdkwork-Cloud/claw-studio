@@ -248,7 +248,7 @@ pub struct DesktopOpenClawRuntimeAuthorityProbeInfo {
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopOpenClawRuntimeAuthorityInfo {
-    pub config_file_path: String,
+    pub config_file: String,
     pub owned_runtime_roots: Vec<String>,
     pub readiness_probe: DesktopOpenClawRuntimeAuthorityProbeInfo,
 }
@@ -273,7 +273,7 @@ pub struct DesktopOpenClawRuntimeInfo {
     pub runtime_dir: Option<String>,
     pub home_dir: String,
     pub workspace_dir: String,
-    pub config_path: String,
+    pub config_file: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gateway_port: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -297,7 +297,7 @@ pub struct DesktopKernelRuntimeAuthorityProbeInfo {
 #[serde(rename_all = "camelCase")]
 pub struct DesktopKernelRuntimeAuthorityInfo {
     pub runtime_id: String,
-    pub config_file_path: String,
+    pub config_file: String,
     pub owned_runtime_roots: Vec<String>,
     pub readiness_probe: DesktopKernelRuntimeAuthorityProbeInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -310,8 +310,6 @@ pub struct DesktopKernelRuntimeAuthorityInfo {
     pub arch: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub install_source: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub config_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime_home_dir: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -334,7 +332,7 @@ pub struct DesktopActiveKernelRuntimeInfo {
     pub node_version: Option<String>,
     pub platform: String,
     pub arch: String,
-    pub config_path: String,
+    pub config_file: String,
     pub runtime_home_dir: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime_install_dir: Option<String>,
@@ -423,7 +421,7 @@ pub struct DesktopLocalAiProxyInfo {
     pub message_capture_enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub observability_db_path: Option<String>,
-    pub config_path: String,
+    pub config_file: String,
     pub snapshot_path: String,
     pub log_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]

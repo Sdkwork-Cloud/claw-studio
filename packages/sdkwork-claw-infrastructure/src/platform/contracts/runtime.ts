@@ -399,7 +399,7 @@ export interface RuntimeDesktopOpenClawRuntimeAuthorityProbeInfo {
 }
 
 export interface RuntimeDesktopOpenClawRuntimeAuthorityInfo {
-  configFilePath: string;
+  configFile: string;
   ownedRuntimeRoots: string[];
   readinessProbe: RuntimeDesktopOpenClawRuntimeAuthorityProbeInfo;
 }
@@ -411,7 +411,7 @@ export interface RuntimeDesktopKernelRuntimeAuthorityProbeInfo {
 
 export interface RuntimeDesktopKernelRuntimeAuthorityInfo {
   runtimeId: string;
-  configFilePath: string;
+  configFile: string;
   ownedRuntimeRoots: string[];
   readinessProbe: RuntimeDesktopKernelRuntimeAuthorityProbeInfo;
   runtimeVersion?: string | null;
@@ -419,7 +419,6 @@ export interface RuntimeDesktopKernelRuntimeAuthorityInfo {
   platform?: string | null;
   arch?: string | null;
   installSource?: RuntimeDesktopKernelHostInfo['provenance']['installSource'] | null;
-  configPath?: string | null;
   runtimeHomeDir?: string | null;
   runtimeInstallDir?: string | null;
 }
@@ -435,7 +434,7 @@ export interface RuntimeDesktopActiveKernelRuntimeInfo {
   nodeVersion?: string | null;
   platform: string;
   arch: string;
-  configPath: string;
+  configFile: string;
   runtimeHomeDir: string;
   runtimeInstallDir?: string | null;
   authority?: RuntimeDesktopKernelRuntimeAuthorityInfo | null;
@@ -454,7 +453,7 @@ export interface RuntimeDesktopOpenClawRuntimeInfo {
   runtimeDir?: string | null;
   homeDir: string;
   workspaceDir: string;
-  configPath: string;
+  configFile: string;
   gatewayPort?: number | null;
   gatewayBaseUrl?: string | null;
   localAiProxyBaseUrl?: string | null;
@@ -482,7 +481,7 @@ export interface RuntimeDesktopLocalAiProxyInfo {
   routeTests: LocalAiProxyRouteTestRecord[];
   messageCaptureEnabled: boolean;
   observabilityDbPath?: string | null;
-  configPath: string;
+  configFile: string;
   snapshotPath: string;
   logPath: string;
   lastError?: string | null;

@@ -46,8 +46,10 @@ function createRuntimeDependencyOverrides(): InstanceServiceDependencyOverrides 
       applyConfig: (instanceId, args) => openClawGatewayClient.applyConfig(instanceId, args),
       runUpdate: (instanceId) => openClawGatewayClient.runUpdate(instanceId),
     },
-    openClawConfigService: {
+    kernelConfigAttachmentApi: {
       resolveInstanceConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
+    },
+    openClawConfigDocumentApi: {
       getConfigDocumentPathInfo: (configPath) =>
         openClawConfigService.getConfigDocumentPathInfo(configPath),
       readConfigDocument: (configPath) => openClawConfigService.readConfigDocument(configPath),
@@ -84,9 +86,13 @@ export function createInstanceService(
       ...runtimeOverrides.openClawGatewayClient,
       ...(overrides.openClawGatewayClient || {}),
     },
-    openClawConfigService: {
-      ...runtimeOverrides.openClawConfigService,
-      ...(overrides.openClawConfigService || {}),
+    kernelConfigAttachmentApi: {
+      ...runtimeOverrides.kernelConfigAttachmentApi,
+      ...(overrides.kernelConfigAttachmentApi || {}),
+    },
+    openClawConfigDocumentApi: {
+      ...runtimeOverrides.openClawConfigDocumentApi,
+      ...(overrides.openClawConfigDocumentApi || {}),
     },
   });
 }

@@ -6,8 +6,7 @@ use super::{
     },
     local_ai_proxy_snapshot::{
         write_local_ai_proxy_snapshot, LocalAiProxyRouteSnapshot, LocalAiProxySnapshot,
-        LOCAL_AI_PROXY_DEFAULT_BIND_HOST, LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY,
-        LOCAL_AI_PROXY_DEFAULT_CLIENT_PROTOCOL, LOCAL_AI_PROXY_DEFAULT_PORT,
+        LOCAL_AI_PROXY_DEFAULT_CLIENT_PROTOCOL,
     },
     storage::StorageService,
 };
@@ -22,14 +21,15 @@ use std::{
 use tokio::sync::oneshot;
 
 pub const SERVICE_ID_LOCAL_AI_PROXY: &str = "local_ai_proxy";
-const LOCAL_AI_PROXY_CONFIG_SCHEMA_VERSION: u32 = 1;
-pub(crate) const OPENCLAW_LOCAL_PROXY_PROVIDER_ID: &str = "sdkwork-local-proxy";
-pub(crate) const OPENCLAW_LOCAL_PROXY_PROVIDER_OPENAI_API: &str = "openai-completions";
-pub(crate) const OPENCLAW_LOCAL_PROXY_PROVIDER_ANTHROPIC_API: &str = "anthropic-messages";
-pub(crate) const OPENCLAW_LOCAL_PROXY_PROVIDER_GEMINI_API: &str = "google-generative-ai";
-pub(crate) const OPENCLAW_LOCAL_PROXY_PROVIDER_AUTH: &str = "api-key";
-pub(crate) const OPENCLAW_LOCAL_PROXY_TOKEN_ENV_VAR: &str = "SDKWORK_LOCAL_PROXY_TOKEN";
-pub(crate) const OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER: &str = "${SDKWORK_LOCAL_PROXY_TOKEN}";
+pub(crate) use sdkwork_local_api_proxy_native::constants::{
+    LOCAL_API_PROXY_API_KEY_PLACEHOLDER as OPENCLAW_LOCAL_PROXY_API_KEY_PLACEHOLDER,
+    LOCAL_API_PROXY_PROVIDER_ANTHROPIC_API as OPENCLAW_LOCAL_PROXY_PROVIDER_ANTHROPIC_API,
+    LOCAL_API_PROXY_PROVIDER_AUTH as OPENCLAW_LOCAL_PROXY_PROVIDER_AUTH,
+    LOCAL_API_PROXY_PROVIDER_GEMINI_API as OPENCLAW_LOCAL_PROXY_PROVIDER_GEMINI_API,
+    LOCAL_API_PROXY_PROVIDER_ID as OPENCLAW_LOCAL_PROXY_PROVIDER_ID,
+    LOCAL_API_PROXY_PROVIDER_OPENAI_API as OPENCLAW_LOCAL_PROXY_PROVIDER_OPENAI_API,
+    LOCAL_API_PROXY_TOKEN_ENV_VAR as OPENCLAW_LOCAL_PROXY_TOKEN_ENV_VAR,
+};
 pub(crate) const ANTHROPIC_CLIENT_PROTOCOL: &str = "anthropic";
 pub(crate) const GEMINI_CLIENT_PROTOCOL: &str = "gemini";
 const OLLAMA_UPSTREAM_PROTOCOL: &str = "ollama";
@@ -38,8 +38,6 @@ const ANTHROPIC_BETA_HEADER: &str = "anthropic-beta";
 const DEFAULT_ANTHROPIC_VERSION: &str = "2023-06-01";
 const X_API_KEY_HEADER: &str = "x-api-key";
 const X_GOOG_API_KEY_HEADER: &str = "x-goog-api-key";
-const LOCAL_AI_PROXY_PUBLIC_BASE_HOST_CANDIDATES: [&str; 3] =
-    ["ai.sdkwork.localhost", "localhost", "127.0.0.1"];
 
 mod anthropic_native;
 pub(crate) mod config;
@@ -345,8 +343,9 @@ impl LocalAiProxyService {
         &self,
         paths: &AppPaths,
     ) -> Result<LocalAiProxyMessageCaptureSettings> {
-        self.ensure_observability_repo(paths)?
-            .message_capture_settings()
+        Ok(self
+            .ensure_observability_repo(paths)?
+            .message_capture_settings()?)
     }
 
     pub fn update_message_capture_settings(
@@ -354,8 +353,10 @@ impl LocalAiProxyService {
         paths: &AppPaths,
         enabled: bool,
     ) -> Result<LocalAiProxyMessageCaptureSettings> {
-        self.ensure_observability_repo(paths)?
-            .update_message_capture_settings(enabled, support::current_time_ms())
+        Ok(self.ensure_observability_repo(paths)?.update_message_capture_settings(
+            enabled,
+            support::current_time_ms(),
+        )?)
     }
 
     pub fn list_request_logs(
@@ -363,8 +364,7 @@ impl LocalAiProxyService {
         paths: &AppPaths,
         query: LocalAiProxyRequestLogsQuery,
     ) -> Result<LocalAiProxyPaginatedResult<LocalAiProxyRequestLogRecord>> {
-        self.ensure_observability_repo(paths)?
-            .list_request_logs(query)
+        Ok(self.ensure_observability_repo(paths)?.list_request_logs(query)?)
     }
 
     pub fn list_message_logs(
@@ -372,8 +372,7 @@ impl LocalAiProxyService {
         paths: &AppPaths,
         query: LocalAiProxyMessageLogsQuery,
     ) -> Result<LocalAiProxyPaginatedResult<LocalAiProxyMessageLogRecord>> {
-        self.ensure_observability_repo(paths)?
-            .list_message_logs(query)
+        Ok(self.ensure_observability_repo(paths)?.list_message_logs(query)?)
     }
 
     pub fn test_route_by_id(&self, route_id: &str) -> Result<LocalAiProxyRouteTestRecord> {
@@ -551,7 +550,12 @@ mod tests {
             create_system_default_local_ai_proxy_snapshot(0, LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY);
 
         let health =
-            super::health::build_health(&snapshot, 18_791, &expected_test_public_host(), &paths);
+            super::health::build_health(
+                &snapshot,
+                LOCAL_AI_PROXY_DEFAULT_PORT,
+                &expected_test_public_host(),
+                &paths,
+            );
 
         assert_eq!(
             health
@@ -3389,7 +3393,7 @@ mod tests {
         let snapshot = LocalAiProxySnapshot {
             schema_version: 1,
             bind_host: "127.0.0.1".to_string(),
-            requested_port: 18_791,
+            requested_port: LOCAL_AI_PROXY_DEFAULT_PORT,
             auth_token: LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY.to_string(),
             default_route_id: "route-anthropic-openai".to_string(),
             routes: vec![LocalAiProxyRouteSnapshot {
@@ -3538,7 +3542,7 @@ mod tests {
         let projected = read_json(&openclaw_config_file_path(&paths));
         assert_eq!(
             projected["models"]["providers"]["sdkwork-local-proxy"]["baseUrl"],
-            expected_test_public_root_base_url(18_791)
+            expected_test_public_root_base_url(LOCAL_AI_PROXY_DEFAULT_PORT)
         );
         assert_eq!(
             projected["models"]["providers"]["sdkwork-local-proxy"]["api"],
@@ -3687,7 +3691,7 @@ mod tests {
         LocalAiProxySnapshot {
             schema_version: 1,
             bind_host: "127.0.0.1".to_string(),
-            requested_port: 18_791,
+            requested_port: LOCAL_AI_PROXY_DEFAULT_PORT,
             auth_token: LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY.to_string(),
             default_route_id: "route-sdkwork".to_string(),
             routes: vec![LocalAiProxyRouteSnapshot {
@@ -3727,8 +3731,8 @@ mod tests {
 
     fn sample_projection_health() -> super::LocalAiProxyServiceHealth {
         super::LocalAiProxyServiceHealth {
-            base_url: expected_test_public_v1_base_url(18_791),
-            active_port: 18_791,
+            base_url: expected_test_public_v1_base_url(LOCAL_AI_PROXY_DEFAULT_PORT),
+            active_port: LOCAL_AI_PROXY_DEFAULT_PORT,
             loopback_only: true,
             default_route_id: "route-sdkwork".to_string(),
             default_route_name: "SDKWork Route".to_string(),

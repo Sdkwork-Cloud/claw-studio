@@ -90,8 +90,8 @@ function cloneConfigDreamingConfig(
   return config ? { ...config } : null;
 }
 
-function buildConfigSectionCount(configFilePath: string | null | undefined) {
-  return configFilePath ? 1 : 0;
+function buildConfigSectionCount(configFile: string | null | undefined) {
+  return configFile ? 1 : 0;
 }
 
 export function buildKernelConfigInsights(
@@ -123,10 +123,10 @@ export function buildKernelConfigInsights(
 }
 
 export function buildConfigWorkbenchState(
-  configFilePath: string | null | undefined,
+  configFile: string | null | undefined,
   configSnapshot: OpenClawConfigSnapshot | null | undefined,
 ): ConfigWorkbenchState {
-  const normalizedConfigFilePath = configFilePath || null;
+  const normalizedConfigFile = configFile || null;
 
   return {
     configChannels: configSnapshot?.channelSnapshots.map(cloneConfigChannel),
@@ -143,15 +143,15 @@ export function buildConfigWorkbenchState(
     configDreaming: cloneConfigDreamingConfig(
       configSnapshot?.dreamingConfig,
     ),
-    configSectionCount: buildConfigSectionCount(normalizedConfigFilePath),
+    configSectionCount: buildConfigSectionCount(normalizedConfigFile),
   };
 }
 
 export function createEmptyOpenClawConfigSnapshot(
-  configPath = '',
+  configFile = '',
 ): OpenClawConfigSnapshot {
   return {
-    configPath,
+    configFile,
     providerSnapshots: [],
     agentSnapshots: [],
     channelSnapshots: [],

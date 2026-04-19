@@ -91,6 +91,24 @@ impl From<rusqlite::Error> for FrameworkError {
     }
 }
 
+impl From<sdkwork_local_api_proxy_native::error::LocalApiProxyNativeError> for FrameworkError {
+    fn from(value: sdkwork_local_api_proxy_native::error::LocalApiProxyNativeError) -> Self {
+        use sdkwork_local_api_proxy_native::error::LocalApiProxyNativeError;
+
+        match value {
+            LocalApiProxyNativeError::Io(error) => Self::Io(error),
+            LocalApiProxyNativeError::Serde(error) => Self::Serde(error),
+            LocalApiProxyNativeError::Sqlite(error) => Self::Internal(format!("sqlite error: {error}")),
+            LocalApiProxyNativeError::ValidationFailed(reason) => Self::ValidationFailed(reason),
+            LocalApiProxyNativeError::InvalidOperation(reason) => Self::InvalidOperation(reason),
+            LocalApiProxyNativeError::NotFound(resource) => Self::NotFound(resource),
+            LocalApiProxyNativeError::Conflict(reason) => Self::Conflict(reason),
+            LocalApiProxyNativeError::Timeout(reason) => Self::Timeout(reason),
+            LocalApiProxyNativeError::Internal(reason) => Self::Internal(reason),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::FrameworkError;

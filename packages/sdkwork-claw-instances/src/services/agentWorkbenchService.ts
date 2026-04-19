@@ -23,7 +23,7 @@ export type {
 
 function createRuntimeDependencyOverrides(): AgentWorkbenchServiceDependencyOverrides {
   return {
-    readOpenClawConfigSnapshot: (configPath) => openClawConfigService.readConfigSnapshot(configPath),
+    readOpenClawConfigSnapshot: (configFile) => openClawConfigService.readConfigSnapshot(configFile),
     openClawGatewayClient: {
       getSkillsStatus: (instanceId, args = {}) =>
         openClawGatewayClient.getSkillsStatus(instanceId, args),

@@ -6,7 +6,17 @@ import type {
   StudioWorkbenchLLMProviderRequestProxyRecord,
   StudioWorkbenchLLMProviderRequestTlsRecord,
 } from '@sdkwork/claw-types';
-import type { OpenClawProviderRuntimeConfig } from './openClawConfigService.ts';
+import {
+  createDefaultLocalApiProxyProviderRuntimeConfig,
+  normalizeLocalApiProxyLegacyProviderId as normalizeLegacyProviderId,
+  normalizeLocalApiProxyLegacyProviderModelRef as normalizeLegacyProviderModelRef,
+  normalizeLocalApiProxyProviderRequestOverrides,
+  normalizeLocalApiProxyProviderRuntimeConfig,
+  type LocalApiProxyProviderRuntimeConfig,
+} from '@sdkwork/local-api-proxy';
+import type { JsonObject, JsonValue } from './openClawConfigDocumentService.ts';
+
+export type OpenClawProviderRuntimeConfig = LocalApiProxyProviderRuntimeConfig;
 
 const OPENCLAW_PROVIDER_REQUEST_AUTH_MODES: readonly StudioWorkbenchLLMProviderRequestAuthMode[] = [
   'provider-default',
@@ -19,31 +29,149 @@ const OPENCLAW_PROVIDER_REQUEST_PROXY_MODES: readonly StudioWorkbenchLLMProvider
   'explicit-proxy',
 ];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+function isJsonObject(value: JsonValue | null | undefined): value is JsonObject {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function readNonEmptyString(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+function readObject(value: JsonValue | null | undefined) {
+  return isJsonObject(value) ? value : null;
 }
 
-function normalizeFiniteNumber(value: unknown, fallback: number) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+function ensureObject(parent: JsonObject, key: string): JsonObject {
+  const value = readObject(parent[key]);
+  if (value) {
+    return value;
+  }
+
+  const nextValue: JsonObject = {};
+  parent[key] = nextValue;
+  return nextValue;
 }
 
-function normalizeTls(
-  value: unknown,
+function readString(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
+}
+
+function readNumber(value: unknown, fallback: number) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function readBoolean(value: unknown, fallback: boolean) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    if (value === 'true') {
+      return true;
+    }
+    if (value === 'false') {
+      return false;
+    }
+  }
+
+  return fallback;
+}
+
+function setOptionalScalar(target: JsonObject, key: string, value: string | undefined) {
+  const normalized = value?.trim() || '';
+  if (!normalized) {
+    delete target[key];
+    return;
+  }
+
+  target[key] = normalized;
+}
+
+function setOptionalBoolean(target: JsonObject, key: string, value: boolean | undefined) {
+  if (typeof value !== 'boolean') {
+    delete target[key];
+    return;
+  }
+
+  target[key] = value;
+}
+
+function buildModelRef(providerKey: string, modelId: string) {
+  const normalizedProviderKey = normalizeLegacyProviderId(providerKey).trim();
+  const normalizedModelRef = normalizeLegacyProviderModelRef(modelId).trim();
+
+  if (!normalizedProviderKey || !normalizedModelRef) {
+    return '';
+  }
+
+  return normalizedModelRef.includes('/')
+    ? normalizedModelRef
+    : `${normalizedProviderKey}/${normalizedModelRef}`;
+}
+
+function readStringRecord(root: JsonObject | null | undefined) {
+  if (!root) {
+    return undefined;
+  }
+
+  const nextRecord = Object.fromEntries(
+    Object.entries(root).flatMap(([key, value]) => {
+      const normalizedKey = key.trim();
+      const normalizedValue = readString(value);
+      return normalizedKey && normalizedValue ? [[normalizedKey, normalizedValue]] : [];
+    }),
+  );
+
+  return Object.keys(nextRecord).length > 0 ? nextRecord : undefined;
+}
+
+function writeStringRecord(
+  target: JsonObject,
+  key: string,
+  value: Record<string, string> | undefined,
+) {
+  if (!value) {
+    delete target[key];
+    return;
+  }
+
+  const nextRecord = Object.fromEntries(
+    Object.entries(value).flatMap(([entryKey, entryValue]) => {
+      const normalizedKey = entryKey.trim();
+      const normalizedValue = entryValue.trim();
+      return normalizedKey && normalizedValue ? [[normalizedKey, normalizedValue]] : [];
+    }),
+  );
+
+  if (Object.keys(nextRecord).length === 0) {
+    delete target[key];
+    return;
+  }
+
+  target[key] = nextRecord;
+}
+
+function readProviderRequestTls(
+  value: JsonValue | null | undefined,
 ): StudioWorkbenchLLMProviderRequestTlsRecord | undefined {
-  if (!isRecord(value)) {
+  const root = readObject(value);
+  if (!root) {
     return undefined;
   }
 
   const nextTls: StudioWorkbenchLLMProviderRequestTlsRecord = {};
-  const ca = readNonEmptyString(value.ca);
-  const cert = readNonEmptyString(value.cert);
-  const key = readNonEmptyString(value.key);
-  const passphrase = readNonEmptyString(value.passphrase);
-  const serverName = readNonEmptyString(value.serverName);
+  const ca = readString(root.ca);
+  const cert = readString(root.cert);
+  const key = readString(root.key);
+  const passphrase = readString(root.passphrase);
+  const serverName = readString(root.serverName);
 
   if (ca) {
     nextTls.ca = ca;
@@ -60,60 +188,57 @@ function normalizeTls(
   if (serverName) {
     nextTls.serverName = serverName;
   }
-  if (typeof value.insecureSkipVerify === 'boolean') {
-    nextTls.insecureSkipVerify = value.insecureSkipVerify;
+  if (typeof root.insecureSkipVerify === 'boolean') {
+    nextTls.insecureSkipVerify = root.insecureSkipVerify;
   }
 
   return Object.keys(nextTls).length > 0 ? nextTls : undefined;
 }
 
-function normalizeHeaders(value: unknown) {
-  if (!isRecord(value)) {
+function writeProviderRequestTls(
+  value: StudioWorkbenchLLMProviderRequestTlsRecord | undefined,
+): JsonObject | undefined {
+  if (!value) {
     return undefined;
   }
 
-  const nextHeaders = Object.fromEntries(
-    Object.entries(value).flatMap(([key, entry]) => {
-      const normalizedKey = key.trim();
-      const normalizedValue = readNonEmptyString(entry);
-      return normalizedKey && normalizedValue ? [[normalizedKey, normalizedValue]] : [];
-    }),
-  );
+  const nextRoot: JsonObject = {};
+  setOptionalScalar(nextRoot, 'ca', value.ca);
+  setOptionalScalar(nextRoot, 'cert', value.cert);
+  setOptionalScalar(nextRoot, 'key', value.key);
+  setOptionalScalar(nextRoot, 'passphrase', value.passphrase);
+  setOptionalScalar(nextRoot, 'serverName', value.serverName);
+  setOptionalBoolean(nextRoot, 'insecureSkipVerify', value.insecureSkipVerify);
 
-  return Object.keys(nextHeaders).length > 0 ? nextHeaders : undefined;
+  return Object.keys(nextRoot).length > 0 ? nextRoot : undefined;
 }
 
-function normalizeAuth(
-  value: unknown,
+function readProviderRequestAuth(
+  value: JsonValue | null | undefined,
 ): StudioWorkbenchLLMProviderRequestAuthRecord | undefined {
-  if (!isRecord(value)) {
+  const root = readObject(value);
+  if (!root) {
     return undefined;
   }
 
-  const mode = readNonEmptyString(value.mode) as
-    | StudioWorkbenchLLMProviderRequestAuthMode
-    | undefined;
-  if (!mode) {
-    return undefined;
-  }
+  const mode = readString(root.mode) as StudioWorkbenchLLMProviderRequestAuthMode;
   if (!OPENCLAW_PROVIDER_REQUEST_AUTH_MODES.includes(mode)) {
-    throw new Error(
-      `request overrides auth.mode must be one of ${OPENCLAW_PROVIDER_REQUEST_AUTH_MODES.join(', ')}.`,
-    );
+    return undefined;
   }
 
-  const nextAuth: StudioWorkbenchLLMProviderRequestAuthRecord = { mode };
+  const nextAuth: StudioWorkbenchLLMProviderRequestAuthRecord = {
+    mode,
+  };
   if (mode === 'authorization-bearer') {
-    const token = readNonEmptyString(value.token);
+    const token = readString(root.token);
     if (token) {
       nextAuth.token = token;
     }
   }
   if (mode === 'header') {
-    const headerName = readNonEmptyString(value.headerName);
-    const headerValue = readNonEmptyString(value.value);
-    const prefix = readNonEmptyString(value.prefix);
-
+    const headerName = readString(root.headerName);
+    const headerValue = readString(root.value);
+    const prefix = readString(root.prefix);
     if (headerName) {
       nextAuth.headerName = headerName;
     }
@@ -128,31 +253,52 @@ function normalizeAuth(
   return nextAuth;
 }
 
-function normalizeProxy(
-  value: unknown,
+function writeProviderRequestAuth(
+  value: StudioWorkbenchLLMProviderRequestAuthRecord | undefined,
+): JsonObject | undefined {
+  if (!value || !OPENCLAW_PROVIDER_REQUEST_AUTH_MODES.includes(value.mode)) {
+    return undefined;
+  }
+
+  const nextRoot: JsonObject = {
+    mode: value.mode,
+  };
+  if (value.mode === 'authorization-bearer') {
+    setOptionalScalar(nextRoot, 'token', value.token);
+  }
+  if (value.mode === 'header') {
+    setOptionalScalar(nextRoot, 'headerName', value.headerName);
+    setOptionalScalar(nextRoot, 'value', value.value);
+    setOptionalScalar(nextRoot, 'prefix', value.prefix);
+  }
+
+  return nextRoot;
+}
+
+function readProviderRequestProxy(
+  value: JsonValue | null | undefined,
 ): StudioWorkbenchLLMProviderRequestProxyRecord | undefined {
-  if (!isRecord(value)) {
+  const root = readObject(value);
+  if (!root) {
     return undefined;
   }
 
-  const mode = readNonEmptyString(value.mode) as
-    | StudioWorkbenchLLMProviderRequestProxyMode
-    | undefined;
-  if (!mode) {
-    return undefined;
-  }
+  const mode = readString(root.mode) as StudioWorkbenchLLMProviderRequestProxyMode;
   if (!OPENCLAW_PROVIDER_REQUEST_PROXY_MODES.includes(mode)) {
-    throw new Error(
-      `request overrides proxy.mode must be one of ${OPENCLAW_PROVIDER_REQUEST_PROXY_MODES.join(', ')}.`,
-    );
+    return undefined;
   }
 
-  const nextProxy: StudioWorkbenchLLMProviderRequestProxyRecord = { mode };
-  const url = readNonEmptyString(value.url);
-  if (url) {
-    nextProxy.url = url;
+  const nextProxy: StudioWorkbenchLLMProviderRequestProxyRecord = {
+    mode,
+  };
+  if (mode === 'explicit-proxy') {
+    const url = readString(root.url);
+    if (url) {
+      nextProxy.url = url;
+    }
   }
-  const tls = normalizeTls(value.tls);
+
+  const tls = readProviderRequestTls(root.tls);
   if (tls) {
     nextProxy.tls = tls;
   }
@@ -160,52 +306,161 @@ function normalizeProxy(
   return nextProxy;
 }
 
+function writeProviderRequestProxy(
+  value: StudioWorkbenchLLMProviderRequestProxyRecord | undefined,
+): JsonObject | undefined {
+  if (!value || !OPENCLAW_PROVIDER_REQUEST_PROXY_MODES.includes(value.mode)) {
+    return undefined;
+  }
+
+  const nextRoot: JsonObject = {
+    mode: value.mode,
+  };
+  if (value.mode === 'explicit-proxy') {
+    setOptionalScalar(nextRoot, 'url', value.url);
+  }
+
+  const tls = writeProviderRequestTls(value.tls);
+  if (tls) {
+    nextRoot.tls = tls;
+  }
+
+  return nextRoot;
+}
+
+function readProviderRequestConfig(
+  providerRoot: JsonObject | null | undefined,
+): StudioWorkbenchLLMProviderRequestOverridesRecord | undefined {
+  const requestRoot = readObject(providerRoot?.request as JsonValue | undefined);
+  if (!requestRoot) {
+    return undefined;
+  }
+
+  return normalizeOpenClawProviderRequestOverrides({
+    headers: readStringRecord(readObject(requestRoot.headers)),
+    auth: readProviderRequestAuth(requestRoot.auth),
+    proxy: readProviderRequestProxy(requestRoot.proxy),
+    tls: readProviderRequestTls(requestRoot.tls),
+  });
+}
+
+function writeProviderRequestConfig(
+  providerRoot: JsonObject,
+  request: StudioWorkbenchLLMProviderRequestOverridesRecord | undefined,
+) {
+  const normalizedRequest = normalizeOpenClawProviderRequestOverrides(request);
+  if (!normalizedRequest) {
+    delete providerRoot.request;
+    return;
+  }
+
+  const requestRoot: JsonObject = {};
+  writeStringRecord(requestRoot, 'headers', normalizedRequest.headers);
+  const auth = writeProviderRequestAuth(normalizedRequest.auth);
+  if (auth) {
+    requestRoot.auth = auth;
+  }
+  const proxy = writeProviderRequestProxy(normalizedRequest.proxy);
+  if (proxy) {
+    requestRoot.proxy = proxy;
+  }
+  const tls = writeProviderRequestTls(normalizedRequest.tls);
+  if (tls) {
+    requestRoot.tls = tls;
+  }
+
+  if (Object.keys(requestRoot).length === 0) {
+    delete providerRoot.request;
+    return;
+  }
+
+  providerRoot.request = requestRoot;
+}
+
 export function normalizeOpenClawProviderRequestOverrides(
   value: StudioWorkbenchLLMProviderRequestOverridesRecord | null | undefined,
 ): StudioWorkbenchLLMProviderRequestOverridesRecord | undefined {
-  const headers = normalizeHeaders(value?.headers);
-  const auth = normalizeAuth(value?.auth);
-  const proxy = normalizeProxy(value?.proxy);
-  const tls = normalizeTls(value?.tls);
-
-  return headers || auth || proxy || tls
-    ? {
-        ...(headers ? { headers } : {}),
-        ...(auth ? { auth } : {}),
-        ...(proxy ? { proxy } : {}),
-        ...(tls ? { tls } : {}),
-      }
-    : undefined;
+  return normalizeLocalApiProxyProviderRequestOverrides(value);
 }
 
 export function createDefaultOpenClawProviderRuntimeConfig(): OpenClawProviderRuntimeConfig {
-  return {
-    temperature: 0.2,
-    topP: 1,
-    maxTokens: 8192,
-    timeoutMs: 60000,
-    streaming: true,
-  };
+  return createDefaultLocalApiProxyProviderRuntimeConfig();
 }
 
 export function normalizeOpenClawProviderRuntimeConfig(
   input?: Partial<OpenClawProviderRuntimeConfig> | null,
 ): OpenClawProviderRuntimeConfig {
-  const defaults = createDefaultOpenClawProviderRuntimeConfig();
-  const request = normalizeOpenClawProviderRequestOverrides(input?.request);
+  return normalizeLocalApiProxyProviderRuntimeConfig(input);
+}
 
-  return {
-    temperature: normalizeFiniteNumber(input?.temperature, defaults.temperature),
-    topP: normalizeFiniteNumber(input?.topP, defaults.topP),
-    maxTokens: Math.max(
-      1,
-      Math.round(normalizeFiniteNumber(input?.maxTokens, defaults.maxTokens)),
-    ),
-    timeoutMs: Math.max(
-      1000,
-      Math.round(normalizeFiniteNumber(input?.timeoutMs, defaults.timeoutMs)),
-    ),
-    streaming: typeof input?.streaming === 'boolean' ? input.streaming : defaults.streaming,
+export function readOpenClawProviderRuntimeConfigFromConfigRoot(input: {
+  root: JsonObject;
+  providerKey: string;
+  modelId?: string | null;
+  providerRoot?: JsonObject | null;
+}): OpenClawProviderRuntimeConfig {
+  const defaults = createDefaultOpenClawProviderRuntimeConfig();
+  const normalizedModelId = input.modelId?.trim() || '';
+  const defaultsModelsRoot = readObject(readObject(readObject(input.root.agents)?.defaults)?.models);
+  const modelRoot =
+    normalizedModelId && defaultsModelsRoot
+      ? readObject(defaultsModelsRoot[buildModelRef(input.providerKey, normalizedModelId)])
+      : null;
+  const paramsRoot = readObject(modelRoot?.params as JsonValue | undefined);
+  const request = readProviderRequestConfig(input.providerRoot);
+
+  return normalizeOpenClawProviderRuntimeConfig({
+    temperature: readNumber(paramsRoot?.temperature, defaults.temperature),
+    topP: readNumber(paramsRoot?.topP, defaults.topP),
+    maxTokens: readNumber(paramsRoot?.maxTokens, defaults.maxTokens),
+    timeoutMs: readNumber(paramsRoot?.timeoutMs, defaults.timeoutMs),
+    streaming: readBoolean(paramsRoot?.streaming, defaults.streaming),
     ...(request ? { request } : {}),
-  };
+  });
+}
+
+export function writeOpenClawProviderRuntimeConfigToConfigRoot(input: {
+  root: JsonObject;
+  providerKey: string;
+  modelId?: string | null;
+  providerRoot?: JsonObject | null;
+  config?: Partial<OpenClawProviderRuntimeConfig> | null;
+}) {
+  if (input.providerRoot) {
+    writeProviderRequestConfig(input.providerRoot, input.config?.request);
+  }
+
+  const normalizedModelId = input.modelId?.trim() || '';
+  if (!normalizedModelId) {
+    return;
+  }
+
+  const defaultsRoot = ensureObject(ensureObject(input.root, 'agents'), 'defaults');
+  const catalogRoot = ensureObject(defaultsRoot, 'models');
+  const modelRoot = ensureObject(catalogRoot, buildModelRef(input.providerKey, normalizedModelId));
+  const nextParamEntries: Array<[string, number | boolean]> = [];
+  for (const [key, value] of [
+    ['temperature', input.config?.temperature],
+    ['topP', input.config?.topP],
+    ['maxTokens', input.config?.maxTokens],
+    ['timeoutMs', input.config?.timeoutMs],
+    ['streaming', input.config?.streaming],
+  ] as const) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      nextParamEntries.push([key, value]);
+      continue;
+    }
+
+    if (typeof value === 'boolean') {
+      nextParamEntries.push([key, value]);
+    }
+  }
+  const nextParams = Object.fromEntries(nextParamEntries);
+
+  if (Object.keys(nextParams).length === 0) {
+    delete modelRoot.params;
+    return;
+  }
+
+  modelRoot.params = nextParams;
 }

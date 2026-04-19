@@ -354,6 +354,90 @@ await runTest(
 );
 
 await runTest(
+  'buildInstanceDetailDerivedState reconstructs canonical built-in OpenClaw config metadata from drifted managed-config detail targets',
+  () => {
+    const workbench = createWorkbench();
+    const driftedManagedConfigPath =
+      'C:/ProgramData/SdkWork/CrawStudio/state/kernels/openclaw/managed-config/openclaw.json';
+    const canonicalConfigFilePath =
+      'C:/Users/admin/.sdkwork/crawstudio/.openclaw/openclaw.json';
+    const canonicalWorkspacePath =
+      'C:/Users/admin/.sdkwork/crawstudio/.openclaw/workspace';
+
+    workbench.kernelConfig = null;
+    workbench.detail.dataAccess.routes = [
+      {
+        id: 'config-managed',
+        scope: 'config',
+        mode: 'managedFile',
+        readonly: false,
+        target: driftedManagedConfigPath,
+      },
+      {
+        id: 'workspace-root',
+        scope: 'files',
+        mode: 'managedDirectory',
+        readonly: false,
+        target: canonicalWorkspacePath,
+      },
+    ];
+    workbench.detail.artifacts = [
+      {
+        id: 'config-file',
+        kind: 'configFile',
+        location: driftedManagedConfigPath,
+      },
+      {
+        id: 'workspace-root',
+        kind: 'workspaceDirectory',
+        location: canonicalWorkspacePath,
+      },
+    ];
+
+    const derivedState = buildInstanceDetailDerivedState({
+      id: 'instance-1',
+      workbench,
+      selectedProviderId: null,
+      providerDeleteId: null,
+      providerModelDeleteId: null,
+      providerDrafts: {},
+      providerRequestDrafts: {},
+      selectedConfigChannelId: null,
+      configChannelDrafts: {},
+      selectedWebSearchProviderId: null,
+      webSearchProviderDrafts: {},
+      providerDialogDraft: {
+        id: '',
+        name: '',
+        endpoint: '',
+        apiKeySource: '',
+        defaultModelId: '',
+        reasoningModelId: '',
+        embeddingModelId: '',
+        modelsText: '',
+        requestOverridesText: '',
+      },
+      t: (key: string) => key,
+    });
+
+    assert.equal(derivedState.configFilePath, canonicalConfigFilePath);
+    assert.equal(derivedState.isOpenClawConfigWritable, true);
+    assert.equal(
+      derivedState.detail?.dataAccess.routes.find((route) => route.scope === 'config')?.target,
+      canonicalConfigFilePath,
+    );
+    assert.equal(
+      derivedState.detail?.artifacts.find((artifact) => artifact.kind === 'configFile')?.location,
+      canonicalConfigFilePath,
+    );
+    assert.equal(
+      derivedState.managementSummary?.entries.find((entry) => entry.id === 'kernelConfig')?.value,
+      canonicalConfigFilePath,
+    );
+  },
+);
+
+await runTest(
   'buildInstanceDetailDerivedState gates editing from kernel config and authority instead of legacy configFilePath heuristics',
   () => {
     const workbench = createWorkbench();

@@ -960,8 +960,8 @@ await runTest(
   async () => {
     const readConfigSnapshotCalls: string[] = [];
     const service = createAgentWorkbenchService({
-      readOpenClawConfigSnapshot: async (configPath) => {
-        readConfigSnapshotCalls.push(configPath);
+      readOpenClawConfigSnapshot: async (configFile) => {
+        readConfigSnapshotCalls.push(configFile);
         return {
           root: {},
           agentSnapshots: [],

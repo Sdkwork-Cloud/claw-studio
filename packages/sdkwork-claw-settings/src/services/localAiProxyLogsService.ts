@@ -1,4 +1,8 @@
-import { kernelPlatformService } from '@sdkwork/claw-core';
+import { kernelPlatformService } from "@sdkwork/claw-core";
+import {
+  createLocalApiProxyLogsService as createSharedLocalApiProxyLogsService,
+  type LocalApiProxyLogsWorkspaceRuntimeSummary,
+} from "@sdkwork/local-api-proxy";
 import type {
   LocalAiProxyMessageCaptureSettings,
   LocalAiProxyMessageLogRecord,
@@ -6,81 +10,22 @@ import type {
   LocalAiProxyRequestLogRecord,
   LocalAiProxyRequestLogsQuery,
   PaginatedResult,
-} from '@sdkwork/claw-types';
+} from "@sdkwork/claw-types";
+
+export type LocalAiProxyRuntimeSummary = LocalApiProxyLogsWorkspaceRuntimeSummary;
 
 interface LocalAiProxyLogsServiceDependencies {
   kernelPlatformService: Pick<
     typeof kernelPlatformService,
-    | 'getInfo'
-    | 'listLocalAiProxyRequestLogs'
-    | 'listLocalAiProxyMessageLogs'
-    | 'updateLocalAiProxyMessageCapture'
+    | "getInfo"
+    | "listLocalAiProxyRequestLogs"
+    | "listLocalAiProxyMessageLogs"
+    | "updateLocalAiProxyMessageCapture"
   >;
 }
 
 export interface LocalAiProxyLogsServiceOverrides {
-  kernelPlatformService?: Partial<LocalAiProxyLogsServiceDependencies['kernelPlatformService']>;
-}
-
-export interface LocalAiProxyRuntimeSummary {
-  lifecycle: string;
-  observabilityDbPath: string | null;
-  snapshotPath: string | null;
-  logPath: string | null;
-}
-
-function normalizePage(value: number | undefined, fallback: number) {
-  return Number.isFinite(value) && Number(value) > 0 ? Math.round(Number(value)) : fallback;
-}
-
-function normalizePageSize(value: number | undefined, fallback: number) {
-  const normalized = normalizePage(value, fallback);
-  return Math.max(1, Math.min(100, normalized));
-}
-
-function normalizeOptionalText(value: string | null | undefined) {
-  const normalized = value?.trim();
-  return normalized ? normalized : undefined;
-}
-
-function normalizeNullableText(value: string | null | undefined) {
-  const normalized = value?.trim();
-  return normalized ? normalized : null;
-}
-
-function normalizeStatus(
-  value: LocalAiProxyRequestLogsQuery['status'],
-): Exclude<LocalAiProxyRequestLogsQuery['status'], 'all'> | undefined {
-  if (value === 'succeeded' || value === 'failed') {
-    return value;
-  }
-
-  return undefined;
-}
-
-function compactObject<T extends Record<string, unknown>>(value: T): T {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, entry]) => entry !== undefined),
-  ) as T;
-}
-
-function resolveRuntimeSummary(
-  localAiProxy:
-    | {
-        lifecycle?: string | null;
-        observabilityDbPath?: string | null;
-        snapshotPath?: string | null;
-        logPath?: string | null;
-      }
-    | null
-    | undefined,
-): LocalAiProxyRuntimeSummary {
-  return {
-    lifecycle: normalizeOptionalText(localAiProxy?.lifecycle) ?? 'unavailable',
-    observabilityDbPath: normalizeNullableText(localAiProxy?.observabilityDbPath),
-    snapshotPath: normalizeNullableText(localAiProxy?.snapshotPath),
-    logPath: normalizeNullableText(localAiProxy?.logPath),
-  };
+  kernelPlatformService?: Partial<LocalAiProxyLogsServiceDependencies["kernelPlatformService"]>;
 }
 
 export function createLocalAiProxyLogsService(
@@ -99,53 +44,34 @@ export function createLocalAiProxyLogsService(
     },
   };
 
-  return {
-    async listRequestLogs(
-      query: LocalAiProxyRequestLogsQuery,
-    ): Promise<PaginatedResult<LocalAiProxyRequestLogRecord>> {
-      return dependencies.kernelPlatformService.listLocalAiProxyRequestLogs(compactObject({
-        page: normalizePage(query.page, 1),
-        pageSize: normalizePageSize(query.pageSize, 20),
-        search: normalizeOptionalText(query.search),
-        providerId: normalizeOptionalText(query.providerId),
-        modelId: normalizeOptionalText(query.modelId),
-        routeId: normalizeOptionalText(query.routeId),
-        status: normalizeStatus(query.status),
-      }));
-    },
-
-    async listMessageLogs(
-      query: LocalAiProxyMessageLogsQuery,
-    ): Promise<PaginatedResult<LocalAiProxyMessageLogRecord>> {
-      return dependencies.kernelPlatformService.listLocalAiProxyMessageLogs(compactObject({
-        page: normalizePage(query.page, 1),
-        pageSize: normalizePageSize(query.pageSize, 20),
-        search: normalizeOptionalText(query.search),
-        providerId: normalizeOptionalText(query.providerId),
-        modelId: normalizeOptionalText(query.modelId),
-        routeId: normalizeOptionalText(query.routeId),
-      }));
-    },
-
-    async getMessageCaptureSettings(): Promise<LocalAiProxyMessageCaptureSettings> {
+  return createSharedLocalApiProxyLogsService<
+    LocalAiProxyRequestLogsQuery,
+    PaginatedResult<LocalAiProxyRequestLogRecord>,
+    LocalAiProxyMessageLogsQuery,
+    PaginatedResult<LocalAiProxyMessageLogRecord>,
+    LocalAiProxyMessageCaptureSettings
+  >({
+    listRequestLogs: (query) => dependencies.kernelPlatformService.listLocalAiProxyRequestLogs(query),
+    listMessageLogs: (query) => dependencies.kernelPlatformService.listLocalAiProxyMessageLogs(query),
+    async getCaptureSettings() {
       const info = await dependencies.kernelPlatformService.getInfo();
       return {
         enabled: info?.localAiProxy?.messageCaptureEnabled ?? false,
         updatedAt: null,
       };
     },
-
-    async updateMessageCaptureSettings(
-      enabled: boolean,
-    ): Promise<LocalAiProxyMessageCaptureSettings> {
-      return dependencies.kernelPlatformService.updateLocalAiProxyMessageCapture(enabled);
-    },
-
-    async getRuntimeSummary(): Promise<LocalAiProxyRuntimeSummary> {
+    updateCaptureSettings: (enabled) =>
+      dependencies.kernelPlatformService.updateLocalAiProxyMessageCapture(enabled),
+    async getRuntimeEvidence() {
       const info = await dependencies.kernelPlatformService.getInfo();
-      return resolveRuntimeSummary(info?.localAiProxy);
+      return {
+        lifecycle: info?.localAiProxy?.lifecycle,
+        observabilityDbPath: info?.localAiProxy?.observabilityDbPath,
+        snapshotPath: info?.localAiProxy?.snapshotPath,
+        logPath: info?.localAiProxy?.logPath,
+      };
     },
-  };
+  });
 }
 
 export const localAiProxyLogsService = createLocalAiProxyLogsService();

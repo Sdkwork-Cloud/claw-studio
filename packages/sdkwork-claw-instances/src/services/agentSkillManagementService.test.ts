@@ -128,13 +128,15 @@ function createOpenClawDetail(overrides: Partial<StudioInstanceDetailRecord> = {
 await runTest(
   'agentSkillManagementService writes skill enabled state through the discovered config file when available',
   async () => {
-    const configWrites: Array<{ configPath: string; skillKey: string; enabled?: boolean }> = [];
+    const configWrites: Array<{ configFile: string; skillKey: string; enabled?: boolean }> = [];
     const service = createAgentSkillManagementService({
       studioApi: {
         getInstanceDetail: async () => createOpenClawDetail(),
       },
-      openClawConfigService: {
-        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      kernelConfigAttachmentApi: {
+        resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      },
+      openClawConfigDocumentApi: {
         saveSkillEntry: async (input) => {
           configWrites.push(input);
           return null;
@@ -155,7 +157,7 @@ await runTest(
 
     assert.deepEqual(configWrites, [
       {
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         skillKey: 'research-skill',
         enabled: false,
       },
@@ -182,8 +184,10 @@ await runTest(
             },
           }),
       },
-      openClawConfigService: {
-        resolveInstanceConfigPath: () => null,
+      kernelConfigAttachmentApi: {
+        resolveAttachedKernelConfigFile: () => null,
+      },
+      openClawConfigDocumentApi: {
         saveSkillEntry: async () => {
           throw new Error('config service should not be used without a writable config path');
         },
@@ -300,8 +304,10 @@ await runTest(
       studioApi: {
         getInstanceDetail: async () => createOpenClawDetail(),
       },
-      openClawConfigService: {
-        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      kernelConfigAttachmentApi: {
+        resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      },
+      openClawConfigDocumentApi: {
         saveSkillEntry: async () => null,
         deleteSkillEntry: async ({ skillKey }: any) => {
           deletedConfigEntries.push(skillKey);
@@ -362,8 +368,10 @@ await runTest(
       studioApi: {
         getInstanceDetail: async () => createOpenClawDetail(),
       },
-      openClawConfigService: {
-        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      kernelConfigAttachmentApi: {
+        resolveAttachedKernelConfigFile: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+      },
+      openClawConfigDocumentApi: {
         saveSkillEntry: async () => null,
         deleteSkillEntry: async ({ skillKey }: any) => {
           deletedConfigEntries.push(skillKey);

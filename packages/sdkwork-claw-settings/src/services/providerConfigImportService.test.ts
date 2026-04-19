@@ -213,6 +213,51 @@ env_key = "OPENAI_API_KEY"
   assert.equal(openAiDraft?.draft.baseUrl, 'https://api.openai.com/v1');
 });
 
+await runTest(
+  'providerConfigImportService normalizes imported Codex drafts through the shared provider routing standard for custom providers',
+  async () => {
+    const service = createService({
+      files: {
+        'C:/Users/admin/.codex/config.toml': `
+model = "custom-provider/gpt-oss-120b"
+model_provider = "custom-provider"
+
+[model_providers.custom-provider]
+base_url = " https://llm.example.com/v1/ "
+env_key = "CUSTOM_PROVIDER_API_KEY"
+`,
+        'C:/Users/admin/.codex/auth.json': JSON.stringify({
+          CUSTOM_PROVIDER_API_KEY: 'sk-custom-provider',
+        }),
+      },
+    });
+
+    const imported = await service.importProviderConfigs('codex');
+    const customDraft = findImportedDraft(imported, 'codex', 'custom-provider');
+
+    assert.equal(imported.drafts.length, 1);
+    assert.ok(customDraft);
+    assert.equal(customDraft?.draft.name, 'Codex / Custom Provider');
+    assert.equal(customDraft?.draft.providerId, 'custom-provider');
+    assert.equal(customDraft?.draft.clientProtocol, 'openai-compatible');
+    assert.equal(customDraft?.draft.upstreamProtocol, 'openai-compatible');
+    assert.equal(customDraft?.draft.upstreamBaseUrl, 'https://llm.example.com/v1');
+    assert.equal(customDraft?.draft.baseUrl, 'https://llm.example.com/v1');
+    assert.equal(customDraft?.draft.defaultModelId, 'gpt-oss-120b');
+    assert.deepEqual(customDraft?.draft.models, [
+      { id: 'gpt-oss-120b', name: 'gpt-oss-120b' },
+    ]);
+    assert.deepEqual(customDraft?.draft.exposeTo, ['openclaw']);
+    assert.deepEqual(customDraft?.draft.config, {
+      temperature: 0.2,
+      topP: 1,
+      maxTokens: 8192,
+      timeoutMs: 60000,
+      streaming: true,
+    });
+  },
+);
+
 await runTest('providerConfigImportService imports OpenCode provider routes from config JSONC and auth.json', async () => {
   const service = createService({
     files: {

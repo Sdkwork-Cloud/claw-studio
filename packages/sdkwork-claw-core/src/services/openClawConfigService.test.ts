@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import type { PlatformAPI } from '@sdkwork/claw-infrastructure';
-import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
-import { parseJson5 } from './json5Compat.ts';
-import { OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS } from './openClawBuiltInCompatTestFixture.ts';
+import { parseJson5 } from '@sdkwork/local-api-proxy';
 import { parseOpenClawConfigDocument } from './openClawConfigService.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
@@ -66,202 +64,14 @@ function createPlatformBridgeStub(overrides: Partial<PlatformAPI> = {}): Platfor
   };
 }
 
-function createInstanceDetailWithConfigFileAccess(
-  configPath = 'D:/OpenClaw/.openclaw/openclaw.json',
-): StudioInstanceDetailRecord {
-  return {
-    instance: {
-      id: 'openclaw-local-external',
-      name: 'OpenClaw Host',
-      description: 'Host OpenClaw runtime',
-      runtimeKind: 'openclaw',
-      deploymentMode: 'local-external',
-      transportKind: 'openclawGatewayWs',
-      status: 'online',
-      isBuiltIn: false,
-      isDefault: false,
-      iconType: 'server',
-      version: '0.5.0',
-      typeLabel: 'Host Managed',
-      host: '127.0.0.1',
-      port: 28789,
-      baseUrl: 'http://127.0.0.1:28789',
-      websocketUrl: 'ws://127.0.0.1:28789/ws',
-      cpu: 12,
-      memory: 32,
-      totalMemory: '16 GB',
-      uptime: '3h',
-      capabilities: ['chat', 'tasks', 'models'],
-      storage: {
-        provider: 'localFile',
-        namespace: 'openclaw-local',
-      },
-      config: {
-        port: '28789',
-        sandbox: true,
-        autoUpdate: false,
-        logLevel: 'info',
-        corsOrigins: '*',
-        workspacePath: 'D:/OpenClaw/work',
-        baseUrl: 'http://127.0.0.1:28789',
-        websocketUrl: 'ws://127.0.0.1:28789/ws',
-        authToken: null,
-      },
-      createdAt: 1,
-      updatedAt: 2,
-      lastSeenAt: 3,
-    },
-    config: {
-      port: '28789',
-      sandbox: true,
-      autoUpdate: false,
-      logLevel: 'info',
-      corsOrigins: '*',
-      workspacePath: 'D:/OpenClaw/work',
-      baseUrl: 'http://127.0.0.1:28789',
-      websocketUrl: 'ws://127.0.0.1:28789/ws',
-      authToken: null,
-    },
-    logs: '',
-    health: {
-      score: 100,
-      status: 'healthy',
-      checks: [],
-      evaluatedAt: 1,
-    },
-    lifecycle: {
-      owner: 'externalProcess',
-      startStopSupported: false,
-      configWritable: true,
-      notes: [],
-    },
-    storage: {
-      status: 'ready',
-      profileId: null,
-      provider: 'localFile',
-      namespace: 'openclaw-local',
-      durable: true,
-      queryable: false,
-      transactional: false,
-      remote: false,
-    },
-    connectivity: {
-      primaryTransport: 'openclawGatewayWs',
-      endpoints: [],
-    },
-    observability: {
-      status: 'ready',
-      logAvailable: true,
-      logFilePath: null,
-      logPreview: [],
-      lastSeenAt: 3,
-      metricsSource: 'derived',
-    },
-    dataAccess: {
-      routes: [
-        {
-          id: 'config',
-          label: 'Configuration',
-          scope: 'config',
-          mode: 'managedFile',
-          status: 'ready',
-          target: configPath,
-          readonly: false,
-          authoritative: true,
-          detail: 'Native config file',
-          source: 'integration',
-        },
-      ],
-    },
-    artifacts: [
-      {
-        id: 'config-file',
-        label: 'Config File',
-        kind: 'configFile',
-        status: 'available',
-        location: configPath,
-        readonly: false,
-        detail: 'Native OpenClaw config',
-        source: 'integration',
-      },
-    ],
-    capabilities: [],
-    officialRuntimeNotes: [],
-    consoleAccess: null,
-    workbench: null,
-  };
-}
+await runTest(
+  'openClawConfigService does not expose install-config discovery because kernel discovery is standardized separately',
+  async () => {
+    const { openClawConfigService } = await import('./openClawConfigService.ts');
 
-function createBuiltInOpenClawDetailWithLegacyConfigPath() {
-  const detail = createInstanceDetailWithConfigFileAccess(
-    OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.legacyConfigPath,
-  );
-  const canonicalWorkspacePath = OPENCLAW_BUILT_IN_COMPAT_TEST_PATHS.canonicalWorkspacePath;
-
-  detail.instance.id = 'local-built-in';
-  detail.instance.name = 'Local Built-In OpenClaw';
-  detail.instance.deploymentMode = 'local-managed';
-  detail.instance.isBuiltIn = true;
-  detail.instance.isDefault = true;
-  detail.instance.config.workspacePath = canonicalWorkspacePath;
-  detail.config.workspacePath = canonicalWorkspacePath;
-  detail.lifecycle.owner = 'appSupervisor';
-  detail.dataAccess.routes.push({
-    id: 'files',
-    label: 'Workspace',
-    scope: 'files',
-    mode: 'managedDirectory',
-    status: 'ready',
-    target: canonicalWorkspacePath,
-    readonly: false,
-    authoritative: true,
-    detail: 'Built-in OpenClaw workspace directory.',
-    source: 'config',
-  });
-  detail.artifacts.push({
-    id: 'workspace-directory',
-    label: 'Workspace Directory',
-    kind: 'workspaceDirectory',
-    status: 'available',
-    location: canonicalWorkspacePath,
-    readonly: false,
-    detail: 'Built-in OpenClaw workspace directory.',
-    source: 'config',
-  });
-
-  return detail;
-}
-
-await runTest('openClawConfigService resolves install config paths using the same candidate order as desktop discovery', async () => {
-  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
-  const { openClawConfigService } = await import('./openClawConfigService.ts');
-
-  const originalBridge = getPlatformBridge();
-  const existingPaths = new Set([
-    'D:/Users/admin/.openclaw/openclaw.json',
-    'D:/OpenClaw/work/.openclaw/openclaw.json',
-    'D:/OpenClaw/data/config/openclaw.json',
-  ]);
-
-  configurePlatformBridge({
-    platform: createPlatformBridgeStub({
-      pathExists: async (path) => existingPaths.has(path.replace(/\\/g, '/')),
-    }),
-  });
-
-  try {
-    const resolved = await openClawConfigService.resolveInstallConfigPath({
-      installRoot: 'D:/OpenClaw/install',
-      workRoot: 'D:/OpenClaw/work',
-      dataRoot: 'D:/OpenClaw/data',
-      homeRoots: ['D:/Users/admin'],
-    });
-
-    assert.equal(resolved, 'D:/Users/admin/.openclaw/openclaw.json');
-  } finally {
-    configurePlatformBridge(originalBridge);
-  }
-});
+    assert.equal('resolveInstallConfigPath' in openClawConfigService, false);
+  },
+);
 
 await runTest('openClawConfigService deduplicates repeated snapshot reads for the same config path', async () => {
   const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
@@ -286,12 +96,12 @@ await runTest('openClawConfigService deduplicates repeated snapshot reads for th
   });
 
   try {
-    const configPath = 'D:/OpenClaw/.openclaw/openclaw-cache-test.json';
+    const configFile = 'D:/OpenClaw/.openclaw/openclaw-cache-test.json';
     const [first, second] = await Promise.all([
-      openClawConfigService.readConfigSnapshot(configPath),
-      openClawConfigService.readConfigSnapshot(configPath),
+      openClawConfigService.readConfigSnapshot(configFile),
+      openClawConfigService.readConfigSnapshot(configFile),
     ]);
-    const third = await openClawConfigService.readConfigSnapshot(configPath);
+    const third = await openClawConfigService.readConfigSnapshot(configFile);
 
     assert.equal(readFileCalls, 1);
     assert.deepEqual(first.providerSnapshots, second.providerSnapshots);
@@ -338,13 +148,13 @@ await runTest('openClawConfigService reuses a cached parsed root across differen
   });
 
   try {
-    const configPath = 'D:/OpenClaw/.openclaw/openclaw-root-cache-test.json';
+    const configFile = 'D:/OpenClaw/.openclaw/openclaw-root-cache-test.json';
 
     const resolvedPaths = await openClawConfigService.resolveAgentPaths({
-      configPath,
+      configFile,
       agentId: 'main',
     });
-    const snapshot = await openClawConfigService.readConfigSnapshot(configPath);
+    const snapshot = await openClawConfigService.readConfigSnapshot(configFile);
 
     assert.equal(readFileCalls, 1);
     assert.equal(resolvedPaths.workspace, 'D:/OpenClaw/workspace');
@@ -389,7 +199,7 @@ await runTest('openClawConfigService persists native OpenClaw provider defaults 
       id: 'provider-openai-primary',
       channelId: 'openai',
       name: 'OpenAI Shared Router',
-      apiKey: 'sk-router-live',
+      apiKey: ' env:OPENAI_API_KEY ',
       groupId: 'ops',
       usage: {
         requestCount: 0,
@@ -410,7 +220,7 @@ await runTest('openClawConfigService persists native OpenClaw provider defaults 
     };
 
     await openClawConfigService.saveProviderSelection({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       provider,
       selection: {
         defaultModelId: 'gpt-4.1',
@@ -420,7 +230,7 @@ await runTest('openClawConfigService persists native OpenClaw provider defaults 
     });
 
     await openClawConfigService.saveChannelConfiguration({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       channelId: 'telegram',
       enabled: true,
       values: {
@@ -434,12 +244,15 @@ await runTest('openClawConfigService persists native OpenClaw provider defaults 
     );
 
     assert.equal(writes.length >= 2, true);
+    assert.equal(snapshot.configFile, 'D:/OpenClaw/.openclaw/openclaw.json');
+    assert.equal('configPath' in snapshot, false);
     assert.equal(snapshot.providerSnapshots[0]?.id, 'provider-openai-primary');
     assert.equal(snapshot.providerSnapshots[0]?.defaultModelId, 'gpt-4.1');
     assert.equal(snapshot.providerSnapshots[0]?.reasoningModelId, 'o4-mini');
     assert.equal(snapshot.providerSnapshots[0]?.embeddingModelId, 'text-embedding-3-small');
     assert.equal(snapshot.providerSnapshots[0]?.status, 'ready');
     assert.equal(snapshot.providerSnapshots[0]?.endpoint, 'https://router.example.com/v1');
+    assert.equal(snapshot.providerSnapshots[0]?.apiKeySource, 'env:OPENAI_API_KEY');
     assert.equal(snapshot.channelSnapshots.find((channel) => channel.id === 'telegram')?.enabled, true);
     assert.equal(
       snapshot.channelSnapshots.find((channel) => channel.id === 'telegram')?.configuredFieldCount,
@@ -602,7 +415,7 @@ await runTest(
 
     try {
       await openClawConfigService.saveProviderSelection({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         provider: {
           id: 'openai',
           channelId: 'openai',
@@ -786,7 +599,7 @@ await runTest(
 
     try {
       await openClawConfigService.saveChannelConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         channelId: 'whatsapp',
         enabled: true,
         values: {
@@ -854,7 +667,7 @@ await runTest(
 
     try {
       await openClawConfigService.saveChannelConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         channelId: 'telegram',
         enabled: true,
         values: {
@@ -909,7 +722,7 @@ await runTest(
       google: {
         config: {
           webSearch: {
-            apiKey: "gemini-live",
+            apiKey: "\${GEMINI_API_KEY}",
             model: "gemini-2.5-flash",
           },
         },
@@ -917,7 +730,7 @@ await runTest(
       xai: {
         config: {
           webSearch: {
-            apiKey: "xai-live",
+            apiKey: "\${XAI_API_KEY}",
             model: "grok-4-fast",
             inlineCitations: true,
           },
@@ -926,7 +739,7 @@ await runTest(
       moonshot: {
         config: {
           webSearch: {
-            apiKey: "moonshot-live",
+            apiKey: "\${MOONSHOT_API_KEY}",
             baseUrl: "https://api.moonshot.ai/v1",
             model: "kimi-k2.5",
           },
@@ -951,14 +764,14 @@ await runTest(
       const kimi = snapshot.webSearchConfig.providers.find((provider) => provider.id === 'kimi');
 
       assert.equal(snapshot.webSearchConfig.provider, 'grok');
-      assert.equal(gemini?.apiKeySource, 'gemini-live');
+      assert.equal(gemini?.apiKeySource, 'env:GEMINI_API_KEY');
       assert.equal(gemini?.model, 'gemini-2.5-flash');
       assert.equal(gemini?.supportsModel, true);
-      assert.equal(grok?.apiKeySource, 'xai-live');
+      assert.equal(grok?.apiKeySource, 'env:XAI_API_KEY');
       assert.equal(grok?.model, 'grok-4-fast');
       assert.match(grok?.advancedConfig || '', /inlineCitations/);
       assert.equal(grok?.supportsModel, true);
-      assert.equal(kimi?.apiKeySource, 'moonshot-live');
+      assert.equal(kimi?.apiKeySource, 'env:MOONSHOT_API_KEY');
       assert.equal(kimi?.baseUrl, 'https://api.moonshot.ai/v1');
       assert.equal(kimi?.model, 'kimi-k2.5');
       assert.equal(kimi?.supportsBaseUrl, true);
@@ -1090,7 +903,7 @@ await runTest(
 
     try {
       const saved = await openClawConfigService.saveWebSearchConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         enabled: true,
         provider: 'grok',
         maxResults: 11,
@@ -1098,7 +911,7 @@ await runTest(
         cacheTtlMinutes: 18,
         providerConfig: {
           providerId: 'grok',
-          apiKeySource: 'xai-live',
+          apiKeySource: 'env:XAI_API_KEY',
           model: 'grok-4-fast',
           advancedConfig: `{
   "inlineCitations": true
@@ -1138,10 +951,10 @@ await runTest(
       assert.equal(parsed.tools?.web?.search?.provider, 'grok');
       assert.equal(parsed.plugins?.entries?.xai?.config?.theme, 'dark');
       assert.equal(parsed.plugins?.entries?.xai?.config?.xSearch?.enabled, true);
-      assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.apiKey, 'xai-live');
+      assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.apiKey, '${XAI_API_KEY}');
       assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.model, 'grok-4-fast');
       assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.inlineCitations, true);
-      assert.equal(grok?.apiKeySource, 'xai-live');
+      assert.equal(grok?.apiKeySource, 'env:XAI_API_KEY');
       assert.equal(grok?.model, 'grok-4-fast');
       assert.match(grok?.advancedConfig || '', /inlineCitations/);
     } finally {
@@ -1182,7 +995,7 @@ await runTest(
 
     try {
       const saved = await openClawConfigService.saveWebSearchConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         enabled: true,
         provider: 'kimi',
         maxResults: 8,
@@ -1190,7 +1003,7 @@ await runTest(
         cacheTtlMinutes: 12,
         providerConfig: {
           providerId: 'kimi',
-          apiKeySource: 'moonshot-live',
+          apiKeySource: 'env:MOONSHOT_API_KEY',
           baseUrl: 'https://api.moonshot.ai/v1',
           model: 'kimi-k2.5',
           advancedConfig: `{
@@ -1226,11 +1039,11 @@ await runTest(
 
       assert.equal(parsed.tools?.web?.search?.enabled, true);
       assert.equal(parsed.tools?.web?.search?.provider, 'kimi');
-      assert.equal(parsed.plugins?.entries?.moonshot?.config?.webSearch?.apiKey, 'moonshot-live');
+      assert.equal(parsed.plugins?.entries?.moonshot?.config?.webSearch?.apiKey, '${MOONSHOT_API_KEY}');
       assert.equal(parsed.plugins?.entries?.moonshot?.config?.webSearch?.baseUrl, 'https://api.moonshot.ai/v1');
       assert.equal(parsed.plugins?.entries?.moonshot?.config?.webSearch?.model, 'kimi-k2.5');
       assert.equal(parsed.plugins?.entries?.moonshot?.config?.webSearch?.region, 'cn');
-      assert.equal(kimi?.apiKeySource, 'moonshot-live');
+      assert.equal(kimi?.apiKeySource, 'env:MOONSHOT_API_KEY');
       assert.equal(kimi?.baseUrl, 'https://api.moonshot.ai/v1');
       assert.equal(kimi?.model, 'kimi-k2.5');
       assert.match(kimi?.advancedConfig || '', /region/);
@@ -1288,7 +1101,7 @@ await runTest(
 
     try {
       const saved = await openClawConfigService.saveWebSearchConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         enabled: true,
         provider: 'searxng',
         maxResults: 12,
@@ -1382,7 +1195,7 @@ await runTest(
       xai: {
         config: {
           webSearch: {
-            apiKey: "xai-live",
+            apiKey: "\${XAI_API_KEY}",
             model: "grok-4-fast",
             inlineCitations: true,
           },
@@ -1409,7 +1222,7 @@ await runTest(
       const grok = snapshot.webSearchConfig.providers.find((provider) => provider.id === 'grok');
 
       assert.equal(snapshot.webSearchConfig.provider, 'grok');
-      assert.equal(grok?.apiKeySource, 'xai-live');
+      assert.equal(grok?.apiKeySource, 'env:XAI_API_KEY');
       assert.equal(grok?.model, 'grok-4-fast');
       assert.match(grok?.advancedConfig || '', /inlineCitations/);
       assert.doesNotMatch(grok?.advancedConfig || '', /userLocation/);
@@ -1448,7 +1261,7 @@ await runTest(
         config: {
           theme: "dark",
           webSearch: {
-            apiKey: "xai-old",
+            apiKey: "\${OLD_XAI_API_KEY}",
           },
           xSearch: {
             enabled: true,
@@ -1470,7 +1283,7 @@ await runTest(
 
     try {
       const saved = await openClawConfigService.saveWebSearchConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         enabled: true,
         provider: 'grok',
         maxResults: 11,
@@ -1478,7 +1291,7 @@ await runTest(
         cacheTtlMinutes: 18,
         providerConfig: {
           providerId: 'grok',
-          apiKeySource: 'xai-live',
+          apiKeySource: 'env:XAI_API_KEY',
           model: 'grok-4-fast',
           advancedConfig: `{
   "inlineCitations": true
@@ -1529,11 +1342,11 @@ await runTest(
       assert.equal(parsed.plugins?.entries?.xai?.enabled, false);
       assert.equal(parsed.plugins?.entries?.xai?.metadata?.label, 'xAI Search');
       assert.equal(parsed.plugins?.entries?.xai?.config?.theme, 'dark');
-      assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.apiKey, 'xai-live');
+      assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.apiKey, '${XAI_API_KEY}');
       assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.model, 'grok-4-fast');
       assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.inlineCitations, true);
       assert.equal(parsed.plugins?.entries?.xai?.config?.xSearch?.enabled, true);
-      assert.equal(grok?.apiKeySource, 'xai-live');
+      assert.equal(grok?.apiKeySource, 'env:XAI_API_KEY');
       assert.equal(grok?.model, 'grok-4-fast');
       assert.match(grok?.advancedConfig || '', /inlineCitations/);
     } finally {
@@ -1570,7 +1383,7 @@ await runTest(
       firecrawl: {
         config: {
           webFetch: {
-            apiKey: "fc-live",
+            apiKey: "\${FIRECRAWL_API_KEY}",
             baseUrl: "https://api.firecrawl.dev",
             onlyMainContent: true,
             maxAgeMs: 86400000,
@@ -1606,7 +1419,7 @@ await runTest(
       assert.equal(snapshot.webFetchConfig.readability, false);
       assert.equal(snapshot.webFetchConfig.userAgent, 'SDKWork Fetch Bot/1.0');
       assert.equal(snapshot.webFetchConfig.fallbackProvider.providerId, 'firecrawl');
-      assert.equal(snapshot.webFetchConfig.fallbackProvider.apiKeySource, 'fc-live');
+      assert.equal(snapshot.webFetchConfig.fallbackProvider.apiKeySource, 'env:FIRECRAWL_API_KEY');
       assert.equal(snapshot.webFetchConfig.fallbackProvider.baseUrl, 'https://api.firecrawl.dev');
       assert.match(snapshot.webFetchConfig.fallbackProvider.advancedConfig, /onlyMainContent/);
       assert.doesNotMatch(snapshot.webFetchConfig.fallbackProvider.advancedConfig, /fc-search-live/);
@@ -1651,7 +1464,7 @@ await runTest(
             apiKey: "fc-search-live",
           },
           webFetch: {
-            apiKey: "fc-old",
+            apiKey: "\${OLD_FIRECRAWL_API_KEY}",
           },
         },
       },
@@ -1670,7 +1483,7 @@ await runTest(
 
     try {
       const saved = await openClawConfigService.saveWebFetchConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         enabled: true,
         maxChars: 42000,
         maxCharsCap: 64000,
@@ -1682,7 +1495,7 @@ await runTest(
         userAgent: 'SDKWork Fetch Bot/1.0',
         fallbackProviderConfig: {
           providerId: 'firecrawl',
-          apiKeySource: 'fc-live',
+          apiKeySource: 'env:FIRECRAWL_API_KEY',
           baseUrl: 'https://api.firecrawl.dev',
           advancedConfig: `{
   "onlyMainContent": true,
@@ -1745,13 +1558,13 @@ await runTest(
       assert.equal(parsed.plugins?.entries?.firecrawl?.metadata?.label, 'Firecrawl');
       assert.equal(parsed.plugins?.entries?.firecrawl?.config?.theme, 'dark');
       assert.equal(parsed.plugins?.entries?.firecrawl?.config?.webSearch?.apiKey, 'fc-search-live');
-      assert.equal(parsed.plugins?.entries?.firecrawl?.config?.webFetch?.apiKey, 'fc-live');
+      assert.equal(parsed.plugins?.entries?.firecrawl?.config?.webFetch?.apiKey, '${FIRECRAWL_API_KEY}');
       assert.equal(parsed.plugins?.entries?.firecrawl?.config?.webFetch?.baseUrl, 'https://api.firecrawl.dev');
       assert.equal(parsed.plugins?.entries?.firecrawl?.config?.webFetch?.onlyMainContent, true);
       assert.equal(parsed.plugins?.entries?.firecrawl?.config?.webFetch?.maxAgeMs, 86400000);
       assert.equal(parsed.plugins?.entries?.firecrawl?.config?.webFetch?.timeoutSeconds, 60);
       assert.equal(saved.fallbackProvider.providerId, 'firecrawl');
-      assert.equal(saved.fallbackProvider.apiKeySource, 'fc-live');
+      assert.equal(saved.fallbackProvider.apiKeySource, 'env:FIRECRAWL_API_KEY');
       assert.equal(saved.fallbackProvider.baseUrl, 'https://api.firecrawl.dev');
       assert.match(saved.fallbackProvider.advancedConfig, /onlyMainContent/);
     } finally {
@@ -1773,7 +1586,7 @@ await runTest(
       xai: {
         config: {
           webSearch: {
-            apiKey: "xai-live",
+            apiKey: "\${XAI_API_KEY}",
             model: "grok-4-fast",
           },
           xSearch: {
@@ -1803,7 +1616,7 @@ await runTest(
       );
 
       assert.equal(snapshot.xSearchConfig.enabled, true);
-      assert.equal(snapshot.xSearchConfig.apiKeySource, 'xai-live');
+      assert.equal(snapshot.xSearchConfig.apiKeySource, 'env:XAI_API_KEY');
       assert.equal(snapshot.xSearchConfig.model, 'grok-4-1-fast-non-reasoning');
       assert.equal(snapshot.xSearchConfig.inlineCitations, false);
       assert.equal(snapshot.xSearchConfig.maxTurns, 2);
@@ -1835,7 +1648,7 @@ await runTest(
         config: {
           theme: "dark",
           webSearch: {
-            apiKey: "xai-old",
+            apiKey: "\${OLD_XAI_API_KEY}",
             model: "grok-4-fast",
             inlineCitations: true,
           },
@@ -1860,9 +1673,9 @@ await runTest(
 
     try {
       const saved = await openClawConfigService.saveXSearchConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         enabled: true,
-        apiKeySource: 'xai-live',
+        apiKeySource: 'env:XAI_API_KEY',
         model: 'grok-4-1-fast-non-reasoning',
         inlineCitations: false,
         maxTurns: 3,
@@ -1905,7 +1718,7 @@ await runTest(
       assert.equal(parsed.plugins?.entries?.xai?.enabled, false);
       assert.equal(parsed.plugins?.entries?.xai?.metadata?.label, 'xAI Search');
       assert.equal(parsed.plugins?.entries?.xai?.config?.theme, 'dark');
-      assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.apiKey, 'xai-live');
+      assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.apiKey, '${XAI_API_KEY}');
       assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.model, 'grok-4-fast');
       assert.equal(parsed.plugins?.entries?.xai?.config?.webSearch?.inlineCitations, true);
       assert.equal(parsed.plugins?.entries?.xai?.config?.xSearch?.enabled, true);
@@ -1915,7 +1728,7 @@ await runTest(
       assert.equal(parsed.plugins?.entries?.xai?.config?.xSearch?.timeoutSeconds, 45);
       assert.equal(parsed.plugins?.entries?.xai?.config?.xSearch?.cacheTtlMinutes, 18);
       assert.equal(parsed.plugins?.entries?.xai?.config?.xSearch?.userTag, 'internal-research');
-      assert.equal(saved.apiKeySource, 'xai-live');
+      assert.equal(saved.apiKeySource, 'env:XAI_API_KEY');
       assert.equal(saved.model, 'grok-4-1-fast-non-reasoning');
       assert.equal(saved.maxTurns, 3);
       assert.match(saved.advancedConfig, /internal-research/);
@@ -2020,7 +1833,7 @@ await runTest(
 
     try {
       const saved = await openClawConfigService.saveWebSearchNativeCodexConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         enabled: true,
         mode: 'cached',
         allowedDomains: ['example.com', 'openai.com'],
@@ -2158,7 +1971,7 @@ await runTest(
 
     try {
       const saved = await openClawConfigService.saveAuthCooldownsConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         rateLimitedProfileRotations: 2,
         overloadedProfileRotations: 1,
         overloadedBackoffMs: 45000,
@@ -2281,7 +2094,7 @@ await runTest(
 
     try {
       const saved = await openClawConfigService.saveDreamingConfiguration({
-        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
         enabled: true,
         frequency: '0 3 * * *',
       });
@@ -2366,14 +2179,14 @@ await runTest('openClawConfigService canonicalizes managed local proxy projectio
 
   try {
     await openClawConfigService.saveManagedLocalProxyProjection({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       projection: {
         provider: {
           id: 'sdkwork-local-proxy',
           channelId: 'openai-compatible',
           name: 'SDKWork Local Proxy',
           apiKey: '${SDKWORK_LOCAL_PROXY_TOKEN}',
-          baseUrl: 'http://127.0.0.1:18791/v1',
+          baseUrl: 'http://127.0.0.1:21280/v1',
           models: [
             { id: 'gpt-5.4', name: 'GPT-5.4' },
             { id: 'o4-mini', name: 'o4-mini' },
@@ -2395,7 +2208,7 @@ await runTest('openClawConfigService canonicalizes managed local proxy projectio
     );
 
     assert.ok(managedProvider);
-    assert.equal(managedProvider?.endpoint, 'http://127.0.0.1:18791/v1');
+    assert.equal(managedProvider?.endpoint, 'http://127.0.0.1:21280/v1');
     assert.deepEqual(
       snapshot.providerSnapshots.map((provider) => provider.id),
       ['sdkwork-local-proxy'],
@@ -2406,13 +2219,13 @@ await runTest('openClawConfigService canonicalizes managed local proxy projectio
     );
 
     await openClawConfigService.saveProviderSelection({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       provider: {
         id: 'sdkwork-local-proxy',
         channelId: 'openai-compatible',
         name: 'SDKWork Local Proxy',
         apiKey: '${SDKWORK_LOCAL_PROXY_TOKEN}',
-        baseUrl: 'http://127.0.0.1:18791/v1',
+        baseUrl: 'http://127.0.0.1:21280/v1',
         models: [
           { id: 'gpt-5.4', name: 'GPT-5.4' },
           { id: 'o4-mini', name: 'o4-mini' },
@@ -2426,14 +2239,14 @@ await runTest('openClawConfigService canonicalizes managed local proxy projectio
     });
 
     await openClawConfigService.saveManagedLocalProxyProjection({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       projection: {
         provider: {
           id: 'sdkwork-local-proxy',
           channelId: 'openai-compatible',
           name: 'SDKWork Local Proxy',
           apiKey: '${SDKWORK_LOCAL_PROXY_TOKEN}',
-          baseUrl: 'http://127.0.0.1:18791/v1',
+          baseUrl: 'http://127.0.0.1:21280/v1',
           models: [
             { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' },
             { id: 'o4-mini', name: 'o4-mini' },
@@ -2488,14 +2301,14 @@ await runTest('openClawConfigService writes protocol-aware managed local proxy p
 
   try {
     await openClawConfigService.saveManagedLocalProxyProjection({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       projection: {
         provider: {
           id: 'sdkwork-local-proxy',
           channelId: 'anthropic',
           name: 'SDKWork Local Proxy',
           apiKey: 'sk_sdkwork_api_key',
-          baseUrl: 'http://127.0.0.1:18791/v1',
+          baseUrl: 'http://127.0.0.1:21280/v1',
           models: [
             { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
             { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
@@ -2522,14 +2335,14 @@ await runTest('openClawConfigService writes protocol-aware managed local proxy p
     );
 
     await openClawConfigService.saveManagedLocalProxyProjection({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       projection: {
         provider: {
           id: 'sdkwork-local-proxy',
           channelId: 'gemini',
           name: 'SDKWork Local Proxy',
           apiKey: 'sk_sdkwork_api_key',
-          baseUrl: 'http://127.0.0.1:18791',
+          baseUrl: 'http://127.0.0.1:21280',
           models: [
             { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
             { id: 'text-embedding-004', name: 'text-embedding-004' },
@@ -2550,7 +2363,7 @@ await runTest('openClawConfigService writes protocol-aware managed local proxy p
     );
     assert.equal(
       ((snapshot.root.models as Record<string, any>).providers['sdkwork-local-proxy'] as Record<string, any>).baseUrl,
-      'http://127.0.0.1:18791',
+      'http://127.0.0.1:21280',
     );
   } finally {
     configurePlatformBridge(originalBridge);
@@ -2584,7 +2397,7 @@ await runTest('openClawConfigService saves direct native ollama providers with t
 
   try {
     await openClawConfigService.saveProviderSelection({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       provider: {
         id: 'ollama',
         channelId: 'ollama',
@@ -2642,7 +2455,7 @@ await runTest('openClawConfigService preserves already-qualified OpenRouter mode
 
   try {
     await openClawConfigService.saveProviderSelection({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       provider: {
         id: 'openrouter',
         channelId: 'openrouter',
@@ -2709,7 +2522,7 @@ await runTest('openClawConfigService strips legacy provider runtime keys when sa
   models: {
     providers: {
       "sdkwork-local-proxy": {
-        baseUrl: "http://127.0.0.1:18791/v1",
+        baseUrl: "http://127.0.0.1:21280/v1",
         apiKey: "sk_sdkwork_api_key",
         temperature: 0.35,
         topP: 0.9,
@@ -2742,14 +2555,14 @@ await runTest('openClawConfigService strips legacy provider runtime keys when sa
 
   try {
     await openClawConfigService.saveManagedLocalProxyProjection({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       projection: {
         provider: {
           id: 'sdkwork-local-proxy',
           channelId: 'openai-compatible',
           name: 'SDKWork Local Proxy',
           apiKey: 'sk_sdkwork_api_key',
-          baseUrl: 'http://127.0.0.1:18791/v1',
+          baseUrl: 'http://127.0.0.1:21280/v1',
           models: [
             { id: 'gpt-5.4', name: 'GPT-5.4' },
             { id: 'o4-mini', name: 'o4-mini' },
@@ -2803,6 +2616,265 @@ await runTest('openClawConfigService strips legacy provider runtime keys when sa
       timeoutMs: 90000,
       streaming: false,
     });
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+await runTest('openClawConfigService normalizes managed local proxy projection model catalogs and selections before writing config', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
+  const { openClawConfigService } = await import('./openClawConfigService.ts');
+
+  const originalBridge = getPlatformBridge();
+  let fileContent = `{
+  models: {
+    providers: {},
+  },
+  agents: {
+    defaults: {
+      model: {},
+    },
+  },
+}`;
+
+  configurePlatformBridge({
+    platform: createPlatformBridgeStub({
+      readFile: async () => fileContent,
+      writeFile: async (_path, content) => {
+        fileContent = content;
+      },
+    }),
+  });
+
+  try {
+    await openClawConfigService.saveManagedLocalProxyProjection({
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
+      projection: {
+        provider: {
+          id: 'sdkwork-local-proxy',
+          channelId: 'openai-compatible',
+          name: 'SDKWork Local Proxy',
+          apiKey: 'sk_sdkwork_api_key',
+          baseUrl: 'http://127.0.0.1:21280/v1',
+          models: [
+            { id: ' text-embedding-3-large ', name: 'text-embedding-3-large' },
+            { id: ' gpt-5.4 ', name: ' GPT-5.4 ' },
+            { id: 'o4-mini', name: ' o4-mini ' },
+            { id: 'gpt-5.4', name: 'Duplicate GPT-5.4' },
+          ],
+          notes: 'Managed local proxy provider',
+        },
+        selection: {
+          defaultModelId: ' gpt-5.4 ',
+          reasoningModelId: ' o4-mini ',
+          embeddingModelId: ' text-embedding-3-large ',
+        },
+      },
+    });
+
+    const snapshot = await openClawConfigService.readConfigSnapshot(
+      'D:/OpenClaw/.openclaw/openclaw.json',
+    );
+    const managedProvider = snapshot.providerSnapshots.find(
+      (entry) => entry.id === 'sdkwork-local-proxy',
+    );
+    const providerRoot = ((snapshot.root.models as Record<string, any>).providers[
+      'sdkwork-local-proxy'
+    ] as Record<string, any>);
+
+    assert.equal(managedProvider?.defaultModelId, 'gpt-5.4');
+    assert.equal(managedProvider?.reasoningModelId, 'o4-mini');
+    assert.equal(managedProvider?.embeddingModelId, 'text-embedding-3-large');
+    assert.deepEqual(
+      managedProvider?.models.map((model) => model.id),
+      ['gpt-5.4', 'o4-mini', 'text-embedding-3-large'],
+    );
+    assert.equal(
+      (snapshot.root.agents as Record<string, any>).defaults.model.primary,
+      'sdkwork-local-proxy/gpt-5.4',
+    );
+    assert.deepEqual(
+      (snapshot.root.agents as Record<string, any>).defaults.model.fallbacks,
+      ['sdkwork-local-proxy/o4-mini'],
+    );
+    assert.deepEqual(
+      (providerRoot.models as Array<Record<string, unknown>>).map((model) => model.id),
+      ['gpt-5.4', 'o4-mini', 'text-embedding-3-large'],
+    );
+    assert.deepEqual(
+      (providerRoot.models as Array<Record<string, unknown>>).map((model) => ({
+        id: model.id,
+        reasoning: model.reasoning,
+        api: model.api,
+        contextWindow: model.contextWindow,
+        maxTokens: model.maxTokens,
+      })),
+      [
+        {
+          id: 'gpt-5.4',
+          reasoning: false,
+          api: undefined,
+          contextWindow: 128000,
+          maxTokens: 32000,
+        },
+        {
+          id: 'o4-mini',
+          reasoning: true,
+          api: undefined,
+          contextWindow: 200000,
+          maxTokens: 32000,
+        },
+        {
+          id: 'text-embedding-3-large',
+          reasoning: false,
+          api: 'embedding',
+          contextWindow: 8192,
+          maxTokens: 8192,
+        },
+      ],
+    );
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+await runTest('openClawConfigService normalizes dirty provider model catalogs when reading config snapshots', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
+  const { openClawConfigService } = await import('./openClawConfigService.ts');
+
+  const originalBridge = getPlatformBridge();
+  const fileContent = `{
+  models: {
+    providers: {
+      "sdkwork-local-proxy": {
+        baseUrl: "http://127.0.0.1:21280/v1",
+        apiKey: "sk_sdkwork_api_key",
+        models: [
+          { id: " text-embedding-3-large ", name: " text-embedding-3-large " },
+          { id: " gpt-5.4 ", name: " GPT-5.4 " },
+          { id: "o4-mini", name: " o4-mini " },
+          { id: "gpt-5.4", name: "Duplicate GPT-5.4" },
+        ],
+      },
+    },
+  },
+  agents: {
+    defaults: {
+      model: {
+        primary: "sdkwork-local-proxy/gpt-5.4",
+        fallbacks: ["sdkwork-local-proxy/o4-mini"],
+      },
+    },
+  },
+}`;
+
+  configurePlatformBridge({
+    platform: createPlatformBridgeStub({
+      readFile: async () => fileContent,
+    }),
+  });
+
+  try {
+    const snapshot = await openClawConfigService.readConfigSnapshot(
+      'D:/OpenClaw/.openclaw/openclaw.json',
+    );
+    const managedProvider = snapshot.providerSnapshots.find(
+      (entry) => entry.id === 'sdkwork-local-proxy',
+    );
+
+    assert.equal(managedProvider?.defaultModelId, 'gpt-5.4');
+    assert.equal(managedProvider?.reasoningModelId, 'o4-mini');
+    assert.equal(managedProvider?.embeddingModelId, 'text-embedding-3-large');
+    assert.deepEqual(
+      managedProvider?.models.map((model) => ({
+        id: model.id,
+        name: model.name,
+        role: model.role,
+      })),
+      [
+        { id: 'gpt-5.4', name: 'GPT-5.4', role: 'primary' },
+        { id: 'o4-mini', name: 'o4-mini', role: 'reasoning' },
+        { id: 'text-embedding-3-large', name: 'text-embedding-3-large', role: 'embedding' },
+      ],
+    );
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('openClawConfigService persists explicit embedding role metadata for managed local proxy projections', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
+  const { openClawConfigService } = await import('./openClawConfigService.ts');
+
+  const originalBridge = getPlatformBridge();
+  let fileContent = `{
+  models: {
+    providers: {},
+  },
+  agents: {
+    defaults: {
+      model: {},
+      models: {},
+    },
+  },
+}`;
+
+  configurePlatformBridge({
+    platform: createPlatformBridgeStub({
+      readFile: async () => fileContent,
+      writeFile: async (_path, content) => {
+        fileContent = content;
+      },
+    }),
+  });
+
+  try {
+    await openClawConfigService.saveManagedLocalProxyProjection({
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
+      projection: {
+        provider: {
+          id: 'sdkwork-local-proxy',
+          channelId: 'openai-compatible',
+          name: 'SDKWork Local Proxy',
+          apiKey: 'sk_sdkwork_api_key',
+          baseUrl: 'http://127.0.0.1:21280/v1',
+          models: [
+            { id: 'gpt-5.4', name: 'GPT-5.4' },
+            { id: 'o4-mini', name: 'o4-mini' },
+            { id: 'atlas-index', name: 'Atlas Index' },
+          ],
+          notes: 'Managed local proxy provider',
+        },
+        selection: {
+          defaultModelId: 'gpt-5.4',
+          reasoningModelId: 'o4-mini',
+          embeddingModelId: 'atlas-index',
+        },
+      },
+    });
+
+    const snapshot = await openClawConfigService.readConfigSnapshot(
+      'D:/OpenClaw/.openclaw/openclaw.json',
+    );
+    const managedProvider = snapshot.providerSnapshots.find(
+      (entry) => entry.id === 'sdkwork-local-proxy',
+    );
+    const providerRoot = ((snapshot.root.models as Record<string, any>).providers[
+      'sdkwork-local-proxy'
+    ] as Record<string, any>);
+    const defaultsModels = ((((snapshot.root.agents as Record<string, any>).defaults ||
+      {}) as Record<string, any>).models || {}) as Record<string, any>;
+
+    assert.equal(managedProvider?.embeddingModelId, 'atlas-index');
+    assert.equal(
+      managedProvider?.models.find((model) => model.id === 'atlas-index')?.role,
+      'embedding',
+    );
+    assert.equal(
+      (providerRoot.models as Array<Record<string, unknown>>).find(
+        (model) => model.id === 'atlas-index',
+      )?.api,
+      'embedding',
+    );
+    assert.equal(defaultsModels['sdkwork-local-proxy/atlas-index']?.streaming, false);
   } finally {
     configurePlatformBridge(originalBridge);
   }
@@ -2878,61 +2950,12 @@ await runTest('openClawConfigService reads provider runtime config from canonica
   }
 });
 
-await runTest('openClawConfigService resolves a file-backed config path from instance detail data access first', async () => {
-  const { openClawConfigService } = await import('./openClawConfigService.ts');
-
-  const detail = createInstanceDetailWithConfigFileAccess();
-
-  assert.equal(
-    openClawConfigService.resolveInstanceConfigPath(detail),
-    'D:/OpenClaw/.openclaw/openclaw.json',
-  );
-});
-
 await runTest(
-  'openClawConfigService canonicalizes built-in OpenClaw config paths when legacy machine targets drift',
+  'openClawConfigService does not expose instance-detail config attachment resolution because kernel attachment is standardized separately',
   async () => {
     const { openClawConfigService } = await import('./openClawConfigService.ts');
 
-    const detail = createBuiltInOpenClawDetailWithLegacyConfigPath();
-
-    assert.equal(
-      openClawConfigService.resolveInstanceConfigPath(detail),
-      'C:/Users/admin/.openclaw/openclaw.json',
-    );
-  },
-);
-
-await runTest(
-  'openClawConfigService does not infer an attached config file from a metadata-only config route',
-  async () => {
-    const { openClawConfigService } = await import('./openClawConfigService.ts');
-
-    const detail = createInstanceDetailWithConfigFileAccess();
-    detail.dataAccess.routes[0] = {
-      ...detail.dataAccess.routes[0]!,
-      mode: 'metadataOnly',
-      target: 'studio.instances registry metadata',
-      authoritative: false,
-      detail: 'Metadata projection only.',
-    };
-
-    assert.equal(openClawConfigService.resolveInstanceConfigPath(detail), null);
-  },
-);
-
-await runTest(
-  'openClawConfigService still falls back to a config artifact when no config route exists',
-  async () => {
-    const { openClawConfigService } = await import('./openClawConfigService.ts');
-
-    const detail = createInstanceDetailWithConfigFileAccess();
-    detail.dataAccess.routes = [];
-
-    assert.equal(
-      openClawConfigService.resolveInstanceConfigPath(detail),
-      'D:/OpenClaw/.openclaw/openclaw.json',
-    );
+    assert.equal('resolveInstanceConfigFile' in openClawConfigService, false);
   },
 );
 
@@ -2989,7 +3012,7 @@ await runTest('openClawConfigService reads legacy api-router-prefixed providers 
     assert.equal(snapshot.agentSnapshots[0]?.model.primary, 'openai/gpt-4.1');
 
     await openClawConfigService.saveAgent({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       agent: {
         id: 'main',
         model: {
@@ -3043,7 +3066,7 @@ await runTest('openClawConfigService manages agent CRUD with OpenClaw-compatible
         default: true,
         name: "Main",
         identity: {
-          emoji: "🤖",
+          emoji: "馃",
         },
       },
     ],
@@ -3061,11 +3084,11 @@ await runTest('openClawConfigService manages agent CRUD with OpenClaw-compatible
 
   try {
     await openClawConfigService.saveAgent({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       agent: {
         id: 'research',
         name: 'Research',
-        avatar: '🔬',
+        avatar: '馃敩',
         model: {
           primary: 'openai/o4-mini',
           fallbacks: ['openai/gpt-4.1'],
@@ -3084,7 +3107,7 @@ await runTest('openClawConfigService manages agent CRUD with OpenClaw-compatible
     let main = snapshot.agentSnapshots.find((agent) => agent.id === 'main');
 
     assert.equal(research?.name, 'Research');
-    assert.equal(research?.avatar, '🔬');
+    assert.equal(research?.avatar, '馃敩');
     assert.equal(research?.isDefault, false);
     assert.equal(research?.workspace, 'D:/OpenClaw/.openclaw/workspace-research');
     assert.equal(research?.agentDir, 'D:/OpenClaw/.openclaw/agents/research/agent');
@@ -3095,11 +3118,11 @@ await runTest('openClawConfigService manages agent CRUD with OpenClaw-compatible
     assert.equal(main?.isDefault, true);
 
     await openClawConfigService.saveAgent({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       agent: {
         id: 'research',
         name: 'Research Ops',
-        avatar: '🧠',
+        avatar: '馃',
         workspace: './workspace-research-ops',
         agentDir: './agents/research-home/agent',
         isDefault: true,
@@ -3115,14 +3138,14 @@ await runTest('openClawConfigService manages agent CRUD with OpenClaw-compatible
     main = snapshot.agentSnapshots.find((agent) => agent.id === 'main');
 
     assert.equal(research?.name, 'Research Ops');
-    assert.equal(research?.avatar, '🧠');
+    assert.equal(research?.avatar, '馃');
     assert.equal(research?.isDefault, true);
     assert.equal(research?.workspace, 'D:/OpenClaw/.openclaw/workspace-research-ops');
     assert.equal(research?.agentDir, 'D:/OpenClaw/.openclaw/agents/research-home/agent');
     assert.equal(main?.isDefault, false);
 
     await openClawConfigService.deleteAgent({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       agentId: 'research',
     });
 
@@ -3288,7 +3311,7 @@ await runTest('openClawConfigService updates provider-model references and prune
 
   try {
     await openClawConfigService.createProviderModel({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       providerId: 'openai',
       model: {
         id: 'text-embedding-3-small',
@@ -3314,7 +3337,7 @@ await runTest('openClawConfigService updates provider-model references and prune
     );
 
     await openClawConfigService.updateProviderModel({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       providerId: 'openai',
       modelId: 'o4-mini',
       model: {
@@ -3344,7 +3367,7 @@ await runTest('openClawConfigService updates provider-model references and prune
     assert.equal(mainAgent?.model.primary, 'openai/o4-mini-high');
 
     await openClawConfigService.deleteProvider({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       providerId: 'openai',
     });
 
@@ -3399,7 +3422,7 @@ await runTest('openClawConfigService persists skill entry overrides and removes 
 
   try {
     await openClawConfigService.saveSkillEntry({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       skillKey: 'research-skill',
       enabled: false,
       apiKey: '${RESEARCH_API_KEY}',
@@ -3421,7 +3444,7 @@ await runTest('openClawConfigService persists skill entry overrides and removes 
     assert.equal(entries['research-skill']?.env?.RESEARCH_REGION, 'global');
 
     await openClawConfigService.saveSkillEntry({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       skillKey: 'research-skill',
       enabled: true,
       apiKey: '',
@@ -3475,7 +3498,7 @@ await runTest('openClawConfigService deletes a persisted skill entry without tou
 
   try {
     await openClawConfigService.deleteSkillEntry({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      configFile: 'D:/OpenClaw/.openclaw/openclaw.json',
       skillKey: 'research-skill',
     });
 

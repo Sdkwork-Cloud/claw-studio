@@ -33,7 +33,7 @@ function createPreview(
       homeDir: 'C:/Users/admin',
       stateDir: 'C:/Users/admin/.openclaw',
       workspaceDir: 'C:/Users/admin/.openclaw/workspace',
-      configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+      configFile: 'C:/Users/admin/.openclaw/openclaw.json',
       gatewayPort: 18789,
     },
     components: [
@@ -276,6 +276,7 @@ await runTest(
     assert.deepEqual(calls, ['inspect', `export:${request.destinationPath}`]);
     assert.equal(inspected?.mode, 'full-private');
     assert.equal(inspected?.runtime.openclawVersion, '0.4.0');
+    assert.equal(inspected?.runtime.configFile, 'C:/Users/admin/.openclaw/openclaw.json');
     assert.equal(exported.fileName, 'openclaw-full-private.ocmirror');
     assert.equal(exported.components.length, 3);
     assert.equal(exported.manifest.mode, 'full-private');

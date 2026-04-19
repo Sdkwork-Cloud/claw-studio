@@ -61,8 +61,9 @@ await runTest(
             ],
           },
         }) as any,
-      resolveOpenClawConfigPath: (detail) => detail?.dataAccess?.routes?.[0]?.target ?? null,
-      readOpenClawConfigSnapshot: async () =>
+      resolveAttachedKernelConfigFile: (detail) =>
+        detail?.dataAccess?.routes?.[0]?.target ?? null,
+      readOpenClawConfigSnapshot: async (configFile) =>
         ({
           agentSnapshots: [
             {
@@ -93,6 +94,7 @@ await runTest(
               params: {},
             },
           ],
+          configFile,
         }) as any,
     });
 

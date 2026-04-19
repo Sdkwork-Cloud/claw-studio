@@ -27,21 +27,27 @@ await runTest('buildKernelConfigProjection canonicalizes OpenClaw config under u
 
   const projected = kernelConfigProjectionModule?.buildKernelConfigProjection({
     runtimeKind: 'openclaw',
-    configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+    configFile: 'C:/Users/admin/.openclaw/openclaw.json',
     configWritable: true,
     schemaVersion: null,
   });
 
   assert.deepEqual(projected, {
+    kernelId: 'openclaw',
+    runtimeKind: 'openclaw',
     configFile: 'C:/Users/admin/.openclaw/openclaw.json',
     configRoot: 'C:/Users/admin/.openclaw',
+    stateRoot: 'C:/Users/admin/.openclaw',
     userRoot: 'C:/Users/admin',
+    standardStateRoot: 'C:/Users/admin/.openclaw',
+    standardConfigFile: 'C:/Users/admin/.openclaw/openclaw.json',
     format: 'json',
     access: 'localFs',
     provenance: 'standardUserRoot',
     writable: true,
     resolved: true,
     schemaVersion: null,
+    isStandardUserRootLayout: true,
   });
 });
 
@@ -50,7 +56,7 @@ await runTest('buildKernelConfigProjection preserves unresolved state when no co
 
   const projected = kernelConfigProjectionModule?.buildKernelConfigProjection({
     runtimeKind: 'openclaw',
-    configPath: null,
+    configFile: null,
     configWritable: false,
     schemaVersion: null,
   });

@@ -53,7 +53,7 @@ function createDashboard(
       routeTests: [],
       messageCaptureEnabled: false,
       observabilityDbPath: null,
-      configPath: null,
+      configFile: null,
       snapshotPath: null,
       logPath: null,
       lastError: null,
@@ -74,7 +74,7 @@ function createDashboard(
       platformLabel: 'unknown/unknown',
       runtimeVersion: null,
       nodeVersion: null,
-      configPath: null,
+      configFile: null,
       runtimeHomeDir: null,
       runtimeInstallDir: null,
     },
@@ -121,9 +121,9 @@ await runTest('resolveLocalAiProxyPortValue stringifies the active local proxy p
   const module = await import('./kernelCenterView.ts').catch(() => ({}));
   assert.equal(typeof module.resolveLocalAiProxyPortValue, 'function');
   const dashboard = createDashboard();
-  dashboard.localAiProxy.activePort = 18791;
+  dashboard.localAiProxy.activePort = 21280;
 
-  assert.equal(module.resolveLocalAiProxyPortValue?.(dashboard), '18791');
+  assert.equal(module.resolveLocalAiProxyPortValue?.(dashboard), '21280');
 });
 
 await runTest(

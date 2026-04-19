@@ -3516,6 +3516,17 @@ mod tests {
         );
         assert_eq!(
             manage_service_result_properties
+                .get("configFile")
+                .and_then(|value| value.get("type"))
+                .and_then(Value::as_str),
+            Some("string")
+        );
+        assert!(
+            !manage_service_result_properties.contains_key("configPath"),
+            "legacy configPath should not be published in OpenAPI",
+        );
+        assert_eq!(
+            manage_service_result_properties
                 .get("runtimeConfig")
                 .and_then(|value| value.get("$ref"))
                 .and_then(Value::as_str),
@@ -5288,7 +5299,7 @@ mod tests {
             PathBuf::from("C:/claw/bin/claw-server.exe")
         );
         assert_eq!(
-            result.config_path,
+            result.config_file,
             PathBuf::from("C:/claw/config/claw-server.config.json")
         );
         assert_eq!(result.runtime_config.host, "127.0.0.1");
@@ -5416,7 +5427,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            manifest.config_path,
+            manifest.config_file,
             PathBuf::from("/etc/claw-server/config.json")
         );
         assert_eq!(
@@ -5725,7 +5736,7 @@ mod tests {
             service_name: "ClawServer".to_string(),
             service_config_path: PathBuf::from("D:/managed/service/windows-service.json"),
             executable_path: PathBuf::from("D:/managed/claw-server.exe"),
-            config_path: PathBuf::from("D:/managed/config.json"),
+            config_file: PathBuf::from("D:/managed/config.json"),
             commands: Vec::new(),
             runtime_config: crate::config::ResolvedServerRuntimeConfig {
                 host: "127.0.0.1".to_string(),

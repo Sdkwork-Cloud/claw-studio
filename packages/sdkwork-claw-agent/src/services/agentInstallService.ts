@@ -20,7 +20,7 @@ export interface AgentInstallTarget {
   status: StudioInstanceStatus;
   deploymentMode: StudioInstanceRecord['deploymentMode'];
   isBuiltIn: boolean;
-  configPath: string;
+  configFile: string;
   agentCount: number;
   installedAgentIds: string[];
   installedTemplateIds: string[];
@@ -44,12 +44,14 @@ function joinPath(root: string, ...segments: string[]) {
   return [normalizePath(root).replace(/\/+$/, ''), ...segments].join('/');
 }
 
-function resolveInstallableConfigPath(detail: StudioInstanceDetailRecord | null) {
-  if (!detail || detail.instance.runtimeKind !== 'openclaw' || !detail.lifecycle.configWritable) {
+function resolveInstallableConfigFile(detail: StudioInstanceDetailRecord | null) {
+  if (!detail || detail.instance.runtimeKind !== 'openclaw') {
     return null;
   }
 
-  return openClawConfigService.resolveInstanceConfigPath(detail);
+  return openClawConfigService.resolveInstanceConfigPath(detail, {
+    requireWritable: true,
+  });
 }
 
 function resolveTemplate(templateId: string) {
@@ -98,8 +100,8 @@ async function ensureAgentWorkspaceSkeleton(input: {
 
 async function loadInstallDetail(instanceId: string) {
   const detail = await studio.getInstanceDetail(instanceId);
-  const configPath = resolveInstallableConfigPath(detail);
-  if (!configPath) {
+  const configFile = resolveInstallableConfigFile(detail);
+  if (!configFile) {
     throw new Error(
       'The selected instance does not expose a writable OpenClaw config file from this host.',
     );
@@ -107,13 +109,13 @@ async function loadInstallDetail(instanceId: string) {
 
   return {
     detail,
-    configPath,
+    configFile,
   };
 }
 
 function mapInstallTarget(
   instance: StudioInstanceRecord,
-  configPath: string,
+  configFile: string,
   installedAgentIds: string[],
 ): AgentInstallTarget {
   const installedTemplateIds = AGENT_MARKET_TEMPLATES
@@ -128,7 +130,7 @@ function mapInstallTarget(
     status: instance.status,
     deploymentMode: instance.deploymentMode,
     isBuiltIn: instance.isBuiltIn,
-    configPath,
+    configFile,
     agentCount: installedAgentIds.length,
     installedAgentIds,
     installedTemplateIds,
@@ -144,15 +146,15 @@ class AgentInstallService {
     const targetResults = await Promise.allSettled(
       openClawInstances.map(async (instance) => {
         const detail = await studio.getInstanceDetail(instance.id);
-        const configPath = resolveInstallableConfigPath(detail);
-        if (!configPath) {
+        const configFile = resolveInstallableConfigFile(detail);
+        if (!configFile) {
           return null;
         }
 
-        const snapshot = await openClawConfigService.readConfigSnapshot(configPath);
+        const snapshot = await openClawConfigService.readConfigSnapshot(configFile);
         return mapInstallTarget(
           instance,
-          configPath,
+          configFile,
           snapshot.agentSnapshots.map((agent) => agent.id),
         );
       }),
@@ -182,12 +184,12 @@ class AgentInstallService {
     templateId: string;
   }) {
     const template = resolveTemplate(input.templateId);
-    const { configPath } = await loadInstallDetail(input.instanceId);
+    const { configFile } = await loadInstallDetail(input.instanceId);
     const installPlan = await openClawConfigService.resolveAgentPaths({
-      configPath,
+      configFile,
       agentId: template.id,
     });
-    const existingSnapshot = await openClawConfigService.readConfigSnapshot(configPath);
+    const existingSnapshot = await openClawConfigService.readConfigSnapshot(configFile);
 
     if (existingSnapshot.agentSnapshots.some((agent) => agent.id === installPlan.id)) {
       throw new Error(`${template.name} is already installed on this OpenClaw instance.`);
@@ -200,7 +202,7 @@ class AgentInstallService {
     });
 
     await openClawConfigService.saveAgent({
-      configPath,
+      configFile,
       agent: {
         id: installPlan.id,
         name: template.name,
@@ -211,11 +213,11 @@ class AgentInstallService {
       },
     });
 
-    const updatedSnapshot = await openClawConfigService.readConfigSnapshot(configPath);
+    const updatedSnapshot = await openClawConfigService.readConfigSnapshot(configFile);
     const allowAgentIds = updatedSnapshot.agentSnapshots.map((agent) => agent.id);
 
     const multiAgentSnapshot = await openClawConfigService.configureMultiAgentSupport({
-      configPath,
+      configFile,
       coordinatorAgentId: 'main',
       allowAgentIds,
       subagentDefaults: {

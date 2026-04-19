@@ -1,5 +1,5 @@
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
-import { resolveFallbackInstanceConfigPath } from './openClawConfigPathFallback.ts';
+import { resolveAttachedKernelConfigFile } from '@sdkwork/claw-core';
 
 export interface AgentSkillManagementDependencies {
   studioApi: {
@@ -15,17 +15,21 @@ export interface AgentSkillManagementDependencies {
       args: Record<string, unknown>,
     ): Promise<Record<string, unknown>>;
   };
-  openClawConfigService: {
-    resolveInstanceConfigPath(detail: StudioInstanceDetailRecord | null | undefined): string | null;
+  kernelConfigAttachmentApi: {
+    resolveAttachedKernelConfigFile(
+      detail: StudioInstanceDetailRecord | null | undefined,
+    ): string | null;
+  };
+  openClawConfigDocumentApi: {
     saveSkillEntry(input: {
-      configPath: string;
+      configFile: string;
       skillKey: string;
       enabled?: boolean;
       apiKey?: string;
       env?: Record<string, string>;
     }): Promise<unknown>;
     deleteSkillEntry(input: {
-      configPath: string;
+      configFile: string;
       skillKey: string;
     }): Promise<unknown>;
   };
@@ -40,7 +44,10 @@ export interface AgentSkillManagementDependencies {
 export interface AgentSkillManagementServiceDependencyOverrides {
   studioApi?: Partial<AgentSkillManagementDependencies['studioApi']>;
   openClawGatewayClient?: Partial<AgentSkillManagementDependencies['openClawGatewayClient']>;
-  openClawConfigService?: Partial<AgentSkillManagementDependencies['openClawConfigService']>;
+  kernelConfigAttachmentApi?: Partial<AgentSkillManagementDependencies['kernelConfigAttachmentApi']>;
+  openClawConfigDocumentApi?: Partial<
+    AgentSkillManagementDependencies['openClawConfigDocumentApi']
+  >;
   platform?: Partial<AgentSkillManagementDependencies['platform']>;
 }
 
@@ -257,13 +264,13 @@ class AgentSkillManagementService {
       throw new Error('Only OpenClaw instances support skill configuration updates.');
     }
 
-    const configPath = detail.lifecycle.configWritable
-      ? this.dependencies.openClawConfigService.resolveInstanceConfigPath(detail)
+    const configFile = detail.lifecycle.configWritable
+      ? this.dependencies.kernelConfigAttachmentApi.resolveAttachedKernelConfigFile(detail)
       : null;
 
-    if (configPath) {
-      await this.dependencies.openClawConfigService.saveSkillEntry({
-        configPath,
+    if (configFile) {
+      await this.dependencies.openClawConfigDocumentApi.saveSkillEntry({
+        configFile,
         skillKey,
         enabled: input.enabled,
       });
@@ -315,12 +322,12 @@ class AgentSkillManagementService {
       skillKey,
     });
 
-    const configPath = detail.lifecycle.configWritable
-      ? this.dependencies.openClawConfigService.resolveInstanceConfigPath(detail)
+    const configFile = detail.lifecycle.configWritable
+      ? this.dependencies.kernelConfigAttachmentApi.resolveAttachedKernelConfigFile(detail)
       : null;
-    if (configPath) {
-      await this.dependencies.openClawConfigService.deleteSkillEntry({
-        configPath,
+    if (configFile) {
+      await this.dependencies.openClawConfigDocumentApi.deleteSkillEntry({
+        configFile,
         skillKey,
       });
     }
@@ -336,10 +343,12 @@ function createDefaultDependencies(): AgentSkillManagementDependencies {
       installSkill: createMissingAsyncDependency('openClawGatewayClient.installSkill'),
       updateSkill: createMissingAsyncDependency('openClawGatewayClient.updateSkill'),
     },
-    openClawConfigService: {
-      resolveInstanceConfigPath: resolveFallbackInstanceConfigPath,
-      saveSkillEntry: createMissingAsyncDependency('openClawConfigService.saveSkillEntry'),
-      deleteSkillEntry: createMissingAsyncDependency('openClawConfigService.deleteSkillEntry'),
+    kernelConfigAttachmentApi: {
+      resolveAttachedKernelConfigFile: resolveAttachedKernelConfigFile,
+    },
+    openClawConfigDocumentApi: {
+      saveSkillEntry: createMissingAsyncDependency('openClawConfigDocumentApi.saveSkillEntry'),
+      deleteSkillEntry: createMissingAsyncDependency('openClawConfigDocumentApi.deleteSkillEntry'),
     },
     platform: {
       pathExists: createMissingAsyncDependency('platform.pathExists'),
@@ -364,9 +373,13 @@ export function createAgentSkillManagementService(
       ...defaults.openClawGatewayClient,
       ...(overrides.openClawGatewayClient || {}),
     },
-    openClawConfigService: {
-      ...defaults.openClawConfigService,
-      ...(overrides.openClawConfigService || {}),
+    kernelConfigAttachmentApi: {
+      ...defaults.kernelConfigAttachmentApi,
+      ...(overrides.kernelConfigAttachmentApi || {}),
+    },
+    openClawConfigDocumentApi: {
+      ...defaults.openClawConfigDocumentApi,
+      ...(overrides.openClawConfigDocumentApi || {}),
     },
     platform: {
       ...defaults.platform,

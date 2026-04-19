@@ -8,9 +8,6 @@ use crate::framework::{
     services::openclaw_runtime::{load_manifest, validate_installed_openclaw_runtime},
     FrameworkError, Result,
 };
-use super::openclaw_config_compat::{
-    read_openclaw_authority_state_file, resolve_legacy_openclaw_config_source_path,
-};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{Map, Value};
 use std::{
@@ -121,7 +118,7 @@ impl KernelRuntimeAuthorityService {
 
     pub fn import_or_default_openclaw_config(
         &self,
-        paths: &AppPaths,
+        _paths: &AppPaths,
         config_file_path: &Path,
     ) -> Result<ImportedOpenClawConfig> {
         if let Some(parent) = config_file_path.parent() {
@@ -132,15 +129,6 @@ impl KernelRuntimeAuthorityService {
             return Ok(ImportedOpenClawConfig {
                 root: read_json5_object(config_file_path)?,
                 source_path: None,
-            });
-        }
-
-        if let Some(source_path) =
-            resolve_legacy_openclaw_config_source_path(paths, config_file_path)?
-        {
-            return Ok(ImportedOpenClawConfig {
-                root: read_json5_object(&source_path)?,
-                source_path: Some(source_path),
             });
         }
 
@@ -428,11 +416,7 @@ fn resolve_runtime_state_paths(
     })
 }
 
-fn read_runtime_authority_state(runtime_id: &str, authority_file: &Path) -> Result<KernelAuthorityState> {
-    if normalize_runtime_id(runtime_id) == OPENCLAW_KERNEL_ID {
-        return read_openclaw_authority_state_file(authority_file);
-    }
-
+fn read_runtime_authority_state(_runtime_id: &str, authority_file: &Path) -> Result<KernelAuthorityState> {
     read_json_file::<KernelAuthorityState>(authority_file)
 }
 
@@ -627,10 +611,18 @@ mod tests {
     use crate::framework::{
         layout::initialize_machine_state,
         paths::resolve_paths_for_root,
-        services::openclaw_config_compat::legacy_openclaw_config_file_path,
     };
     use serde_json::Value;
-    use std::{fs, path::Path};
+    use std::{fs, path::{Path, PathBuf}};
+
+    fn legacy_managed_config_file_path(
+        paths: &crate::framework::paths::AppPaths,
+    ) -> PathBuf {
+        paths
+            .openclaw_kernel_dir
+            .join("managed-config")
+            .join("openclaw.json")
+    }
 
     fn strip_test_module(source: &str) -> String {
         let Some(module_start) = source.find("mod tests {") else {
@@ -842,7 +834,7 @@ mod tests {
     fn active_config_file_path_uses_canonical_openclaw_path_when_authority_is_legacy() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        let legacy_managed_config_path = legacy_openclaw_config_file_path(&paths);
+        let legacy_managed_config_path = legacy_managed_config_file_path(&paths);
         let mut authority =
             read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)
                 .expect("authority state");
@@ -860,7 +852,7 @@ mod tests {
     fn active_config_file_path_repairs_legacy_openclaw_authority_path_on_disk() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
-        let legacy_managed_config_path = legacy_openclaw_config_file_path(&paths);
+        let legacy_managed_config_path = legacy_managed_config_file_path(&paths);
         let mut authority =
             read_json_file::<KernelAuthorityState>(&paths.openclaw_authority_file)
                 .expect("authority state");
@@ -881,11 +873,11 @@ mod tests {
     }
 
     #[test]
-    fn import_or_default_openclaw_config_imports_legacy_authority_managed_config() {
+    fn import_or_default_openclaw_config_ignores_legacy_authority_managed_config() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let config_file_path = paths.openclaw_config_file.clone();
-        let legacy_managed_config_path = legacy_openclaw_config_file_path(&paths);
+        let legacy_managed_config_path = legacy_managed_config_file_path(&paths);
 
         fs::create_dir_all(legacy_managed_config_path.parent().expect("legacy config parent"))
             .expect("legacy config dir");
@@ -909,17 +901,8 @@ mod tests {
             .import_or_default_openclaw_config(&paths, &config_file_path)
             .expect("import config");
 
-        assert_eq!(
-            imported.source_path.as_deref(),
-            Some(legacy_managed_config_path.as_path())
-        );
-        assert_eq!(
-            imported
-                .root
-                .pointer("/commands/ownerDisplay")
-                .and_then(Value::as_str),
-            Some("compact")
-        );
+        assert_eq!(imported.source_path, None);
+        assert_eq!(imported.root, Value::Object(Default::default()));
     }
 
     #[test]

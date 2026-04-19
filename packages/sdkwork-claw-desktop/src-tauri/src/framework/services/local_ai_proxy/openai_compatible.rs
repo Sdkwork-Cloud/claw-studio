@@ -19,6 +19,9 @@ use axum::{
     Json,
 };
 use serde_json::{json, Value};
+pub(super) use sdkwork_local_api_proxy_native::response::extract_token_usage;
+use sdkwork_local_api_proxy_native::streaming::openai_stream_endpoint_for_suffix as resolve_shared_openai_stream_endpoint;
+use sdkwork_local_api_proxy_native::translation::resolve_request_model_id as resolve_shared_request_model_id;
 use std::time::Instant;
 
 pub(super) async fn models_handler(
@@ -69,44 +72,6 @@ pub(super) async fn openai_embeddings_handler(
     body: Bytes,
 ) -> ProxyHttpResult<Response> {
     openai_compatible_passthrough_handler(state, headers, original_uri, body, "embeddings").await
-}
-
-pub(super) fn extract_token_usage(payload: &Value) -> LocalAiProxyTokenUsage {
-    let input_tokens = value_u64(payload, "/usage/prompt_tokens")
-        .or_else(|| value_u64(payload, "/usage/input_tokens"))
-        .or_else(|| value_u64(payload, "/usageMetadata/promptTokenCount"))
-        .or_else(|| value_u64(payload, "/prompt_eval_count"))
-        .unwrap_or(0);
-    let output_tokens = value_u64(payload, "/usage/completion_tokens")
-        .or_else(|| value_u64(payload, "/usage/output_tokens"))
-        .or_else(|| value_u64(payload, "/usageMetadata/candidatesTokenCount"))
-        .or_else(|| value_u64(payload, "/eval_count"))
-        .unwrap_or(0);
-    let anthropic_cache_tokens = value_u64(payload, "/usage/cache_creation_input_tokens")
-        .unwrap_or(0)
-        .saturating_add(value_u64(payload, "/usage/cache_read_input_tokens").unwrap_or(0));
-    let cache_tokens = value_u64(payload, "/usage/cache_tokens")
-        .or_else(|| value_u64(payload, "/usage/prompt_tokens_details/cached_tokens"))
-        .or_else(|| value_u64(payload, "/usage/input_tokens_details/cached_tokens"))
-        .or_else(|| value_u64(payload, "/usageMetadata/cachedContentTokenCount"))
-        .unwrap_or(anthropic_cache_tokens);
-    let prompt_completion_total = input_tokens.saturating_add(output_tokens);
-    let total_tokens = value_u64(payload, "/usage/total_tokens")
-        .or_else(|| value_u64(payload, "/usageMetadata/totalTokenCount"))
-        .unwrap_or_else(|| {
-            if prompt_completion_total > 0 {
-                prompt_completion_total
-            } else {
-                cache_tokens
-            }
-        });
-
-    LocalAiProxyTokenUsage {
-        total_tokens,
-        input_tokens,
-        output_tokens,
-        cache_tokens,
-    }
 }
 
 async fn openai_compatible_passthrough_handler(
@@ -203,7 +168,7 @@ async fn ollama_openai_compatible_handler(
     endpoint_suffix: &str,
     body: Bytes,
 ) -> ProxyHttpResult<Response> {
-    let stream_endpoint = streaming::openai_stream_endpoint_for_suffix(endpoint_suffix).ok();
+    let stream_endpoint = resolve_shared_openai_stream_endpoint(endpoint_suffix).ok();
     let started_at = Instant::now();
     let audit_context =
         observability::build_request_audit_context(route, &format!("/v1/{endpoint_suffix}"), &body);
@@ -282,7 +247,7 @@ async fn ollama_openai_compatible_handler(
                 build_json_outcome(
                     status,
                     response_translation::build_openai_chat_completion_from_ollama(
-                        route,
+                        route.default_model_id.as_str(),
                         &upstream_body,
                     ),
                     extract_token_usage(&upstream_body),
@@ -361,7 +326,10 @@ async fn ollama_openai_compatible_handler(
                 let upstream_body = parse_json_response(response).await?;
                 build_json_outcome(
                     status,
-                    response_translation::build_openai_response_from_ollama(route, &upstream_body),
+                    response_translation::build_openai_response_from_ollama(
+                        route.default_model_id.as_str(),
+                        &upstream_body,
+                    ),
                     extract_token_usage(&upstream_body),
                 )
             }
@@ -416,7 +384,7 @@ async fn anthropic_openai_compatible_handler(
     endpoint_suffix: &str,
     body: Bytes,
 ) -> ProxyHttpResult<Response> {
-    let stream_endpoint = streaming::openai_stream_endpoint_for_suffix(endpoint_suffix).ok();
+    let stream_endpoint = resolve_shared_openai_stream_endpoint(endpoint_suffix).ok();
     let started_at = Instant::now();
     let audit_context =
         observability::build_request_audit_context(route, &format!("/v1/{endpoint_suffix}"), &body);
@@ -497,7 +465,7 @@ async fn anthropic_openai_compatible_handler(
                 build_json_outcome(
                     status,
                     response_translation::build_openai_chat_completion_from_anthropic(
-                        route,
+                        route.default_model_id.as_str(),
                         &upstream_body,
                     ),
                     extract_token_usage(&upstream_body),
@@ -579,7 +547,7 @@ async fn anthropic_openai_compatible_handler(
                 build_json_outcome(
                     status,
                     response_translation::build_openai_response_from_anthropic(
-                        route,
+                        route.default_model_id.as_str(),
                         &upstream_body,
                     ),
                     extract_token_usage(&upstream_body),
@@ -607,7 +575,7 @@ async fn gemini_openai_compatible_handler(
     endpoint_suffix: &str,
     body: Bytes,
 ) -> ProxyHttpResult<Response> {
-    let stream_endpoint = streaming::openai_stream_endpoint_for_suffix(endpoint_suffix).ok();
+    let stream_endpoint = resolve_shared_openai_stream_endpoint(endpoint_suffix).ok();
     let started_at = Instant::now();
     let audit_context =
         observability::build_request_audit_context(route, &format!("/v1/{endpoint_suffix}"), &body);
@@ -698,7 +666,7 @@ async fn gemini_openai_compatible_handler(
                 build_json_outcome(
                     status,
                     response_translation::build_openai_chat_completion_from_gemini(
-                        route,
+                        route.default_model_id.as_str(),
                         &upstream_body,
                     ),
                     extract_token_usage(&upstream_body),
@@ -789,7 +757,10 @@ async fn gemini_openai_compatible_handler(
                 let upstream_body = parse_json_response(response).await?;
                 build_json_outcome(
                     status,
-                    response_translation::build_openai_response_from_gemini(route, &upstream_body),
+                    response_translation::build_openai_response_from_gemini(
+                        route.default_model_id.as_str(),
+                        &upstream_body,
+                    ),
                     extract_token_usage(&upstream_body),
                 )
             }
@@ -847,27 +818,10 @@ pub(super) fn resolve_request_model_id(
     route: &LocalAiProxyRouteSnapshot,
     payload: &Value,
 ) -> ProxyHttpResult<String> {
-    payload
-        .get("model")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .or_else(|| {
-            if route.default_model_id.trim().is_empty() {
-                None
-            } else {
-                Some(route.default_model_id.trim().to_string())
-            }
-        })
-        .ok_or_else(|| {
-            proxy_error(
-                StatusCode::BAD_REQUEST,
-                "OpenAI-compatible request must specify a non-empty model id.",
-            )
-        })
-}
-
-fn value_u64(payload: &Value, pointer: &str) -> Option<u64> {
-    payload.pointer(pointer).and_then(Value::as_u64)
+    resolve_shared_request_model_id(payload, Some(route.default_model_id.as_str())).map_err(|_| {
+        proxy_error(
+            StatusCode::BAD_REQUEST,
+            "OpenAI-compatible request must specify a non-empty model id.",
+        )
+    })
 }

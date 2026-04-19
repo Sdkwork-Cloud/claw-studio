@@ -1,4 +1,4 @@
-import { openClawConfigService } from '@sdkwork/claw-core';
+import { openClawConfigService, resolveAttachedKernelConfigFile } from '@sdkwork/claw-core';
 import {
   openClawGatewayClient,
   platform,
@@ -26,8 +26,10 @@ function createRuntimeDependencyOverrides(): AgentSkillManagementServiceDependen
       installSkill: (instanceId, args) => openClawGatewayClient.installSkill(instanceId, args),
       updateSkill: (instanceId, args) => openClawGatewayClient.updateSkill(instanceId, args),
     },
-    openClawConfigService: {
-      resolveInstanceConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
+    kernelConfigAttachmentApi: {
+      resolveAttachedKernelConfigFile: (detail) => resolveAttachedKernelConfigFile(detail),
+    },
+    openClawConfigDocumentApi: {
       saveSkillEntry: (input) => openClawConfigService.saveSkillEntry(input),
       deleteSkillEntry: (input) => openClawConfigService.deleteSkillEntry(input),
     },
@@ -54,9 +56,13 @@ export function createAgentSkillManagementService(
       ...runtimeOverrides.openClawGatewayClient,
       ...(overrides.openClawGatewayClient || {}),
     },
-    openClawConfigService: {
-      ...runtimeOverrides.openClawConfigService,
-      ...(overrides.openClawConfigService || {}),
+    kernelConfigAttachmentApi: {
+      ...runtimeOverrides.kernelConfigAttachmentApi,
+      ...(overrides.kernelConfigAttachmentApi || {}),
+    },
+    openClawConfigDocumentApi: {
+      ...runtimeOverrides.openClawConfigDocumentApi,
+      ...(overrides.openClawConfigDocumentApi || {}),
     },
     platform: {
       ...runtimeOverrides.platform,

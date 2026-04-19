@@ -3,6 +3,7 @@ import {
   PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
   createProviderRoutingCatalogService,
   listKnownProviderRoutingChannels,
+  normalizeProviderRoutingDraft,
 } from './providerRoutingCatalogService.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
@@ -14,6 +15,63 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
     throw error;
   }
 }
+
+await runTest(
+  'provider routing catalog normalizes dirty drafts through the shared legacy route standard contract',
+  () => {
+    const normalized = normalizeProviderRoutingDraft({
+      presetId: ' openai ',
+      name: ' OpenAI Alias ',
+      providerId: '',
+      channelId: ' api-router-openai ',
+      apiKey: ' sk-openai ',
+      clientProtocol: undefined,
+      upstreamProtocol: undefined,
+      baseUrl: ' https://api.openai.com/v1/ ',
+      defaultModelId: ' gpt-5.4 ',
+      reasoningModelId: ' o4-mini ',
+      embeddingModelId: ' atlas-index ',
+      models: [
+        { id: ' gpt-5.4 ', name: ' GPT-5.4 ' },
+        { id: ' o4-mini ', name: ' o4-mini ' },
+        { id: ' atlas-index ', name: ' Atlas Index ' },
+        { id: 'gpt-5.4', name: 'Duplicate GPT-5.4' },
+      ],
+      exposeTo: [' openclaw ', 'openclaw', ' desktop-clients '],
+      notes: ' shared route ',
+      config: {
+        temperature: 0.35,
+        streaming: false,
+      },
+    } as any);
+
+    assert.equal(normalized.presetId, 'openai');
+    assert.equal(normalized.name, 'OpenAI Alias');
+    assert.equal(normalized.providerId, 'openai');
+    assert.equal(normalized.clientProtocol, 'openai-compatible');
+    assert.equal(normalized.upstreamProtocol, 'openai-compatible');
+    assert.equal(normalized.upstreamBaseUrl, 'https://api.openai.com/v1');
+    assert.equal(normalized.baseUrl, 'https://api.openai.com/v1');
+    assert.equal(normalized.apiKey, 'sk-openai');
+    assert.equal(normalized.defaultModelId, 'gpt-5.4');
+    assert.equal(normalized.reasoningModelId, 'o4-mini');
+    assert.equal(normalized.embeddingModelId, 'atlas-index');
+    assert.deepEqual(normalized.models, [
+      { id: 'gpt-5.4', name: 'Duplicate GPT-5.4' },
+      { id: 'o4-mini', name: 'o4-mini' },
+      { id: 'atlas-index', name: 'Atlas Index' },
+    ]);
+    assert.deepEqual(normalized.exposeTo, ['openclaw', 'desktop-clients']);
+    assert.equal(normalized.notes, 'shared route');
+    assert.deepEqual(normalized.config, {
+      temperature: 0.35,
+      topP: 1,
+      maxTokens: 8192,
+      timeoutMs: 60000,
+      streaming: false,
+    });
+  },
+);
 
 await runTest(
   'provider routing catalog exposes official Fireworks and Amazon Bedrock Mantle channels',
@@ -254,6 +312,60 @@ await runTest(
     assert.ok(sdkworkChannel);
     assert.equal(sdkworkChannel?.providerCount, 2);
     assert.equal(sdkworkChannel?.activeProviderCount, 2);
+  },
+);
+
+await runTest(
+  'provider routing catalog parses stored records through the shared legacy route normalizer contract',
+  async () => {
+    const service = createProviderRoutingCatalogService({
+      storageApi: {
+        getStorageInfo: async () => ({
+          provider: 'workspace',
+          activeProfileId: 'profile-main',
+          profiles: [
+            {
+              id: 'profile-main',
+              provider: 'sqlite',
+              label: 'Main',
+              active: true,
+              readOnly: false,
+            },
+          ],
+        }),
+        listKeys: async () => ({
+          keys: ['provider-config-openai-alias'],
+        }),
+        getText: async () => ({
+          value: JSON.stringify({
+            id: 'provider-config-openai-alias',
+            schemaVersion: 1,
+            name: 'OpenAI Alias',
+            enabled: true,
+            isDefault: true,
+            managedBy: 'user',
+            clientProtocol: 'openai-compatible',
+            upstreamProtocol: 'openai-compatible',
+            channelId: 'api-router-openai',
+            baseUrl: 'https://api.openai.com/v1',
+            apiKey: ' sk-openai ',
+            defaultModelId: 'gpt-5.4',
+            models: [{ id: 'gpt-5.4', name: 'GPT-5.4' }],
+            exposeTo: [' openclaw ', 'openclaw'],
+            createdAt: 100,
+            updatedAt: 200,
+          }),
+        }),
+      } as any,
+    });
+
+    const records = await service.listProviderRoutingRecords();
+    const aliasRecord = records.find((record) => record.id === 'provider-config-openai-alias');
+
+    assert.equal(aliasRecord?.providerId, 'openai');
+    assert.equal(aliasRecord?.upstreamBaseUrl, 'https://api.openai.com/v1');
+    assert.equal(aliasRecord?.apiKey, 'sk-openai');
+    assert.deepEqual(aliasRecord?.exposeTo, ['openclaw']);
   },
 );
 

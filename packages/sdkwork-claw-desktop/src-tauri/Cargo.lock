@@ -4420,6 +4420,7 @@ dependencies = [
  "sdkwork-claw-host-core",
  "sdkwork-claw-host-studio",
  "sdkwork-claw-server",
+ "sdkwork-local-api-proxy-native",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -4477,6 +4478,17 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower",
+]
+
+[[package]]
+name = "sdkwork-local-api-proxy-native"
+version = "0.1.0"
+dependencies = [
+ "json5",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]

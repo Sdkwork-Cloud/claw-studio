@@ -1247,6 +1247,10 @@ mod tests {
     use crate::framework::{
         layout::{ActiveState, KernelAuthorityState, KernelMigrationState},
         paths::resolve_paths_for_root,
+        services::{
+            local_ai_proxy::OPENCLAW_LOCAL_PROXY_TOKEN_ENV_VAR,
+            local_ai_proxy_snapshot::LOCAL_AI_PROXY_DEFAULT_PORT,
+        },
     };
     use serde_json::Value;
     use std::{env, ffi::OsString, fs, io::Write, sync::MutexGuard};
@@ -1626,10 +1630,10 @@ mod tests {
             .expect("managed env");
 
         assert!(managed_env
-            .get("SDKWORK_LOCAL_PROXY_TOKEN")
+            .get(OPENCLAW_LOCAL_PROXY_TOKEN_ENV_VAR)
             .is_some_and(|token| !token.trim().is_empty()));
         assert_ne!(
-            managed_env.get("SDKWORK_LOCAL_PROXY_TOKEN"),
+            managed_env.get(OPENCLAW_LOCAL_PROXY_TOKEN_ENV_VAR),
             Some(&"sk_sdkwork_api_key".to_string())
         );
     }
@@ -2471,14 +2475,12 @@ mod tests {
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
-
-        fs::write(
-            &paths.openclaw_config_file,
-            r#"{
-  "models": {
-    "providers": {
-      "sdkwork-local-proxy": {
-        "baseUrl": "http://127.0.0.1:18791/v1",
+        let seeded_openclaw_config = format!(
+            r#"{{
+  "models": {{
+    "providers": {{
+      "sdkwork-local-proxy": {{
+        "baseUrl": "http://127.0.0.1:{}/v1",
         "apiKey": "sk_sdkwork_api_key",
         "temperature": 0.35,
         "topP": 0.9,
@@ -2486,13 +2488,19 @@ mod tests {
         "timeoutMs": 90000,
         "streaming": false,
         "models": [
-          { "id": "gpt-5.4", "name": "GPT-5.4" }
+          {{ "id": "gpt-5.4", "name": "GPT-5.4" }}
         ]
-      }
-    }
-  }
-}
+      }}
+    }}
+  }}
+}}
 "#,
+            LOCAL_AI_PROXY_DEFAULT_PORT
+        );
+
+        fs::write(
+            &paths.openclaw_config_file,
+            seeded_openclaw_config,
         )
         .expect("seed config file");
 

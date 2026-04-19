@@ -5,9 +5,13 @@ import type {
   StudioWorkbenchLLMProviderRequestOverridesRecord,
 } from '@sdkwork/claw-types';
 import {
-  normalizeLocalAiProxyRouteRecords,
-  selectDefaultLocalAiProxyRoute,
-} from './localAiProxyRouteService.ts';
+  LOCAL_AI_PROXY_OPENCLAW_EXPOSE_TARGET,
+  resolveLocalApiProxyProjectedModelCatalogState,
+  resolveLocalApiProxyRuntimeBaseUrl,
+  resolveProviderLocalApiProxyRouteModelState as resolveLegacyLocalAiProxyRouteModelState,
+  selectLocalApiProxyProjectedProviderRoute,
+} from '@sdkwork/local-api-proxy';
+import { normalizeOpenClawProviderEndpoint } from './openClawProviderFormatService.ts';
 import { normalizeOpenClawProviderRequestOverrides } from './openClawProviderRuntimeConfigService.ts';
 
 export const OPENCLAW_LOCAL_PROXY_PROVIDER_ID = 'sdkwork-local-proxy';
@@ -50,70 +54,57 @@ export interface OpenClawLocalProxyProjection {
   selection: OpenClawLocalProxyProjectionSelection;
 }
 
-function normalizeLoopbackBaseUrl(baseUrl: string) {
-  return baseUrl.trim().replace(/\/+$/g, '');
+export interface OpenClawProjectionModelCatalogState {
+  models: OpenClawLocalProxyProjectionProviderModel[];
+  selection: OpenClawLocalProxyProjectionSelection;
+}
+
+export function resolveOpenClawProjectionModelCatalogState(input: {
+  models: readonly OpenClawLocalProxyProjectionProviderModel[];
+  selection: OpenClawLocalProxyProjectionSelection;
+  selectionOverride?: Partial<OpenClawLocalProxyProjectionSelection>;
+}): OpenClawProjectionModelCatalogState {
+  const normalizedState = resolveLocalApiProxyProjectedModelCatalogState(input);
+
+  return {
+    models: normalizedState.models.map((model) => ({
+      id: model.id,
+      name: model.name,
+    })),
+    selection: {
+      defaultModelId: normalizedState.selection.defaultModelId,
+      reasoningModelId: normalizedState.selection.reasoningModelId,
+      embeddingModelId: normalizedState.selection.embeddingModelId,
+    },
+  };
 }
 
 function selectProjectedLocalAiProxyRoute(
   routes: readonly LocalAiProxyRouteRecord[],
   preferredClientProtocol?: LocalAiProxyClientProtocol,
 ) {
-  const preferredProtocols = Array.from(
-    new Set(
-      [preferredClientProtocol, 'openai-compatible'].filter(
-        (protocol): protocol is LocalAiProxyClientProtocol => Boolean(protocol),
-      ),
-    ),
-  );
-
-  for (const protocol of preferredProtocols) {
-    const route = selectDefaultLocalAiProxyRoute(routes, protocol);
-    if (route) {
-      return route;
-    }
-  }
-
-  const normalizedRoutes = normalizeLocalAiProxyRouteRecords(routes);
-  return normalizedRoutes.find((route) => route.enabled && route.isDefault)
-    || normalizedRoutes.find((route) => route.enabled)
-    || null;
+  return selectLocalApiProxyProjectedProviderRoute({
+    routes,
+    exposureTarget: LOCAL_AI_PROXY_OPENCLAW_EXPOSE_TARGET,
+    preferredClientProtocol,
+    fallbackClientProtocol: 'openai-compatible',
+  });
 }
 
 function normalizeRuntimeProxyBaseUrl(baseUrl?: string | null) {
   const normalized = baseUrl?.trim();
-  return normalized ? normalizeLoopbackBaseUrl(normalized) : null;
+  return normalized ? normalizeOpenClawProviderEndpoint(normalized) : null;
 }
 
 export function resolveOpenClawLocalProxyBaseUrl(
   info: RuntimeDesktopKernelInfo | null,
   clientProtocol: LocalAiProxyClientProtocol = 'openai-compatible',
 ) {
-  switch (clientProtocol) {
-    case 'anthropic':
-      return (
-        normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.anthropicBaseUrl)
-        || normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.openaiCompatibleBaseUrl)
-        || normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.baseUrl)
-        || normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.rootBaseUrl)
-        || null
-      );
-    case 'gemini':
-      return (
-        normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.geminiBaseUrl)
-        || normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.rootBaseUrl)
-        || normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.baseUrl)
-        || normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.openaiCompatibleBaseUrl)
-        || null
-      );
-    default:
-      return (
-        normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.openaiCompatibleBaseUrl)
-        || normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.baseUrl)
-        || normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.anthropicBaseUrl)
-        || normalizeRuntimeProxyBaseUrl(info?.localAiProxy?.rootBaseUrl)
-        || null
-      );
-  }
+  return resolveLocalApiProxyRuntimeBaseUrl(
+    info?.localAiProxy,
+    clientProtocol,
+    normalizeRuntimeProxyBaseUrl,
+  );
 }
 
 export function createOpenClawLocalProxyProjection(input: {
@@ -140,26 +131,18 @@ export function createOpenClawLocalProxyProjection(input: {
     throw new Error('No active local AI proxy route is available for OpenClaw local proxy projection.');
   }
 
-  const defaultModelId = sourceRoute.defaultModelId || sourceRoute.models[0]?.id;
-  if (!defaultModelId) {
-    throw new Error('The selected route does not expose a default model for OpenClaw projection.');
-  }
-  const availableModelIds = new Set(sourceRoute.models.map((model) => model.id));
-  const selectedDefaultModelId =
-    input.selectionOverride?.defaultModelId?.trim() || defaultModelId;
-  if (!availableModelIds.has(selectedDefaultModelId)) {
-    throw new Error('The selected default model is not exposed by the projected route.');
-  }
-  const selectedReasoningModelId = input.selectionOverride?.reasoningModelId?.trim();
-  if (selectedReasoningModelId && !availableModelIds.has(selectedReasoningModelId)) {
-    throw new Error('The selected reasoning model is not exposed by the projected route.');
-  }
-  const selectedEmbeddingModelId = input.selectionOverride?.embeddingModelId?.trim();
-  if (selectedEmbeddingModelId && !availableModelIds.has(selectedEmbeddingModelId)) {
-    throw new Error('The selected embedding model is not exposed by the projected route.');
-  }
+  const routeModelState = resolveLegacyLocalAiProxyRouteModelState(sourceRoute);
+  const projectionModelCatalogState = resolveOpenClawProjectionModelCatalogState({
+    models: routeModelState.models,
+    selection: {
+      defaultModelId: routeModelState.defaultModelId,
+      reasoningModelId: routeModelState.reasoningModelId,
+      embeddingModelId: routeModelState.embeddingModelId,
+    },
+    selectionOverride: input.selectionOverride,
+  });
 
-  const proxyBaseUrl = normalizeLoopbackBaseUrl(input.proxyBaseUrl);
+  const proxyBaseUrl = normalizeOpenClawProviderEndpoint(input.proxyBaseUrl);
   if (!proxyBaseUrl) {
     throw new Error('A local proxy base URL is required for OpenClaw projection.');
   }
@@ -173,7 +156,7 @@ export function createOpenClawLocalProxyProjection(input: {
       name: input.providerName?.trim() || 'SDKWork Local Proxy',
       apiKey: input.proxyApiKey.trim(),
       baseUrl: proxyBaseUrl,
-      models: sourceRoute.models.map((model) => ({
+      models: projectionModelCatalogState.models.map((model) => ({
         id: model.id,
         name: model.name,
       })),
@@ -190,10 +173,6 @@ export function createOpenClawLocalProxyProjection(input: {
         ...(request ? { request } : {}),
       },
     },
-    selection: {
-      defaultModelId: selectedDefaultModelId,
-      reasoningModelId: selectedReasoningModelId || sourceRoute.reasoningModelId,
-      embeddingModelId: selectedEmbeddingModelId || sourceRoute.embeddingModelId,
-    },
+    selection: projectionModelCatalogState.selection,
   };
 }

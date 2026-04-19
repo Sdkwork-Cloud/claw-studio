@@ -22,7 +22,7 @@ export interface OpenClawMirrorRuntimeRecord {
   homeDir: string;
   stateDir: string;
   workspaceDir: string;
-  configPath: string;
+  configFile: string;
   gatewayPort: number;
 }
 

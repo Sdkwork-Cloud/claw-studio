@@ -40,13 +40,13 @@ await runTest('projects the effective default openai-compatible route into the m
         exposeTo: ['openclaw'],
       },
     ],
-    proxyBaseUrl: 'http://127.0.0.1:18791/v1',
+    proxyBaseUrl: 'http://127.0.0.1:21280/v1',
     proxyApiKey: '${SDKWORK_LOCAL_PROXY_TOKEN}',
   });
 
   assert.equal(projection.provider.id, OPENCLAW_LOCAL_PROXY_PROVIDER_ID);
   assert.equal(projection.provider.channelId, 'openai-compatible');
-  assert.equal(projection.provider.baseUrl, 'http://127.0.0.1:18791/v1');
+  assert.equal(projection.provider.baseUrl, 'http://127.0.0.1:21280/v1');
   assert.equal(projection.provider.apiKey, '${SDKWORK_LOCAL_PROXY_TOKEN}');
   assert.equal(projection.provider.config?.streaming, true);
   assert.deepEqual(
@@ -96,14 +96,47 @@ await runTest('ignores disabled default candidates and falls back to the active 
         exposeTo: ['openclaw'],
       },
     ],
-    proxyBaseUrl: 'http://127.0.0.1:18791/v1',
+    proxyBaseUrl: 'http://127.0.0.1:21280/v1',
     proxyApiKey: '${SDKWORK_LOCAL_PROXY_TOKEN}',
   });
 
   assert.equal(projection.sourceRoute.id, 'route-openai-active');
-  assert.equal(projection.provider.baseUrl, 'http://127.0.0.1:18791/v1');
+  assert.equal(projection.provider.baseUrl, 'http://127.0.0.1:21280/v1');
   assert.equal(projection.provider.config?.streaming, true);
   assert.equal(projection.provider.notes?.includes('local proxy'), true);
+});
+
+await runTest('ignores routes that are not exposed to OpenClaw and falls back to the synthesized system default route', () => {
+  const projection = createOpenClawLocalProxyProjection({
+    routes: [
+      {
+        id: 'route-openai-desktop-only',
+        schemaVersion: 1,
+        name: 'OpenAI Desktop Only',
+        enabled: true,
+        isDefault: true,
+        managedBy: 'user',
+        clientProtocol: 'openai-compatible',
+        upstreamProtocol: 'openai-compatible',
+        providerId: 'openai',
+        upstreamBaseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-openai',
+        defaultModelId: 'gpt-5.4',
+        models: [{ id: 'gpt-5.4', name: 'GPT-5.4' }],
+        exposeTo: ['desktop-clients'],
+      },
+    ],
+    proxyBaseUrl: 'http://127.0.0.1:21280/v1',
+    proxyApiKey: 'sk_sdkwork_api_key',
+  });
+
+  assert.equal(projection.sourceRoute.managedBy, 'system-default');
+  assert.equal(projection.sourceRoute.providerId, 'sdkwork');
+  assert.equal(projection.selection.defaultModelId, 'sdkwork-chat');
+  assert.deepEqual(
+    projection.provider.models.map((model) => model.id),
+    ['sdkwork-chat', 'sdkwork-reasoning', 'sdkwork-embedding'],
+  );
 });
 
 await runTest('preserves provider runtime config when projecting the managed local proxy provider', () => {
@@ -132,7 +165,7 @@ await runTest('preserves provider runtime config when projecting the managed loc
         exposeTo: ['openclaw'],
       },
     ],
-    proxyBaseUrl: 'http://127.0.0.1:18791/v1',
+    proxyBaseUrl: 'http://127.0.0.1:21280/v1',
     proxyApiKey: 'sk_sdkwork_api_key',
     runtimeConfig: {
       temperature: 0.35,
@@ -177,7 +210,7 @@ await runTest('preserves provider request overrides when projecting the managed 
       },
     ],
     preferredClientProtocol: 'anthropic',
-    proxyBaseUrl: 'http://127.0.0.1:18791/v1',
+    proxyBaseUrl: 'http://127.0.0.1:21280/v1',
     proxyApiKey: 'sk_sdkwork_api_key',
     runtimeConfig: {
       temperature: 0.2,
@@ -235,13 +268,13 @@ await runTest('projects a native gemini local proxy route when the OpenClaw proj
       },
     ],
     preferredClientProtocol: 'gemini',
-    proxyBaseUrl: 'http://127.0.0.1:18791',
+    proxyBaseUrl: 'http://127.0.0.1:21280',
     proxyApiKey: 'sk_sdkwork_api_key',
   });
 
   assert.equal(projection.sourceRoute.id, 'route-gemini-default');
   assert.equal(projection.provider.channelId, 'gemini');
-  assert.equal(projection.provider.baseUrl, 'http://127.0.0.1:18791');
+  assert.equal(projection.provider.baseUrl, 'http://127.0.0.1:21280');
   assert.deepEqual(projection.selection, {
     defaultModelId: 'gemini-2.5-pro',
     reasoningModelId: undefined,
@@ -253,7 +286,7 @@ await runTest('projects the synthesized native anthropic system default when the
   const projection = createOpenClawLocalProxyProjection({
     routes: [],
     preferredClientProtocol: 'anthropic',
-    proxyBaseUrl: 'http://127.0.0.1:18791/v1',
+    proxyBaseUrl: 'http://127.0.0.1:21280/v1',
     proxyApiKey: 'sk_sdkwork_api_key',
   });
 

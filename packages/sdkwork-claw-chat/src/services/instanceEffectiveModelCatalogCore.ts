@@ -1,9 +1,11 @@
 import {
-  normalizeLegacyProviderId,
   type OpenClawConfigSnapshot,
   type LLMChannel,
   type LLMModel,
 } from '@sdkwork/claw-core';
+import {
+  normalizeLocalApiProxyLegacyProviderId as normalizeLegacyProviderId,
+} from '@sdkwork/local-api-proxy';
 import type { StudioInstanceDetailRecord, StudioInstanceRecord } from '@sdkwork/claw-types';
 import { resolveInstanceChatRoute } from './instanceChatRouteService.ts';
 
@@ -21,6 +23,7 @@ type RouterProviderRecord = {
   id: string;
   channel_id: string;
   base_url: string;
+  default_model_id?: string;
   channel_bindings?: RouterProviderChannelBindingRecord[];
 };
 
@@ -59,6 +62,7 @@ type RouterCatalogModelEntry = {
   modelName: string;
   modelRef: string;
   providerId: string;
+  providerDefaultModelId?: string | null;
 };
 
 export interface InstanceEffectiveModelCatalog {
@@ -76,10 +80,10 @@ export interface InstanceEffectiveModelCatalogDependencies {
   listRouterChannels: () => Promise<RouterChannelRecord[]>;
   listRouterProviders: () => Promise<RouterProviderRecord[]>;
   listRouterModels: () => Promise<RouterModelRecord[]>;
-  resolveOpenClawConfigPath: (
+  resolveAttachedKernelConfigFile: (
     detail: StudioInstanceDetailRecord | null | undefined,
   ) => string | null;
-  readOpenClawConfigSnapshot: (configPath: string) => Promise<OpenClawConfigSnapshot>;
+  readOpenClawConfigSnapshot: (configFile: string) => Promise<OpenClawConfigSnapshot>;
   listGatewayModels: (instanceId: string) => Promise<GatewayModelsListResult>;
 }
 
@@ -120,6 +124,10 @@ function normalizePreferredModelId(modelId?: string | null) {
 function trimString(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function buildRouterModelRef(providerId: string, modelId: string) {
+  return modelId.includes('/') ? modelId : `${providerId}/${modelId}`;
 }
 
 function sortChannels(channels: LLMChannel[]) {
@@ -223,12 +231,34 @@ function matchesPreferredModel(modelId: string, preferredModelId?: string | null
   return !preferredModelId.includes('/') && modelId.endsWith(`/${preferredModelId}`);
 }
 
-function sortModels(models: LLMModel[], preferredModelId?: string | null) {
+function matchesConfiguredDefaultModel(modelId: string, defaultModelId?: string | null) {
+  if (!defaultModelId) {
+    return false;
+  }
+
+  if (modelId === defaultModelId) {
+    return true;
+  }
+
+  return !defaultModelId.includes('/') && modelId.endsWith(`/${defaultModelId}`);
+}
+
+function sortModels(
+  models: LLMModel[],
+  preferredModelId?: string | null,
+  defaultModelId?: string | null,
+) {
   return [...models].sort((left, right) => {
     const leftPreferred = matchesPreferredModel(left.id, preferredModelId);
     const rightPreferred = matchesPreferredModel(right.id, preferredModelId);
     if (leftPreferred !== rightPreferred) {
       return leftPreferred ? -1 : 1;
+    }
+
+    const leftDefault = matchesConfiguredDefaultModel(left.id, defaultModelId);
+    const rightDefault = matchesConfiguredDefaultModel(right.id, defaultModelId);
+    if (leftDefault !== rightDefault) {
+      return leftDefault ? -1 : 1;
     }
 
     return left.name.localeCompare(right.name);
@@ -305,8 +335,9 @@ function buildRouterCatalog(params: {
       channelIcon: resolveChannelIcon(channelId, providerId),
       modelId,
       modelName: modelId,
-      modelRef: `${providerId}/${modelId}`,
+      modelRef: buildRouterModelRef(providerId, modelId),
       providerId,
+      providerDefaultModelId: trimString(provider.default_model_id),
     });
   }
 
@@ -322,6 +353,7 @@ function groupEntriesToChannels(
   },
 ) {
   const channelMap = new Map<string, LLMChannel>();
+  const configuredDefaultModelIds = new Map<string, string>();
 
   for (const entry of entries) {
     const existing =
@@ -335,6 +367,9 @@ function groupEntriesToChannels(
         icon: entry.channelIcon,
         models: [],
       } satisfies LLMChannel);
+    if (entry.providerDefaultModelId && !configuredDefaultModelIds.has(entry.channelId)) {
+      configuredDefaultModelIds.set(entry.channelId, entry.providerDefaultModelId);
+    }
     const modelId = params.useModelRefAsId ? entry.modelRef : entry.modelId;
     const modelName = params.runtimeNameByRef?.get(entry.modelRef) || entry.modelName;
     if (!existing.models.some((model) => model.id === modelId)) {
@@ -348,14 +383,22 @@ function groupEntriesToChannels(
 
   return sortChannels(
     [...channelMap.values()].map((channel) => {
-      const models = sortModels(channel.models, params.preferredModelId);
+      const configuredDefaultModelId = configuredDefaultModelIds.get(channel.id);
+      const models = sortModels(
+        channel.models,
+        params.preferredModelId,
+        configuredDefaultModelId,
+      );
       const preferredModel = models.find((model) =>
         matchesPreferredModel(model.id, params.preferredModelId),
+      );
+      const configuredDefaultModel = models.find((model) =>
+        matchesConfiguredDefaultModel(model.id, configuredDefaultModelId),
       );
       return {
         ...channel,
         models,
-        defaultModelId: preferredModel?.id || models[0]?.id,
+        defaultModelId: preferredModel?.id || configuredDefaultModel?.id || models[0]?.id,
       };
     }),
   );
@@ -453,7 +496,7 @@ class DefaultInstanceEffectiveModelCatalogService
       };
     }
 
-    const configPath = this.dependencies.resolveOpenClawConfigPath(detail);
+    const configPath = this.dependencies.resolveAttachedKernelConfigFile(detail);
     const gatewayModels = await this.dependencies.listGatewayModels(instanceId);
     const runtimeModelEntries = gatewayModels.models
       .map((model) => resolveGatewayModelIdentity(model))

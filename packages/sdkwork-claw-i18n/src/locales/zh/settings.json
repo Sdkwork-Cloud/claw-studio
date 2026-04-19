@@ -207,7 +207,7 @@
       "profileCount": "配置数量",
       "installSource": "安装来源",
       "platform": "平台",
-      "configPath": "配置文件路径",
+      "configFile": "配置文件",
       "runtimeHome": "运行时主目录",
       "runtimeInstallDir": "运行时安装目录",
       "configFilePath": "\u914d\u7f6e\u6587\u4ef6\u8def\u5f84",
