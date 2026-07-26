@@ -10,12 +10,13 @@ use axum::{
     Json,
 };
 use sdkwork_utils_rust::{
-    SdkWorkApiResponse, SdkWorkPageData, SdkWorkProblemDetail, SdkWorkResultCode,
-    SdkWorkResourceData, PageInfo, SDKWORK_TRACE_ID_HEADER,
+    PageInfo, SdkWorkApiResponse, SdkWorkPageData, SdkWorkProblemDetail, SdkWorkResourceData,
+    SdkWorkResultCode,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const SDKWORK_TRACE_ID_HEADER_LOWER: &str = "x-sdkwork-trace-id";
 static TRACE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 /// Generate a server-side trace ID for request correlation.
@@ -135,8 +136,9 @@ impl<T: serde::Serialize> IntoResponse for ApiResponse<T> {
 
 fn insert_trace_header(response: &mut Response, trace_id: &str) {
     if let Ok(value) = HeaderValue::from_str(trace_id) {
-        response
-            .headers_mut()
-            .insert(HeaderName::from_static(SDKWORK_TRACE_ID_HEADER), value);
+        response.headers_mut().insert(
+            HeaderName::from_static(SDKWORK_TRACE_ID_HEADER_LOWER),
+            value,
+        );
     }
 }
