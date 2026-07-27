@@ -113,14 +113,14 @@ export function buildOpenClawKernelChatAuthority(): KernelChatAuthority {
 export function buildOpenClawKernelChatSessionRef(input: {
   instanceId: string;
   sessionId: string;
-  nativeSessionId?: string | null;
+  providerSessionId?: string | null;
 }): KernelChatSessionRef {
   const routing = parseOpenClawAgentSessionRoutingKey(input.sessionId);
   return createKernelChatSessionRef({
     kernelId: 'openclaw',
     instanceId: input.instanceId,
     sessionId: input.sessionId,
-    nativeSessionId: trimOptionalString(input.nativeSessionId),
+    providerSessionId: trimOptionalString(input.providerSessionId),
     routingKey: routing.routingKey,
     agentId: routing.agentId,
   });

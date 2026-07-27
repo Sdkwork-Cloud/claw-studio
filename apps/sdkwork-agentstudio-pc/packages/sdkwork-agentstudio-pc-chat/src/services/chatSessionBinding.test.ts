@@ -14,7 +14,7 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
 }
 
 await runTest(
-  'resolveChatSessionBinding keeps studio scope identity separate from kernel-native binding metadata',
+  'resolveChatSessionBinding keeps studio scope identity separate from kernel-owned binding metadata',
   () => {
     assert.deepEqual(
       resolveChatSessionBinding({
@@ -25,7 +25,7 @@ await runTest(
             kernelId: 'openclaw',
             instanceId: 'instance-openclaw',
             sessionId: 'agent:research:main',
-            nativeSessionId: 'native-research-main',
+            providerSessionId: 'provider-research-main',
             routingKey: 'agent:research:main',
             agentId: 'research',
             lineageParentSessionId: 'agent:main:main',
@@ -44,7 +44,7 @@ await runTest(
         sessionId: 'agent:research:main',
         kernelId: 'openclaw',
         kernelInstanceId: 'instance-openclaw',
-        nativeSessionId: 'native-research-main',
+        providerSessionId: 'provider-research-main',
         routingKey: 'agent:research:main',
         agentId: 'research',
         lineageParentSessionId: 'agent:main:main',
@@ -71,7 +71,7 @@ await runTest(
         sessionId: 'agent:ops:main:thread:agent-studio:session-1',
         kernelId: null,
         kernelInstanceId: null,
-        nativeSessionId: null,
+        providerSessionId: null,
         routingKey: null,
         agentId: 'ops',
         lineageParentSessionId: null,
@@ -85,7 +85,7 @@ await runTest(
 );
 
 await runTest(
-  'resolveKernelOwnedSessionId prefers the kernel-native durable session id when it differs from the studio-facing session id',
+  'resolveKernelOwnedSessionId prefers the kernel-owned durable Session ID when it differs from the studio-facing session id',
   async () => {
     const { resolveKernelOwnedSessionId } = await import('./chatSessionBinding.ts');
 
@@ -97,11 +97,11 @@ await runTest(
             kernelId: 'hermes',
             instanceId: 'instance-hermes',
             sessionId: 'studio-session-1',
-            nativeSessionId: 'native-session-1',
+            providerSessionId: 'provider-session-1',
           },
         },
       }),
-      'native-session-1',
+      'provider-session-1',
     );
 
     assert.equal(
@@ -112,7 +112,7 @@ await runTest(
             kernelId: 'openclaw',
             instanceId: 'instance-openclaw',
             sessionId: 'studio-session-2',
-            nativeSessionId: null,
+            providerSessionId: null,
           },
         },
       }),

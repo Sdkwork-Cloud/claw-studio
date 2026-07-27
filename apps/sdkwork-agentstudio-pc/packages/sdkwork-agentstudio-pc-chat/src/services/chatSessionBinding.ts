@@ -13,7 +13,7 @@ export type ChatSessionBindingSource = {
       kernelId?: string | null;
       instanceId?: string | null;
       sessionId?: string | null;
-      nativeSessionId?: string | null;
+      providerSessionId?: string | null;
       routingKey?: string | null;
       agentId?: string | null;
       lineageParentSessionId?: string | null;
@@ -34,7 +34,7 @@ export interface ChatSessionBinding {
   sessionId: string | null;
   kernelId: string | null;
   kernelInstanceId: string | null;
-  nativeSessionId: string | null;
+  providerSessionId: string | null;
   routingKey: string | null;
   agentId: string | null;
   lineageParentSessionId: string | null;
@@ -83,7 +83,7 @@ export function resolveChatSessionBinding(
     sessionId,
     kernelId: kernelState.kernelId,
     kernelInstanceId: kernelState.instanceId,
-    nativeSessionId: kernelState.nativeSessionId,
+    providerSessionId: kernelState.providerSessionId,
     routingKey: kernelState.routingKey,
     agentId,
     lineageParentSessionId: kernelState.lineageParentSessionId,
@@ -101,5 +101,5 @@ export function resolveKernelOwnedSessionId(
   session: ChatSessionBindingSource | null | undefined,
 ) {
   const binding = resolveChatSessionBinding(session);
-  return binding.nativeSessionId ?? binding.sessionId;
+  return binding.providerSessionId ?? binding.sessionId;
 }

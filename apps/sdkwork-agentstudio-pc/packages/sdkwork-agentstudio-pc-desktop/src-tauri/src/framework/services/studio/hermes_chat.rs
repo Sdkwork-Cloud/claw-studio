@@ -321,7 +321,7 @@ fn build_kernel_chat_session_ref(
         kernel_id: "hermes".to_string(),
         instance_id: instance_id.to_string(),
         session_id: session_id.to_string(),
-        native_session_id: Some(session_id.to_string()),
+        provider_session_id: Some(session_id.to_string()),
         routing_key: None,
         agent_id,
         lineage_parent_session_id: None,

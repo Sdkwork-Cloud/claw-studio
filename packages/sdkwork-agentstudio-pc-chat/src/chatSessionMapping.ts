@@ -222,7 +222,7 @@ function buildPersistedKernelSession(session: ChatSession): KernelChatSession {
       kernelId: session.kernelSession?.ref?.kernelId ?? LOCAL_CHAT_PROJECTION_KERNEL_ID,
       instanceId: resolvePersistedConversationInstanceId(session),
       sessionId: session.id,
-      nativeSessionId: session.kernelSession?.ref?.nativeSessionId ?? null,
+      providerSessionId: session.kernelSession?.ref?.providerSessionId ?? null,
       routingKey: session.kernelSession?.ref?.routingKey ?? null,
       agentId,
       lineageParentSessionId: session.kernelSession?.ref?.lineageParentSessionId ?? null,

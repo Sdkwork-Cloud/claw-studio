@@ -1311,7 +1311,7 @@ function resolveProjectedKernelMessageFallbackId(
   index: number,
 ) {
   const sessionId = normalizeKernelMessageFallbackIdPart(
-    resolved.nativeSessionId ?? resolved.sessionId,
+    resolved.providerSessionId ?? resolved.sessionId,
   );
   const runId = normalizeKernelMessageFallbackIdPart(resolved.runId);
   const sequence =

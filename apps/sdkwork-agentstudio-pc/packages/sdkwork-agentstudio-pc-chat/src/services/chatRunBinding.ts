@@ -14,7 +14,7 @@ export type ChatRunBindingSource = {
       kernelId?: string | null;
       instanceId?: string | null;
       sessionId?: string | null;
-      nativeSessionId?: string | null;
+      providerSessionId?: string | null;
       routingKey?: string | null;
       agentId?: string | null;
       lineageParentSessionId?: string | null;
@@ -33,7 +33,7 @@ export interface ChatRunBinding {
   kernelOwnedSessionId: string | null;
   kernelId: string | null;
   kernelInstanceId: string | null;
-  nativeSessionId: string | null;
+  providerSessionId: string | null;
   routingKey: string | null;
   agentId: string | null;
   lineageParentSessionId: string | null;
@@ -59,7 +59,7 @@ export function resolveChatRunBinding(
     kernelOwnedSessionId: resolveKernelOwnedSessionId(session),
     kernelId: sessionBinding.kernelId,
     kernelInstanceId: sessionBinding.kernelInstanceId,
-    nativeSessionId: sessionBinding.nativeSessionId,
+    providerSessionId: sessionBinding.providerSessionId,
     routingKey: sessionBinding.routingKey,
     agentId: sessionBinding.agentId,
     lineageParentSessionId: sessionBinding.lineageParentSessionId,

@@ -77,7 +77,7 @@ runTest(
       kernelId: 'studio-direct',
       instanceId: 'instance-http',
       sessionId: 'session-1',
-      nativeSessionId: null,
+      providerSessionId: null,
       routingKey: null,
       agentId: null,
       lineageParentSessionId: null,

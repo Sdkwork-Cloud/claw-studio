@@ -14,7 +14,7 @@ type KernelAwareChatSessionLike = {
       kernelId?: string | null;
       instanceId?: string | null;
       sessionId?: string | null;
-      nativeSessionId?: string | null;
+      providerSessionId?: string | null;
       agentId?: string | null;
       routingKey?: string | null;
       lineageParentSessionId?: string | null;
@@ -84,7 +84,7 @@ export function resolveKernelChatSessionState(session: KernelAwareChatSessionLik
     kernelId: trimNullableString(kernelSession?.ref?.kernelId),
     instanceId: trimNullableString(kernelSession?.ref?.instanceId),
     sessionId: trimNullableString(kernelSession?.ref?.sessionId),
-    nativeSessionId: trimNullableString(kernelSession?.ref?.nativeSessionId),
+    providerSessionId: trimNullableString(kernelSession?.ref?.providerSessionId),
     agentId:
       trimNullableString(kernelSession?.ref?.agentId) ??
       trimNullableString(kernelSession?.actorBinding?.agentId),

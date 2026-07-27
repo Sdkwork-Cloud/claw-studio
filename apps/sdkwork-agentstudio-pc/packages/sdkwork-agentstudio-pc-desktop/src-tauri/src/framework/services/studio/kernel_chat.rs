@@ -91,7 +91,7 @@ pub struct KernelChatSessionRef {
     pub instance_id: String,
     pub session_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub native_session_id: Option<String>,
+    pub provider_session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub routing_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

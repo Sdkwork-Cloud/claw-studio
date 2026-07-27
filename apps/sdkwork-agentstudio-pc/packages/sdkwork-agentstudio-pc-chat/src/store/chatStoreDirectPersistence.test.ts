@@ -245,7 +245,7 @@ function createGatewayConversationRecord(input: {
         kernelId: 'openclaw',
         instanceId: input.instanceId,
         sessionId: input.id,
-        nativeSessionId: input.id,
+        providerSessionId: input.id,
         routingKey: input.id,
         agentId: input.agentId,
       }),

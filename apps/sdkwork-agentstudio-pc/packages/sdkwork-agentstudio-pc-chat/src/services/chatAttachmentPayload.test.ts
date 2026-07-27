@@ -265,7 +265,7 @@ await runTest(
       kernelId: 'openclaw',
       instanceId: 'instance-openclaw-1',
       sessionId: 'agent:research:main',
-      nativeSessionId: 'agent:research:main',
+      providerSessionId: 'agent:research:main',
       routingKey: 'agent:research:main',
       agentId: 'research',
     });

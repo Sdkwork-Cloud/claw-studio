@@ -118,7 +118,7 @@ runTest('openclaw kernel chat projection maps sessions and structured messages i
     kernelId: 'openclaw',
     instanceId: 'instance-a',
     sessionId: 'agent:research:thread-1',
-    nativeSessionId: null,
+    providerSessionId: null,
     routingKey: 'agent:research:thread-1',
     agentId: 'research',
     lineageParentSessionId: null,

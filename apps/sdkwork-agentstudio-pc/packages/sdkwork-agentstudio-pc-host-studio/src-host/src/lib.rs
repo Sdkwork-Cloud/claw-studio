@@ -2484,7 +2484,7 @@ fn build_kernel_chat_session_ref_value(
         "kernelId": "hermes",
         "instanceId": instance_id,
         "sessionId": session_id,
-        "nativeSessionId": session_id,
+        "providerSessionId": session_id,
         "routingKey": Value::Null,
         "agentId": agent_id
             .map(|value| Value::String(value.to_string()))

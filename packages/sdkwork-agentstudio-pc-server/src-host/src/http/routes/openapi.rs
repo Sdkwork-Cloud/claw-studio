@@ -1653,7 +1653,7 @@ fn build_schemas() -> Value {
                 "kernelId": {"type": "string"},
                 "instanceId": {"type": "string"},
                 "sessionId": {"type": "string"},
-                "nativeSessionId": {"type": ["string", "null"]},
+                "providerSessionId": {"type": ["string", "null"]},
                 "routingKey": {"type": ["string", "null"]},
                 "agentId": {"type": ["string", "null"]},
                 "lineageParentSessionId": {"type": ["string", "null"]}

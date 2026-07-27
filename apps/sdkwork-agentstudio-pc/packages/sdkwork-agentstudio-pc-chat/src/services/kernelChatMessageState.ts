@@ -50,7 +50,7 @@ export type KernelChatMessageState = {
   kernelId?: string;
   instanceId?: string;
   sessionId?: string;
-  nativeSessionId?: string;
+  providerSessionId?: string;
   routingKey?: string;
   agentId?: string;
   lineageParentSessionId?: string;
@@ -306,7 +306,7 @@ export function resolveKernelChatMessageState(
     kernelId: messageBinding.kernelId ?? undefined,
     instanceId: messageBinding.instanceId ?? undefined,
     sessionId: messageBinding.sessionId ?? undefined,
-    nativeSessionId: messageBinding.nativeSessionId ?? undefined,
+    providerSessionId: messageBinding.providerSessionId ?? undefined,
     routingKey: messageBinding.routingKey ?? undefined,
     agentId: messageBinding.agentId ?? undefined,
     lineageParentSessionId: messageBinding.lineageParentSessionId ?? undefined,

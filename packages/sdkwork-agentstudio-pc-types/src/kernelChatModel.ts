@@ -137,7 +137,7 @@ export interface KernelChatSessionRef {
   kernelId: string;
   instanceId: string;
   sessionId: string;
-  nativeSessionId?: string | null;
+  providerSessionId?: string | null;
   routingKey?: string | null;
   agentId?: string | null;
   lineageParentSessionId?: string | null;
@@ -265,7 +265,7 @@ export function createKernelChatSessionRef(input: KernelChatSessionRef): KernelC
     kernelId: trimRequiredString(input.kernelId, 'kernelId'),
     instanceId: trimRequiredString(input.instanceId, 'instanceId'),
     sessionId: trimRequiredString(input.sessionId, 'sessionId'),
-    nativeSessionId: trimOptionalString(input.nativeSessionId),
+    providerSessionId: trimOptionalString(input.providerSessionId),
     routingKey: trimOptionalString(input.routingKey),
     agentId: trimOptionalString(input.agentId),
     lineageParentSessionId: trimOptionalString(input.lineageParentSessionId),

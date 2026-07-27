@@ -18,7 +18,7 @@ export interface ChatMessageBinding {
   kernelId: string | null;
   instanceId: string | null;
   sessionId: string | null;
-  nativeSessionId: string | null;
+  providerSessionId: string | null;
   routingKey: string | null;
   agentId: string | null;
   lineageParentSessionId: string | null;
@@ -55,7 +55,7 @@ export function resolveChatMessageBinding(
     kernelId: trimNullableString(sessionRef?.kernelId),
     instanceId: trimNullableString(sessionRef?.instanceId),
     sessionId: trimNullableString(sessionRef?.sessionId),
-    nativeSessionId: trimNullableString(sessionRef?.nativeSessionId),
+    providerSessionId: trimNullableString(sessionRef?.providerSessionId),
     routingKey: trimNullableString(sessionRef?.routingKey),
     agentId: trimNullableString(sessionRef?.agentId),
     lineageParentSessionId: trimNullableString(sessionRef?.lineageParentSessionId),

@@ -463,7 +463,7 @@ await runTest(
               kernelId: 'hermes',
               instanceId: instance.id,
               sessionId: 'session-hermes-1',
-              nativeSessionId: 'native-hermes-session-1',
+              providerSessionId: 'provider-hermes-session-1',
             },
           },
         },
@@ -478,7 +478,7 @@ await runTest(
     );
 
     assert.equal(output, 'hello');
-    assert.equal(capturedHeaders?.['X-Hermes-Session-Id'], 'native-hermes-session-1');
+    assert.equal(capturedHeaders?.['X-Hermes-Session-Id'], 'provider-hermes-session-1');
   },
 );
 
@@ -534,7 +534,7 @@ await runTest(
               kernelId: 'hermes',
               instanceId: instance.id,
               sessionId: 'session-hermes-remote-1',
-              nativeSessionId: 'native-hermes-remote-session-1',
+              providerSessionId: 'provider-hermes-remote-session-1',
             },
           },
         },
@@ -551,7 +551,7 @@ await runTest(
     assert.equal(output, 'hello');
     assert.equal(
       capturedHeaders?.['X-Hermes-Session-Id'],
-      'native-hermes-remote-session-1',
+      'provider-hermes-remote-session-1',
     );
   },
 );
