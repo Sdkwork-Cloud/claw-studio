@@ -1,12 +1,12 @@
 schema_version: 1
 kind: sdkwork.database.schema
+database_role: client-local
 module_id: sdkwork-agentstudio
 contract_version: 0.1.0
 owner_team: sdkwork-agentstudio
 compliance_level: L2
 engines:
   - sqlite
-  - postgres
 table_prefix: ""
 tables:
   - name: host_catalog_documents

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.database.migration-metadata",
+  "engine": "sqlite",
+  "sourcePolicy": "historical-immutable",
+  "migrations": {
+    "0001_baseline.up.sql": {
+      "engine": "sqlite",
+      "reversible": "true",
+      "rollback": "down-migration",
+      "transactional": "true"
+    }
+  }
+}
