@@ -8,6 +8,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { formatMoney } from '@sdkwork/utils/money';
 import { DashboardSummaryCard } from '../components/DashboardSummaryCard';
 import { DistributionRingChart } from '../components/DistributionRingChart';
 import { ModelDistributionChart } from '../components/ModelDistributionChart';
@@ -177,15 +178,6 @@ export function DashboardPage() {
       }),
     [i18n.language],
   );
-  const currencyFormatter = useMemo(
-    () =>
-      new Intl.NumberFormat(i18n.language, {
-        currency: 'USD',
-        style: 'currency',
-        maximumFractionDigits: 2,
-      }),
-    [i18n.language],
-  );
   const dateTimeFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(i18n.language, {
@@ -199,7 +191,13 @@ export function DashboardPage() {
 
   const formatTokens = (value: number) => compactNumberFormatter.format(value);
   const formatInteger = (value: number) => numberFormatter.format(value);
-  const formatCurrency = (value: number) => currencyFormatter.format(value);
+  const formatCurrency = (value: number) =>
+    formatMoney(value, {
+      currency: 'USD',
+      locale: i18n.language,
+      mode: 'symbol',
+      maxFractionDigits: 2,
+    }) ?? '--';
   const formatPercent = (value: number) => `${numberFormatter.format(value)}%`;
   const formatSignedPercent = (value: number) =>
     `${value >= 0 ? '+' : ''}${numberFormatter.format(value)}%`;

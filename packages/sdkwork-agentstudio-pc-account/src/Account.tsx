@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { formatMoney } from '@sdkwork/utils/money';
 import { formatDate } from '@sdkwork/agentstudio-pc-i18n';
 import {
   Button,
@@ -44,10 +45,11 @@ export function Account() {
   const [method, setMethod] = useState('credit_card');
   const [isProcessing, setIsProcessing] = useState(false);
   const formatCurrency = (value: number) =>
-    new Intl.NumberFormat(i18n.language, {
-      style: 'currency',
+    formatMoney(value, {
       currency: 'USD',
-    }).format(value);
+      locale: i18n.language,
+      mode: 'symbol',
+    }) ?? '--';
   const amountPlaceholder = new Intl.NumberFormat(i18n.language, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

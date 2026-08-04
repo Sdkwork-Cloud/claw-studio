@@ -1,3 +1,4 @@
+import { formatMoney } from '@sdkwork/utils/money';
 import { getIntlLocale } from './config.ts';
 
 function asDate(value: Date | number | string) {
@@ -38,11 +39,20 @@ export function formatCurrency(
   currency = 'USD',
   options?: Omit<Intl.NumberFormatOptions, 'currency' | 'style'>,
 ) {
-  return new Intl.NumberFormat(getIntlLocale(language), {
-    style: 'currency',
+  const formatted = formatMoney(value, {
     currency,
-    ...options,
-  }).format(value);
+    locale: getIntlLocale(language),
+    mode: 'symbol',
+    minFractionDigits: options?.minimumFractionDigits,
+    maxFractionDigits: options?.maximumFractionDigits,
+  });
+  if (formatted !== null) {
+    return formatted;
+  }
+  return formatNumber(value, language, {
+    minimumFractionDigits: options?.minimumFractionDigits ?? 2,
+    maximumFractionDigits: options?.maximumFractionDigits ?? 2,
+  });
 }
 
 const relativeTimeDivisions: Array<{
