@@ -46,9 +46,9 @@ openclaw-*.tgz
 
 .env*
 !.env.example
-!.env.development
-!.env.test
-!.env.production
+!.env.standalone.development
+!.env.standalone.test
+!.env.standalone.production
 
 .DS_Store
 Thumbs.db

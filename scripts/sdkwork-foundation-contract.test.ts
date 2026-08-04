@@ -228,9 +228,9 @@ runTest('foundation removes legacy api-router runtime bridge files and dead loca
   const enLocaleSource = read('packages/sdkwork-agentstudio-pc-i18n/src/locales/en.json');
   const zhLocaleSource = read('packages/sdkwork-agentstudio-pc-i18n/src/locales/zh.json');
   const envExampleSource = read('.env.example');
-  const envDevelopmentSource = read('.env.development');
-  const envTestSource = read('.env.test');
-  const envProductionSource = read('.env.production');
+  const envDevelopmentSource = read('.env.standalone.development');
+  const envTestSource = read('.env.standalone.test');
+  const envProductionSource = read('.env.standalone.production');
   const pnpmLockSource = read('pnpm-lock.yaml');
   const upstreamReferenceSource = read('docs/reference/upstream-integration.md');
   const upstreamReferenceZhSource = read('docs/zh-CN/reference/upstream-integration.md');

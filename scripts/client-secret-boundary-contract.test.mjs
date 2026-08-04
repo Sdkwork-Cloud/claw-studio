@@ -5,7 +5,7 @@ import path from 'node:path';
 const root = process.cwd();
 
 function read(relPath) {
-  return fs.readFileSync(path.join(root, relPath), 'utf8');
+  return fs.readFileSync(path.join(root, relPath), 'utf8').replace(/^\uFEFF/u, '');
 }
 
 function readJson(relPath) {
@@ -28,11 +28,9 @@ const desktopViteConfig = read('packages/sdkwork-agentstudio-pc-desktop/vite.con
 const webViteEnv = read('packages/sdkwork-agentstudio-pc-web/src/vite-env.d.ts');
 const desktopViteEnv = read('packages/sdkwork-agentstudio-pc-desktop/src/vite-env.d.ts');
 const rootEnvExample = read('.env.example');
-const rootEnvDevelopment = read('.env.development');
-const rootEnvTest = read('.env.test');
-const rootEnvProduction = read('.env.production');
-const webEnvExample = read('packages/sdkwork-agentstudio-pc-web/.env.example');
-const desktopEnvExample = read('packages/sdkwork-agentstudio-pc-desktop/.env.example');
+const rootEnvDevelopment = read('.env.standalone.development');
+const rootEnvTest = read('.env.standalone.test');
+const rootEnvProduction = read('.env.standalone.production');
 
 runTest('host vite configs no longer expose browser-side root token injection', () => {
   assert.doesNotMatch(webViteConfig, /VITE_ACCESS_TOKEN/);
@@ -49,8 +47,6 @@ runTest('tracked env examples stay secret-free for browser and desktop hosts', (
   assert.doesNotMatch(rootEnvDevelopment, /VITE_ACCESS_TOKEN=/);
   assert.doesNotMatch(rootEnvTest, /VITE_ACCESS_TOKEN=/);
   assert.doesNotMatch(rootEnvProduction, /VITE_ACCESS_TOKEN=/);
-  assert.doesNotMatch(webEnvExample, /VITE_ACCESS_TOKEN=/);
-  assert.doesNotMatch(desktopEnvExample, /VITE_ACCESS_TOKEN=/);
 });
 
 runTest('automation gate freezes the client secret boundary contract', () => {

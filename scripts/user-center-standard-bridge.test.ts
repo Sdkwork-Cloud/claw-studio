@@ -24,9 +24,9 @@ const runtimeSource = fs.existsSync(runtimePath)
   ? fs.readFileSync(runtimePath, 'utf8')
   : '';
 const rootEnvExampleSource = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
-const rootEnvDevelopmentSource = fs.readFileSync(path.join(root, '.env.development'), 'utf8');
-const rootEnvTestSource = fs.readFileSync(path.join(root, '.env.test'), 'utf8');
-const rootEnvProductionSource = fs.readFileSync(path.join(root, '.env.production'), 'utf8');
+const rootEnvDevelopmentSource = fs.readFileSync(path.join(root, '.env.standalone.development'), 'utf8');
+const rootEnvTestSource = fs.readFileSync(path.join(root, '.env.standalone.test'), 'utf8');
+const rootEnvProductionSource = fs.readFileSync(path.join(root, '.env.standalone.production'), 'utf8');
 
 assert.match(bridgeSource, /createUserCenterServerPluginDefinition/u);
 assert.match(bridgeSource, /createUserCenterServerValidationPluginDefinition/u);
@@ -248,9 +248,9 @@ assert.equal(requestCount, 0);
 
 for (const [label, source] of [
   ['.env.example', rootEnvExampleSource],
-  ['.env.development', rootEnvDevelopmentSource],
-  ['.env.test', rootEnvTestSource],
-  ['.env.production', rootEnvProductionSource],
+  ['.env.standalone.development', rootEnvDevelopmentSource],
+  ['.env.standalone.test', rootEnvTestSource],
+  ['.env.standalone.production', rootEnvProductionSource],
 ]) {
   assert.match(
     source,

@@ -382,9 +382,9 @@ runTest('sdkwork-agentstudio-pc-shell publishes a local declaration for its shar
 runTest('claw workspace defines tracked Vite env files for development, test, and production hosts', () => {
   const gitignoreSource = read('.gitignore');
   const envExampleSource = read('.env.example');
-  const envDevelopmentSource = read('.env.development');
-  const envTestSource = read('.env.test');
-  const envProductionSource = read('.env.production');
+  const envDevelopmentSource = read('.env.standalone.development');
+  const envTestSource = read('.env.standalone.test');
+  const envProductionSource = read('.env.standalone.production');
   const workspacePackageJson = read('package.json');
   const webPackageJson = read('packages/sdkwork-agentstudio-pc-web/package.json');
   const desktopPackageJson = read('packages/sdkwork-agentstudio-pc-desktop/package.json');
