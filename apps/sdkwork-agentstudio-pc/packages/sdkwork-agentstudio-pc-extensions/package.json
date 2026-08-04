@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@sdkwork/agentstudio-pc-core": "workspace:*",
+    "@sdkwork/agentstudio-pc-types": "workspace:*",
     "@sdkwork/agentstudio-pc-ui": "workspace:*",
     "@sdkwork/utils": "workspace:*",
     "@types/react": "^19.2.14",
