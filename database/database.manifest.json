@@ -19,7 +19,8 @@
     "defaultSeedLocale": "zh-CN",
     "defaultSeedProfile": "standard",
     "activeSeedLocales": [
-      "zh-CN"
+      "zh-CN",
+      "en-US"
     ],
     "driftCheckIntervalSec": 60
   },
