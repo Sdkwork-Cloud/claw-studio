@@ -11,7 +11,7 @@
   "defaultEngine": "sqlite",
   "tablePrefix": "",
   "contractVersion": "0.1.0",
-  "baselineStrategy": "migrations-only",
+  "baselineStrategy": "baseline-plus-migrations",
   "modules": [],
   "lifecycle": {
     "autoMigrate": true,
