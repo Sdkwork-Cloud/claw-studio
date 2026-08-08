@@ -1,7 +1,13 @@
 import type { AppAuthSocialProvider } from '@sdkwork/agentstudio-pc-core';
 
 export function resolveRedirectTarget(rawTarget: string | null) {
-  if (!rawTarget || !rawTarget.startsWith('/') || rawTarget.startsWith('//')) {
+  if (
+    !rawTarget ||
+    !rawTarget.startsWith('/') ||
+    rawTarget.startsWith('//') ||
+    rawTarget.startsWith('/') ||
+    rawTarget.includes('')
+  ) {
     return '/dashboard';
   }
 
@@ -9,10 +15,11 @@ export function resolveRedirectTarget(rawTarget: string | null) {
 
   if (
     targetPathname === '/auth' ||
+    targetPathname.startsWith('/auth/') ||
     targetPathname === '/login' ||
+    targetPathname.startsWith('/login/') ||
     targetPathname === '/register' ||
-    targetPathname === '/forgot-password' ||
-    targetPathname.startsWith('/login/oauth/callback')
+    targetPathname === '/forgot-password'
   ) {
     return '/dashboard';
   }

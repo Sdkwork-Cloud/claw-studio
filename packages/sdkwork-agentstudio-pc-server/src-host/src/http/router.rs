@@ -15,16 +15,22 @@
 //! ## CORS model
 //!
 //! The framework's 18-stage pipeline includes a CORS interceptor (stage 3)
-//! that validates origins and applies `Access-Control-Allow-Origin` /
-//! `Access-Control-Allow-Methods` headers. A `DynamicCorsPolicySource`
-//! (`ClawServerCorsPolicySource`) provides per-origin policy resolution for
-//! loopback and Tauri desktop origins.
+//! that validates origins (and preflights) and applies
+//! `Access-Control-Allow-Origin` / `Access-Control-Allow-Methods` /
+//! `Access-Control-Allow-Headers` / `Access-Control-Expose-Headers` headers.
+//! A `DynamicCorsPolicySource` (`ClawServerCorsPolicySource`) provides
+//! per-origin policy resolution for loopback and Tauri desktop origins,
+//! including the `expose_headers` the browser surfaces read.
 //!
-//! Because the framework does not short-circuit OPTIONS preflight requests
-//! and does not emit `Access-Control-Allow-Headers` / `Access-Control-Expose-Headers`,
-//! a thin preflight middleware (`host_control_plane_cors`) is applied at the
-//! business-router level to handle preflight short-circuiting and to append
-//! the missing CORS headers to both preflight and actual responses.
+//! The framework's CORS stage validates OPTIONS preflights but does **not**
+//! short-circuit them, so the request would fall through to the route handlers
+//! (405) instead of answering the browser's preflight. That short-circuit
+//! behavior cannot be expressed in a `CorsPolicy`, so a thin preflight
+//! middleware (`host_control_plane_cors`) is retained at the business-router
+//! level: it answers OPTIONS preflights with 204 and emits the full CORS
+//! header set on that short-circuit response (the only place the framework's
+//! response stage does not run). The header lists duplicated there are kept
+//! in sync with `ClawServerCorsPolicySource`.
 
 use axum::{
     body::Body,
@@ -87,7 +93,9 @@ impl DynamicCorsPolicySource for ClawServerCorsPolicySource {
 
         // Return a per-origin policy overlay. The framework's CORS stage will
         // use this to validate the origin and apply Allow-Origin / Allow-Methods
-        // headers. The preflight middleware supplements with Allow-Headers.
+        // / Allow-Headers / Expose-Headers headers on actual responses. The
+        // preflight middleware below supplements the headers on its own 204
+        // short-circuit response (the framework never sees that response).
         Ok(Some(CorsPolicy {
             allow_all_origins: false,
             allowed_origins: vec![origin.clone()],
@@ -104,6 +112,11 @@ impl DynamicCorsPolicySource for ClawServerCorsPolicySource {
                 "content-type".to_owned(),
                 "accept".to_owned(),
                 "x-claw-browser-session".to_owned(),
+                "x-sdkwork-trace-id".to_owned(),
+            ],
+            expose_headers: vec![
+                "www-authenticate".to_owned(),
+                "x-claw-correlation-id".to_owned(),
                 "x-sdkwork-trace-id".to_owned(),
             ],
             allow_credentials: true,
@@ -125,15 +138,20 @@ fn is_allowed_desktop_hosted_origin(origin: &str) -> bool {
 
 /// CORS preflight and header-supplement middleware for desktop-combined mode.
 ///
-/// This middleware complements the framework's CORS interceptor by:
-/// 1. Short-circuiting OPTIONS preflight requests with a 204 response that
-///    includes all required CORS headers.
-/// 2. Appending `Access-Control-Allow-Headers`, `Access-Control-Expose-Headers`,
-///    and `Vary` headers to non-preflight responses from allowed origins.
+/// Retained because the framework's CORS interceptor validates OPTIONS
+/// preflights but does not short-circuit them: without this middleware a
+/// browser preflight would fall through to the route handlers (405) and
+/// surface as a CORS failure. The middleware:
+/// 1. Short-circuits OPTIONS preflight requests with a 204 response that
+///    includes all required CORS headers (the framework's response stage does
+///    not run on this response).
+/// 2. Appends `Access-Control-Allow-Origin` (if the framework has not already
+///    written it) and `Access-Control-Expose-Headers` to non-preflight
+///    responses from allowed origins.
 ///
-/// The framework's CORS stage handles `Access-Control-Allow-Origin` and
-/// `Access-Control-Allow-Methods`; this middleware ensures the full set of
-/// CORS headers required by browser clients is present.
+/// All header values below must stay in sync with
+/// [`ClawServerCorsPolicySource`], which is the official policy source for
+/// the framework's own CORS stage.
 pub async fn host_control_plane_cors(
     State(state): State<ServerState>,
     request: Request<Body>,
