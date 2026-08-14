@@ -256,6 +256,6 @@ pnpm release:assert-ready
 发布完整性补充：`pnpm release:finalize` 会为顶层 `release-manifest.json` 生成 `release-manifest.json.sha256.txt`；部署或发布前的 `pnpm release:assert-ready` 会先校验该 sidecar，再继续校验 `SHA256SUMS.txt`、artifact checksum/size 与 smoke evidence。
 ## release-attestations.json
 
-发布前在 `pnpm release:finalize` 之后运行 `pnpm release:write-attestation-evidence -- --release-assets-dir artifacts/release --repository Sdkwork-Cloud/agent-studio --release-tag release-local`，再运行 `pnpm release:assert-ready`。`release-attestations.json` 记录每个 artifact 与 release metadata（包括 `release-notes.md`）的 `gh attestation verify` 结果，并要求 `relativePath`、`sha256`、`repository`、`releaseTag`、`sourceRef`、`predicateType` 与 `release-manifest.json` 一致。
+发布前在 `pnpm release:finalize` 之后运行 `pnpm release:write-attestation-evidence -- --release-assets-dir artifacts/release --repository sdkwork-ai/agent-studio --release-tag release-local`，再运行 `pnpm release:assert-ready`。`release-attestations.json` 记录每个 artifact 与 release metadata（包括 `release-notes.md`）的 `gh attestation verify` 结果，并要求 `relativePath`、`sha256`、`repository`、`releaseTag`、`sourceRef`、`predicateType` 与 `release-manifest.json` 一致。
 
 部署发布必须把 artifact 证明绑定到指定发布 workflow：`gh attestation verify --signer-workflow <owner/repo/.github/workflows/release-reusable.yml>`。`release-attestations.json` 会记录 `signerWorkflow` 与 `signerWorkflowIdentity`，`pnpm release:assert-ready` 会拒绝未绑定 signer workflow identity 或命令中缺少 `--signer-workflow` 的证明证据。

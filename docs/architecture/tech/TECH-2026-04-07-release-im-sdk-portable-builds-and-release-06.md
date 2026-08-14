@@ -14,7 +14,7 @@
 1. `release-2026-04-07-05` was documented as published even though the GitHub Actions release run failed and no successful GitHub Release publication was confirmed.
 2. In a clean-room Agent Studio workspace, `pnpm sdk:prepare-shared` only built `@sdkwork/sdk-common` and `retired generic app SDK package`, leaving the IM TypeScript packages without `dist` type output even though `@sdkwork/core-pc-react` imports them during `pnpm lint`.
 3. On Windows, `scripts/prepare-shared-sdk-packages.mjs` assumed `.pnpm` virtual-store directories always kept the full package name prefix, which breaks when pnpm's virtual store shortens long directory names.
-4. Even after IM package roots were materialized, `Sdkwork-Cloud/sdkwork-im-sdk` still failed in the clean-room release workspace because the TypeScript `composed` and `adapter-wukongim` packages invoked `vite` and `tsc` through hard-coded `../../../node_modules/*` paths.
+4. Even after IM package roots were materialized, `sdkwork-ai/sdkwork-im-sdk` still failed in the clean-room release workspace because the TypeScript `composed` and `adapter-wukongim` packages invoked `vite` and `tsc` through hard-coded `../../../node_modules/*` paths.
 5. The first Agent Studio pin update used an incorrect full Git SHA for the new IM SDK commit, which parity verification correctly rejected before release.
 
 ## Root Cause Evidence
@@ -33,7 +33,7 @@
 1. After extending `prepare-shared-sdk-packages.mjs` to build the IM/RTC package chain, the next clean-room failure moved into the legacy realtime adapter package.
 2. That package failed with a missing monorepo-local `vite` path, proving the build script depended on one specific repository directory layout instead of package-local tool resolution.
 3. Updating the IM TypeScript package scripts to `vite build` and `tsc -p tsconfig.build.json --noEmit`, plus explicit `devDependencies`, made both packages build successfully in the Agent Studio workspace.
-4. The portable IM SDK fix was committed and pushed to `Sdkwork-Cloud/sdkwork-im-sdk` as `c71a0f115c08cb164d5a857cdac15ea6d3adc006`.
+4. The portable IM SDK fix was committed and pushed to `sdkwork-ai/sdkwork-im-sdk` as `c71a0f115c08cb164d5a857cdac15ea6d3adc006`.
 
 ### Pin verification evidence
 

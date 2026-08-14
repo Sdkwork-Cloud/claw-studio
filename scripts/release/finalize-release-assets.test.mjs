@@ -669,7 +669,7 @@ test('release asset finalizer writes a global checksum manifest and release mani
     finalizer.finalizeReleaseAssets({
       profileId: 'agent-studio',
       releaseTag: 'release-2026-03-31-03',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseAssetsDir,
       allowPartialRelease: true,
     });
@@ -690,7 +690,7 @@ test('release asset finalizer writes a global checksum manifest and release mani
 
     assert.equal(manifest.profileId, 'agent-studio');
     assert.equal(manifest.releaseTag, 'release-2026-03-31-03');
-    assert.equal(manifest.repository, 'Sdkwork-Cloud/agent-studio');
+    assert.equal(manifest.repository, 'sdkwork-ai/agent-studio');
     assert.equal(manifest.attestationEvidenceFileName, 'release-attestations.json');
     assert.equal(manifest.attestationPredicateType, 'https://slsa.dev/provenance/v1');
     assert.deepEqual(manifest.releaseMetadata, [
@@ -945,7 +945,7 @@ test('release asset finalizer accepts hermes-only desktop artifacts without Open
     finalizer.finalizeReleaseAssets({
       profileId: 'agent-studio',
       releaseTag: 'release-2026-04-08-01',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseAssetsDir,
       allowPartialRelease: true,
     });
@@ -1093,7 +1093,7 @@ test('release asset finalizer rejects hermes-only desktop artifacts when Hermes 
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-08-01',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Hermes Agent external-runtime readiness/i,
@@ -1151,7 +1151,7 @@ test('release asset finalizer requires rendered release notes before writing fin
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-12-02',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
         allowPartialRelease: true,
       }),
@@ -1206,7 +1206,7 @@ test('release asset finalizer rejects desktop release assets when installer smok
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-05-02',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Missing desktop installer smoke report/,
@@ -1232,7 +1232,7 @@ test('release asset finalizer rejects desktop release assets when installer smok
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-05-02',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Desktop installer smoke report does not match the current installable artifact set/,
@@ -1324,7 +1324,7 @@ test('release asset finalizer rejects desktop release assets when startup smoke 
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-07',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Missing desktop startup smoke report/,
@@ -1400,7 +1400,7 @@ test('release asset finalizer rejects desktop release assets when startup smoke 
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-07',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /local-ai-proxy-runtime/i,
@@ -1531,7 +1531,7 @@ test('release asset finalizer lifts desktop startup smoke metadata onto desktop 
     finalizer.finalizeReleaseAssets({
       profileId: 'agent-studio',
       releaseTag: 'release-2026-04-06-08',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseAssetsDir,
       allowPartialRelease: true,
     });
@@ -1738,7 +1738,7 @@ test('release asset finalizer rejects desktop startup smoke reports that referen
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-09',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
         allowPartialRelease: true,
       }),
@@ -1873,7 +1873,7 @@ test('release asset finalizer rejects desktop startup smoke metadata when packag
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-08',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /package profile|included kernels|default enabled kernels/i,
@@ -1940,7 +1940,7 @@ test('release asset finalizer rejects desktop manifests whose OpenClaw installer
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-05-03',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /OpenClaw installer contract/i,
@@ -1978,7 +1978,7 @@ test('release asset finalizer rejects desktop manifests whose OpenClaw installer
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-05-03',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /OpenClaw installer contract/i,
@@ -2058,7 +2058,7 @@ test('release asset finalizer rejects desktop smoke reports that are missing ins
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-05-04',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /install-ready|installReadyLayout/i,
@@ -2106,7 +2106,7 @@ test('release asset finalizer rejects desktop smoke reports that are missing ins
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-05-04',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /install-ready|installReadyLayout/i,
@@ -2197,7 +2197,7 @@ test('release asset finalizer rejects desktop smoke reports whose install-ready 
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-05-05',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /install-ready|installReadyLayout|archive-extract-ready/i,
@@ -2242,7 +2242,7 @@ test('release asset finalizer infers multi-family metadata when fallback assets 
     finalizer.finalizeReleaseAssets({
       profileId: 'agent-studio',
       releaseTag: 'release-2026-04-03-05',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseAssetsDir,
       allowPartialRelease: true,
     });
@@ -2341,7 +2341,7 @@ test('release asset finalizer lifts server bundle smoke metadata onto server art
     finalizer.finalizeReleaseAssets({
       profileId: 'agent-studio',
       releaseTag: 'release-2026-04-03-08',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseAssetsDir,
       allowPartialRelease: true,
     });
@@ -2447,7 +2447,7 @@ test('release asset finalizer rejects incomplete release coverage unless partial
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-11-06',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Incomplete release asset coverage.*desktop\/windows\/x64/s,
@@ -2457,7 +2457,7 @@ test('release asset finalizer rejects incomplete release coverage unless partial
     finalizer.finalizeReleaseAssets({
       profileId: 'agent-studio',
       releaseTag: 'release-2026-04-11-06',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseAssetsDir,
       allowPartialRelease: true,
     });
@@ -2563,7 +2563,7 @@ test('release asset finalizer removes stale finalized manifests when strict cove
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-11-07',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Incomplete release asset coverage.*desktop\/windows\/x64/s,
@@ -2627,7 +2627,7 @@ test('release asset finalizer lifts web archive smoke metadata onto web artifact
     finalizer.finalizeReleaseAssets({
       profileId: 'agent-studio',
       releaseTag: 'release-2026-04-11-04',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseAssetsDir,
       allowPartialRelease: true,
     });
@@ -2705,7 +2705,7 @@ test('release asset finalizer rejects web artifacts when archive smoke evidence 
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-11-05',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Missing web archive smoke report/,
@@ -2724,7 +2724,7 @@ test('release asset finalizer rejects web artifacts when archive smoke evidence 
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-11-05',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Web archive smoke report does not match the current artifact set/,
@@ -2746,7 +2746,7 @@ test('release asset finalizer rejects web artifacts when archive smoke evidence 
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-11-05',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Web archive smoke report is missing a passing public-doc-boundary check/,
@@ -2800,7 +2800,7 @@ test('release asset finalizer rejects server artifacts when bundle smoke evidenc
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-03-09',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Missing server bundle smoke report/,
@@ -2819,7 +2819,7 @@ test('release asset finalizer rejects server artifacts when bundle smoke evidenc
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-03-09',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Server bundle smoke report does not match the current artifact set/,
@@ -2882,7 +2882,7 @@ test('release asset finalizer rejects server smoke reports with unsafe launcher 
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-13-01',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
         allowPartialRelease: true,
       }),
@@ -2980,7 +2980,7 @@ test('release asset finalizer lifts deployment smoke metadata onto container and
     finalizer.finalizeReleaseAssets({
       profileId: 'agent-studio',
       releaseTag: 'release-2026-04-06-05',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseAssetsDir,
       allowPartialRelease: true,
     });
@@ -3223,7 +3223,7 @@ test('release asset finalizer accepts structured skipped deployment smoke eviden
     finalizer.finalizeReleaseAssets({
       profileId: 'agent-studio',
       releaseTag: 'release-2026-04-06-07',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseAssetsDir,
       allowPartialRelease: true,
     });
@@ -3356,7 +3356,7 @@ test('release asset finalizer rejects deployment artifacts when smoke evidence i
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-06',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Missing container deployment smoke report/,
@@ -3385,7 +3385,7 @@ test('release asset finalizer rejects deployment artifacts when smoke evidence i
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-06',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Kubernetes deployment smoke report does not match the current artifact set/,
@@ -3415,7 +3415,7 @@ test('release asset finalizer rejects deployment artifacts when smoke evidence i
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-06',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Container deployment smoke report is missing a passing deployment-identity check/,
@@ -3436,7 +3436,7 @@ test('release asset finalizer rejects deployment artifacts when smoke evidence i
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-06',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Container deployment smoke report is missing a passing runtime-profile check/,
@@ -3457,7 +3457,7 @@ test('release asset finalizer rejects deployment artifacts when smoke evidence i
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-06',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Container deployment smoke report is missing a passing manage-credentials check/,
@@ -3487,7 +3487,7 @@ test('release asset finalizer rejects deployment artifacts when smoke evidence i
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-06',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Kubernetes deployment smoke report is missing a passing deployment-identity check/,
@@ -3508,7 +3508,7 @@ test('release asset finalizer rejects deployment artifacts when smoke evidence i
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-06',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Kubernetes deployment smoke report is missing a passing configmap-runtime-identity check/,
@@ -3529,7 +3529,7 @@ test('release asset finalizer rejects deployment artifacts when smoke evidence i
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-06-06',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
       }),
       /Kubernetes deployment smoke report is missing a passing persistent-storage check/,
@@ -3590,7 +3590,7 @@ test('release asset finalizer rejects deployment smoke reports with unsafe launc
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag: 'release-2026-04-13-02',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
         allowPartialRelease: true,
       }),
@@ -3650,7 +3650,7 @@ test('release asset finalizer rejects partial manifests from another active rele
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag,
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
         allowPartialRelease: true,
       }),
@@ -3711,7 +3711,7 @@ test('release asset finalizer rejects non-canonical artifact paths before writin
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag,
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
         allowPartialRelease: true,
       }),
@@ -3806,7 +3806,7 @@ test('release asset finalizer rejects duplicate artifacts for the same release t
       () => finalizer.finalizeReleaseAssets({
         profileId: 'agent-studio',
         releaseTag,
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseAssetsDir,
         allowPartialRelease: true,
       }),

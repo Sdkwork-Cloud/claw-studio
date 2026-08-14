@@ -170,7 +170,7 @@ function writeManualReleaseMetadataFixture({
 function writeManualAttestationEvidenceFixture({
   releaseAssetsDir,
   entries,
-  repository = 'Sdkwork-Cloud/agent-studio',
+  repository = 'sdkwork-ai/agent-studio',
   releaseTag = 'release-2026-04-12-01',
   predicateType = 'https://slsa.dev/provenance/v1',
   signerWorkflow = '.github/workflows/release-reusable.yml',
@@ -246,7 +246,7 @@ function writeAttestationEvidenceFixture({
   artifactRelativePath = 'web/agent-studio-web-assets-release-2026-04-12-01.tar.gz',
   artifactSha256 = '',
   releaseMetadata = [],
-  repository = 'Sdkwork-Cloud/agent-studio',
+  repository = 'sdkwork-ai/agent-studio',
   releaseTag = 'release-2026-04-12-01',
   sourceRef = `refs/tags/${releaseTag}`,
   predicateType = 'https://slsa.dev/provenance/v1',
@@ -578,7 +578,7 @@ function writeReadyReleaseFixture({
       profileId,
       productName: 'Agent Studio',
       releaseTag: 'release-2026-04-12-01',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       generatedAt: '2026-04-12T01:02:03.000Z',
       checksumFileName,
       releaseCoverage,
@@ -1026,7 +1026,7 @@ test('release readiness assertion rejects attestation evidence that does not bin
     writeReadyReleaseFixture({ releaseAssetsDir });
     const wrongDigestEvidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
     wrongDigestEvidence.artifacts[0].sha256 = '0'.repeat(64);
-    wrongDigestEvidence.artifacts[0].repository = 'Sdkwork-Cloud/agent-studio';
+    wrongDigestEvidence.artifacts[0].repository = 'sdkwork-ai/agent-studio';
     wrongDigestEvidence.artifacts[0].sourceRef = 'refs/tags/release-2026-04-12-01';
     wrongDigestEvidence.artifacts[0].predicateType = 'https://slsa.dev/provenance/v1';
     writeFileSync(evidencePath, `${JSON.stringify(wrongDigestEvidence, null, 2)}\n`, 'utf8');
@@ -1104,7 +1104,7 @@ test('release readiness assertion rejects attestation evidence that does not bin
     writeReadyReleaseFixture({ releaseAssetsDir });
     const missingSignerFlagEvidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
     missingSignerFlagEvidence.artifacts[0].verificationCommand = missingSignerFlagEvidence.artifacts[0].verificationCommand.replace(
-      ' --signer-workflow Sdkwork-Cloud/agent-studio/.github/workflows/release-reusable.yml',
+      ' --signer-workflow sdkwork-ai/agent-studio/.github/workflows/release-reusable.yml',
       '',
     );
     writeFileSync(evidencePath, `${JSON.stringify(missingSignerFlagEvidence, null, 2)}\n`, 'utf8');
@@ -1325,7 +1325,7 @@ test('release readiness assertion verifies present targets from artifact metadat
         profileId: 'agent-studio',
         productName: 'Agent Studio',
         releaseTag: 'release-2026-04-12-01',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         generatedAt: '2026-04-12T01:02:03.000Z',
         checksumFileName: 'SHA256SUMS.txt',
         releaseCoverage: {
@@ -1413,7 +1413,7 @@ test('release readiness assertion rejects artifacts outside the active release p
         profileId: 'agent-studio',
         productName: 'Agent Studio',
         releaseTag: 'release-2026-04-12-01',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         generatedAt: '2026-04-12T01:02:03.000Z',
         checksumFileName: 'SHA256SUMS.txt',
         releaseCoverage: {
@@ -1499,7 +1499,7 @@ test('release readiness assertion rejects duplicate artifacts for the same relea
         profileId: 'agent-studio',
         productName: 'Agent Studio',
         releaseTag: 'release-2026-04-12-01',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         generatedAt: '2026-04-12T01:02:03.000Z',
         checksumFileName: 'SHA256SUMS.txt',
         releaseCoverage: {
@@ -1586,7 +1586,7 @@ test('release readiness assertion rejects unsafe artifact paths on every host pl
         profileId: 'agent-studio',
         productName: 'Agent Studio',
         releaseTag: 'release-2026-04-12-01',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         generatedAt: '2026-04-12T01:02:03.000Z',
         checksumFileName: 'SHA256SUMS.txt',
         releaseCoverage: {
@@ -1661,7 +1661,7 @@ test('release readiness assertion requires canonical relative artifact paths in 
         profileId: 'agent-studio',
         productName: 'Agent Studio',
         releaseTag: 'release-2026-04-12-01',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         generatedAt: '2026-04-12T01:02:03.000Z',
         checksumFileName: 'SHA256SUMS.txt',
         releaseCoverage: {
@@ -1790,7 +1790,7 @@ test('release readiness assertion rejects checksum file names that resolve outsi
         profileId: 'agent-studio',
         productName: 'Agent Studio',
         releaseTag: 'release-2026-04-12-01',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         generatedAt: '2026-04-12T01:02:03.000Z',
         checksumFileName: '..',
         releaseCoverage: {
@@ -1933,7 +1933,7 @@ test('release readiness assertion rejects finalized desktop manifests without re
         profileId: 'agent-studio',
         productName: 'Agent Studio',
         releaseTag: 'release-2026-04-12-01',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         generatedAt: '2026-04-12T01:02:03.000Z',
         checksumFileName: 'SHA256SUMS.txt',
         releaseCoverage: {
@@ -2193,7 +2193,7 @@ test('release readiness assertion rejects unsafe finalized macOS app archive com
         profileId: 'agent-studio',
         productName: 'Agent Studio',
         releaseTag: 'release-2026-04-12-01',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         generatedAt: '2026-04-12T01:02:03.000Z',
         checksumFileName: 'SHA256SUMS.txt',
         releaseCoverage: {

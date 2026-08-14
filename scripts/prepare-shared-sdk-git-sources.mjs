@@ -23,13 +23,13 @@ export const SHARED_SDK_GIT_REF_ENV_VAR = 'SDKWORK_SHARED_SDK_GIT_REF';
 export const SHARED_SDK_GIT_FORCE_SYNC_ENV_VAR = 'SDKWORK_SHARED_SDK_GIT_FORCE_SYNC';
 export const SHARED_SDK_RELEASE_CONFIG_PATH_ENV_VAR = 'SDKWORK_SHARED_SDK_RELEASE_CONFIG_PATH';
 export const SHARED_SDK_GITHUB_TOKEN_ENV_VAR = 'SDKWORK_SHARED_SDK_GITHUB_TOKEN';
-export const DEFAULT_SHARED_SDK_APPBASE_APP_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-appbase.git';
-export const DEFAULT_SHARED_SDK_COMMON_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git';
-export const DEFAULT_SHARED_SDK_CORE_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-core.git';
-export const DEFAULT_SHARED_SDK_LOCAL_ROUTER_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-local-router.git';
-export const DEFAULT_SHARED_SDK_IM_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git';
-export const DEFAULT_SHARED_SDK_MESSAGING_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-messaging.git';
-export const DEFAULT_SHARED_SDK_RTC_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-rtc-sdk.git';
+export const DEFAULT_SHARED_SDK_APPBASE_APP_REPO_URL = 'https://github.com/sdkwork-ai/sdkwork-appbase.git';
+export const DEFAULT_SHARED_SDK_COMMON_REPO_URL = 'https://github.com/sdkwork-ai/sdkwork-sdk-commons.git';
+export const DEFAULT_SHARED_SDK_CORE_REPO_URL = 'https://github.com/sdkwork-ai/sdkwork-core.git';
+export const DEFAULT_SHARED_SDK_LOCAL_ROUTER_REPO_URL = 'https://github.com/sdkwork-ai/sdkwork-local-router.git';
+export const DEFAULT_SHARED_SDK_IM_REPO_URL = 'https://github.com/sdkwork-ai/sdkwork-im-sdk.git';
+export const DEFAULT_SHARED_SDK_MESSAGING_REPO_URL = 'https://github.com/sdkwork-ai/sdkwork-messaging.git';
+export const DEFAULT_SHARED_SDK_RTC_REPO_URL = 'https://github.com/sdkwork-ai/sdkwork-rtc-sdk.git';
 export const DEFAULT_SHARED_SDK_RELEASE_CONFIG_PATH = 'config/shared-sdk-release-sources.json';
 
 function resolveGitCommand() {

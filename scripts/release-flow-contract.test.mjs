@@ -2068,8 +2068,8 @@ test('git-backed shared sdk source helper normalizes local clone repo URLs to fi
       'https://example.com/sdkwork/shared-sdk.git',
     );
     assert.equal(
-      helper.resolveGitCloneRepoUrl('git@github.com:Sdkwork-Cloud/sdkwork-core.git'),
-      'git@github.com:Sdkwork-Cloud/sdkwork-core.git',
+      helper.resolveGitCloneRepoUrl('git@github.com:sdkwork-ai/sdkwork-core.git'),
+      'git@github.com:sdkwork-ai/sdkwork-core.git',
     );
     assert.equal(
       helper.resolveGitCloneRepoUrl(pathToFileURL(localRepoRoot).href),
@@ -2084,7 +2084,7 @@ test('git-backed shared sdk source helper authenticates private GitHub SDK clone
   const helperPath = path.join(rootDir, 'scripts', 'prepare-shared-sdk-git-sources.mjs');
   const helper = await import(pathToFileURL(helperPath).href);
   const helperSource = read('scripts/prepare-shared-sdk-git-sources.mjs');
-  const repoUrl = 'https://github.com/Sdkwork-Cloud/sdkwork-appbase.git';
+  const repoUrl = 'https://github.com/sdkwork-ai/sdkwork-appbase.git';
   const token = 'synthetic-token-for-private-sdk-read';
   const expectedHeader = Buffer.from(`x-access-token:${token}`, 'utf8').toString('base64');
 
@@ -2101,7 +2101,7 @@ test('git-backed shared sdk source helper authenticates private GitHub SDK clone
     ],
   );
   assert.deepEqual(
-    helper.resolveGitAuthConfigArgs('https://example.com/Sdkwork-Cloud/sdkwork-appbase.git', {
+    helper.resolveGitAuthConfigArgs('https://example.com/sdkwork-ai/sdkwork-appbase.git', {
       [helper.SHARED_SDK_GITHUB_TOKEN_ENV_VAR]: token,
     }),
     [],
@@ -2121,7 +2121,7 @@ test('git-backed shared sdk source helper authenticates private GitHub SDK clone
       repoUrl,
       '/tmp/sdkwork-appbase',
     ]),
-    'git -c http.https://github.com/.extraheader=<redacted> clone --depth 1 https://github.com/Sdkwork-Cloud/sdkwork-appbase.git /tmp/sdkwork-appbase',
+    'git -c http.https://github.com/.extraheader=<redacted> clone --depth 1 https://github.com/sdkwork-ai/sdkwork-appbase.git /tmp/sdkwork-appbase',
   );
   assert.doesNotMatch(
     helper.formatCommandForError('git', [
@@ -2155,11 +2155,11 @@ test('git-backed shared sdk source helper parses current SDK family layouts and 
   assert.equal(typeof helper.resolveGitCloneRepoUrl, 'function');
   assert.equal(typeof helper.parseGitSubmodulePaths, 'function');
   assert.equal(typeof helper.materializePackageRootFromMonorepo, 'function');
-  assert.equal(helper.DEFAULT_SHARED_SDK_APPBASE_APP_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-appbase.git');
-  assert.equal(helper.DEFAULT_SHARED_SDK_COMMON_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git');
-  assert.equal(helper.DEFAULT_SHARED_SDK_CORE_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-core.git');
-  assert.equal(helper.DEFAULT_SHARED_SDK_LOCAL_ROUTER_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-local-router.git');
-  assert.equal(helper.DEFAULT_SHARED_SDK_MESSAGING_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-messaging.git');
+  assert.equal(helper.DEFAULT_SHARED_SDK_APPBASE_APP_REPO_URL, 'https://github.com/sdkwork-ai/sdkwork-appbase.git');
+  assert.equal(helper.DEFAULT_SHARED_SDK_COMMON_REPO_URL, 'https://github.com/sdkwork-ai/sdkwork-sdk-commons.git');
+  assert.equal(helper.DEFAULT_SHARED_SDK_CORE_REPO_URL, 'https://github.com/sdkwork-ai/sdkwork-core.git');
+  assert.equal(helper.DEFAULT_SHARED_SDK_LOCAL_ROUTER_REPO_URL, 'https://github.com/sdkwork-ai/sdkwork-local-router.git');
+  assert.equal(helper.DEFAULT_SHARED_SDK_MESSAGING_REPO_URL, 'https://github.com/sdkwork-ai/sdkwork-messaging.git');
   assert.equal(helper.DEFAULT_SHARED_SDK_RELEASE_CONFIG_PATH, 'config/shared-sdk-release-sources.json');
   assert.match(
     read('scripts/prepare-shared-sdk-git-sources.mjs'),
@@ -2201,14 +2201,14 @@ test('git-backed shared sdk source helper parses current SDK family layouts and 
   assert.equal(
     helper.resolveCheckoutRootForRepoUrl(
       spec,
-      'https://github.com/Sdkwork-Cloud/sdkwork-appbase.git',
+      'https://github.com/sdkwork-ai/sdkwork-appbase.git',
     ).replaceAll('\\', '/'),
     repoRoot.replaceAll('\\', '/'),
   );
   assert.equal(
     helper.resolveCheckoutRootForRepoUrl(
       spec,
-      'https://github.com/Sdkwork-Cloud/server-openapi.git',
+      'https://github.com/sdkwork-ai/server-openapi.git',
     ).replaceAll('\\', '/'),
     path.join(repoRoot, 'sdks', 'sdkwork-iam-app-sdk', 'sdkwork-iam-app-sdk-typescript', 'generated', 'server-openapi').replaceAll('\\', '/'),
   );
@@ -2256,11 +2256,11 @@ test('git-backed shared sdk source helper parses current SDK family layouts and 
   assert.match(helperSource, /SDKWORK_SHARED_SDK_IM_REPO_URL/);
   assert.match(helperSource, /SDKWORK_SHARED_SDK_MESSAGING_REPO_URL/);
   assert.match(helperSource, /SDKWORK_SHARED_SDK_RTC_REPO_URL/);
-  assert.match(helperSource, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-im-sdk\.git/);
-  assert.match(helperSource, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-messaging\.git/);
-  assert.match(helperSource, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-rtc-sdk\.git/);
-  assert.match(helperSource, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-appbase\.git/);
-  assert.match(helperSource, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-local-router\.git/);
+  assert.match(helperSource, /https:\/\/github\.com\/sdkwork-ai\/sdkwork-im-sdk\.git/);
+  assert.match(helperSource, /https:\/\/github\.com\/sdkwork-ai\/sdkwork-messaging\.git/);
+  assert.match(helperSource, /https:\/\/github\.com\/sdkwork-ai\/sdkwork-rtc-sdk\.git/);
+  assert.match(helperSource, /https:\/\/github\.com\/sdkwork-ai\/sdkwork-appbase\.git/);
+  assert.match(helperSource, /https:\/\/github\.com\/sdkwork-ai\/sdkwork-local-router\.git/);
 });
 
 test('git-backed shared sdk source helper can materialize pinned local git sources from the release config', async (t) => {

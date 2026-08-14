@@ -23,7 +23,7 @@ function sha256(value) {
 function writeManifestFixture({
   releaseAssetsDir,
   releaseTag = 'release-2026-04-12-01',
-  repository = 'Sdkwork-Cloud/agent-studio',
+  repository = 'sdkwork-ai/agent-studio',
   artifactRelativePath = 'web/agent-studio-web-assets-release-2026-04-12-01.tar.gz',
   artifactContent = 'web-assets',
 } = {}) {
@@ -111,7 +111,7 @@ test('attestation evidence writer verifies every finalized artifact and writes m
     const result = evidence.writeAttestationEvidence({
       profileId: 'agent-studio',
       releaseAssetsDir,
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseTag: 'release-2026-04-12-01',
       now: () => '2026-04-12T02:03:04.000Z',
       execFileSyncImpl(command, args) {
@@ -120,7 +120,7 @@ test('attestation evidence writer verifies every finalized artifact and writes m
         assert.match(args.join(' '), /attestation verify/);
         assert.match(
           args.join(' '),
-          /--signer-workflow Sdkwork-Cloud\/agent-studio\/\.github\/workflows\/release-reusable\.yml/,
+          /--signer-workflow sdkwork-ai\/agent-studio\/\.github\/workflows\/release-reusable\.yml/,
         );
         assert.match(args.join(' '), /--format json/);
         const verifiedPath = String(args[2] ?? '').replaceAll('\\', '/');
@@ -157,11 +157,11 @@ test('attestation evidence writer verifies every finalized artifact and writes m
 
     const written = JSON.parse(readFileSync(result.evidencePath, 'utf8'));
     assert.equal(written.schemaVersion, 1);
-    assert.equal(written.repository, 'Sdkwork-Cloud/agent-studio');
+    assert.equal(written.repository, 'sdkwork-ai/agent-studio');
     assert.equal(written.releaseTag, 'release-2026-04-12-01');
     assert.equal(written.predicateType, 'https://slsa.dev/provenance/v1');
     assert.equal(written.signerWorkflow, '.github/workflows/release-reusable.yml');
-    assert.equal(written.signerWorkflowIdentity, 'Sdkwork-Cloud/agent-studio/.github/workflows/release-reusable.yml');
+    assert.equal(written.signerWorkflowIdentity, 'sdkwork-ai/agent-studio/.github/workflows/release-reusable.yml');
     assert.equal(written.artifacts.length, 2);
     const writtenArtifact = written.artifacts.find((entry) => entry.relativePath === artifactRelativePath);
     const writtenReleaseNotes = written.artifacts.find((entry) => entry.relativePath === releaseNotesRelativePath);
@@ -183,12 +183,12 @@ test('attestation evidence writer verifies every finalized artifact and writes m
         kind: 'artifact',
         relativePath: artifactRelativePath,
         sha256: artifactSha256,
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseTag: 'release-2026-04-12-01',
         sourceRef: 'refs/tags/release-2026-04-12-01',
         predicateType: 'https://slsa.dev/provenance/v1',
         signerWorkflow: '.github/workflows/release-reusable.yml',
-        signerWorkflowIdentity: 'Sdkwork-Cloud/agent-studio/.github/workflows/release-reusable.yml',
+        signerWorkflowIdentity: 'sdkwork-ai/agent-studio/.github/workflows/release-reusable.yml',
         verified: true,
         verifiedAt: '2026-04-12T02:03:04.000Z',
       },
@@ -201,7 +201,7 @@ test('attestation evidence writer verifies every finalized artifact and writes m
     assert.match(writtenArtifact.verificationCommand, /--predicate-type https:\/\/slsa\.dev\/provenance\/v1/);
     assert.match(
       writtenArtifact.verificationCommand,
-      /--signer-workflow Sdkwork-Cloud\/agent-studio\/\.github\/workflows\/release-reusable\.yml/,
+      /--signer-workflow sdkwork-ai\/agent-studio\/\.github\/workflows\/release-reusable\.yml/,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
@@ -222,7 +222,7 @@ test('attestation evidence writer rejects verification output that does not bind
       () => evidence.writeAttestationEvidence({
         profileId: 'agent-studio',
         releaseAssetsDir,
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseTag: 'release-2026-04-12-01',
         execFileSyncImpl() {
           return JSON.stringify([
@@ -248,7 +248,7 @@ test('attestation evidence writer rejects verification output that does not bind
       () => evidence.writeAttestationEvidence({
         profileId: 'agent-studio',
         releaseAssetsDir,
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseTag: 'release-2026-04-12-01',
         execFileSyncImpl() {
           return '{not-json';
@@ -277,7 +277,7 @@ test('attestation evidence writer rejects release metadata without a finalized f
       () => evidence.writeAttestationEvidence({
         profileId: 'agent-studio',
         releaseAssetsDir,
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseTag: 'release-2026-04-12-01',
         execFileSyncImpl() {
           throw new Error('should not verify missing metadata');
@@ -295,7 +295,7 @@ test('attestation evidence writer rejects release metadata without a finalized f
       () => evidence.writeAttestationEvidence({
         profileId: 'agent-studio',
         releaseAssetsDir,
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         releaseTag: 'release-2026-04-12-01',
         execFileSyncImpl() {
           throw new Error('should not verify malformed metadata');

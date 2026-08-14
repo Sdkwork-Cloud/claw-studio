@@ -18,13 +18,13 @@ test('local release helper resolves usable defaults for root release commands', 
     platform: 'win32',
     arch: 'x64',
     resolveGitRepositoryFn() {
-      return 'Sdkwork-Cloud/agent-studio';
+      return 'sdkwork-ai/agent-studio';
     },
   });
 
   assert.equal(planContext.releaseTag, 'release-local');
   assert.equal(planContext.profileId, 'agent-studio');
-  assert.equal(planContext.repository, 'Sdkwork-Cloud/agent-studio');
+  assert.equal(planContext.repository, 'sdkwork-ai/agent-studio');
 
   const serverContext = helper.resolveLocalReleaseContext({
     mode: 'release:package:server',
@@ -176,7 +176,7 @@ test('local release helper resolves usable defaults for root release commands', 
     platform: 'win32',
     arch: 'x64',
     resolveGitRepositoryFn() {
-      return 'Sdkwork-Cloud/agent-studio';
+      return 'sdkwork-ai/agent-studio';
     },
   });
 
@@ -195,7 +195,7 @@ test('local release helper resolves usable defaults for root release commands', 
       repository: 'Cli-Owner/cli-repo',
     },
     resolveGitRepositoryFn() {
-      return 'Sdkwork-Cloud/agent-studio';
+      return 'sdkwork-ai/agent-studio';
     },
   });
 
@@ -210,7 +210,7 @@ test('local release helper resolves usable defaults for root release commands', 
     platform: 'win32',
     arch: 'x64',
     resolveGitRepositoryFn() {
-      return 'Sdkwork-Cloud/agent-studio';
+      return 'sdkwork-ai/agent-studio';
     },
   });
 
@@ -227,7 +227,7 @@ test('local release helper forwards explicit partial finalization intent', async
     env: {},
     releaseTag: 'release-2026-04-11-06',
     releaseAssetsDir: 'D:/synthetic/release-assets',
-    repository: 'Sdkwork-Cloud/agent-studio',
+    repository: 'sdkwork-ai/agent-studio',
     allowPartialRelease: true,
     finalizeReleaseAssetsFn(options) {
       finalizeCalls.push(options);
@@ -242,7 +242,7 @@ test('local release helper forwards explicit partial finalization intent', async
     {
       profileId: 'agent-studio',
       releaseTag: 'release-2026-04-11-06',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       releaseAssetsDir: 'D:/synthetic/release-assets',
       allowPartialRelease: true,
     },
@@ -307,7 +307,7 @@ test('local release helper prints machine-readable release status for an empty r
       releaseTag: 'release-2026-04-18-01',
       releaseAssetsDir,
       resolveGitRepositoryFn() {
-        return 'Sdkwork-Cloud/agent-studio';
+        return 'sdkwork-ai/agent-studio';
       },
     });
 
@@ -416,7 +416,7 @@ test('local release helper reports partial release status from existing partial 
       releaseTag: 'release-2026-04-18-01',
       releaseAssetsDir,
       resolveGitRepositoryFn() {
-        return 'Sdkwork-Cloud/agent-studio';
+        return 'sdkwork-ai/agent-studio';
       },
     });
 
@@ -1292,7 +1292,7 @@ test('release readiness fixture generator creates a complete default-profile pub
       releaseAssetsDir,
       profileId: 'agent-studio',
       releaseTag: 'release-fixture',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
     });
 
     assert.equal(result.releaseAssetsDir, releaseAssetsDir);
@@ -1361,7 +1361,7 @@ test('release readiness fixture generator writes smoke manifests for the selecte
       releaseAssetsDir,
       profileId: profile.id,
       releaseTag: 'release-fixture',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       resolveReleaseProfileFn(requestedProfileId) {
         assert.equal(requestedProfileId, profile.id);
         return profile;
@@ -1436,7 +1436,7 @@ test('release readiness fixture generator requires release plan target count met
         releaseAssetsDir,
         profileId: profile.id,
         releaseTag: 'release-fixture',
-        repository: 'Sdkwork-Cloud/agent-studio',
+        repository: 'sdkwork-ai/agent-studio',
         resolveReleaseProfileFn() {
           return profile;
         },
@@ -1465,7 +1465,7 @@ test('release readiness fixture generator refuses to clean real release asset di
       releaseAssetsDir: path.join(rootDir, 'artifacts', 'release'),
       profileId: 'agent-studio',
       releaseTag: 'release-fixture',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       clean: true,
     }),
     /Refusing to clean unsafe release readiness fixture directory/,
@@ -1484,7 +1484,7 @@ test('release readiness fixture generator refuses to clean non-temporary externa
       releaseAssetsDir: externalOutputDir,
       profileId: 'agent-studio',
       releaseTag: 'release-fixture',
-      repository: 'Sdkwork-Cloud/agent-studio',
+      repository: 'sdkwork-ai/agent-studio',
       clean: true,
     }),
     /Refusing to use release readiness fixture directory outside the workspace or system temporary directory/,

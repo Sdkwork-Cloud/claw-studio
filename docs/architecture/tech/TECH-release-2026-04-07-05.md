@@ -3,7 +3,7 @@
 
 ## Highlights
 
-- Materialized the GitHub-backed IM SDK workspace from `Sdkwork-Cloud/sdkwork-im-sdk` and pinned all release-time IM packages to commit `06e92a2e6a2946de05501a4d2785d7e0a4349bb9`.
+- Materialized the GitHub-backed IM SDK workspace from `sdkwork-ai/sdkwork-im-sdk` and pinned all release-time IM packages to commit `06e92a2e6a2946de05501a4d2785d7e0a4349bb9`.
 - Extended shared SDK release-source preparation and parity verification so GitHub release automation now validates `retired generic app SDK package`, `@sdkwork/sdk-common`, `@sdkwork/core-pc-react`, `@sdkwork/im-sdk`, and `@sdkwork/rtc-sdk` together.
 - Kept local development on relative workspace paths while ensuring GitHub release builds resolve the same shared SDK content from pinned GitHub refs instead of npm publications.
 - Confirmed the channels product surface already keeps the `media` tab before `all`, and that the media-account set includes the default `SDKWORK` public account plus the WeChat public account entry.
@@ -13,7 +13,7 @@
 
 - This candidate did not publish a GitHub Release object.
 - The `Verify release inputs` job still failed on April 7, 2026 after the IM package roots were materialized.
-- Root cause: the TypeScript package scripts inside `Sdkwork-Cloud/sdkwork-im-sdk` still invoked `vite` and `tsc` through hard-coded `../../../node_modules/*` paths, which only worked in one monorepo layout and broke in the Agent Studio release workspace.
+- Root cause: the TypeScript package scripts inside `sdkwork-ai/sdkwork-im-sdk` still invoked `vite` and `tsc` through hard-coded `../../../node_modules/*` paths, which only worked in one monorepo layout and broke in the Agent Studio release workspace.
 - The unpublished change log from this attempt is carried forward into `release-2026-04-07-06`.
 
 ## Verification Focus

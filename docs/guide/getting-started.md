@@ -71,7 +71,7 @@ Use `pnpm build` for the web shell, `pnpm check:multi-mode` when you need one de
 pnpm check:automation
 pnpm release:plan
 pnpm release:finalize
-pnpm release:write-attestation-evidence -- --release-assets-dir artifacts/release --repository Sdkwork-Cloud/agent-studio --release-tag release-local
+pnpm release:write-attestation-evidence -- --release-assets-dir artifacts/release --repository sdkwork-ai/agent-studio --release-tag release-local
 pnpm release:assert-ready
 ```
 

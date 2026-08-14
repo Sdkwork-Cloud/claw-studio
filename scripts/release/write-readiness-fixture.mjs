@@ -39,7 +39,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..', '..');
 const DEFAULT_RELEASE_ASSETS_DIR = path.join(rootDir, 'artifacts', 'release-readiness-fixture');
 const DEFAULT_RELEASE_TAG = 'release-fixture';
-const DEFAULT_REPOSITORY = 'Sdkwork-Cloud/agent-studio';
+const DEFAULT_REPOSITORY = 'sdkwork-ai/agent-studio';
 const DEFAULT_GENERATED_AT = '2026-04-12T01:02:03.000Z';
 const RELEASE_READINESS_FIXTURE_DIR_NAME = 'release-readiness-fixture';
 

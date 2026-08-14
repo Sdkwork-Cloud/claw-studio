@@ -10,7 +10,7 @@
 
 1. `release-2026-04-07-03` failed before publication because the release verification job could not resolve `@sdkwork/core-pc-react/app`, `@sdkwork/core-pc-react/env`, and `@sdkwork/core-pc-react/runtime`.
 2. `scripts/prepare-shared-sdk-git-sources.mjs` only materialized `retired generic app SDK package` and `@sdkwork/sdk-common`, so the release workflow still depended on the local sibling `../sdkwork-core/sdkwork-core-pc-react` path.
-3. The public `Sdkwork-Cloud/sdkwork-core` repository existed but was empty, so switching Agent Studio to that GitHub repo would still have failed until the package content was published there.
+3. The public `sdkwork-ai/sdkwork-core` repository existed but was empty, so switching Agent Studio to that GitHub repo would still have failed until the package content was published there.
 4. The configured `retired generic app SDK package` release pin no longer matched the local source-of-truth package root, so parity verification failed even after `sdkwork-core` was fixed.
 
 ## Root Cause Evidence
@@ -29,7 +29,7 @@
 
 ### Shared SDK repo state evidence
 
-1. `https://api.github.com/repos/Sdkwork-Cloud/sdkwork-core/contents/` returned `This repository is empty.` before synchronization.
+1. `https://api.github.com/repos/sdkwork-ai/sdkwork-core/contents/` returned `This repository is empty.` before synchronization.
 2. `node scripts/check-shared-sdk-release-parity.mjs` failed after the core fix because `retired generic app SDK package` still drifted from the pinned GitHub commit.
 3. Local `sdkwork-sdk-app` inspection showed the workspace had changes beyond the previously pinned ref, so the GitHub repo needed to be advanced before parity could pass.
 
@@ -49,8 +49,8 @@
 
 ### External shared SDK repo synchronization
 
-- Published the current `sdkwork-core` workspace snapshot to `https://github.com/Sdkwork-Cloud/sdkwork-core.git`.
-- Published the current `sdkwork-sdk-app` workspace snapshot to `https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git`.
+- Published the current `sdkwork-core` workspace snapshot to `https://github.com/sdkwork-ai/sdkwork-core.git`.
+- Published the current `sdkwork-sdk-app` workspace snapshot to `https://github.com/sdkwork-ai/sdkwork-sdk-app.git`.
 - Updated `config/shared-sdk-release-sources.json` to pin:
   - `retired generic app SDK package`: `e7bc761ce45acf142721b96f732b361c77a71e73`
   - `@sdkwork/sdk-common`: `892dd2585ebd9e40bc55653d34fd5fb91281bbda`
