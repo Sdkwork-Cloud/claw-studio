@@ -4,14 +4,19 @@
   "targets": [
     {
       "name": "web",
-      "formats": ["zip"],
+      "formats": [
+        "zip"
+      ],
       "runtimeTarget": "browser",
       "deploymentProfile": "cloud",
       "description": "Browser web bundle for cloud deployment."
     },
     {
       "name": "desktop-windows",
-      "formats": ["zip", "nsis"],
+      "formats": [
+        "zip",
+        "nsis"
+      ],
       "runtimeTarget": "desktop",
       "deploymentProfile": "standalone",
       "platform": "DESKTOP_WINDOWS",
@@ -20,7 +25,9 @@
     },
     {
       "name": "desktop-macos",
-      "formats": ["dmg"],
+      "formats": [
+        "dmg"
+      ],
       "runtimeTarget": "desktop",
       "deploymentProfile": "standalone",
       "platform": "DESKTOP_MACOS",
@@ -29,7 +36,10 @@
     },
     {
       "name": "desktop-linux",
-      "formats": ["appimage", "deb"],
+      "formats": [
+        "appimage",
+        "deb"
+      ],
       "runtimeTarget": "desktop",
       "deploymentProfile": "standalone",
       "platform": "DESKTOP_LINUX",
@@ -38,10 +48,87 @@
     },
     {
       "name": "server",
-      "formats": ["deb", "rpm"],
+      "formats": [
+        "deb",
+        "rpm"
+      ],
       "runtimeTarget": "server",
       "deploymentProfile": "standalone",
       "description": "Standalone server binary package."
+    }
+  ],
+  "dependencies": [
+    {
+      "id": "sdkwork-app-topology",
+      "repository": "sdkwork-ai/sdkwork-app-topology",
+      "refInput": "SDKWORK_APP_TOPOLOGY_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-appbase",
+      "repository": "sdkwork-ai/sdkwork-appbase",
+      "refInput": "SDKWORK_APPBASE_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-core",
+      "repository": "sdkwork-ai/sdkwork-core",
+      "refInput": "SDKWORK_CORE_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-drive",
+      "repository": "sdkwork-ai/sdkwork-drive",
+      "refInput": "SDKWORK_DRIVE_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-iam",
+      "repository": "sdkwork-ai/sdkwork-iam",
+      "refInput": "SDKWORK_IAM_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-im",
+      "repository": "sdkwork-ai/sdkwork-im",
+      "refInput": "SDKWORK_IM_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-local-router",
+      "repository": "sdkwork-ai/sdkwork-local-router",
+      "refInput": "SDKWORK_LOCAL_ROUTER_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-messaging",
+      "repository": "sdkwork-ai/sdkwork-messaging",
+      "refInput": "SDKWORK_MESSAGING_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-rtc",
+      "repository": "sdkwork-ai/sdkwork-rtc",
+      "refInput": "SDKWORK_RTC_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-sdk-commons",
+      "repository": "sdkwork-ai/sdkwork-sdk-commons",
+      "refInput": "SDKWORK_SDK_COMMONS_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-ui",
+      "repository": "sdkwork-ai/sdkwork-ui",
+      "refInput": "SDKWORK_UI_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
+      "id": "sdkwork-utils",
+      "repository": "sdkwork-ai/sdkwork-utils",
+      "refInput": "SDKWORK_UTILS_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
     }
   ]
 }
