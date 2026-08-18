@@ -135,7 +135,9 @@
     "release:package:standalone": "pnpm exec sdkwork-app release:package --deployment-profile standalone",
     "release:package:cloud": "pnpm exec sdkwork-app release:package --deployment-profile cloud",
     "api:assembly:materialize": "node ../sdkwork-specs/tools/materialize-api-assembly.mjs --root .",
-    "api:assembly:validate": "node ../sdkwork-specs/tools/validate-api-assembly.mjs --root ."
+    "api:assembly:validate": "node ../sdkwork-specs/tools/validate-api-assembly.mjs --root .",
+    "db:postgres:plan": "cargo run --manifest-path ../sdkwork-database/Cargo.toml -p sdkwork-database-cli -- --app-root . plan --engine postgres",
+    "db:postgres:init": "cargo run --manifest-path ../sdkwork-database/Cargo.toml -p sdkwork-database-cli -- --app-root . init --engine postgres"
   },
   "dependencies": {
     "@sdkwork/app-topology": "workspace:*",
