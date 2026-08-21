@@ -16,6 +16,8 @@
     "environment": {
       "allowed": [
         "development",
+        "test",
+        "staging",
         "production"
       ]
     },
@@ -35,8 +37,12 @@
   },
   "profileFiles": {
     "standalone.development": "etc/topology/standalone.development.env",
+    "standalone.test": "etc/topology/standalone.test.env",
+    "standalone.staging": "etc/topology/standalone.staging.env",
     "standalone.production": "etc/topology/standalone.production.env",
     "cloud.development": "etc/topology/cloud.development.env",
+    "cloud.test": "etc/topology/cloud.test.env",
+    "cloud.staging": "etc/topology/cloud.staging.env",
     "cloud.production": "etc/topology/cloud.production.env"
   },
   "envKeys": {
@@ -192,6 +198,88 @@
         "healthSurfaces": []
       },
       "cloud.production": {
+        "processes": [],
+        "healthSurfaces": []
+      },
+      "standalone.test": {
+        "processes": [
+          {
+            "id": "agentstudio-standalone-gateway",
+            "role": "api-standalone-gateway",
+            "package": "@sdkwork/agentstudio-pc-server",
+            "script": "dev",
+            "required": true
+          },
+          {
+            "id": "agentstudio-browser",
+            "role": "client",
+            "package": "@sdkwork/agentstudio-pc-web",
+            "script": "dev",
+            "runtimeTargets": [
+              "browser"
+            ],
+            "clientArchitectures": [
+              "pc-web"
+            ],
+            "required": true
+          },
+          {
+            "id": "agentstudio-desktop",
+            "role": "client",
+            "package": "@sdkwork/agentstudio-pc-desktop",
+            "script": "dev:desktop",
+            "runtimeTargets": [
+              "desktop"
+            ],
+            "clientArchitectures": [
+              "tauri"
+            ],
+            "required": true
+          }
+        ],
+        "healthSurfaces": [
+          "application.public-ingress"
+        ]
+      },
+      "standalone.staging": {
+        "processes": [],
+        "healthSurfaces": []
+      },
+      "cloud.test": {
+        "processes": [
+          {
+            "id": "agentstudio-browser",
+            "role": "client",
+            "package": "@sdkwork/agentstudio-pc-web",
+            "script": "dev",
+            "runtimeTargets": [
+              "browser"
+            ],
+            "clientArchitectures": [
+              "pc-web"
+            ],
+            "required": true
+          },
+          {
+            "id": "agentstudio-desktop",
+            "role": "client",
+            "package": "@sdkwork/agentstudio-pc-desktop",
+            "script": "dev:desktop",
+            "runtimeTargets": [
+              "desktop"
+            ],
+            "clientArchitectures": [
+              "tauri"
+            ],
+            "required": true
+          }
+        ],
+        "healthSurfaces": [
+          "application.public-ingress",
+          "platform.api-gateway"
+        ]
+      },
+      "cloud.staging": {
         "processes": [],
         "healthSurfaces": []
       }
