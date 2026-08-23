@@ -178,11 +178,6 @@ function readAvatarUrl(value: unknown): string | undefined {
 }
 
 function createIdempotencyKey(scope: string): string {
-  const randomUuid = globalThis.crypto?.randomUUID?.();
-  if (randomUuid) {
-    return `${scope}-${randomUuid}`;
-  }
-
   return `${scope}-${uuid()}`;
 }
 
