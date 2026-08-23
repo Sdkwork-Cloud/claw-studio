@@ -1,6 +1,5 @@
 version: 2
 defaultProfile: cloud.production
-
 profiles:
   cloud.test:
     deployment:
@@ -17,10 +16,48 @@ profiles:
     install:
       layout: binary-package
     expose:
-      - domain: agentstudio-test.sdkwork.com
+      - domain: agentstudio-admin-test.sdkwork.com
         tls: sdkwork.com
         mode: web+api
         web: adaptive
+        aliases:
+          - agentstudio-app-test.sdkwork.com
+          - agentstudio-test.sdkwork.com
+      - domain: agentstudio-admin-test.birdcoder.com
+        tls: birdcoder.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.birdcoder.com
+          - agentstudio-test.birdcoder.com
+      - domain: agentstudio-admin-test.dtupay.com
+        tls: dtupay.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.dtupay.com
+          - agentstudio-test.dtupay.com
+      - domain: agentstudio-admin-test.sdkwork.cn
+        tls: sdkwork.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.sdkwork.cn
+          - agentstudio-test.sdkwork.cn
+      - domain: agentstudio-admin-test.birdcoder.cn
+        tls: birdcoder.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.birdcoder.cn
+          - agentstudio-test.birdcoder.cn
+      - domain: agentstudio-admin-test.dtupay.cn
+        tls: dtupay.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.dtupay.cn
+          - agentstudio-test.dtupay.cn
     packages: []
     overrides:
       topology:
@@ -29,7 +66,6 @@ profiles:
         env: etc/topology/cloud.test.env
       kubernetes:
         reference: deployments/kubernetes/
-
   cloud.staging:
     deployment:
       deploymentProfile: cloud
@@ -45,10 +81,48 @@ profiles:
     install:
       layout: binary-package
     expose:
-      - domain: agentstudio-staging.sdkwork.com
+      - domain: agentstudio-admin-staging.sdkwork.com
         tls: sdkwork.com
         mode: web+api
         web: adaptive
+        aliases:
+          - agentstudio-app-staging.sdkwork.com
+          - agentstudio-staging.sdkwork.com
+      - domain: agentstudio-admin-staging.birdcoder.com
+        tls: birdcoder.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.birdcoder.com
+          - agentstudio-staging.birdcoder.com
+      - domain: agentstudio-admin-staging.dtupay.com
+        tls: dtupay.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.dtupay.com
+          - agentstudio-staging.dtupay.com
+      - domain: agentstudio-admin-staging.sdkwork.cn
+        tls: sdkwork.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.sdkwork.cn
+          - agentstudio-staging.sdkwork.cn
+      - domain: agentstudio-admin-staging.birdcoder.cn
+        tls: birdcoder.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.birdcoder.cn
+          - agentstudio-staging.birdcoder.cn
+      - domain: agentstudio-admin-staging.dtupay.cn
+        tls: dtupay.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.dtupay.cn
+          - agentstudio-staging.dtupay.cn
     packages: []
     overrides:
       topology:
@@ -57,7 +131,6 @@ profiles:
         env: etc/topology/cloud.staging.env
       kubernetes:
         reference: deployments/kubernetes/
-
   cloud.production:
     deployment:
       deploymentProfile: cloud
@@ -73,10 +146,48 @@ profiles:
     install:
       layout: binary-package
     expose:
-      - domain: agentstudio.sdkwork.com
+      - domain: agentstudio-admin.sdkwork.com
         tls: sdkwork.com
         mode: web+api
         web: adaptive
+        aliases:
+          - agentstudio-app.sdkwork.com
+          - agentstudio.sdkwork.com
+      - domain: agentstudio-admin.birdcoder.com
+        tls: birdcoder.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.birdcoder.com
+          - agentstudio.birdcoder.com
+      - domain: agentstudio-admin.dtupay.com
+        tls: dtupay.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.dtupay.com
+          - agentstudio.dtupay.com
+      - domain: agentstudio-admin.sdkwork.cn
+        tls: sdkwork.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.sdkwork.cn
+          - agentstudio.sdkwork.cn
+      - domain: agentstudio-admin.birdcoder.cn
+        tls: birdcoder.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.birdcoder.cn
+          - agentstudio.birdcoder.cn
+      - domain: agentstudio-admin.dtupay.cn
+        tls: dtupay.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.dtupay.cn
+          - agentstudio.dtupay.cn
     packages: []
     overrides:
       topology:
@@ -85,7 +196,6 @@ profiles:
         env: etc/topology/cloud.production.env
       kubernetes:
         reference: deployments/kubernetes/
-
   standalone.production:
     deployment:
       deploymentProfile: standalone
@@ -100,7 +210,49 @@ profiles:
       availabilityMode: single-instance
     install:
       layout: binary-package
-    expose: []
+    expose:
+      - tls: sdkwork.com
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.sdkwork.com
+        aliases:
+          - agentstudio-app.sdkwork.com
+          - agentstudio.sdkwork.com
+      - tls: birdcoder.com
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.birdcoder.com
+        aliases:
+          - agentstudio-app.birdcoder.com
+          - agentstudio.birdcoder.com
+      - tls: dtupay.com
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.dtupay.com
+        aliases:
+          - agentstudio-app.dtupay.com
+          - agentstudio.dtupay.com
+      - tls: sdkwork.cn
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.sdkwork.cn
+        aliases:
+          - agentstudio-app.sdkwork.cn
+          - agentstudio.sdkwork.cn
+      - tls: birdcoder.cn
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.birdcoder.cn
+        aliases:
+          - agentstudio-app.birdcoder.cn
+          - agentstudio.birdcoder.cn
+      - tls: dtupay.cn
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.dtupay.cn
+        aliases:
+          - agentstudio-app.dtupay.cn
+          - agentstudio.dtupay.cn
     packages: []
     overrides:
       topology:
