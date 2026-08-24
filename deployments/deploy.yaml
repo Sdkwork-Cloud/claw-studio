@@ -58,6 +58,62 @@ profiles:
         aliases:
           - agentstudio-app-test.dtupay.cn
           - agentstudio-test.dtupay.cn
+      - domain: agentstudio-admin-test.skubc.com
+        tls: skubc.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.skubc.com
+          - agentstudio-test.skubc.com
+      - domain: agentstudio-admin-test.skubc.cn
+        tls: skubc.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.skubc.cn
+          - agentstudio-test.skubc.cn
+      - domain: agentstudio-admin-test.zowalk.com
+        tls: zowalk.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.zowalk.com
+          - agentstudio-test.zowalk.com
+      - domain: agentstudio-admin-test.zowalk.cn
+        tls: zowalk.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.zowalk.cn
+          - agentstudio-test.zowalk.cn
+      - domain: agentstudio-admin-test.offer86.com
+        tls: offer86.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.offer86.com
+          - agentstudio-test.offer86.com
+      - domain: agentstudio-admin-test.offer86.cn
+        tls: offer86.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.offer86.cn
+          - agentstudio-test.offer86.cn
+      - domain: agentstudio-admin-test.86offer.com
+        tls: 86offer.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.86offer.com
+          - agentstudio-test.86offer.com
+      - domain: agentstudio-admin-test.86offer.cn
+        tls: 86offer.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-test.86offer.cn
+          - agentstudio-test.86offer.cn
     packages: []
     overrides:
       topology:
@@ -123,6 +179,62 @@ profiles:
         aliases:
           - agentstudio-app-staging.dtupay.cn
           - agentstudio-staging.dtupay.cn
+      - domain: agentstudio-admin-staging.skubc.com
+        tls: skubc.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.skubc.com
+          - agentstudio-staging.skubc.com
+      - domain: agentstudio-admin-staging.skubc.cn
+        tls: skubc.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.skubc.cn
+          - agentstudio-staging.skubc.cn
+      - domain: agentstudio-admin-staging.zowalk.com
+        tls: zowalk.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.zowalk.com
+          - agentstudio-staging.zowalk.com
+      - domain: agentstudio-admin-staging.zowalk.cn
+        tls: zowalk.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.zowalk.cn
+          - agentstudio-staging.zowalk.cn
+      - domain: agentstudio-admin-staging.offer86.com
+        tls: offer86.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.offer86.com
+          - agentstudio-staging.offer86.com
+      - domain: agentstudio-admin-staging.offer86.cn
+        tls: offer86.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.offer86.cn
+          - agentstudio-staging.offer86.cn
+      - domain: agentstudio-admin-staging.86offer.com
+        tls: 86offer.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.86offer.com
+          - agentstudio-staging.86offer.com
+      - domain: agentstudio-admin-staging.86offer.cn
+        tls: 86offer.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app-staging.86offer.cn
+          - agentstudio-staging.86offer.cn
     packages: []
     overrides:
       topology:
@@ -188,6 +300,62 @@ profiles:
         aliases:
           - agentstudio-app.dtupay.cn
           - agentstudio.dtupay.cn
+      - domain: agentstudio-admin.skubc.com
+        tls: skubc.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.skubc.com
+          - agentstudio.skubc.com
+      - domain: agentstudio-admin.skubc.cn
+        tls: skubc.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.skubc.cn
+          - agentstudio.skubc.cn
+      - domain: agentstudio-admin.zowalk.com
+        tls: zowalk.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.zowalk.com
+          - agentstudio.zowalk.com
+      - domain: agentstudio-admin.zowalk.cn
+        tls: zowalk.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.zowalk.cn
+          - agentstudio.zowalk.cn
+      - domain: agentstudio-admin.offer86.com
+        tls: offer86.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.offer86.com
+          - agentstudio.offer86.com
+      - domain: agentstudio-admin.offer86.cn
+        tls: offer86.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.offer86.cn
+          - agentstudio.offer86.cn
+      - domain: agentstudio-admin.86offer.com
+        tls: 86offer.com
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.86offer.com
+          - agentstudio.86offer.com
+      - domain: agentstudio-admin.86offer.cn
+        tls: 86offer.cn
+        mode: web+api
+        web: adaptive
+        aliases:
+          - agentstudio-app.86offer.cn
+          - agentstudio.86offer.cn
     packages: []
     overrides:
       topology:
@@ -253,6 +421,62 @@ profiles:
         aliases:
           - agentstudio-app.dtupay.cn
           - agentstudio.dtupay.cn
+      - tls: skubc.com
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.skubc.com
+        aliases:
+          - agentstudio-app.skubc.com
+          - agentstudio.skubc.com
+      - tls: skubc.cn
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.skubc.cn
+        aliases:
+          - agentstudio-app.skubc.cn
+          - agentstudio.skubc.cn
+      - tls: zowalk.com
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.zowalk.com
+        aliases:
+          - agentstudio-app.zowalk.com
+          - agentstudio.zowalk.com
+      - tls: zowalk.cn
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.zowalk.cn
+        aliases:
+          - agentstudio-app.zowalk.cn
+          - agentstudio.zowalk.cn
+      - tls: offer86.com
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.offer86.com
+        aliases:
+          - agentstudio-app.offer86.com
+          - agentstudio.offer86.com
+      - tls: offer86.cn
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.offer86.cn
+        aliases:
+          - agentstudio-app.offer86.cn
+          - agentstudio.offer86.cn
+      - tls: 86offer.com
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.86offer.com
+        aliases:
+          - agentstudio-app.86offer.com
+          - agentstudio.86offer.com
+      - tls: 86offer.cn
+        mode: web
+        web: adaptive
+        domain: agentstudio-admin.86offer.cn
+        aliases:
+          - agentstudio-app.86offer.cn
+          - agentstudio.86offer.cn
     packages: []
     overrides:
       topology:

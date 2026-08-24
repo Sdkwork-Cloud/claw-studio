@@ -2,59 +2,8 @@ environment = "staging"
 
 [http]
 
-[http.certificates]
-
-[http.certificates."sdkwork.com"]
-certFile = "/opt/certs/letsencrypt/live/sdkwork.com/fullchain.pem"
-certKeyFile = "/opt/certs/letsencrypt/live/sdkwork.com/privkey.pem"
-chainFile = "/opt/certs/letsencrypt/live/sdkwork.com/chain.pem"
-ocspStapling = true
-
-[http.certificates."birdcoder.com"]
-certFile = "/opt/certs/letsencrypt/live/birdcoder.com/fullchain.pem"
-certKeyFile = "/opt/certs/letsencrypt/live/birdcoder.com/privkey.pem"
-chainFile = "/opt/certs/letsencrypt/live/birdcoder.com/chain.pem"
-ocspStapling = true
-
-[http.certificates."dtupay.com"]
-certFile = "/opt/certs/letsencrypt/live/dtupay.com/fullchain.pem"
-certKeyFile = "/opt/certs/letsencrypt/live/dtupay.com/privkey.pem"
-chainFile = "/opt/certs/letsencrypt/live/dtupay.com/chain.pem"
-ocspStapling = true
-
-[http.certificates."sdkwork.cn"]
-certFile = "/opt/certs/letsencrypt/live/sdkwork.cn/fullchain.pem"
-certKeyFile = "/opt/certs/letsencrypt/live/sdkwork.cn/privkey.pem"
-chainFile = "/opt/certs/letsencrypt/live/sdkwork.cn/chain.pem"
-ocspStapling = true
-
-[http.certificates."birdcoder.cn"]
-certFile = "/opt/certs/letsencrypt/live/birdcoder.cn/fullchain.pem"
-certKeyFile = "/opt/certs/letsencrypt/live/birdcoder.cn/privkey.pem"
-chainFile = "/opt/certs/letsencrypt/live/birdcoder.cn/chain.pem"
-ocspStapling = true
-
-[http.certificates."dtupay.cn"]
-certFile = "/opt/certs/letsencrypt/live/dtupay.cn/fullchain.pem"
-certKeyFile = "/opt/certs/letsencrypt/live/dtupay.cn/privkey.pem"
-chainFile = "/opt/certs/letsencrypt/live/dtupay.cn/chain.pem"
-ocspStapling = true
-
 [[http.server]]
 listen = ["80"]
-serverName = ["agentstudio-staging.sdkwork.com", "agentstudio-staging.birdcoder.com", "agentstudio-staging.dtupay.com", "agentstudio-staging.sdkwork.cn", "agentstudio-staging.birdcoder.cn", "agentstudio-staging.dtupay.cn", "agentstudio-app-staging.sdkwork.com", "agentstudio-app-staging.birdcoder.com", "agentstudio-app-staging.dtupay.com", "agentstudio-app-staging.sdkwork.cn", "agentstudio-app-staging.birdcoder.cn", "agentstudio-app-staging.dtupay.cn", "agentstudio-admin-staging.sdkwork.com", "agentstudio-admin-staging.birdcoder.com", "agentstudio-admin-staging.dtupay.com", "agentstudio-admin-staging.sdkwork.cn", "agentstudio-admin-staging.birdcoder.cn", "agentstudio-admin-staging.dtupay.cn"]
-
-[[http.server.location]]
-match = "/api/"
-proxyPass = "http://gateway"
-proxyHttpVersion = "1.1"
-proxySetHeader = ["Host $host", "X-Forwarded-For $proxy_add_x_forwarded_for", "X-Forwarded-Proto $scheme"]
-
-[[http.server.location]]
-match = "/"
-proxyPass = "http://gateway"
-proxyHttpVersion = "1.1"
-proxySetHeader = ["Host $host", "X-Forwarded-For $proxy_add_x_forwarded_for", "X-Forwarded-Proto $scheme"]
-proxyBuffering = false
-proxyReadTimeout = "300s"
+serverName = ["agentstudio-staging.sdkwork.com", "agentstudio-staging.birdcoder.com", "agentstudio-staging.dtupay.com", "agentstudio-staging.sdkwork.cn", "agentstudio-staging.birdcoder.cn", "agentstudio-staging.dtupay.cn", "agentstudio-staging.skubc.com", "agentstudio-staging.skubc.cn", "agentstudio-staging.zowalk.com", "agentstudio-staging.zowalk.cn", "agentstudio-staging.offer86.com", "agentstudio-staging.offer86.cn", "agentstudio-staging.86offer.com", "agentstudio-staging.86offer.cn", "agentstudio-app-staging.sdkwork.com", "agentstudio-app-staging.birdcoder.com", "agentstudio-app-staging.dtupay.com", "agentstudio-app-staging.sdkwork.cn", "agentstudio-app-staging.birdcoder.cn", "agentstudio-app-staging.dtupay.cn", "agentstudio-app-staging.skubc.com", "agentstudio-app-staging.skubc.cn", "agentstudio-app-staging.zowalk.com", "agentstudio-app-staging.zowalk.cn", "agentstudio-app-staging.offer86.com", "agentstudio-app-staging.offer86.cn", "agentstudio-app-staging.86offer.com", "agentstudio-app-staging.86offer.cn", "agentstudio-admin-staging.sdkwork.com", "agentstudio-admin-staging.birdcoder.com", "agentstudio-admin-staging.dtupay.com", "agentstudio-admin-staging.sdkwork.cn", "agentstudio-admin-staging.birdcoder.cn", "agentstudio-admin-staging.dtupay.cn", "agentstudio-admin-staging.skubc.com", "agentstudio-admin-staging.skubc.cn", "agentstudio-admin-staging.zowalk.com", "agentstudio-admin-staging.zowalk.cn", "agentstudio-admin-staging.offer86.com", "agentstudio-admin-staging.offer86.cn", "agentstudio-admin-staging.86offer.com", "agentstudio-admin-staging.86offer.cn"]
+include = ["snippets/gateway-locations.nonproduction.conf"]
 

@@ -106,7 +106,15 @@
             "agentstudio-dev.dtupay.com",
             "agentstudio-dev.sdkwork.cn",
             "agentstudio-dev.birdcoder.cn",
-            "agentstudio-dev.dtupay.cn"
+            "agentstudio-dev.dtupay.cn",
+            "agentstudio-dev.skubc.com",
+            "agentstudio-dev.skubc.cn",
+            "agentstudio-dev.zowalk.com",
+            "agentstudio-dev.zowalk.cn",
+            "agentstudio-dev.offer86.com",
+            "agentstudio-dev.offer86.cn",
+            "agentstudio-dev.86offer.com",
+            "agentstudio-dev.86offer.cn"
           ]
         },
         "test": {
@@ -116,7 +124,15 @@
             "agentstudio-test.dtupay.com",
             "agentstudio-test.sdkwork.cn",
             "agentstudio-test.birdcoder.cn",
-            "agentstudio-test.dtupay.cn"
+            "agentstudio-test.dtupay.cn",
+            "agentstudio-test.skubc.com",
+            "agentstudio-test.skubc.cn",
+            "agentstudio-test.zowalk.com",
+            "agentstudio-test.zowalk.cn",
+            "agentstudio-test.offer86.com",
+            "agentstudio-test.offer86.cn",
+            "agentstudio-test.86offer.com",
+            "agentstudio-test.86offer.cn"
           ]
         },
         "staging": {
@@ -126,7 +142,15 @@
             "agentstudio-staging.dtupay.com",
             "agentstudio-staging.sdkwork.cn",
             "agentstudio-staging.birdcoder.cn",
-            "agentstudio-staging.dtupay.cn"
+            "agentstudio-staging.dtupay.cn",
+            "agentstudio-staging.skubc.com",
+            "agentstudio-staging.skubc.cn",
+            "agentstudio-staging.zowalk.com",
+            "agentstudio-staging.zowalk.cn",
+            "agentstudio-staging.offer86.com",
+            "agentstudio-staging.offer86.cn",
+            "agentstudio-staging.86offer.com",
+            "agentstudio-staging.86offer.cn"
           ]
         }
       },
@@ -136,7 +160,15 @@
         "agentstudio.dtupay.com",
         "agentstudio.sdkwork.cn",
         "agentstudio.birdcoder.cn",
-        "agentstudio.dtupay.cn"
+        "agentstudio.dtupay.cn",
+        "agentstudio.skubc.com",
+        "agentstudio.skubc.cn",
+        "agentstudio.zowalk.com",
+        "agentstudio.zowalk.cn",
+        "agentstudio.offer86.com",
+        "agentstudio.offer86.cn",
+        "agentstudio.86offer.com",
+        "agentstudio.86offer.cn"
       ]
     },
     "platform.api-gateway": {
@@ -149,7 +181,15 @@
             "api-dev.dtupay.com",
             "api-dev.sdkwork.cn",
             "api-dev.birdcoder.cn",
-            "api-dev.dtupay.cn"
+            "api-dev.dtupay.cn",
+            "api-dev.skubc.com",
+            "api-dev.skubc.cn",
+            "api-dev.zowalk.com",
+            "api-dev.zowalk.cn",
+            "api-dev.offer86.com",
+            "api-dev.offer86.cn",
+            "api-dev.86offer.com",
+            "api-dev.86offer.cn"
           ]
         },
         "test": {
@@ -159,7 +199,15 @@
             "api-test.dtupay.com",
             "api-test.sdkwork.cn",
             "api-test.birdcoder.cn",
-            "api-test.dtupay.cn"
+            "api-test.dtupay.cn",
+            "api-test.skubc.com",
+            "api-test.skubc.cn",
+            "api-test.zowalk.com",
+            "api-test.zowalk.cn",
+            "api-test.offer86.com",
+            "api-test.offer86.cn",
+            "api-test.86offer.com",
+            "api-test.86offer.cn"
           ]
         },
         "staging": {
@@ -169,7 +217,15 @@
             "api-staging.dtupay.com",
             "api-staging.sdkwork.cn",
             "api-staging.birdcoder.cn",
-            "api-staging.dtupay.cn"
+            "api-staging.dtupay.cn",
+            "api-staging.skubc.com",
+            "api-staging.skubc.cn",
+            "api-staging.zowalk.com",
+            "api-staging.zowalk.cn",
+            "api-staging.offer86.com",
+            "api-staging.offer86.cn",
+            "api-staging.86offer.com",
+            "api-staging.86offer.cn"
           ]
         }
       },
@@ -179,7 +235,15 @@
         "api.dtupay.com",
         "api.sdkwork.cn",
         "api.birdcoder.cn",
-        "api.dtupay.cn"
+        "api.dtupay.cn",
+        "api.skubc.com",
+        "api.skubc.cn",
+        "api.zowalk.com",
+        "api.zowalk.cn",
+        "api.offer86.com",
+        "api.offer86.cn",
+        "api.86offer.com",
+        "api.86offer.cn"
       ]
     },
     "application.app-http": {
@@ -192,7 +256,15 @@
             "agentstudio-app-dev.dtupay.com",
             "agentstudio-app-dev.sdkwork.cn",
             "agentstudio-app-dev.birdcoder.cn",
-            "agentstudio-app-dev.dtupay.cn"
+            "agentstudio-app-dev.dtupay.cn",
+            "agentstudio-app-dev.skubc.com",
+            "agentstudio-app-dev.skubc.cn",
+            "agentstudio-app-dev.zowalk.com",
+            "agentstudio-app-dev.zowalk.cn",
+            "agentstudio-app-dev.offer86.com",
+            "agentstudio-app-dev.offer86.cn",
+            "agentstudio-app-dev.86offer.com",
+            "agentstudio-app-dev.86offer.cn"
           ]
         },
         "test": {
@@ -202,7 +274,15 @@
             "agentstudio-app-test.dtupay.com",
             "agentstudio-app-test.sdkwork.cn",
             "agentstudio-app-test.birdcoder.cn",
-            "agentstudio-app-test.dtupay.cn"
+            "agentstudio-app-test.dtupay.cn",
+            "agentstudio-app-test.skubc.com",
+            "agentstudio-app-test.skubc.cn",
+            "agentstudio-app-test.zowalk.com",
+            "agentstudio-app-test.zowalk.cn",
+            "agentstudio-app-test.offer86.com",
+            "agentstudio-app-test.offer86.cn",
+            "agentstudio-app-test.86offer.com",
+            "agentstudio-app-test.86offer.cn"
           ]
         },
         "staging": {
@@ -212,7 +292,15 @@
             "agentstudio-app-staging.dtupay.com",
             "agentstudio-app-staging.sdkwork.cn",
             "agentstudio-app-staging.birdcoder.cn",
-            "agentstudio-app-staging.dtupay.cn"
+            "agentstudio-app-staging.dtupay.cn",
+            "agentstudio-app-staging.skubc.com",
+            "agentstudio-app-staging.skubc.cn",
+            "agentstudio-app-staging.zowalk.com",
+            "agentstudio-app-staging.zowalk.cn",
+            "agentstudio-app-staging.offer86.com",
+            "agentstudio-app-staging.offer86.cn",
+            "agentstudio-app-staging.86offer.com",
+            "agentstudio-app-staging.86offer.cn"
           ]
         }
       },
@@ -222,7 +310,15 @@
         "agentstudio-app.dtupay.com",
         "agentstudio-app.sdkwork.cn",
         "agentstudio-app.birdcoder.cn",
-        "agentstudio-app.dtupay.cn"
+        "agentstudio-app.dtupay.cn",
+        "agentstudio-app.skubc.com",
+        "agentstudio-app.skubc.cn",
+        "agentstudio-app.zowalk.com",
+        "agentstudio-app.zowalk.cn",
+        "agentstudio-app.offer86.com",
+        "agentstudio-app.offer86.cn",
+        "agentstudio-app.86offer.com",
+        "agentstudio-app.86offer.cn"
       ]
     },
     "application.backend-http": {
@@ -235,7 +331,15 @@
             "agentstudio-admin-dev.dtupay.com",
             "agentstudio-admin-dev.sdkwork.cn",
             "agentstudio-admin-dev.birdcoder.cn",
-            "agentstudio-admin-dev.dtupay.cn"
+            "agentstudio-admin-dev.dtupay.cn",
+            "agentstudio-admin-dev.skubc.com",
+            "agentstudio-admin-dev.skubc.cn",
+            "agentstudio-admin-dev.zowalk.com",
+            "agentstudio-admin-dev.zowalk.cn",
+            "agentstudio-admin-dev.offer86.com",
+            "agentstudio-admin-dev.offer86.cn",
+            "agentstudio-admin-dev.86offer.com",
+            "agentstudio-admin-dev.86offer.cn"
           ]
         },
         "test": {
@@ -245,7 +349,15 @@
             "agentstudio-admin-test.dtupay.com",
             "agentstudio-admin-test.sdkwork.cn",
             "agentstudio-admin-test.birdcoder.cn",
-            "agentstudio-admin-test.dtupay.cn"
+            "agentstudio-admin-test.dtupay.cn",
+            "agentstudio-admin-test.skubc.com",
+            "agentstudio-admin-test.skubc.cn",
+            "agentstudio-admin-test.zowalk.com",
+            "agentstudio-admin-test.zowalk.cn",
+            "agentstudio-admin-test.offer86.com",
+            "agentstudio-admin-test.offer86.cn",
+            "agentstudio-admin-test.86offer.com",
+            "agentstudio-admin-test.86offer.cn"
           ]
         },
         "staging": {
@@ -255,7 +367,15 @@
             "agentstudio-admin-staging.dtupay.com",
             "agentstudio-admin-staging.sdkwork.cn",
             "agentstudio-admin-staging.birdcoder.cn",
-            "agentstudio-admin-staging.dtupay.cn"
+            "agentstudio-admin-staging.dtupay.cn",
+            "agentstudio-admin-staging.skubc.com",
+            "agentstudio-admin-staging.skubc.cn",
+            "agentstudio-admin-staging.zowalk.com",
+            "agentstudio-admin-staging.zowalk.cn",
+            "agentstudio-admin-staging.offer86.com",
+            "agentstudio-admin-staging.offer86.cn",
+            "agentstudio-admin-staging.86offer.com",
+            "agentstudio-admin-staging.86offer.cn"
           ]
         }
       },
@@ -265,7 +385,15 @@
         "agentstudio-admin.dtupay.com",
         "agentstudio-admin.sdkwork.cn",
         "agentstudio-admin.birdcoder.cn",
-        "agentstudio-admin.dtupay.cn"
+        "agentstudio-admin.dtupay.cn",
+        "agentstudio-admin.skubc.com",
+        "agentstudio-admin.skubc.cn",
+        "agentstudio-admin.zowalk.com",
+        "agentstudio-admin.zowalk.cn",
+        "agentstudio-admin.offer86.com",
+        "agentstudio-admin.offer86.cn",
+        "agentstudio-admin.86offer.com",
+        "agentstudio-admin.86offer.cn"
       ]
     }
   },
