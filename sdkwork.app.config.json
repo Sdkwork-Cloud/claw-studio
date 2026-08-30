@@ -57,23 +57,6 @@
     "defaultRuntimeTarget": "browser",
     "runtimeTarget": "browser"
   },
-  "apiSurfaces": [
-    {
-      "kind": "app-api",
-      "apiPrefix": "/claw/api/v1",
-      "description": "Studio public application API surface (browser/desktop shell)."
-    },
-    {
-      "kind": "backend-api",
-      "apiPrefix": "/claw/manage/v1",
-      "description": "Manage control-plane backend API surface (operator)."
-    },
-    {
-      "kind": "open-api",
-      "apiPrefix": "/claw/gateway",
-      "description": "OpenClaw gateway and local AI compatibility open API surface (vendor compatible)."
-    }
-  ],
   "media": {
     "icons": {
       "primary": {
@@ -96,19 +79,19 @@
       },
       "platform": [],
       "metadata": {
-        "generatedBy": "apps/scripts/initialize-sdkwork-app-standard-v3.mjs"
+        "generatedPlaceholder": true
       }
     },
     "screenshots": [
       {
-        "id": "sdkwork-agentstudio-desktop_windows-screenshot",
+        "id": "sdkwork-agentstudio-web-screenshot",
         "type": "SCREENSHOT",
         "purpose": "CATALOG_SCREENSHOT",
-        "url": "https://cdn.sdkwork.com/apps/sdkwork-agentstudio/media/desktop_windows-screenshot.png",
-        "platform": "DESKTOP_WINDOWS",
+        "url": "https://cdn.sdkwork.com/apps/sdkwork-agentstudio/media/web-screenshot.png",
+        "platform": "WEB",
         "locale": "en-US",
-        "deviceClass": "DESKTOP",
-        "displayType": "DESKTOP_16_10",
+        "deviceClass": "BROWSER",
+        "displayType": "WEB_DESKTOP",
         "width": 1920,
         "height": 1080,
         "format": "PNG",
@@ -129,7 +112,7 @@
         "type": "PREVIEW_IMAGE",
         "purpose": "CATALOG_PREVIEW",
         "url": "https://cdn.sdkwork.com/apps/sdkwork-agentstudio/media/preview-cover.png",
-        "platform": "DESKTOP_WINDOWS",
+        "platform": "WEB",
         "locale": "en-US",
         "width": 1600,
         "height": 900,
@@ -197,7 +180,10 @@
           "checksum": "5e9686085e9686085e9686085e9686085e9686085e9686085e9686085e968608",
           "architecture": "universal",
           "deploymentProfile": "cloud",
-          "runtimeTarget": "browser"
+          "runtimeTarget": "browser",
+          "profileBinding": "fixed",
+          "targetPlatform": "web",
+          "clientArchitecture": "pc-web"
         },
         {
           "id": "windows-x64-standalone-desktop-zip",
@@ -212,7 +198,10 @@
           "checksumAlgorithm": "SHA-256",
           "checksum": "a9f7cf5ca9f7cf5ca9f7cf5ca9f7cf5ca9f7cf5ca9f7cf5ca9f7cf5ca9f7cf5c",
           "deploymentProfile": "standalone",
-          "runtimeTarget": "desktop"
+          "runtimeTarget": "desktop",
+          "profileBinding": "fixed",
+          "targetPlatform": "windows",
+          "clientArchitecture": "tauri"
         },
         {
           "id": "macos-universal-standalone-desktop-dmg",
@@ -227,7 +216,10 @@
           "checksumAlgorithm": "SHA-256",
           "checksum": "6d5d2a8c6d5d2a8c6d5d2a8c6d5d2a8c6d5d2a8c6d5d2a8c6d5d2a8c6d5d2a8c",
           "deploymentProfile": "standalone",
-          "runtimeTarget": "desktop"
+          "runtimeTarget": "desktop",
+          "profileBinding": "fixed",
+          "targetPlatform": "macos",
+          "clientArchitecture": "tauri"
         },
         {
           "id": "linux-x64-standalone-desktop-appimage",
@@ -246,7 +238,10 @@
           "checksumAlgorithm": "SHA-256",
           "checksum": "6d52e00d6d52e00d6d52e00d6d52e00d6d52e00d6d52e00d6d52e00d6d52e00d",
           "deploymentProfile": "standalone",
-          "runtimeTarget": "desktop"
+          "runtimeTarget": "desktop",
+          "profileBinding": "fixed",
+          "targetPlatform": "linux",
+          "clientArchitecture": "tauri"
         }
       ],
       "metadata": {
@@ -302,6 +297,7 @@
   },
   "metadata": {
     "standardOwner": "sdkwork-platform",
-    "initializedAt": "2026-05-07T00:00:00Z"
+    "initializedAt": "2026-05-07T00:00:00Z",
+    "deploymentConfig": "etc/sdkwork.deployment.config.json"
   }
 }

@@ -4081,7 +4081,7 @@
       "title": "Agent Studio release-2026-04-10-170",
       "date": "2026-04-10",
       "status": "pending",
-      "summary": "Step 10 closure iteration that freezes OpenClaw fact-source quality gates, aligns packaged deployment and release-blocking contracts with the real deploy/docker layout, removes the Windows tar dependency from desktop runtime preparation coverage, and closes the remaining desktop startup-evidence host-runtime contract drift.",
+      "summary": "Step 10 closure iteration that freezes OpenClaw fact-source quality gates, aligns packaged deployment and release-blocking contracts with the real deployments/docker layout, removes the Windows tar dependency from desktop runtime preparation coverage, and closes the remaining desktop startup-evidence host-runtime contract drift.",
       "notesFile": "release-2026-04-10-170.md",
       "carryForward": [
         "release-2026-04-10-169"

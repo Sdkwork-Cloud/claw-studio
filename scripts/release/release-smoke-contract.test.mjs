@@ -183,7 +183,7 @@ test('release smoke contract rejects unsafe artifact and launcher paths before w
         artifactRelativePaths: [
           'container/linux/x64/cpu/agent-studio-container-bundle-release-local-linux-x64-cpu.tar.gz',
         ],
-        launcherRelativePath: './deploy/docker/docker-compose.yml',
+        launcherRelativePath: './deployments/docker/docker-compose.yml',
       }),
       /non-canonical release smoke launcher path/,
     );

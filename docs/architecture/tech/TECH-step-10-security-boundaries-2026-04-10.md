@@ -17,7 +17,7 @@
 
 - Server host binding remains loopback by default.
 - Public bind remains an explicit insecure opt-in and still requires manage credentials before the host is considered valid.
-- Packaged container bundle commands are frozen to the real `deploy/docker/*` bundle layout rather than legacy flat `deploy/*` assumptions.
+- Packaged container bundle commands are frozen to the real `deployments/docker/*` bundle layout rather than legacy flat `deploy/*` assumptions.
 - Desktop bootstrap may read only `kernel.getInfo().localAiProxy` as startup evidence for the persisted `desktop-startup-evidence.json` document.
 - Desktop bootstrap may not expand that read into broader `kernelInfo.*` truth, because readiness, manage endpoint authority, and built-in OpenClaw identity must still come from the hosted runtime readiness contract.
 
@@ -30,11 +30,11 @@
 ## Implemented Fix
 
 - `scripts/release-deployment-contract.test.mjs` now locks the packaged operator surface to:
-  - `deploy/docker/docker-compose.yml`
-  - `deploy/docker/docker-compose.nvidia-cuda.yml`
-  - `deploy/docker/docker-compose.amd-rocm.yml`
-  - `deploy/docker/Dockerfile`
-- `deploy/docker/README.md`, `docs/core/release-and-deployment.md`, and `docs/reports/2026-04-05-unified-rust-host-deployment-bootstrap-smoke.md` now document the same packaged path layout instead of stale flat paths.
+  - `deployments/docker/docker-compose.yml`
+  - `deployments/docker/docker-compose.nvidia-cuda.yml`
+  - `deployments/docker/docker-compose.amd-rocm.yml`
+  - `deployments/docker/Dockerfile`
+- `deployments/docker/README.md`, `docs/core/release-and-deployment.md`, and `docs/reports/2026-04-05-unified-rust-host-deployment-bootstrap-smoke.md` now document the same packaged path layout instead of stale flat paths.
 - `scripts/sdkwork-host-runtime-contract.test.ts` now freezes the desktop bootstrap boundary as:
   - allowed: `const kernelInfo = await getDesktopKernelInfo(); const localAiProxy = kernelInfo?.localAiProxy ?? null;`
   - disallowed: any broader `kernelInfo.*` shell read in `connectDesktopRuntime`

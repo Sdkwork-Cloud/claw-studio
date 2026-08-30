@@ -150,9 +150,9 @@ test('container deployment smoke validates packaged bundles and writes runtime-b
       extractDeploymentBundleFn: async ({ archivePath, extractDir }) => {
         assert.equal(archivePath.replaceAll('\\', '/'), path.join(releaseAssetsDir, archiveRelativePath).replaceAll('\\', '/'));
         assert.match(extractDir.replaceAll('\\', '/'), /claw-deployment-smoke-container-/);
-        mkdirSync(path.join(extractedBundleRoot, 'deploy', 'docker'), { recursive: true });
+        mkdirSync(path.join(extractedBundleRoot, 'deployments', 'docker'), { recursive: true });
         writeFileSync(
-          path.join(extractedBundleRoot, 'deploy', 'docker', 'docker-compose.yml'),
+          path.join(extractedBundleRoot, 'deployments', 'docker', 'docker-compose.yml'),
           'services: {}\n',
           'utf8',
         );
@@ -166,7 +166,7 @@ test('container deployment smoke validates packaged bundles and writes runtime-b
           dockerCompose: true,
         });
         return {
-          launcherRelativePath: 'deploy/docker/docker-compose.yml',
+          launcherRelativePath: 'deployments/docker/docker-compose.yml',
           runtimeBaseUrl: 'http://127.0.0.1:18797',
           checks: [
             {
@@ -222,7 +222,7 @@ test('container deployment smoke validates packaged bundles and writes runtime-b
     assert.equal(result.family, 'container');
     assert.equal(result.report.report.status, 'passed');
     assert.equal(result.report.report.smokeKind, 'live-deployment');
-    assert.equal(result.report.report.launcherRelativePath, 'deploy/docker/docker-compose.yml');
+    assert.equal(result.report.report.launcherRelativePath, 'deployments/docker/docker-compose.yml');
     assert.equal(result.report.report.runtimeBaseUrl, 'http://127.0.0.1:18797');
     assert.deepEqual(result.report.report.artifactRelativePaths, [archiveRelativePath]);
     assert.deepEqual(
@@ -276,7 +276,7 @@ test('deployment bundle extraction rejects symlink archive entries before extrac
     mkdirSync(extractDir, { recursive: true });
     writeTarGzArchive(archivePath, [
       createTarRecord({
-        name: 'agent-studio-container/deploy/docker/config-link',
+        name: 'agent-studio-container/deployments/docker/config-link',
         content: '/etc/passwd',
         type: '2',
       }),
@@ -304,7 +304,7 @@ test('container deployment bundle smoke requires packaged manage credentials, pe
   const bundleRoot = path.join(tempRoot, 'bundle');
   const events = [];
   try {
-    mkdirSync(path.join(bundleRoot, 'deploy', 'docker', 'profiles'), { recursive: true });
+    mkdirSync(path.join(bundleRoot, 'deployments', 'docker', 'profiles'), { recursive: true });
     writeFileSync(
       path.join(bundleRoot, 'release-metadata.json'),
       `${JSON.stringify({
@@ -316,7 +316,7 @@ test('container deployment bundle smoke requires packaged manage credentials, pe
       'utf8',
     );
     writeFileSync(
-      path.join(bundleRoot, 'deploy', 'docker', 'docker-compose.yml'),
+      path.join(bundleRoot, 'deployments', 'docker', 'docker-compose.yml'),
       [
         'services:',
         '  agentstudio-server:',
@@ -332,7 +332,7 @@ test('container deployment bundle smoke requires packaged manage credentials, pe
       'utf8',
     );
     writeFileSync(
-      path.join(bundleRoot, 'deploy', 'docker', 'profiles', 'default.env'),
+      path.join(bundleRoot, 'deployments', 'docker', 'profiles', 'default.env'),
       [
         'CLAW_DEPLOYMENT_FAMILY=container',
         'CLAW_ACCELERATOR_PROFILE=cpu',
@@ -425,7 +425,7 @@ test('container deployment bundle smoke rejects packaged runtime profiles that l
   const bundleRoot = path.join(tempRoot, 'bundle');
 
   try {
-    mkdirSync(path.join(bundleRoot, 'deploy', 'docker', 'profiles'), { recursive: true });
+    mkdirSync(path.join(bundleRoot, 'deployments', 'docker', 'profiles'), { recursive: true });
     writeFileSync(
       path.join(bundleRoot, 'release-metadata.json'),
       `${JSON.stringify({
@@ -437,7 +437,7 @@ test('container deployment bundle smoke rejects packaged runtime profiles that l
       'utf8',
     );
     writeFileSync(
-      path.join(bundleRoot, 'deploy', 'docker', 'docker-compose.yml'),
+      path.join(bundleRoot, 'deployments', 'docker', 'docker-compose.yml'),
       [
         'services:',
         '  agentstudio-server:',
@@ -453,7 +453,7 @@ test('container deployment bundle smoke rejects packaged runtime profiles that l
       'utf8',
     );
     writeFileSync(
-      path.join(bundleRoot, 'deploy', 'docker', 'profiles', 'default.env'),
+      path.join(bundleRoot, 'deployments', 'docker', 'profiles', 'default.env'),
       [
         'CLAW_DEPLOYMENT_FAMILY=container',
         'CLAW_ACCELERATOR_PROFILE=cpu',
@@ -491,7 +491,7 @@ test('container deployment bundle smoke rejects accelerator bundles whose packag
   const bundleRoot = path.join(tempRoot, 'bundle');
 
   try {
-    mkdirSync(path.join(bundleRoot, 'deploy', 'docker', 'profiles'), { recursive: true });
+    mkdirSync(path.join(bundleRoot, 'deployments', 'docker', 'profiles'), { recursive: true });
     writeFileSync(
       path.join(bundleRoot, 'release-metadata.json'),
       `${JSON.stringify({
@@ -503,7 +503,7 @@ test('container deployment bundle smoke rejects accelerator bundles whose packag
       'utf8',
     );
     writeFileSync(
-      path.join(bundleRoot, 'deploy', 'docker', 'docker-compose.yml'),
+      path.join(bundleRoot, 'deployments', 'docker', 'docker-compose.yml'),
       [
         'services:',
         '  agentstudio-server:',
@@ -519,7 +519,7 @@ test('container deployment bundle smoke rejects accelerator bundles whose packag
       'utf8',
     );
     writeFileSync(
-      path.join(bundleRoot, 'deploy', 'docker', 'profiles', 'default.env'),
+      path.join(bundleRoot, 'deployments', 'docker', 'profiles', 'default.env'),
       [
         'CLAW_DEPLOYMENT_FAMILY=container',
         'CLAW_ACCELERATOR_PROFILE=cpu',
@@ -557,7 +557,7 @@ test('container deployment bundle smoke rejects packaged compose layouts missing
   const bundleRoot = path.join(tempRoot, 'bundle');
 
   try {
-    mkdirSync(path.join(bundleRoot, 'deploy', 'docker', 'profiles'), { recursive: true });
+    mkdirSync(path.join(bundleRoot, 'deployments', 'docker', 'profiles'), { recursive: true });
     writeFileSync(
       path.join(bundleRoot, 'release-metadata.json'),
       `${JSON.stringify({
@@ -569,7 +569,7 @@ test('container deployment bundle smoke rejects packaged compose layouts missing
       'utf8',
     );
     writeFileSync(
-      path.join(bundleRoot, 'deploy', 'docker', 'docker-compose.yml'),
+      path.join(bundleRoot, 'deployments', 'docker', 'docker-compose.yml'),
       [
         'services:',
         '  agentstudio-server:',
@@ -584,7 +584,7 @@ test('container deployment bundle smoke rejects packaged compose layouts missing
       'utf8',
     );
     writeFileSync(
-      path.join(bundleRoot, 'deploy', 'docker', 'profiles', 'default.env'),
+      path.join(bundleRoot, 'deployments', 'docker', 'profiles', 'default.env'),
       [
         'CLAW_DEPLOYMENT_FAMILY=container',
         'CLAW_ACCELERATOR_PROFILE=cpu',

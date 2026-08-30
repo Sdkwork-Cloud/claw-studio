@@ -8,11 +8,11 @@ function read(relativePath) {
   return fs.readFileSync(path.join(workspaceRoot, relativePath), 'utf8');
 }
 
-const dockerComposeSource = read('deploy/docker/docker-compose.yml');
-const dockerReadmeSource = read('deploy/docker/README.md');
-const helmValuesSource = read('deploy/kubernetes/values.yaml');
-const helmConfigMapSource = read('deploy/kubernetes/templates/configmap.yaml');
-const helmSecretSource = read('deploy/kubernetes/templates/secret.yaml');
+const dockerComposeSource = read('deployments/docker/docker-compose.yml');
+const dockerReadmeSource = read('deployments/docker/README.md');
+const helmValuesSource = read('deployments/kubernetes/values.yaml');
+const helmConfigMapSource = read('deployments/kubernetes/templates/configmap.yaml');
+const helmSecretSource = read('deployments/kubernetes/templates/secret.yaml');
 
 assert.match(
   dockerComposeSource,
@@ -44,7 +44,7 @@ for (const mode of ['builtin-local', 'sdkwork-cloud-app-api', 'external-user-cen
   assert.match(
     dockerReadmeSource,
     new RegExp('`' + mode + '`', 'u'),
-    `deploy/docker/README.md must document ${mode}.`,
+    `deployments/docker/README.md must document ${mode}.`,
   );
 }
 

@@ -20,19 +20,19 @@ The shared Rust host kernel is reused across deployment modes, but the deploymen
 ### 1. High: docker deployment in the source tree is bundle-relative and not self-validating
 
 Evidence:
-- `deploy/docker/README.md`
-- `deploy/docker/docker-compose.yml`
-- `deploy/docker/Dockerfile`
+- `deployments/docker/README.md`
+- `deployments/docker/docker-compose.yml`
+- `deployments/docker/Dockerfile`
 - `scripts/release/package-release-assets.mjs`
 - `scripts/package-release-assets.test.mjs`
 
 What is happening:
 
-- `deploy/docker/docker-compose.yml` uses:
+- `deployments/docker/docker-compose.yml` uses:
   - `context: ..`
   - `dockerfile: deploy/Dockerfile`
 - the source repository does not contain `deploy/Dockerfile`
-- the source repository does not contain `deploy/docker/app/start-agentstudio-server.sh`
+- the source repository does not contain `deployments/docker/app/start-agentstudio-server.sh`
 - release packaging later materializes a bundle where those paths become valid
 
 Why it matters:
@@ -58,8 +58,8 @@ Required direction:
 
 Evidence:
 - `scripts/release-deployment-contract.test.mjs`
-- `deploy/docker/README.md`
-- `deploy/kubernetes/templates/deployment.yaml`
+- `deployments/docker/README.md`
+- `deployments/kubernetes/templates/deployment.yaml`
 
 What is happening:
 
@@ -86,8 +86,8 @@ Required direction:
 ### 3. High: kubernetes chart still advertises readiness without runtime truth
 
 Evidence:
-- `deploy/kubernetes/templates/deployment.yaml`
-- `deploy/kubernetes/templates/configmap.yaml`
+- `deployments/kubernetes/templates/deployment.yaml`
+- `deployments/kubernetes/templates/configmap.yaml`
 - `packages/sdkwork-agentstudio-pc-server/src-host/src/http/routes/health.rs`
 
 What is happening:
@@ -111,7 +111,7 @@ Required direction:
 ### 4. Medium: docker image still lacks an image-native health contract
 
 Evidence:
-- `deploy/docker/Dockerfile`
+- `deployments/docker/Dockerfile`
 
 What is happening:
 

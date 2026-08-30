@@ -135,24 +135,24 @@ curl -u operator:manage-secret \
 
 容器镜像会直接启动规范的 `app/bin/agentstudio-server` 原生二进制，而不是通过可选的 shell wrapper 间接启动。
 
-以下命令需要在解压后的 bundle 根目录执行。Compose 文件会从 `deploy/docker/profiles/*` 解析环境覆盖项，并把 bundle 根目录作为 Docker build context。
+以下命令需要在解压后的 bundle 根目录执行。Compose 文件会从 `deployments/docker/profiles/*` 解析环境覆盖项，并把 bundle 根目录作为 Docker build context。
 
 基础部署：
 
 ```bash
-docker compose -f deploy/docker/docker-compose.yml up -d
+docker compose -f deployments/docker/docker-compose.yml up -d
 ```
 
 NVIDIA CUDA 覆盖层：
 
 ```bash
-docker compose -f deploy/docker/docker-compose.yml -f deploy/docker/docker-compose.nvidia-cuda.yml up -d
+docker compose -f deployments/docker/docker-compose.yml -f deployments/docker/docker-compose.nvidia-cuda.yml up -d
 ```
 
 AMD ROCm 覆盖层：
 
 ```bash
-docker compose -f deploy/docker/docker-compose.yml -f deploy/docker/docker-compose.amd-rocm.yml up -d
+docker compose -f deployments/docker/docker-compose.yml -f deployments/docker/docker-compose.amd-rocm.yml up -d
 ```
 
 ## Kubernetes 部署
@@ -220,8 +220,8 @@ Linux 或 macOS：
 ### 查看 Container 部署状态
 
 ```bash
-docker compose -f deploy/docker/docker-compose.yml ps
-docker compose -f deploy/docker/docker-compose.yml logs --tail=200
+docker compose -f deployments/docker/docker-compose.yml ps
+docker compose -f deployments/docker/docker-compose.yml logs --tail=200
 ```
 
 ### 查看 Kubernetes 部署状态

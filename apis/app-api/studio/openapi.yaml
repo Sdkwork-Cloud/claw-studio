@@ -2,32 +2,32 @@ openapi: 3.1.2
 info:
   title: SdkWork Agent Studio App API
   version: v1
-  description: >-
-    Authored OpenAPI contract for the Studio public app-api surface
-    (`/claw/api/v1/...`). SDKWork-owned custom API; success responses use the
-    `SdkWorkApiResponse` envelope and errors use `application/problem+json`
-    with `SdkWorkProblemDetail` (API_SPEC.md §15). Auth mode: `anonymous`.
+  description: 'Authored OpenAPI contract for the Studio public app-api surface (`/claw/api/v1/...`).
+    SDKWork-owned custom API; success responses use the `SdkWorkApiResponse` envelope
+    and errors use `application/problem+json` with `SdkWorkProblemDetail` (API_SPEC.md
+    §15). Auth mode: `anonymous`.'
   x-sdkwork-surface: app-api
   x-sdkwork-auth-mode: anonymous
 servers:
-  - url: /
-    description: Same-origin Claw server
+- url: /
+  description: Same-origin Claw server
 tags:
-  - name: studio
-    description: Studio public bootstrap and instance management APIs.
-  - name: studio.kernel-chat
-    description: Studio kernel chat session, run, and message APIs.
-  - name: studio.workbench
-    description: Studio workbench task, file, and LLM provider APIs.
-  - name: studio.conversations
-    description: Studio conversation persistence APIs.
-  - name: studio.gateway
-    description: Studio OpenClaw gateway invocation APIs.
+- name: studio
+  description: Studio public bootstrap and instance management APIs.
+- name: studio.kernel-chat
+  description: Studio kernel chat session, run, and message APIs.
+- name: studio.workbench
+  description: Studio workbench task, file, and LLM provider APIs.
+- name: studio.conversations
+  description: Studio conversation persistence APIs.
+- name: studio.gateway
+  description: Studio OpenClaw gateway invocation APIs.
 paths:
   /claw/api/v1/discovery:
     get:
-      tags: [studio]
-      operationId: studio.discovery.list
+      tags:
+      - studio
+      operationId: discovery.list
       summary: Read public native API discovery metadata
       x-sdkwork-auth-mode: anonymous
       responses:
@@ -37,26 +37,29 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/PublicApiDiscoveryRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/PublicApiDiscoveryRecord'
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances:
     get:
-      tags: [studio]
-      operationId: studio.instances.list
+      tags:
+      - studio
+      operationId: instances.list
       summary: List studio instances projected by the active host shell
       x-sdkwork-auth-mode: anonymous
       parameters:
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageQuery
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
       responses:
         '200':
           description: Current canonical studio instance records.
@@ -64,18 +67,18 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
                           items:
-                            type: array
-                            items:
-                              $ref: '#/components/schemas/StudioInstanceRecord'
-                          pageInfo:
-                            $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
+                            $ref: '#/components/schemas/StudioInstanceRecord'
+                        pageInfo:
+                          $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
         '500':
           description: The studio instance list could not be projected.
           content:
@@ -83,14 +86,16 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
     post:
-      tags: [studio]
-      operationId: studio.instances.create
+      tags:
+      - studio
+      operationId: instances.create
       summary: Create one studio instance through the active host shell
       x-sdkwork-auth-mode: anonymous
       requestBody:
@@ -102,11 +107,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioInstanceRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioInstanceRecord'
         '400':
           description: The studio instance creation payload was invalid.
           content:
@@ -120,31 +125,35 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioInstanceId'
     get:
-      tags: [studio]
-      operationId: studio.instances.retrieve
+      tags:
+      - studio
+      operationId: instances.retrieve
       summary: Read one studio instance projected by the active host shell
       x-sdkwork-auth-mode: anonymous
       responses:
         '200':
-          description: Requested canonical studio instance record or null when the instance does not exist.
+          description: Requested canonical studio instance record or null when the
+            instance does not exist.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioInstanceNullableRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioInstanceNullableRecord'
         '500':
           description: The studio instance record could not be projected.
           content:
@@ -152,14 +161,17 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
     put:
-      tags: [studio]
-      operationId: studio.instances.update
+      tags:
+      - studio
+      operationId: instances.update
       summary: Update one studio instance through the active host shell
       x-sdkwork-auth-mode: anonymous
       requestBody:
@@ -171,11 +183,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioInstanceRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioInstanceRecord'
         '400':
           description: The studio instance update payload was invalid.
           content:
@@ -189,14 +201,17 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
     delete:
-      tags: [studio]
-      operationId: studio.instances.delete
+      tags:
+      - studio
+      operationId: instances.delete
       summary: Delete one studio instance through the active host shell
       x-sdkwork-auth-mode: anonymous
       responses:
@@ -209,14 +224,17 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
     post:
-      tags: [studio]
-      operationId: studio.instances.invoke.create
+      tags:
+      - studio
+      operationId: instances.invoke.create
       summary: Invoke a generic lifecycle action on one studio instance
       x-sdkwork-auth-mode: anonymous
       requestBody:
@@ -228,11 +246,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioInstanceRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioInstanceRecord'
         '400':
           description: The studio instance action payload was invalid.
           content:
@@ -246,31 +264,36 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/detail:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioInstanceId'
     get:
-      tags: [studio]
-      operationId: studio.instances.detail.list
-      summary: Read one rich studio instance detail projection surfaced by the active host shell
+      tags:
+      - studio
+      operationId: instances.detail.list
+      summary: Read one rich studio instance detail projection surfaced by the active
+        host shell
       x-sdkwork-auth-mode: anonymous
       responses:
         '200':
-          description: Requested canonical studio instance detail record or null when the instance does not exist.
+          description: Requested canonical studio instance detail record or null when
+            the instance does not exist.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioInstanceDetailNullableRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioInstanceDetailNullableRecord'
         '500':
           description: The studio instance detail record could not be projected.
           content:
@@ -278,31 +301,36 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/config:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioInstanceId'
     get:
-      tags: [studio]
-      operationId: studio.instances.config.list
-      summary: Read one studio instance config projection surfaced by the active host shell
+      tags:
+      - studio
+      operationId: instances.config.list
+      summary: Read one studio instance config projection surfaced by the active host
+        shell
       x-sdkwork-auth-mode: anonymous
       responses:
         '200':
-          description: Requested canonical studio instance config record or null when the instance does not exist.
+          description: Requested canonical studio instance config record or null when
+            the instance does not exist.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioInstanceConfigNullableRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioInstanceConfigNullableRecord'
         '500':
           description: The studio instance config record could not be projected.
           content:
@@ -310,30 +338,35 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
     put:
-      tags: [studio]
-      operationId: studio.instances.config.update
-      summary: Update one studio instance config projection through the active host shell
+      tags:
+      - studio
+      operationId: instances.config.update
+      summary: Update one studio instance config projection through the active host
+        shell
       x-sdkwork-auth-mode: anonymous
       requestBody:
         $ref: '#/components/requestBodies/UpdateStudioInstanceConfig'
       responses:
         '200':
-          description: Updated canonical studio instance config record or null when the instance does not exist.
+          description: Updated canonical studio instance config record or null when
+            the instance does not exist.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioInstanceConfigNullableRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioInstanceConfigNullableRecord'
         '400':
           description: The studio instance config payload was invalid.
           content:
@@ -347,18 +380,22 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/logs:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioInstanceId'
     get:
-      tags: [studio]
-      operationId: studio.instances.logs.list
-      summary: Read one studio instance logs projection surfaced by the active host shell
+      tags:
+      - studio
+      operationId: instances.logs.list
+      summary: Read one studio instance logs projection surfaced by the active host
+        shell
       x-sdkwork-auth-mode: anonymous
       responses:
         '200':
@@ -367,11 +404,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioInstanceLogsRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioInstanceLogsRecord'
         '500':
           description: The studio instance logs could not be projected.
           content:
@@ -379,41 +416,46 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/conversations:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioInstanceId'
     get:
-      tags: [studio.conversations]
+      tags:
+      - studio.conversations
       operationId: studio.conversations.list
-      summary: List studio conversations projected for one instance by the active host shell
+      summary: List studio conversations projected for one instance by the active
+        host shell
       x-sdkwork-auth-mode: anonymous
       parameters:
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageQuery
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
       responses:
         '200':
-          description: Current canonical studio conversation records for the requested instance.
+          description: Current canonical studio conversation records for the requested
+            instance.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
                           items:
-                            type: array
-                            items:
-                              $ref: '#/components/schemas/StudioConversationRecord'
-                          pageInfo:
-                            $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
+                            $ref: '#/components/schemas/StudioConversationRecord'
+                        pageInfo:
+                          $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
         '500':
           description: The studio conversation list could not be projected.
           content:
@@ -421,18 +463,21 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
   /claw/api/v1/studio/conversations/{conversationId}:
     parameters:
-      - $ref: '#/components/parameters/StudioConversationId'
+    - $ref: '#/components/parameters/StudioConversationId'
     put:
-      tags: [studio.conversations]
+      tags:
+      - studio.conversations
       operationId: studio.conversations.update
-      summary: Create or replace one studio conversation projected by the active host shell
+      summary: Create or replace one studio conversation projected by the active host
+        shell
       x-sdkwork-auth-mode: anonymous
       requestBody:
         $ref: '#/components/requestBodies/UpsertStudioConversation'
@@ -443,11 +488,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioConversationRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioConversationRecord'
         '400':
           description: The studio conversation payload was invalid.
           content:
@@ -461,13 +506,16 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
     delete:
-      tags: [studio.conversations]
+      tags:
+      - studio.conversations
       operationId: studio.conversations.delete
       summary: Delete one studio conversation projected by the active host shell
       x-sdkwork-auth-mode: anonymous
@@ -481,41 +529,45 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/kernel-chat/agent-profiles:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioInstanceId'
     get:
-      tags: [studio.kernel-chat]
+      tags:
+      - studio.kernel-chat
       operationId: studio.kernel-chat.agent-profiles.list
       summary: List kernel chat agent profiles for one studio instance
       x-sdkwork-auth-mode: anonymous
       parameters:
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageQuery
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
       responses:
         '200':
-          description: Kernel chat agent profiles projected for the requested studio instance.
+          description: Kernel chat agent profiles projected for the requested studio
+            instance.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
                           items:
-                            type: array
-                            items:
-                              $ref: '#/components/schemas/KernelChatAgentProfile'
-                          pageInfo:
-                            $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
+                            $ref: '#/components/schemas/KernelChatAgentProfile'
+                        pageInfo:
+                          $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
         '500':
           description: The kernel chat agent profiles could not be listed.
           content:
@@ -523,22 +575,24 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
   /claw/api/v1/studio/instances/{id}/kernel-chat/sessions:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioInstanceId'
     get:
-      tags: [studio.kernel-chat]
+      tags:
+      - studio.kernel-chat
       operationId: studio.kernel-chat.sessions.list
       summary: List kernel chat sessions for one studio instance
       x-sdkwork-auth-mode: anonymous
       parameters:
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageQuery
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
       responses:
         '200':
           description: Kernel chat sessions projected for the requested studio instance.
@@ -546,18 +600,18 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
                           items:
-                            type: array
-                            items:
-                              $ref: '#/components/schemas/KernelChatSession'
-                          pageInfo:
-                            $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
+                            $ref: '#/components/schemas/KernelChatSession'
+                        pageInfo:
+                          $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
         '500':
           description: The kernel chat sessions could not be listed.
           content:
@@ -565,13 +619,15 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
     post:
-      tags: [studio.kernel-chat]
+      tags:
+      - studio.kernel-chat
       operationId: studio.kernel-chat.sessions.create
       summary: Create one kernel chat session for one studio instance
       x-sdkwork-auth-mode: anonymous
@@ -584,11 +640,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/KernelChatSession'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/KernelChatSession'
         '400':
           description: The kernel chat session creation payload was invalid.
           content:
@@ -602,32 +658,36 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/kernel-chat/sessions/{sessionId}:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
-      - $ref: '#/components/parameters/StudioSessionId'
+    - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioSessionId'
     get:
-      tags: [studio.kernel-chat]
+      tags:
+      - studio.kernel-chat
       operationId: studio.kernel-chat.sessions.retrieve
       summary: Read one kernel chat session for one studio instance
       x-sdkwork-auth-mode: anonymous
       responses:
         '200':
-          description: Requested kernel chat session or null when the session does not exist.
+          description: Requested kernel chat session or null when the session does
+            not exist.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/KernelChatSessionNullableRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/KernelChatSessionNullableRecord'
         '500':
           description: The kernel chat session could not be loaded.
           content:
@@ -635,13 +695,16 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
     patch:
-      tags: [studio.kernel-chat]
+      tags:
+      - studio.kernel-chat
       operationId: studio.kernel-chat.sessions.update
       summary: Patch one kernel chat session for one studio instance
       x-sdkwork-auth-mode: anonymous
@@ -654,11 +717,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/KernelChatSession'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/KernelChatSession'
         '400':
           description: The kernel chat session patch payload was invalid.
           content:
@@ -672,13 +735,16 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
     delete:
-      tags: [studio.kernel-chat]
+      tags:
+      - studio.kernel-chat
       operationId: studio.kernel-chat.sessions.delete
       summary: Delete one kernel chat session for one studio instance
       x-sdkwork-auth-mode: anonymous
@@ -692,13 +758,16 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
     post:
-      tags: [studio.kernel-chat]
+      tags:
+      - studio.kernel-chat
       operationId: studio.kernel-chat.sessions.invoke.create
       summary: Invoke a generic action on one kernel chat session (e.g. run, abort)
       x-sdkwork-auth-mode: anonymous
@@ -711,14 +780,14 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        oneOf:
-                          - $ref: '#/components/schemas/KernelChatSession'
-                          - $ref: '#/components/schemas/KernelChatRun'
-                          - $ref: '#/components/schemas/StudioWorkbenchMutationResult'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      oneOf:
+                      - $ref: '#/components/schemas/KernelChatSession'
+                      - $ref: '#/components/schemas/KernelChatRun'
+                      - $ref: '#/components/schemas/StudioWorkbenchMutationResult'
         '400':
           description: The kernel chat session action payload was invalid.
           content:
@@ -732,42 +801,46 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/kernel-chat/sessions/{sessionId}/runs:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
-      - $ref: '#/components/parameters/StudioSessionId'
+    - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioSessionId'
     get:
-      tags: [studio.kernel-chat]
+      tags:
+      - studio.kernel-chat
       operationId: studio.kernel-chat.runs.list
       summary: List kernel chat runs for one studio instance session
       x-sdkwork-auth-mode: anonymous
       parameters:
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/CursorQuery
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/CursorQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
       responses:
         '200':
-          description: Kernel chat runs projected for the requested studio instance session.
+          description: Kernel chat runs projected for the requested studio instance
+            session.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
                           items:
-                            type: array
-                            items:
-                              $ref: '#/components/schemas/KernelChatRun'
-                          pageInfo:
-                            $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
+                            $ref: '#/components/schemas/KernelChatRun'
+                        pageInfo:
+                          $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
         '500':
           description: The kernel chat runs could not be loaded.
           content:
@@ -775,18 +848,20 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
   /claw/api/v1/studio/instances/{id}/kernel-chat/sessions/{sessionId}/runs/{runId}:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
-      - $ref: '#/components/parameters/StudioSessionId'
-      - $ref: '#/components/parameters/StudioRunId'
+    - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioSessionId'
+    - $ref: '#/components/parameters/StudioRunId'
     get:
-      tags: [studio.kernel-chat]
+      tags:
+      - studio.kernel-chat
       operationId: studio.kernel-chat.runs.retrieve
       summary: Read one kernel chat run for one studio instance session
       x-sdkwork-auth-mode: anonymous
@@ -797,11 +872,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/KernelChatRunNullableRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/KernelChatRunNullableRecord'
         '500':
           description: The kernel chat run could not be loaded.
           content:
@@ -809,42 +884,46 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/kernel-chat/sessions/{sessionId}/messages:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
-      - $ref: '#/components/parameters/StudioSessionId'
+    - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioSessionId'
     get:
-      tags: [studio.kernel-chat]
+      tags:
+      - studio.kernel-chat
       operationId: studio.kernel-chat.messages.list
       summary: Load kernel chat messages for one studio instance session
       x-sdkwork-auth-mode: anonymous
       parameters:
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/CursorQuery
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/CursorQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
       responses:
         '200':
-          description: Kernel chat messages projected for the requested studio instance session.
+          description: Kernel chat messages projected for the requested studio instance
+            session.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
                           items:
-                            type: array
-                            items:
-                              $ref: '#/components/schemas/KernelChatMessage'
-                          pageInfo:
-                            $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
+                            $ref: '#/components/schemas/KernelChatMessage'
+                        pageInfo:
+                          $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
         '500':
           description: The kernel chat messages could not be loaded.
           content:
@@ -852,16 +931,18 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
   /claw/api/v1/studio/instances/{id}/gateway/invoke:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioInstanceId'
     post:
-      tags: [studio.gateway]
+      tags:
+      - studio.gateway
       operationId: studio.gateway.invoke
       summary: Invoke one OpenClaw gateway through the active host shell
       x-sdkwork-auth-mode: anonymous
@@ -874,11 +955,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioOpenClawGatewayInvokeResult'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioOpenClawGatewayInvokeResult'
         '400':
           description: The OpenClaw gateway invocation payload was invalid.
           content:
@@ -892,16 +973,19 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The OpenClaw gateway is not available for the requested studio instance.
+          description: The OpenClaw gateway is not available for the requested studio
+            instance.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/tasks:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioInstanceId'
     post:
-      tags: [studio.workbench]
+      tags:
+      - studio.workbench
       operationId: studio.tasks.create
       summary: Create one managed studio workbench task
       x-sdkwork-auth-mode: anonymous
@@ -914,11 +998,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioNullResult'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioNullResult'
         '400':
           description: The managed studio workbench task payload was invalid.
           content:
@@ -932,17 +1016,20 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/tasks/{taskId}:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
-      - $ref: '#/components/parameters/StudioTaskId'
+    - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioTaskId'
     put:
-      tags: [studio.workbench]
+      tags:
+      - studio.workbench
       operationId: studio.tasks.update
       summary: Update one managed studio workbench task
       x-sdkwork-auth-mode: anonymous
@@ -955,11 +1042,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioNullResult'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioNullResult'
         '400':
           description: The managed studio workbench task payload was invalid.
           content:
@@ -973,13 +1060,16 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
     delete:
-      tags: [studio.workbench]
+      tags:
+      - studio.workbench
       operationId: studio.tasks.delete
       summary: Delete one managed studio workbench task
       x-sdkwork-auth-mode: anonymous
@@ -993,15 +1083,19 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
     post:
-      tags: [studio.workbench]
+      tags:
+      - studio.workbench
       operationId: studio.tasks.invoke.create
-      summary: Invoke a generic action on one managed studio workbench task (e.g. run, clone, status)
+      summary: Invoke a generic action on one managed studio workbench task (e.g.
+        run, clone, status)
       x-sdkwork-auth-mode: anonymous
       requestBody:
         $ref: '#/components/requestBodies/StudioTaskAction'
@@ -1012,14 +1106,14 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        oneOf:
-                          - $ref: '#/components/schemas/StudioNullResult'
-                          - $ref: '#/components/schemas/StudioWorkbenchMutationResult'
-                          - $ref: '#/components/schemas/StudioWorkbenchTaskExecutionRecord'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      oneOf:
+                      - $ref: '#/components/schemas/StudioNullResult'
+                      - $ref: '#/components/schemas/StudioWorkbenchMutationResult'
+                      - $ref: '#/components/schemas/StudioWorkbenchTaskExecutionRecord'
         '400':
           description: The managed studio workbench task action payload was invalid.
           content:
@@ -1033,23 +1127,26 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/tasks/{taskId}/executions:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
-      - $ref: '#/components/parameters/StudioTaskId'
+    - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioTaskId'
     get:
-      tags: [studio.workbench]
+      tags:
+      - studio.workbench
       operationId: studio.tasks.executions.list
       summary: List managed studio workbench task executions
       x-sdkwork-auth-mode: anonymous
       parameters:
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/CursorQuery
-        - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/CursorQuery
+      - $ref: ../../schemas/sdkwork-common.yaml#/components/parameters/PageSizeQuery
       responses:
         '200':
           description: Managed studio workbench task execution records.
@@ -1057,18 +1154,18 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
                           items:
-                            type: array
-                            items:
-                              $ref: '#/components/schemas/StudioWorkbenchTaskExecutionRecord'
-                          pageInfo:
-                            $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
+                            $ref: '#/components/schemas/StudioWorkbenchTaskExecutionRecord'
+                        pageInfo:
+                          $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/PageInfo
         '500':
           description: The managed studio workbench task executions could not be listed.
           content:
@@ -1076,17 +1173,19 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
   /claw/api/v1/studio/instances/{id}/files/{fileId}:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
-      - $ref: '#/components/parameters/StudioFileId'
+    - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioFileId'
     put:
-      tags: [studio.workbench]
+      tags:
+      - studio.workbench
       operationId: studio.files.update
       summary: Update one managed studio workbench file
       x-sdkwork-auth-mode: anonymous
@@ -1099,11 +1198,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioWorkbenchMutationResult'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioWorkbenchMutationResult'
         '400':
           description: The managed studio workbench file payload was invalid.
           content:
@@ -1117,17 +1216,20 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
   /claw/api/v1/studio/instances/{id}/llm-providers/{providerId}:
     parameters:
-      - $ref: '#/components/parameters/StudioInstanceId'
-      - $ref: '#/components/parameters/StudioProviderId'
+    - $ref: '#/components/parameters/StudioInstanceId'
+    - $ref: '#/components/parameters/StudioProviderId'
     put:
-      tags: [studio.workbench]
+      tags:
+      - studio.workbench
       operationId: studio.llm-providers.update
       summary: Update one managed studio workbench LLM provider
       x-sdkwork-auth-mode: anonymous
@@ -1140,11 +1242,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/StudioWorkbenchMutationResult'
+                - $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkApiResponse
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StudioWorkbenchMutationResult'
         '400':
           description: The managed studio workbench LLM provider payload was invalid.
           content:
@@ -1158,11 +1260,13 @@ paths:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
         '503':
-          description: The canonical studio public API is not available for the active host shell.
+          description: The canonical studio public API is not available for the active
+            host shell.
           content:
             application/problem+json:
               schema:
                 $ref: ../../schemas/sdkwork-common.yaml#/components/schemas/SdkWorkProblemDetail
+      parameters: []
 components:
   parameters:
     StudioInstanceId:
@@ -1271,8 +1375,8 @@ components:
         application/json:
           schema:
             oneOf:
-              - $ref: '#/components/schemas/StudioStartKernelChatRunInput'
-              - $ref: '#/components/schemas/StudioAbortKernelChatRunInput'
+            - $ref: '#/components/schemas/StudioStartKernelChatRunInput'
+            - $ref: '#/components/schemas/StudioAbortKernelChatRunInput'
     InvokeStudioOpenClawGateway:
       required: true
       description: OpenClaw gateway invocation payload.
@@ -1294,8 +1398,8 @@ components:
         application/json:
           schema:
             oneOf:
-              - $ref: '#/components/schemas/StudioTaskCloneInput'
-              - $ref: '#/components/schemas/StudioTaskStatusInput'
+            - $ref: '#/components/schemas/StudioTaskCloneInput'
+            - $ref: '#/components/schemas/StudioTaskStatusInput'
     UpdateStudioFileContent:
       required: true
       description: Managed studio workbench file content update request.
@@ -1341,7 +1445,8 @@ components:
           minimum: 0
     StudioInstanceRecord:
       type: object
-      description: Studio instance projection surfaced by the canonical host public API.
+      description: Studio instance projection surfaced by the canonical host public
+        API.
       properties:
         id:
           type: string
@@ -1349,8 +1454,8 @@ components:
           type: string
         description:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         status:
           type: string
         isBuiltIn:
@@ -1359,31 +1464,31 @@ components:
           type: boolean
         baseUrl:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         websocketUrl:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
       additionalProperties: true
     StudioInstanceNullableRecord:
       oneOf:
-        - $ref: '#/components/schemas/StudioInstanceRecord'
-        - type: "null"
+      - $ref: '#/components/schemas/StudioInstanceRecord'
+      - type: 'null'
     StudioCreateInstanceInput:
       type: object
       required:
-        - name
-        - runtimeKind
-        - deploymentMode
-        - transportKind
+      - name
+      - runtimeKind
+      - deploymentMode
+      - transportKind
       properties:
         name:
           type: string
         description:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         runtimeKind:
           type: string
         deploymentMode:
@@ -1392,95 +1497,95 @@ components:
           type: string
         iconType:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         version:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         typeLabel:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         host:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         port:
           type:
-            - integer
-            - "null"
+          - integer
+          - 'null'
           minimum: 0
         baseUrl:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         websocketUrl:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         storage:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
         config:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
     StudioUpdateInstanceInput:
       type: object
       properties:
         name:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         description:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         iconType:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         version:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         typeLabel:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         host:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         port:
           type:
-            - integer
-            - "null"
+          - integer
+          - 'null'
           minimum: 0
         baseUrl:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         websocketUrl:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         status:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         isDefault:
           type:
-            - boolean
-            - "null"
+          - boolean
+          - 'null'
         config:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
     StudioInstanceActionInput:
       type: object
@@ -1491,11 +1596,11 @@ components:
           description: Lifecycle action discriminator (e.g. start, stop, restart).
         args:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
       required:
-        - action
+      - action
     StudioInstanceDeleteResult:
       type: boolean
       description: Whether the requested canonical studio instance was deleted.
@@ -1544,19 +1649,19 @@ components:
             additionalProperties: true
         consoleAccess:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
         workbench:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
       additionalProperties: true
     StudioInstanceDetailNullableRecord:
       oneOf:
-        - $ref: '#/components/schemas/StudioInstanceDetailRecord'
-        - type: "null"
+      - $ref: '#/components/schemas/StudioInstanceDetailRecord'
+      - type: 'null'
     StudioInstanceConfigRecord:
       type: object
       properties:
@@ -1572,38 +1677,41 @@ components:
           type: string
         workspacePath:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         baseUrl:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         websocketUrl:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         authToken:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
       additionalProperties: true
     StudioInstanceConfigNullableRecord:
       oneOf:
-        - $ref: '#/components/schemas/StudioInstanceConfigRecord'
-        - type: "null"
+      - $ref: '#/components/schemas/StudioInstanceConfigRecord'
+      - type: 'null'
     StudioInstanceLogsRecord:
       type: string
-      description: Studio instance logs projection surfaced by the canonical host public API.
+      description: Studio instance logs projection surfaced by the canonical host
+        public API.
     StudioNullResult:
-      type: "null"
-      description: The canonical studio public API completed the requested mutation without a response payload.
+      type: 'null'
+      description: The canonical studio public API completed the requested mutation
+        without a response payload.
     StudioWorkbenchMutationResult:
       type: boolean
-      description: Whether the requested managed studio workbench mutation changed persisted state.
+      description: Whether the requested managed studio workbench mutation changed
+        persisted state.
     StudioOpenClawGatewayInvokePayload:
       type: object
       required:
-        - request
+      - request
       properties:
         request:
           $ref: '#/components/schemas/StudioOpenClawGatewayInvokeRequest'
@@ -1612,38 +1720,38 @@ components:
     StudioOpenClawGatewayInvokeRequest:
       type: object
       required:
-        - tool
+      - tool
       properties:
         tool:
           type: string
         action:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         args:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
         sessionKey:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         dryRun:
           type:
-            - boolean
-            - "null"
+          - boolean
+          - 'null'
     StudioOpenClawGatewayInvokeOptions:
       type: object
       properties:
         messageChannel:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         accountId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         headers:
           type: object
           additionalProperties:
@@ -1655,27 +1763,27 @@ components:
     StudioCreateKernelChatSessionInput:
       type: object
       required:
-        - instanceId
+      - instanceId
       properties:
         instanceId:
           type: string
         model:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         agentId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         title:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
     StudioPatchKernelChatSessionInput:
       type: object
       required:
-        - instanceId
-        - sessionId
+      - instanceId
+      - sessionId
       properties:
         instanceId:
           type: string
@@ -1683,34 +1791,34 @@ components:
           type: string
         title:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         model:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         thinkingLevel:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         fastMode:
           type:
-            - boolean
-            - "null"
+          - boolean
+          - 'null'
         verboseLevel:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         reasoningLevel:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
     StudioStartKernelChatRunInput:
       type: object
       required:
-        - instanceId
-        - sessionId
-        - content
+      - instanceId
+      - sessionId
+      - content
       properties:
         instanceId:
           type: string
@@ -1720,15 +1828,15 @@ components:
           type: string
         model:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
     StudioAbortKernelChatRunInput:
       type: object
       properties:
         runId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
     KernelChatAgentProfile:
       type: object
       properties:
@@ -1742,22 +1850,22 @@ components:
           type: string
         description:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         source:
           type: string
         systemPrompt:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         avatar:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         creator:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
       additionalProperties: true
     KernelChatSessionRef:
       type: object
@@ -1770,20 +1878,20 @@ components:
           type: string
         providerSessionId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         routingKey:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         agentId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         lineageParentSessionId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
     KernelChatAuthority:
       type: object
       properties:
@@ -1820,21 +1928,21 @@ components:
           minimum: 0
         lastMessagePreview:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         sessionKind:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         actorBinding:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
         modelBinding:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
         capabilities:
           type: array
@@ -1842,18 +1950,18 @@ components:
             type: string
         activeRunId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         nativeMetadata:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
       additionalProperties: true
     KernelChatSessionNullableRecord:
       oneOf:
-        - $ref: '#/components/schemas/KernelChatSession'
-        - type: "null"
+      - $ref: '#/components/schemas/KernelChatSession'
+      - type: 'null'
     KernelChatRun:
       type: object
       properties:
@@ -1875,14 +1983,14 @@ components:
           type: boolean
         nativeMetadata:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
       additionalProperties: true
     KernelChatRunNullableRecord:
       oneOf:
-        - $ref: '#/components/schemas/KernelChatRun'
-        - type: "null"
+      - $ref: '#/components/schemas/KernelChatRun'
+      - type: 'null'
     KernelChatMessage:
       type: object
       properties:
@@ -1911,20 +2019,20 @@ components:
             additionalProperties: true
         runId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         model:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         senderLabel:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         nativeMetadata:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
       additionalProperties: true
     StudioTaskMutationInput:
@@ -1932,34 +2040,34 @@ components:
       properties:
         id:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         name:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         enabled:
           type:
-            - boolean
-            - "null"
+          - boolean
+          - 'null'
         description:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         schedule:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
         payload:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
         delivery:
           type:
-            - object
-            - "null"
+          - object
+          - 'null'
           additionalProperties: true
       additionalProperties: true
     StudioTaskCloneInput:
@@ -1967,18 +2075,18 @@ components:
       properties:
         name:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
     StudioTaskStatusInput:
       type: object
       required:
-        - status
+      - status
       properties:
         status:
           type: string
           enum:
-            - active
-            - paused
+          - active
+          - paused
     StudioWorkbenchTaskExecutionRecord:
       type: object
       properties:
@@ -1994,29 +2102,29 @@ components:
           type: string
         finishedAt:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         summary:
           type: string
         details:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
       additionalProperties: true
     StudioFileContentUpdateInput:
       type: object
       required:
-        - content
+      - content
       properties:
         content:
           type: string
     StudioUpdateInstanceLlmProviderConfigInput:
       type: object
       required:
-        - endpoint
-        - apiKeySource
-        - defaultModelId
-        - config
+      - endpoint
+      - apiKeySource
+      - defaultModelId
+      - config
       properties:
         endpoint:
           type: string
@@ -2026,12 +2134,12 @@ components:
           type: string
         reasoningModelId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         embeddingModelId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         config:
           type: object
           additionalProperties: true
@@ -2047,8 +2155,8 @@ components:
           type: string
         url:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
       additionalProperties: true
     StudioConversationMessageRecord:
       type: object
@@ -2071,12 +2179,12 @@ components:
           minimum: 0
         model:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         senderInstanceId:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         status:
           type: string
         attachments:
@@ -2110,8 +2218,8 @@ components:
           minimum: 0
         lastMessagePreview:
           type:
-            - string
-            - "null"
+          - string
+          - 'null'
         messages:
           type: array
           items:

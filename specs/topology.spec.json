@@ -526,7 +526,8 @@
         ],
         "healthSurfaces": [
           "application.public-ingress"
-        ]
+        ],
+        "browserDeliveries": []
       },
       "cloud.development": {
         "processes": [
@@ -564,7 +565,8 @@
       },
       "standalone.production": {
         "processes": [],
-        "healthSurfaces": []
+        "healthSurfaces": [],
+        "browserDeliveries": []
       },
       "cloud.production": {
         "processes": [],
@@ -608,11 +610,13 @@
         ],
         "healthSurfaces": [
           "application.public-ingress"
-        ]
+        ],
+        "browserDeliveries": []
       },
       "standalone.staging": {
         "processes": [],
-        "healthSurfaces": []
+        "healthSurfaces": [],
+        "browserDeliveries": []
       },
       "cloud.test": {
         "processes": [
@@ -654,7 +658,8 @@
       },
       "standalone.demo": {
         "processes": [],
-        "healthSurfaces": []
+        "healthSurfaces": [],
+        "browserDeliveries": []
       },
       "cloud.demo": {
         "processes": [],
@@ -664,9 +669,9 @@
   },
   "retired": {
     "profileFiles": [
-      "deploy/profiles/standalone.development.env",
-      "deploy/profiles/cloud.staging.env",
-      "deploy/profiles/cloud.production.env"
+      "deployments/profiles/standalone.development.env",
+      "deployments/profiles/cloud.staging.env",
+      "deployments/profiles/cloud.production.env"
     ]
   },
   "packaging": {

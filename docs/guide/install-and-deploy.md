@@ -211,8 +211,8 @@ Use `service print-manifest --platform <linux|macos|windows>` when you need to i
 ### Inspect Container Deployment State
 
 ```bash
-docker compose -f deploy/docker/docker-compose.yml ps
-docker compose -f deploy/docker/docker-compose.yml logs --tail=200
+docker compose -f deployments/docker/docker-compose.yml ps
+docker compose -f deployments/docker/docker-compose.yml logs --tail=200
 ```
 
 ### Inspect Kubernetes Deployment State
@@ -236,24 +236,24 @@ Use a browser or curl against:
 The container bundle packages the server runtime under `app/` and ships Docker deployment files under `deploy/`.
 Inside the image, Docker starts the canonical bundled binary at `app/bin/agentstudio-server` directly rather than routing through the optional shell wrapper.
 
-Run these commands from the extracted bundle root. The compose files resolve env overlays from `deploy/docker/profiles/*` and use the extracted bundle root as the Docker build context.
+Run these commands from the extracted bundle root. The compose files resolve env overlays from `deployments/docker/profiles/*` and use the extracted bundle root as the Docker build context.
 
 Base deployment:
 
 ```bash
-docker compose -f deploy/docker/docker-compose.yml up -d
+docker compose -f deployments/docker/docker-compose.yml up -d
 ```
 
 NVIDIA CUDA overlay:
 
 ```bash
-docker compose -f deploy/docker/docker-compose.yml -f deploy/docker/docker-compose.nvidia-cuda.yml up -d
+docker compose -f deployments/docker/docker-compose.yml -f deployments/docker/docker-compose.nvidia-cuda.yml up -d
 ```
 
 AMD ROCm overlay:
 
 ```bash
-docker compose -f deploy/docker/docker-compose.yml -f deploy/docker/docker-compose.amd-rocm.yml up -d
+docker compose -f deployments/docker/docker-compose.yml -f deployments/docker/docker-compose.amd-rocm.yml up -d
 ```
 
 ## Kubernetes Deployment

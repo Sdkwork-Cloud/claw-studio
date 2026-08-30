@@ -299,14 +299,14 @@ function resolveExpectedKubernetesNodeArch(arch = '') {
 }
 
 function resolveContainerComposeFilePaths(accelerator = 'cpu') {
-  const composeFiles = ['deploy/docker/docker-compose.yml'];
+  const composeFiles = ['deployments/docker/docker-compose.yml'];
   const normalizedAccelerator = String(accelerator ?? '').trim().toLowerCase() || 'cpu';
 
   if (normalizedAccelerator === 'nvidia-cuda') {
-    composeFiles.push('deploy/docker/docker-compose.nvidia-cuda.yml');
+    composeFiles.push('deployments/docker/docker-compose.nvidia-cuda.yml');
   }
   if (normalizedAccelerator === 'amd-rocm') {
-    composeFiles.push('deploy/docker/docker-compose.amd-rocm.yml');
+    composeFiles.push('deployments/docker/docker-compose.amd-rocm.yml');
   }
 
   return composeFiles;
@@ -441,15 +441,15 @@ export function inspectContainerDeploymentContract({
   bundleRoot,
   accelerator = 'cpu',
 } = {}) {
-  const composePath = path.join(bundleRoot, 'deploy', 'docker', 'docker-compose.yml');
-  const defaultProfilePath = path.join(bundleRoot, 'deploy', 'docker', 'profiles', 'default.env');
+  const composePath = path.join(bundleRoot, 'deployments', 'docker', 'docker-compose.yml');
+  const defaultProfilePath = path.join(bundleRoot, 'deployments', 'docker', 'profiles', 'default.env');
   const releaseMetadata = requireDeploymentBundleReleaseMetadata(bundleRoot);
   const normalizedAccelerator = normalizeDeploymentAccelerator(accelerator);
   if (!existsSync(composePath)) {
-    throw new Error(`Packaged container bundle is missing deploy/docker/docker-compose.yml: ${composePath}`);
+    throw new Error(`Packaged container bundle is missing deployments/docker/docker-compose.yml: ${composePath}`);
   }
   if (!existsSync(defaultProfilePath)) {
-    throw new Error(`Packaged container bundle is missing deploy/docker/profiles/default.env: ${defaultProfilePath}`);
+    throw new Error(`Packaged container bundle is missing deployments/docker/profiles/default.env: ${defaultProfilePath}`);
   }
 
   const composeDefinition = readFileSync(composePath, 'utf8');
@@ -704,7 +704,7 @@ export async function smokeContainerDeploymentBundle({
     }));
 
     return {
-      launcherRelativePath: 'deploy/docker/docker-compose.yml',
+      launcherRelativePath: 'deployments/docker/docker-compose.yml',
       runtimeBaseUrl: baseUrl,
       checks,
     };

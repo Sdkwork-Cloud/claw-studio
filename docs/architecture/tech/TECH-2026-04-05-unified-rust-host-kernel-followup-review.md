@@ -139,8 +139,8 @@ Current state:
 
 Evidence:
 - `packages/sdkwork-agentstudio-pc-chat/src/store/studioConversationGateway.ts`
-- `deploy/kubernetes/templates/deployment.yaml`
-- `deploy/kubernetes/values.yaml`
+- `deployments/kubernetes/templates/deployment.yaml`
+- `deployments/kubernetes/values.yaml`
 - `scripts/release-deployment-contract.test.mjs`
 
 Current state:

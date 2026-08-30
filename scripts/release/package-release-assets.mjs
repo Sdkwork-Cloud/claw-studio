@@ -67,8 +67,8 @@ const desktopTauriConfigPath = path.join(
   'src-tauri',
   'tauri.conf.json',
 );
-const dockerDeploymentDir = path.join(rootDir, 'deploy', 'docker');
-const kubernetesDeploymentDir = path.join(rootDir, 'deploy', 'kubernetes');
+const dockerDeploymentDir = path.join(rootDir, 'deployments', 'docker');
+const kubernetesDeploymentDir = path.join(rootDir, 'deployments', 'kubernetes');
 const DEFAULT_SERVER_BINARY_NAME = 'agentstudio-server';
 const DEFAULT_DEPLOYMENT_ACCELERATOR = 'cpu';
 const DEFAULT_KUBERNETES_IMAGE_REPOSITORY = 'agent-studio-server';
@@ -457,7 +457,7 @@ function writeDeploymentBundleReadme({
   imageDigest = '',
 }) {
   const deploymentCommand = family === 'container'
-    ? 'docker compose -f deploy/docker/docker-compose.yml up -d'
+    ? 'docker compose -f deployments/docker/docker-compose.yml up -d'
     : 'helm upgrade --install agent-studio ./chart -f values.release.yaml';
 
   writeFileSync(
@@ -1101,7 +1101,7 @@ export function packageContainerAssets({
       serverWebDistDir,
       serverEnvPath,
     });
-    cpSync(deploymentSourceDir, path.join(bundleRoot, 'deploy', 'docker'), { recursive: true });
+    cpSync(deploymentSourceDir, path.join(bundleRoot, 'deployments', 'docker'), { recursive: true });
     if (existsSync(path.join(deploymentSourceDir, '.dockerignore'))) {
       cpSync(
         path.join(deploymentSourceDir, '.dockerignore'),

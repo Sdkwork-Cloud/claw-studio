@@ -208,16 +208,16 @@ Why it matters:
 ### 8. Deployment bootstrap contracts now distinguish source templates, packaged bundles, and runtime health evidence
 
 Files:
-- `deploy/docker/README.md`
+- `deployments/docker/README.md`
 - `docs/core/release-and-deployment.md`
-- `deploy/docker/Dockerfile`
+- `deployments/docker/Dockerfile`
 - `scripts/release-deployment-contract.test.mjs`
 - `scripts/package-release-assets.test.mjs`
 - `docs/reports/2026-04-05-unified-rust-host-deployment-bootstrap-smoke.md`
 
 What changed:
 
-- docker deployment docs now state explicitly that repository review happens under `deploy/docker/*`, while runnable bundle commands execute from the extracted bundle root under `deploy/*`
+- docker deployment docs now state explicitly that repository review happens under `deployments/docker/*`, while runnable bundle commands execute from the extracted bundle root under `deploy/*`
 - package-release contract coverage now preserves that same README contract inside the emitted container bundle, so reviewers and operators see the same path semantics
 - the container image now installs `curl` and publishes a native `HEALTHCHECK` against `http://127.0.0.1:18797/claw/health/ready`
 - deployment contract tests now require:
@@ -231,7 +231,7 @@ What changed:
 
 Why it matters:
 
-- code review no longer has to infer whether `deploy/docker/*` is runnable as-is or only after packaging transforms
+- code review no longer has to infer whether `deployments/docker/*` is runnable as-is or only after packaging transforms
 - the docker image, helm chart, and Rust readiness route now point at the same truthful readiness surface
 - release sign-off now has an explicit deployment smoke evidence template even when live docker/k8s execution still has to happen outside this sandbox
 

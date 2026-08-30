@@ -10,13 +10,13 @@ function read(relativePath) {
 }
 
 test('docker deployment templates keep compose commands and overlay profiles aligned with the packaged bundle layout', () => {
-  const dockerReadme = read('deploy/docker/README.md');
-  const dockerCompose = read('deploy/docker/docker-compose.yml');
-  const nvidiaCompose = read('deploy/docker/docker-compose.nvidia-cuda.yml');
-  const amdCompose = read('deploy/docker/docker-compose.amd-rocm.yml');
-  const defaultEnv = read('deploy/docker/profiles/default.env');
-  const nvidiaEnv = read('deploy/docker/profiles/nvidia-cuda.env');
-  const amdEnv = read('deploy/docker/profiles/amd-rocm.env');
+  const dockerReadme = read('deployments/docker/README.md');
+  const dockerCompose = read('deployments/docker/docker-compose.yml');
+  const nvidiaCompose = read('deployments/docker/docker-compose.nvidia-cuda.yml');
+  const amdCompose = read('deployments/docker/docker-compose.amd-rocm.yml');
+  const defaultEnv = read('deployments/docker/profiles/default.env');
+  const nvidiaEnv = read('deployments/docker/profiles/nvidia-cuda.env');
+  const amdEnv = read('deployments/docker/profiles/amd-rocm.env');
   const releaseDoc = read('docs/core/release-and-deployment.md');
 
   assert.match(dockerReadme, /docker compose -f deploy\/docker\/docker-compose\.yml up -d/);
@@ -46,7 +46,7 @@ test('docker deployment templates keep compose commands and overlay profiles ali
   assert.match(
     dockerCompose,
     /dockerfile:\s+deploy\/docker\/Dockerfile/,
-    'source-tree docker compose must reference deploy/docker/Dockerfile before packaging rewrites the bundle layout',
+    'source-tree docker compose must reference deployments/docker/Dockerfile before packaging rewrites the bundle layout',
   );
   assert.match(dockerCompose, /profiles\/default\.env/);
   assert.match(dockerCompose, /18797:18797/);
@@ -90,16 +90,16 @@ test('docker deployment templates keep compose commands and overlay profiles ali
 });
 
 test('kubernetes deployment templates keep accelerator overlays and chart wiring aligned', () => {
-  const kubernetesReadme = read('deploy/kubernetes/README.md');
-  const chart = read('deploy/kubernetes/Chart.yaml');
-  const values = read('deploy/kubernetes/values.yaml');
-  const cpuValues = read('deploy/kubernetes/values-cpu.yaml');
-  const nvidiaValues = read('deploy/kubernetes/values-nvidia-cuda.yaml');
-  const amdValues = read('deploy/kubernetes/values-amd-rocm.yaml');
-  const configmap = read('deploy/kubernetes/templates/configmap.yaml');
-  const deployment = read('deploy/kubernetes/templates/deployment.yaml');
-  const secret = read('deploy/kubernetes/templates/secret.yaml');
-  const pvc = read('deploy/kubernetes/templates/persistentvolumeclaim.yaml');
+  const kubernetesReadme = read('deployments/kubernetes/README.md');
+  const chart = read('deployments/kubernetes/Chart.yaml');
+  const values = read('deployments/kubernetes/values.yaml');
+  const cpuValues = read('deployments/kubernetes/values-cpu.yaml');
+  const nvidiaValues = read('deployments/kubernetes/values-nvidia-cuda.yaml');
+  const amdValues = read('deployments/kubernetes/values-amd-rocm.yaml');
+  const configmap = read('deployments/kubernetes/templates/configmap.yaml');
+  const deployment = read('deployments/kubernetes/templates/deployment.yaml');
+  const secret = read('deployments/kubernetes/templates/secret.yaml');
+  const pvc = read('deployments/kubernetes/templates/persistentvolumeclaim.yaml');
   const releaseDoc = read('docs/core/release-and-deployment.md');
 
   assert.match(
@@ -180,8 +180,8 @@ test('kubernetes deployment templates keep accelerator overlays and chart wiring
 });
 
 test('docker image, kubernetes chart, and server readiness routes share the same truthful readiness contract', () => {
-  const dockerfile = read('deploy/docker/Dockerfile');
-  const deployment = read('deploy/kubernetes/templates/deployment.yaml');
+  const dockerfile = read('deployments/docker/Dockerfile');
+  const deployment = read('deployments/kubernetes/templates/deployment.yaml');
   const healthRoute = read('packages/sdkwork-agentstudio-pc-server/src-host/src/http/routes/health.rs');
 
   assert.match(

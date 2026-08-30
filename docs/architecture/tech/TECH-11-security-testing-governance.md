@@ -132,7 +132,7 @@
 
 ### 10.3 Exposure-boundary freeze
 
-- The packaged deployment command surface is frozen to the real `deploy/docker/*` bundle layout in both docs and contract tests.
+- The packaged deployment command surface is frozen to the real `deployments/docker/*` bundle layout in both docs and contract tests.
 - Desktop bootstrap is allowed to read only `kernel.getInfo().localAiProxy` for persisted startup evidence.
 - Broader kernel/runtime authority in shell bootstrap still must come from the hosted readiness contract, not ad hoc `kernelInfo` reads.
 

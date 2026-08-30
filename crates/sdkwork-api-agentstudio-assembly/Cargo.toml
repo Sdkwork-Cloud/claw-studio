@@ -12,3 +12,4 @@ path = "src/lib.rs"
 axum = "0.8"
 tokio.workspace = true
 sdkwork-web-bootstrap.workspace = true
+sdkwork-web-core.workspace = true

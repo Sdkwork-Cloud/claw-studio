@@ -28,9 +28,9 @@ export function main() {
   );
   const packageJson = JSON.parse(read('package.json'));
   const workflow = read('.github/workflows/release-reusable.yml');
-  const kubernetesValues = read('deploy/kubernetes/values.yaml');
-  const kubernetesDeployment = read('deploy/kubernetes/templates/deployment.yaml');
-  const kubernetesReadme = read('deploy/kubernetes/README.md');
+  const kubernetesValues = read('deployments/kubernetes/values.yaml');
+  const kubernetesDeployment = read('deployments/kubernetes/templates/deployment.yaml');
+  const kubernetesReadme = read('deployments/kubernetes/README.md');
   const releaseDoc = read('docs/core/release-and-deployment.md');
   const packagerSource = read('scripts/release/package-release-assets.mjs');
   const runtimeSmokeReport = read(path.relative(rootDir, runtimeSmokeReportPath));

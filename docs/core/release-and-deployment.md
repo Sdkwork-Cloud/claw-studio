@@ -276,7 +276,7 @@ Deployment artifacts also carry aggregated deployment evidence because packaging
 
 - `deploymentSmoke`: the aggregated deployment smoke summary lifted from `release-smoke-report.json` for `container` and `kubernetes` artifacts
 - `deploymentSmoke.reportSha256` / `deploymentSmoke.reportSize` and `deploymentSmoke.manifestSha256` / `deploymentSmoke.manifestSize`: final-manifest bindings for the referenced deployment smoke report and partial manifest evidence files.
-- `deploymentSmoke.launcherRelativePath`: the packaged deployment launcher path, such as `deploy/docker/docker-compose.yml` or `chart/Chart.yaml`. When deployment smoke passed, it must be a canonical release-relative path; absolute paths, `..` traversal, drive-qualified paths, and non-canonical forms are rejected before the smoke report is written and revalidated before final release metadata is written.
+- `deploymentSmoke.launcherRelativePath`: the packaged deployment launcher path, such as `deployments/docker/docker-compose.yml` or `chart/Chart.yaml`. When deployment smoke passed, it must be a canonical release-relative path; absolute paths, `..` traversal, drive-qualified paths, and non-canonical forms are rejected before the smoke report is written and revalidated before final release metadata is written.
 - `deploymentSmoke.checks`: ordered deployment checks proving packaged container runtime-profile, Docker Compose credential and persistence contracts, Compose startup, container health, and runtime readiness for `container`, plus rendered chart image-reference, readiness, Secret wiring, and persistent-storage validation for `kubernetes`
 
 Deployment smoke is allowed to be either `passed` or structurally `skipped`. A skipped deployment report is valid only when it preserves a non-empty `skippedReason`, and it may also persist discovered host `capabilities` such as Docker, Docker Compose, Helm, or `kubectl`. Release finalization lifts that skipped state verbatim into `release-manifest.json` rather than flattening it into a false pass.
@@ -353,14 +353,14 @@ Container bundles package:
 The packaged Dockerfile launches `app/bin/agentstudio-server` directly so container startup stays aligned
 with the canonical bundled server entrypoint instead of routing through the optional shell wrapper.
 
-The source repository keeps the container templates under `deploy/docker/` for review and
+The source repository keeps the container templates under `deployments/docker/` for review and
 packaging input:
 
-- `deploy/docker/docker-compose.yml`
-- `deploy/docker/docker-compose.nvidia-cuda.yml`
-- `deploy/docker/docker-compose.amd-rocm.yml`
-- `deploy/docker/Dockerfile`
-- `deploy/docker/profiles/*`
+- `deployments/docker/docker-compose.yml`
+- `deployments/docker/docker-compose.nvidia-cuda.yml`
+- `deployments/docker/docker-compose.amd-rocm.yml`
+- `deployments/docker/Dockerfile`
+- `deployments/docker/profiles/*`
 
 Those source tree paths are not the final runnable release layout. Render the packaged layout
 locally with `pnpm release:package:container`, then run Docker Compose from the extracted bundle
@@ -368,33 +368,33 @@ root.
 
 Inside the extracted bundle root, the same deployment surface becomes:
 
-- `deploy/docker/docker-compose.yml`
-- `deploy/docker/docker-compose.nvidia-cuda.yml`
-- `deploy/docker/docker-compose.amd-rocm.yml`
-- `deploy/docker/Dockerfile`
-- `deploy/docker/profiles/*`
+- `deployments/docker/docker-compose.yml`
+- `deployments/docker/docker-compose.nvidia-cuda.yml`
+- `deployments/docker/docker-compose.amd-rocm.yml`
+- `deployments/docker/Dockerfile`
+- `deployments/docker/profiles/*`
 
-Inside that extracted bundle, `deploy/docker/docker-compose.yml` resolves env overlays from
-`deploy/docker/profiles/*` and treats the extracted bundle root as the Docker build context.
+Inside that extracted bundle, `deployments/docker/docker-compose.yml` resolves env overlays from
+`deployments/docker/profiles/*` and treats the extracted bundle root as the Docker build context.
 
 Base deployment from the extracted bundle root:
 
 ```bash
 export CLAW_SERVER_MANAGE_USERNAME=claw-admin
 export CLAW_SERVER_MANAGE_PASSWORD='replace-with-a-strong-secret'
-docker compose -f deploy/docker/docker-compose.yml up -d
+docker compose -f deployments/docker/docker-compose.yml up -d
 ```
 
 NVIDIA CUDA overlay:
 
 ```bash
-docker compose -f deploy/docker/docker-compose.yml -f deploy/docker/docker-compose.nvidia-cuda.yml up -d
+docker compose -f deployments/docker/docker-compose.yml -f deployments/docker/docker-compose.nvidia-cuda.yml up -d
 ```
 
 AMD ROCm overlay:
 
 ```bash
-docker compose -f deploy/docker/docker-compose.yml -f deploy/docker/docker-compose.amd-rocm.yml up -d
+docker compose -f deployments/docker/docker-compose.yml -f deployments/docker/docker-compose.amd-rocm.yml up -d
 ```
 
 The base compose file now requires an explicit manage credential pair before it will start the

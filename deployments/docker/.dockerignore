@@ -9,8 +9,8 @@ artifacts
 release-assets
 *.sha256.txt
 release-manifest.json
-deploy/docker/README.md
-deploy/kubernetes
+deployments/docker/README.md
+deployments/kubernetes
 scripts
 skills
 prompt

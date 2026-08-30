@@ -7,10 +7,10 @@ import type { InstanceChatRoute } from './instanceChatRouteService.ts';
 import { resolveAuthoritativeInstanceKernelChatAdapter } from './authoritativeKernelChatAdapter.ts';
 import { buildChatHttpRequestMessages } from './chatHttpMessagePayload.ts';
 import {
-  extractChatHttpPayloadTextFragments,
   extractChatHttpStreamTextDeltas,
   isLikelyChatHttpProtocolFrame,
 } from './chatHttpStreamProtocol.ts';
+import { streamOpenAiCompatibleRequest } from '../runtime/openAiCompatibleChatStream.ts';
 import { resolveKernelOwnedSessionId } from './chatSessionBinding.ts';
 import { resolveGatewayAuthoritativeKernelChat } from './kernelChatAuthorityPolicy.ts';
 import { resolveAuthoritativeInstanceChatRoute } from './store/index.ts';
@@ -87,125 +87,6 @@ export function buildContextualMessage(message: string, skill?: Skill, agent?: A
   }
 
   return contextPrefix ? `${contextPrefix}\nUser: ${message}` : message;
-}
-
-function extractFramePayloads(frame: string) {
-  const lines = frame
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const dataLines = lines
-    .filter((line) => line.startsWith('data:'))
-    .map((line) => line.slice(5).trim());
-
-  return dataLines.length > 0 ? dataLines : lines;
-}
-
-async function* streamHttpResponse(response: Response): AsyncGenerator<string, void, unknown> {
-  const contentType = response.headers.get('content-type') || '';
-
-  if (contentType.includes('application/json')) {
-    const payload = await response.json();
-    const fragments = extractChatHttpPayloadTextFragments(payload);
-    if (fragments.length > 0) {
-      for (const fragment of fragments) {
-        yield fragment;
-      }
-      return;
-    }
-
-    const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
-    if (text) {
-      yield text;
-    }
-    return;
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    return;
-  }
-
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-
-    const frames = buffer.split(/\r?\n\r?\n/);
-    buffer = frames.pop() || '';
-
-    for (const frame of frames) {
-      const fragments = extractChatHttpStreamTextDeltas(frame);
-      if (fragments.length > 0) {
-        for (const fragment of fragments) {
-          yield fragment;
-        }
-        continue;
-      }
-
-      for (const payloadText of extractFramePayloads(frame)) {
-        if (!payloadText || payloadText === '[DONE]') {
-          if (payloadText === '[DONE]') {
-            return;
-          }
-          continue;
-        }
-
-        if (payloadText.startsWith('event:') || payloadText.startsWith('data:')) {
-          continue;
-        }
-
-        yield payloadText;
-      }
-    }
-
-    if (done) {
-      break;
-    }
-  }
-
-  const trailing = buffer.trim();
-  if (!trailing) {
-    return;
-  }
-
-  for (const payloadText of extractFramePayloads(trailing)) {
-    if (!payloadText || payloadText === '[DONE]') {
-      continue;
-    }
-
-    const fragments = extractChatHttpStreamTextDeltas(payloadText);
-    if (fragments.length > 0) {
-      for (const fragment of fragments) {
-        yield fragment;
-      }
-      continue;
-    }
-
-    yield payloadText;
-  }
-}
-
-async function* streamOpenAiCompatibleRequest(
-  endpoint: string,
-  body: Record<string, unknown>,
-  headers: Record<string, string>,
-  abortSignal?: AbortSignal,
-): AsyncGenerator<string, void, unknown> {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers,
-    signal: abortSignal,
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(`API Error: ${response.status} ${response.statusText}`);
-  }
-
-  yield* streamHttpResponse(response);
 }
 
 function buildInstanceHeaders(instance: StudioInstanceRecord) {

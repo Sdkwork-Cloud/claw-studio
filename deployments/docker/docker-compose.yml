@@ -2,7 +2,7 @@ services:
   agentstudio-server:
     build:
       context: ../..
-      dockerfile: deploy/docker/Dockerfile
+      dockerfile: deployments/docker/Dockerfile
     image: sdkwork-agentstudio-pc-server:local
     restart: unless-stopped
     env_file:

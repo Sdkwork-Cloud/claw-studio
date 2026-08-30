@@ -451,7 +451,7 @@ function buildDeploymentSmokeReport({
   smokeKind = family === 'container' ? 'live-deployment' : 'chart-render',
   status = 'passed',
   artifactRelativePaths = [],
-  launcherRelativePath = family === 'container' ? 'deploy/docker/docker-compose.yml' : 'chart/Chart.yaml',
+  launcherRelativePath = family === 'container' ? 'deployments/docker/docker-compose.yml' : 'chart/Chart.yaml',
   runtimeBaseUrl = family === 'container' ? 'http://127.0.0.1:18797' : '',
   checks = buildDefaultDeploymentChecks(family),
   skippedReason = '',
@@ -3008,7 +3008,7 @@ test('release asset finalizer lifts deployment smoke metadata onto container and
         target: 'x86_64-unknown-linux-gnu',
         smokeKind: 'live-deployment',
         status: 'passed',
-        launcherRelativePath: 'deploy/docker/docker-compose.yml',
+        launcherRelativePath: 'deployments/docker/docker-compose.yml',
         runtimeBaseUrl: 'http://127.0.0.1:18797',
         artifactRelativePaths: [containerArchiveRelativePath],
         checks: [
