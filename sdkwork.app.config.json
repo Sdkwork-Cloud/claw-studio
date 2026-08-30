@@ -177,23 +177,6 @@
       "managedBy": "apps/scripts/initialize-sdkwork-app-standard-v3.mjs"
     }
   },
-  "environments": {
-    "development": {
-      "accessUrl": "https://api-dev.sdkwork.com/apps/sdkwork-agentstudio",
-      "deployEnv": "development",
-      "deployUrl": "https://api-dev.sdkwork.com/apps/sdkwork-agentstudio"
-    },
-    "test": {
-      "accessUrl": "https://api-test.sdkwork.com/apps/sdkwork-agentstudio",
-      "deployEnv": "test",
-      "deployUrl": "https://api-test.sdkwork.com/apps/sdkwork-agentstudio"
-    },
-    "production": {
-      "accessUrl": "https://api.sdkwork.com/apps/sdkwork-agentstudio",
-      "deployEnv": "production",
-      "deployUrl": "https://api.sdkwork.com/apps/sdkwork-agentstudio"
-    }
-  },
   "artifacts": {
     "installConfig": {
       "defaultPackageId": "web-universal-cloud-browser-zip",

@@ -18,7 +18,8 @@
         "development",
         "test",
         "staging",
-        "production"
+        "production",
+        "demo"
       ]
     },
     "connectivityPlane": {
@@ -43,7 +44,9 @@
     "cloud.development": "etc/topology/cloud.development.env",
     "cloud.test": "etc/topology/cloud.test.env",
     "cloud.staging": "etc/topology/cloud.staging.env",
-    "cloud.production": "etc/topology/cloud.production.env"
+    "cloud.production": "etc/topology/cloud.production.env",
+    "standalone.demo": "etc/topology/standalone.demo.env",
+    "cloud.demo": "etc/topology/cloud.demo.env"
   },
   "envKeys": {
     "deploymentProfile": "SDKWORK_AGENTSTUDIO_DEPLOYMENT_PROFILE",
@@ -152,6 +155,24 @@
             "agentstudio-staging.86offer.com",
             "agentstudio-staging.86offer.cn"
           ]
+        },
+        "demo": {
+          "httpHosts": [
+            "agentstudio-demo.sdkwork.com",
+            "agentstudio-demo.birdcoder.com",
+            "agentstudio-demo.dtupay.com",
+            "agentstudio-demo.sdkwork.cn",
+            "agentstudio-demo.birdcoder.cn",
+            "agentstudio-demo.dtupay.cn",
+            "agentstudio-demo.skubc.com",
+            "agentstudio-demo.skubc.cn",
+            "agentstudio-demo.zowalk.com",
+            "agentstudio-demo.zowalk.cn",
+            "agentstudio-demo.offer86.com",
+            "agentstudio-demo.offer86.cn",
+            "agentstudio-demo.86offer.com",
+            "agentstudio-demo.86offer.cn"
+          ]
         }
       },
       "httpHosts": [
@@ -226,6 +247,24 @@
             "api-staging.offer86.cn",
             "api-staging.86offer.com",
             "api-staging.86offer.cn"
+          ]
+        },
+        "demo": {
+          "httpHosts": [
+            "api-demo.sdkwork.com",
+            "api-demo.birdcoder.com",
+            "api-demo.dtupay.com",
+            "api-demo.sdkwork.cn",
+            "api-demo.birdcoder.cn",
+            "api-demo.dtupay.cn",
+            "api-demo.skubc.com",
+            "api-demo.skubc.cn",
+            "api-demo.zowalk.com",
+            "api-demo.zowalk.cn",
+            "api-demo.offer86.com",
+            "api-demo.offer86.cn",
+            "api-demo.86offer.com",
+            "api-demo.86offer.cn"
           ]
         }
       },
@@ -302,6 +341,24 @@
             "agentstudio-app-staging.86offer.com",
             "agentstudio-app-staging.86offer.cn"
           ]
+        },
+        "demo": {
+          "httpHosts": [
+            "agentstudio-app-demo.sdkwork.com",
+            "agentstudio-app-demo.birdcoder.com",
+            "agentstudio-app-demo.dtupay.com",
+            "agentstudio-app-demo.sdkwork.cn",
+            "agentstudio-app-demo.birdcoder.cn",
+            "agentstudio-app-demo.dtupay.cn",
+            "agentstudio-app-demo.skubc.com",
+            "agentstudio-app-demo.skubc.cn",
+            "agentstudio-app-demo.zowalk.com",
+            "agentstudio-app-demo.zowalk.cn",
+            "agentstudio-app-demo.offer86.com",
+            "agentstudio-app-demo.offer86.cn",
+            "agentstudio-app-demo.86offer.com",
+            "agentstudio-app-demo.86offer.cn"
+          ]
         }
       },
       "httpHosts": [
@@ -376,6 +433,24 @@
             "agentstudio-admin-staging.offer86.cn",
             "agentstudio-admin-staging.86offer.com",
             "agentstudio-admin-staging.86offer.cn"
+          ]
+        },
+        "demo": {
+          "httpHosts": [
+            "agentstudio-admin-demo.sdkwork.com",
+            "agentstudio-admin-demo.birdcoder.com",
+            "agentstudio-admin-demo.dtupay.com",
+            "agentstudio-admin-demo.sdkwork.cn",
+            "agentstudio-admin-demo.birdcoder.cn",
+            "agentstudio-admin-demo.dtupay.cn",
+            "agentstudio-admin-demo.skubc.com",
+            "agentstudio-admin-demo.skubc.cn",
+            "agentstudio-admin-demo.zowalk.com",
+            "agentstudio-admin-demo.zowalk.cn",
+            "agentstudio-admin-demo.offer86.com",
+            "agentstudio-admin-demo.offer86.cn",
+            "agentstudio-admin-demo.86offer.com",
+            "agentstudio-admin-demo.86offer.cn"
           ]
         }
       },
@@ -574,6 +649,14 @@
         ]
       },
       "cloud.staging": {
+        "processes": [],
+        "healthSurfaces": []
+      },
+      "standalone.demo": {
+        "processes": [],
+        "healthSurfaces": []
+      },
+      "cloud.demo": {
         "processes": [],
         "healthSurfaces": []
       }
