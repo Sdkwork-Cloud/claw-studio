@@ -4550,6 +4550,7 @@ dependencies = [
  "sdkwork-web-core",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "tokio",
  "tower",
  "tracing",
@@ -4621,6 +4622,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "sdkwork-web-bootstrap",
+ "sdkwork-web-core",
  "tokio",
 ]
 
@@ -4671,7 +4673,6 @@ dependencies = [
  "serde_json",
  "sqlx 0.9.0",
  "thiserror 2.0.18",
- "tokio",
  "tracing",
 ]
 
