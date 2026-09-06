@@ -23,6 +23,7 @@
     "build:web": "sdkwork-run-pnpm prepare:shared-sdk && sdkwork-run-pnpm --filter @sdkwork/agentstudio-pc-web build",
     "build:dev": "sdkwork-run-pnpm prepare:shared-sdk && sdkwork-run-pnpm --filter @sdkwork/agentstudio-pc-web run build:dev",
     "build:test": "sdkwork-run-pnpm prepare:shared-sdk && sdkwork-run-pnpm --filter @sdkwork/agentstudio-pc-web run build:test",
+    "build:demo": "sdkwork-run-pnpm prepare:shared-sdk && sdkwork-run-pnpm --filter @sdkwork/agentstudio-pc-web run build:prod",
     "build:prod": "sdkwork-run-pnpm prepare:shared-sdk && sdkwork-run-pnpm --filter @sdkwork/agentstudio-pc-web run build:prod",
     "build:desktop:host": "sdkwork-run-pnpm --dir packages/sdkwork-agentstudio-pc-desktop build:prod",
     "build:desktop": "sdkwork-run-pnpm --dir packages/sdkwork-agentstudio-pc-desktop build:desktop:prod",
